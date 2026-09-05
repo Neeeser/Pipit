@@ -3396,7 +3396,7 @@ public actor ProcessingPipeline {
         // for good. `.human` outranks everything and is never overwritten.
         if let account,
            try await person(named: trimmed) == nil,
-           let bound = try await store.identity(handle: account.handle, provider: account.provider),
+           let bound = await store.identity(handle: account.handle, provider: account.provider),
            bound.resolvedName.isEmpty
                || bound.resolvedName.caseInsensitiveCompare(trimmed) == .orderedSame
                || bound.aliases.contains(where: {

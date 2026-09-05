@@ -55,12 +55,13 @@ public final class TrackAudioReader {
             ) else { return nil }
 
             var conversionError: NSError?
-            let status = converter.convert(to: output, error: &conversionError) { [weak self] _, statusPointer in
-                guard let self else {
-                    statusPointer.pointee = .endOfStream
-                    return nil
-                }
-                return nextInputBuffer(statusPointer)
+            // The converter calls the input block synchronously on this thread,
+            // but the block is typed `@Sendable`. The reader is not `Sendable`,
+            // so it reaches the block through the box, which serialises the one
+            // call the block makes.
+            let source = LockedBox(self)
+            let status = converter.convert(to: output, error: &conversionError) { _, statusPointer in
+                source.withLock { reader in reader.nextInputBuffer(statusPointer) }
             }
 
             if let conversionError {
