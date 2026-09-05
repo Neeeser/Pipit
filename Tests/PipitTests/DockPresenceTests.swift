@@ -4,7 +4,7 @@ import PipitCore
 import PipitServices
 import PipitUI
 import PipitTestSupport
-import TestKit
+import Testing
 
 /// Whether Pipit takes a Dock slot, and what it costs when it does not.
 ///
@@ -13,34 +13,33 @@ import TestKit
 /// the prompt was covering once the prompt closed, with no Dock icon and no app
 /// switcher entry to reach it. A window on screen now makes Pipit a regular
 /// application for as long as it is open.
-enum DockPresenceTests {
-    static var suite: Suite {
-        Suite("DockPresence", [
-            test("an open window puts Pipit in the Dock whatever the setting says") { expect in
-                expect.equal(
-                    DockPresence.policy(showsDockIcon: false, hasOpenWindow: true), .regular,
-                    "a window open with the setting off"
-                )
-                expect.equal(
-                    DockPresence.policy(showsDockIcon: true, hasOpenWindow: false), .regular,
-                    "the setting on with nothing open"
-                )
-                expect.equal(
-                    DockPresence.policy(showsDockIcon: true, hasOpenWindow: true), .regular,
-                    "both"
-                )
-                expect.equal(
-                    DockPresence.policy(showsDockIcon: false, hasOpenWindow: false), .accessory,
-                    "menu bar only when there is nothing to keep reachable"
-                )
-            },
-            test("opening the wizard asks for the Dock, and closing it gives it back") { expect in
-                try await theWindowDrivesThePolicy(expect)
-            },
-            test("the keep-or-discard prompt does not ask for the Dock") { expect in
-                try await theProvisionalPromptLeavesThePolicyAlone(expect)
-            },
-        ])
+@Suite("DockPresence")
+struct DockPresenceTests {
+    @Test("an open window puts Pipit in the Dock whatever the setting says")
+    func anOpenWindowPutsPipitInTheDockWhateverTheSettingSays() async throws {
+        #expect(
+            DockPresence.policy(showsDockIcon: false, hasOpenWindow: true) == .regular,
+            "a window open with the setting off"
+        )
+        #expect(
+            DockPresence.policy(showsDockIcon: true, hasOpenWindow: false) == .regular,
+            "the setting on with nothing open"
+        )
+        #expect(DockPresence.policy(showsDockIcon: true, hasOpenWindow: true) == .regular, "both")
+        #expect(
+            DockPresence.policy(showsDockIcon: false, hasOpenWindow: false) == .accessory,
+            "menu bar only when there is nothing to keep reachable"
+        )
+    }
+
+    @Test("opening the wizard asks for the Dock, and closing it gives it back")
+    func openingTheWizardAsksForTheDockAndClosingItGivesItBack() async throws {
+        try await Self.theWindowDrivesThePolicy()
+    }
+
+    @Test("the keep-or-discard prompt does not ask for the Dock")
+    func theKeepOrDiscardPromptDoesNotAskForTheDock() async throws {
+        try await Self.theProvisionalPromptLeavesThePolicyAlone()
     }
 
     /// Holds what the window manager asked for.
@@ -62,24 +61,24 @@ enum DockPresenceTests {
     }
 
     @MainActor
-    private static func theWindowDrivesThePolicy(_ expect: Expect) async throws {
+    private static func theWindowDrivesThePolicy() async throws {
         let root = try TestPaths.makeTemporaryDirectory()
         let recorder = Recorder()
         let windows = makeWindows(root: root, into: recorder)
 
         windows.showSetup()
-        expect.isTrue(windows.hasOpenWindow, "the wizard counts as open")
-        expect.equal(recorder.policies.last, .regular, "and asks for a Dock icon")
+        #expect(windows.hasOpenWindow, "the wizard counts as open")
+        #expect(recorder.policies.last == .regular, "and asks for a Dock icon")
 
         windows.closeSetup()
         // `willClose` is delivered on the main queue rather than inside `close()`.
         await Task.yield()
-        expect.isFalse(windows.hasOpenWindow, "closing it is noticed")
-        expect.equal(recorder.policies.last, .accessory, "and the Dock slot goes back")
+        #expect(!windows.hasOpenWindow, "closing it is noticed")
+        #expect(recorder.policies.last == .accessory, "and the Dock slot goes back")
     }
 
     @MainActor
-    private static func theProvisionalPromptLeavesThePolicyAlone(_ expect: Expect) async throws {
+    private static func theProvisionalPromptLeavesThePolicyAlone() async throws {
         let root = try TestPaths.makeTemporaryDirectory()
         let recorder = Recorder()
         let windows = makeWindows(root: root, into: recorder)
@@ -90,10 +89,11 @@ enum DockPresenceTests {
                 applicationName: "Caller", title: nil
             )
         )
-        expect.isFalse(
-            windows.hasOpenWindow, "it floats above everything and is answered where it stands"
+        #expect(
+            !windows.hasOpenWindow,
+            "it floats above everything and is answered where it stands"
         )
-        expect.isTrue(recorder.policies.isEmpty, "so it never asks for a Dock icon")
+        #expect(recorder.policies.isEmpty, "so it never asks for a Dock icon")
         windows.closeProvisionalPrompt()
     }
 }

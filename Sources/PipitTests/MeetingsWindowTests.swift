@@ -1304,7 +1304,7 @@ enum MeetingsWindowTests {
         expect.equal(model.selection, [created.metadata.id])
         expect.equal(model.detail?.meetingID, created.metadata.id)
         expect.equal(model.detail?.title, "Voice memo")
-        UITests.render(
+        ViewFixtures.render(
             MeetingsWindowView(model: model), size: NSSize(width: 1_120, height: 720)
         )
     }
