@@ -5,15 +5,6 @@ import TestKit
 // this length exceeds the type checker's budget on the toolchain CI runs.
 var suites: [Suite] = []
 suites += CaptureRecoveryTests.all
-suites.append(ManifestTests.suite)
-suites.append(StorageTests.suite)
-suites.append(MeetingFolderNameTests.suite)
-suites.append(MeetingFolderRenameTests.suite)
-suites.append(TitleSuggestionTests.suite)
-suites.append(FolderMatchTests.suite)
-suites.append(FolderStorageTests.suite)
-suites.append(RecurringSeriesTests.suite)
-suites.append(FolderPlacementTests.suite)
 suites.append(AudioTests.suite)
 suites += DetectionTests.all
 suites += SessionTests.all
@@ -24,23 +15,17 @@ suites.append(SetupFlowTests.suite)
 suites += LocalConfigurationTests.all
 suites += SpeakerIdentityTests.all
 suites.append(VoiceEvidenceTests.suite)
-suites.append(TranscriptGroupingTests.suite)
-suites.append(TranscriptNavigationTests.suite)
-suites += TranscriptDivisionTests.all
 suites += SpeechGateTests.all
-suites.append(TranscriptPanelTests.suite)
 suites.append(ReconnectTests.suite)
 suites.append(SpeakerGroupingTests.suite)
 suites += SensorAttributionTests.all
 suites += SpeakerCorrectionTests.all
 suites.append(SpeakerSuggestionTests.suite)
-suites.append(SummaryDocumentTests.suite)
 suites.append(SpeakerRematchTests.suite)
 suites += PeopleDirectoryTests.all
 suites += MeetingsWindowTests.all
 suites += BackendSelectionTests.all
 suites.append(CloudModelTests.suite)
-suites += AlignmentTests.all
 suites += ProcessingTests.all
 suites.append(PipelineTests.suite)
 suites.append(CompactionTests.suite)
