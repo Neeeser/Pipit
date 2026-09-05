@@ -94,19 +94,10 @@ APPLE_APP_PASSWORD="app-password" \
 
 `scripts/package.sh` preserves the application signature in both archives.
 
-## Update Homebrew
+## Install route
 
-After the GitHub release is public, update the `pipit` cask with the new version,
-release URL, and ZIP checksum. The cask must leave `~/Documents/Pipit` intact
-when it removes application support files.
-
-Verify the published cask with:
-
-```sh
-brew update
-brew install --cask pipit
-brew uninstall --cask pipit
-```
+The disk image on the GitHub release is the install route. A Homebrew cask is a
+future step once the first release is published.
 
 ## Browser extension
 

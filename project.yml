@@ -35,9 +35,6 @@ targets:
     platform: macOS
     sources:
       - path: Sources/PipitApp
-      # Listed one by one because MenuBarController loads the images by name
-      # from the top level of Contents/Resources, and the `-source` originals
-      # must not ship.
       # Carried in the navigator, not compiled. XcodeGen's `info` and
       # `entitlements` keys would rewrite these two files on every generate,
       # so the paths are given as build settings instead.
@@ -45,6 +42,9 @@ targets:
         buildPhase: none
       - path: App/Pipit.entitlements
         buildPhase: none
+      # Listed one by one because MenuBarController loads the images by name
+      # from the top level of Contents/Resources, and the `-source` originals
+      # must not ship.
       - path: Assets/Pipit/AppIcons/Pipit.icns
         buildPhase: resources
       - path: Assets/Pipit/MenuBar/pipit-idle.png
