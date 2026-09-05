@@ -16,14 +16,17 @@ struct FoldersSettingsPane: View {
         Form {
             Section("Suggestions") {
                 Toggle("Suggest a folder when a meeting finishes", isOn: binding(\.suggestFolders))
-                Picker("How far a suggestion may reach", selection: Binding(
-                    get: { runtime.settings.enrichment.folderReach },
-                    set: { newValue in
-                        var settings = runtime.settings
-                        settings.enrichment.folderReach = newValue
-                        runtime.update(settings: settings)
-                    }
-                )) {
+                Picker(
+                    "How far a suggestion may reach",
+                    selection: Binding(
+                        get: { runtime.settings.enrichment.folderReach },
+                        set: { newValue in
+                            var settings = runtime.settings
+                            settings.enrichment.folderReach = newValue
+                            runtime.update(settings: settings)
+                        }
+                    )
+                ) {
                     ForEach(SuggestionReach.allCases) { reach in
                         VStack(alignment: .leading, spacing: 1) {
                             Text(reach.label)
@@ -102,15 +105,18 @@ struct FoldersSettingsPane: View {
                     .lineLimit(2)
             }
             Spacer(minLength: 8)
-            Toggle("", isOn: Binding(
-                get: { folder.filesAutomatically },
-                set: { newValue in
-                    var updated = folder
-                    updated.filesAutomatically = newValue
-                    try? runtime.updateFolder(updated)
-                    folders = runtime.folders()
-                }
-            ))
+            Toggle(
+                "",
+                isOn: Binding(
+                    get: { folder.filesAutomatically },
+                    set: { newValue in
+                        var updated = folder
+                        updated.filesAutomatically = newValue
+                        try? runtime.updateFolder(updated)
+                        folders = runtime.folders()
+                    }
+                )
+            )
             .toggleStyle(.switch)
             .labelsHidden()
             .disabled(folder.rule.isEmpty || !runtime.settings.enrichment.filesMatchingMeetings)

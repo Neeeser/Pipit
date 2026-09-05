@@ -49,7 +49,8 @@ struct StorageTests {
             FileManager.default.fileExists(atPath: putBack.path),
             "the meeting somebody put back is left where it is"
         )
-        #expect(FileManager.default.fileExists(
+        #expect(
+            FileManager.default.fileExists(
                 atPath: putBack.appendingPathComponent("kept").path
             ) == false, "and nothing was written into it")
 
@@ -62,7 +63,8 @@ struct StorageTests {
             "a coarse clock does not turn scrap into a meeting"
         )
 
-        #expect(RecreatedFolder.discard(
+        #expect(
+            RecreatedFolder.discard(
                 at: root.appendingPathComponent("nothing"), writtenAfter: movedAt
             ) == .absent)
     }
@@ -227,22 +229,30 @@ struct StorageTests {
 
         // One closed segment, one that was still open when the process died.
         let writer = try ManifestWriter(url: created.store.layout.manifest)
-        writer.append(.sessionStart(.init(
-            meetingID: metadata.id, source: .slackHuddle, segmentSeconds: 30,
-            appVersion: "1.0.0", processID: 42
-        )))
-        writer.append(.segmentOpen(.init(
-            track: .mic, index: 1, file: "mic.0001.caf", firstFrameHostTime: 1,
-            startFrame: 0, sampleRate: 48_000, channelCount: 1, reason: "start"
-        )))
-        writer.append(.segmentClose(.init(
-            track: .mic, index: 1, frameCount: 1_440_000, byteCount: 5_760_000,
-            seconds: 30, firstFrameHostTime: 1, reason: "rotate"
-        )))
-        writer.append(.segmentOpen(.init(
-            track: .mic, index: 2, file: "mic.0002.caf", firstFrameHostTime: 31,
-            startFrame: 1_440_000, sampleRate: 48_000, channelCount: 1, reason: "rotate"
-        )))
+        writer.append(
+            .sessionStart(
+                .init(
+                    meetingID: metadata.id, source: .slackHuddle, segmentSeconds: 30,
+                    appVersion: "1.0.0", processID: 42
+                )))
+        writer.append(
+            .segmentOpen(
+                .init(
+                    track: .mic, index: 1, file: "mic.0001.caf", firstFrameHostTime: 1,
+                    startFrame: 0, sampleRate: 48_000, channelCount: 1, reason: "start"
+                )))
+        writer.append(
+            .segmentClose(
+                .init(
+                    track: .mic, index: 1, frameCount: 1_440_000, byteCount: 5_760_000,
+                    seconds: 30, firstFrameHostTime: 1, reason: "rotate"
+                )))
+        writer.append(
+            .segmentOpen(
+                .init(
+                    track: .mic, index: 2, file: "mic.0002.caf", firstFrameHostTime: 31,
+                    startFrame: 1_440_000, sampleRate: 48_000, channelCount: 1, reason: "rotate"
+                )))
         writer.close()
 
         // The surviving CAF tail on disk, plus a system segment the manifest
@@ -308,10 +318,12 @@ struct StorageTests {
             source: .manual, provider: .unknown, startedAt: started, now: started
         )
         let writer = try ManifestWriter(url: created.store.layout.manifest)
-        writer.append(.sessionStart(.init(
-            meetingID: created.metadata.id, source: .manual, segmentSeconds: 30,
-            appVersion: "1.0.0", processID: 7
-        )))
+        writer.append(
+            .sessionStart(
+                .init(
+                    meetingID: created.metadata.id, source: .manual, segmentSeconds: 30,
+                    appVersion: "1.0.0", processID: 7
+                )))
         writer.close()
 
         let scanner = RecoveryScanner(
@@ -352,8 +364,10 @@ struct StorageTests {
     func processingStateKnowsWhatIsSafeAfterAudioSafe() async throws {
         #expect(!ProcessingState.recording.isAudioSafe)
         #expect(!ProcessingState.finalizing.isAudioSafe)
-        for state in [ProcessingState.audioSafe, .transcribing, .diarizing,
-                      .resolvingSpeakers, .enriching, .complete, .failed] {
+        for state in [
+            ProcessingState.audioSafe, .transcribing, .diarizing,
+            .resolvingSpeakers, .enriching, .complete, .failed,
+        ] {
             #expect(state.isAudioSafe, "\(state) should be past the audio-safe boundary")
         }
     }

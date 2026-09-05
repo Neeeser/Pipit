@@ -50,7 +50,8 @@ public final class StubLocalTranscriber: TranscriptionBackend, @unchecked Sendab
             }
         }
         progress(1)
-        let spoken = audio.lastPathComponent.hasPrefix(CaptureTrack.mic.rawValue)
+        let spoken =
+            audio.lastPathComponent.hasPrefix(CaptureTrack.mic.rawValue)
             ? (micSegments ?? segments) : segments
         return TranscriptionOutput(
             segments: spoken, text: spoken.map(\.text).joined(separator: " "),
@@ -160,19 +161,22 @@ public enum PipelineFixtures {
         )
 
         let manifest = try ManifestWriter(url: created.store.layout.manifest)
-        manifest.append(.sessionStart(.init(
-            meetingID: created.metadata.id, source: source, segmentSeconds: 30,
-            appVersion: "test", processID: 1
-        )))
+        manifest.append(
+            .sessionStart(
+                .init(
+                    meetingID: created.metadata.id, source: source, segmentSeconds: 30,
+                    appVersion: "test", processID: 1
+                )))
         let format = AVAudioFormat(standardFormatWithSampleRate: 48_000, channels: 1)!
         let micWriter = SegmentWriter(
             track: .mic, layout: created.store.layout, manifest: manifest,
             format: format, segmentSeconds: 30
         )
-        micWriter.enqueueSynchronously(AudioBufferPacket(
-            buffer: AudioFixtures.makeTone(seconds: seconds, sampleRate: 48_000, amplitude: amplitude),
-            hostTime: 100
-        ))
+        micWriter.enqueueSynchronously(
+            AudioBufferPacket(
+                buffer: AudioFixtures.makeTone(seconds: seconds, sampleRate: 48_000, amplitude: amplitude),
+                hostTime: 100
+            ))
         micWriter.finish(reason: "test")
 
         if source.capturesRemoteAudio {
@@ -180,12 +184,13 @@ public enum PipelineFixtures {
                 track: .remote, layout: created.store.layout, manifest: manifest,
                 format: format, segmentSeconds: 30
             )
-            remoteWriter.enqueueSynchronously(AudioBufferPacket(
-                buffer: AudioFixtures.makeTone(
-                    seconds: seconds, sampleRate: 48_000, frequency: 220, amplitude: amplitude
-                ),
-                hostTime: 100 + remoteStartOffset
-            ))
+            remoteWriter.enqueueSynchronously(
+                AudioBufferPacket(
+                    buffer: AudioFixtures.makeTone(
+                        seconds: seconds, sampleRate: 48_000, frequency: 220, amplitude: amplitude
+                    ),
+                    hostTime: 100 + remoteStartOffset
+                ))
             remoteWriter.finish(reason: "test")
         }
         manifest.append(.sessionEnd(.init(reason: "test", micSeconds: seconds, remoteSeconds: seconds)))
@@ -194,9 +199,11 @@ public enum PipelineFixtures {
         var metadata = created.metadata
         metadata.endedAt = started.addingTimeInterval(seconds)
         metadata.durationSeconds = seconds
-        metadata.runs = [RecordingRun(
-            id: "run-001", startedAt: started, endedAt: metadata.endedAt, durationSeconds: seconds
-        )]
+        metadata.runs = [
+            RecordingRun(
+                id: "run-001", startedAt: started, endedAt: metadata.endedAt, durationSeconds: seconds
+            )
+        ]
         metadata.processing = ProcessingStatus(state: .audioSafe, updatedAt: started)
         try created.store.writeMetadata(metadata)
         return (metadata, created.store, repository)

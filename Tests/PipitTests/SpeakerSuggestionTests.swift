@@ -123,9 +123,9 @@ struct SpeakerSuggestionTests {
         // Every meeting already on disk lacks this key. Decoding one as
         // a failure would make the whole archive unreadable.
         let json = """
-        {"state":"complete","updatedAt":"2026-08-26T16:00:29.792Z",
-         "attempts":{"enriching":1},"completedStages":["recording","enriching"]}
-        """
+            {"state":"complete","updatedAt":"2026-08-26T16:00:29.792Z",
+             "attempts":{"enriching":1},"completedStages":["recording","enriching"]}
+            """
         let status = try ArchiveCoding.decode(
             ProcessingStatus.self, from: Data(json.utf8), path: "metadata.json"
         )

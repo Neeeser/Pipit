@@ -32,10 +32,13 @@ struct SpeakerGroupingTests {
             Self.member("remote-001_speaker_02", "Bryn Callister", participant: "U06"),
             Self.member("sensor_U06", "Bryn Callister", participant: "U06"),
         ])
-        #expect(Self.keys(groups) == [[
-            "remote-001_speaker_00", "remote-001_speaker_01",
-            "remote-001_speaker_02", "sensor_U06",
-        ]])
+        #expect(
+            Self.keys(groups) == [
+                [
+                    "remote-001_speaker_00", "remote-001_speaker_01",
+                    "remote-001_speaker_02", "sensor_U06",
+                ]
+            ])
     }
 
     @Test("two accounts in one meeting stay two people")
@@ -46,10 +49,11 @@ struct SpeakerGroupingTests {
             Self.member("remote-001_speaker_02", "Bryn Callister", participant: "U06"),
             Self.member("remote-001_speaker_03", "Rowan Ashby", participant: "U0B"),
         ])
-        #expect(Self.keys(groups) == [
-            ["remote-001_speaker_00", "remote-001_speaker_03"],
-            ["remote-001_speaker_01", "remote-001_speaker_02"],
-        ])
+        #expect(
+            Self.keys(groups) == [
+                ["remote-001_speaker_00", "remote-001_speaker_03"],
+                ["remote-001_speaker_01", "remote-001_speaker_02"],
+            ])
     }
 
     @Test("clusters matched to one voice profile are one person")
@@ -70,9 +74,12 @@ struct SpeakerGroupingTests {
             Self.member("remote-001_speaker_01", "Ada Lovelace", identity: 4),
             Self.member("sensor_U06", "Ada Lovelace", identity: 4, participant: "U06"),
         ])
-        #expect(Self.keys(groups) == [[
-            "remote-001_speaker_00", "remote-001_speaker_01", "sensor_U06",
-        ]])
+        #expect(
+            Self.keys(groups) == [
+                [
+                    "remote-001_speaker_00", "remote-001_speaker_01", "sensor_U06",
+                ]
+            ])
     }
 
     // A name is the weakest of the three and still enough. Two chips

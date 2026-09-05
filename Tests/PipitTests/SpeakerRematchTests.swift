@@ -269,10 +269,11 @@ struct SpeakerRematchTests {
         let meeting = try PipelineFixtures.makeRecordedMeeting(root: root)
         let key = "remote-001_speaker_00"
 
-        try meeting.store.writeCanonicalTranscript(CanonicalTranscript(
-            generatedAt: Date(timeIntervalSince1970: 1_700_000_000),
-            utterances: [PeopleFixtures.utterance(key, "We ship Friday.", at: 0)]
-        ))
+        try meeting.store.writeCanonicalTranscript(
+            CanonicalTranscript(
+                generatedAt: Date(timeIntervalSince1970: 1_700_000_000),
+                utterances: [PeopleFixtures.utterance(key, "We ship Friday.", at: 0)]
+            ))
         // No speaker map entry, which is the state a seeded voice leaves
         // behind.
         try meeting.store.writeSpeakerMap(SpeakerMap())

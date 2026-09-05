@@ -96,7 +96,8 @@ public enum ProcessingError: LogSafeError, Equatable {
         case .rateLimited, .serverError, .transport, .emptyTranscript, .degenerateTranscript: true
         case .localProcessingFailed(_, let retryable): retryable
         case .missingAPIKey, .authenticationFailed, .requestTooLarge, .durationTooLong,
-             .malformedResponse, .audioUnreadable, .utteranceNotFound, .cancelled: false
+            .malformedResponse, .audioUnreadable, .utteranceNotFound, .cancelled:
+            false
         }
     }
 

@@ -406,12 +406,14 @@ public enum BenchScorer {
             current.reserveCapacity(hypothesis.count + 1)
             for (column, hypothesisToken) in hypothesis.enumerated() {
                 var best = min(current[column] + 1, previous[column + 1] + 1)
-                let plausible = collar.map {
-                    hypothesisToken.start <= referenceToken.end + $0
-                        && referenceToken.start <= hypothesisToken.end + $0
-                } ?? true
+                let plausible =
+                    collar.map {
+                        hypothesisToken.start <= referenceToken.end + $0
+                            && referenceToken.start <= hypothesisToken.end + $0
+                    } ?? true
                 if plausible {
-                    let diagonal = previous[column]
+                    let diagonal =
+                        previous[column]
                         + (referenceToken.text == hypothesisToken.text ? 0 : 1)
                     best = min(best, diagonal)
                 }

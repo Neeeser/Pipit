@@ -283,32 +283,33 @@ public enum EchoMeasurement: Sendable, Equatable {
         let classes = WindowClass.allCases.map { summarize($0, grouped[$0] ?? []) }
         let active = judgement.activeWindows
 
-        return .measured(Report(
-            seconds: Double(pass.frames) / EchoCancellationPass.readFormat.sampleRate,
-            windowSeconds: EchoCancellationPass.windowSeconds,
-            windowCount: log.count,
-            farEndFloorDBFS: farEndFloorDBFS,
-            microphoneFloorDBFS: microphoneFloor,
-            microphoneQuietWindowDBFS: quiet,
-            referenceOffsetSeconds: offset,
-            referenceOffsetIsOverride: referenceOffset != nil,
-            classes: classes,
-            windowLog: log,
-            notableLossDB: notableLossDB,
-            reportedEnhancementMedianDB: active == 0 ? nil : judgement.reportedMedianDB,
-            farEndActiveWindows: active,
-            farEndDutyCycle: log.isEmpty ? 0 : Double(active) / Double(log.count),
-            minimumActiveWindows: EchoCancellationPass.minimumActiveWindows,
-            userWindowsJudged: judgement.userWindows,
-            userHarmMedianDB: judgement.userHarmMedianDB,
-            userHarmShare: judgement.userHarmShare,
-            minimumUserWindows: EchoCancellationPass.minimumUserWindows,
-            harmMedianLimitDB: EchoCancellationPass.harmMedianLimitDB,
-            harmNotableLossDB: EchoCancellationPass.notableLossDB,
-            harmShareLimit: EchoCancellationPass.harmShareLimit,
-            decision: judgement.outcome,
-            decisionReason: judgement.reason
-        ))
+        return .measured(
+            Report(
+                seconds: Double(pass.frames) / EchoCancellationPass.readFormat.sampleRate,
+                windowSeconds: EchoCancellationPass.windowSeconds,
+                windowCount: log.count,
+                farEndFloorDBFS: farEndFloorDBFS,
+                microphoneFloorDBFS: microphoneFloor,
+                microphoneQuietWindowDBFS: quiet,
+                referenceOffsetSeconds: offset,
+                referenceOffsetIsOverride: referenceOffset != nil,
+                classes: classes,
+                windowLog: log,
+                notableLossDB: notableLossDB,
+                reportedEnhancementMedianDB: active == 0 ? nil : judgement.reportedMedianDB,
+                farEndActiveWindows: active,
+                farEndDutyCycle: log.isEmpty ? 0 : Double(active) / Double(log.count),
+                minimumActiveWindows: EchoCancellationPass.minimumActiveWindows,
+                userWindowsJudged: judgement.userWindows,
+                userHarmMedianDB: judgement.userHarmMedianDB,
+                userHarmShare: judgement.userHarmShare,
+                minimumUserWindows: EchoCancellationPass.minimumUserWindows,
+                harmMedianLimitDB: EchoCancellationPass.harmMedianLimitDB,
+                harmNotableLossDB: EchoCancellationPass.notableLossDB,
+                harmShareLimit: EchoCancellationPass.harmShareLimit,
+                decision: judgement.outcome,
+                decisionReason: judgement.reason
+            ))
     }
 
     private static func classify(

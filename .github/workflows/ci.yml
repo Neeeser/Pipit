@@ -36,6 +36,11 @@ jobs:
           swift --version
           xcodebuild -version || true
 
+      - name: Lint
+        # Style only. It fails on any file that has not been run through
+        # scripts/format.sh.
+        run: ./scripts/lint.sh
+
       - name: Build (debug)
         run: ./scripts/build.sh debug
 

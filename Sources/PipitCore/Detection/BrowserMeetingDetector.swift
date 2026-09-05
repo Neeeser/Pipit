@@ -112,7 +112,8 @@ public enum BrowserWindowTitle {
                 return Parsed(provider: .zoom, meetingID: nil, title: nil, isLanding: true)
             }
             // Zoom's browser title carries the meeting name, not the numeric ID.
-            let name = title
+            let name =
+                title
                 .replacingOccurrences(of: " - Zoom", with: "")
                 .trimmingCharacters(in: .whitespaces)
             return Parsed(
@@ -274,11 +275,12 @@ public struct BrowserMeetingDetector: Sendable {
     private func evidenceFromSensor(
         _ event: BrowserMeetingEvent, native: NativeSignals, parsed: BrowserWindowTitle.Parsed?
     ) -> ProviderEvidence {
-        let confidence: MeetingConfidence = switch event.state {
-        case .inCall, .reconnecting: .confirmed
-        case .prejoin, .waiting: .candidate
-        case .browsing, .ended, .unknown: .none
-        }
+        let confidence: MeetingConfidence =
+            switch event.state {
+            case .inCall, .reconnecting: .confirmed
+            case .prejoin, .waiting: .candidate
+            case .browsing, .ended, .unknown: .none
+            }
         return ProviderEvidence(
             provider: event.provider == .unknown ? (parsed?.provider ?? .unknown) : event.provider,
             confidence: confidence,

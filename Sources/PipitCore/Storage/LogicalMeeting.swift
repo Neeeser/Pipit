@@ -127,7 +127,8 @@ public struct CombinedLineBlock: Sendable, Equatable, Identifiable {
         for line in lines {
             if let last = out.last, last.lines[0].recordingID == line.recordingID,
                 last.lines[0].utterance.track == line.utterance.track,
-                last.speakerName == line.speakerName {
+                last.speakerName == line.speakerName
+            {
                 out[out.count - 1].lines.append(line)
             } else {
                 out.append(CombinedLineBlock(lines: [line]))
@@ -155,9 +156,10 @@ public struct CombinedLineBlock: Sendable, Equatable, Identifiable {
             if !text.isEmpty { text += " " }
             let offset = (text as NSString).length
             text += lineText
-            spans.append(contentsOf: TranscriptWordSpan.spans(
-                in: lineText, offset: offset, of: line
-            ))
+            spans.append(
+                contentsOf: TranscriptWordSpan.spans(
+                    in: lineText, offset: offset, of: line
+                ))
         }
         return (text, spans)
     }
@@ -190,11 +192,13 @@ public struct TranscriptWordSpan: Sendable, Equatable {
     static func spans(
         in lineText: String, offset: Int, of line: CombinedLine
     ) -> [TranscriptWordSpan] {
-        let whole = [TranscriptWordSpan(
-            location: offset, length: (lineText as NSString).length,
-            startSeconds: line.utterance.start, endSeconds: line.utterance.end,
-            utteranceID: line.utterance.id
-        )]
+        let whole = [
+            TranscriptWordSpan(
+                location: offset, length: (lineText as NSString).length,
+                startSeconds: line.utterance.start, endSeconds: line.utterance.end,
+                utteranceID: line.utterance.id
+            )
+        ]
         guard let words = line.utterance.words, !words.isEmpty else { return whole }
         let text = lineText as NSString
         var found: [TranscriptWordSpan] = []
@@ -210,11 +214,12 @@ public struct TranscriptWordSpan: Sendable, Equatable {
             // and one may. The line then divides at its edges and not inside,
             // rather than at a position nothing verified.
             guard range.location != NSNotFound else { return whole }
-            found.append(TranscriptWordSpan(
-                location: offset + range.location, length: range.length,
-                startSeconds: word.start, endSeconds: word.end,
-                utteranceID: line.utterance.id
-            ))
+            found.append(
+                TranscriptWordSpan(
+                    location: offset + range.location, length: range.length,
+                    startSeconds: word.start, endSeconds: word.end,
+                    utteranceID: line.utterance.id
+                ))
             cursor = range.location + range.length
         }
         return found.isEmpty ? whole : found
@@ -240,13 +245,14 @@ extension LogicalMeeting {
             let speakers = (try? recording.store.readSpeakerMap()) ?? SpeakerMap()
             let offset = recording.metadata.startedAt.timeIntervalSince(startedAt)
             for utterance in lines {
-                out.append(CombinedLine(
-                    recordingID: recording.metadata.id,
-                    utterance: utterance,
-                    speakerName: speakers.resolvedName(for: utterance),
-                    timelineStart: offset + utterance.start,
-                    isCorrected: speakers.hasOverride(for: utterance)
-                ))
+                out.append(
+                    CombinedLine(
+                        recordingID: recording.metadata.id,
+                        utterance: utterance,
+                        speakerName: speakers.resolvedName(for: utterance),
+                        timelineStart: offset + utterance.start,
+                        isCorrected: speakers.hasOverride(for: utterance)
+                    ))
             }
         }
         out.sort { $0.timelineStart < $1.timelineStart }

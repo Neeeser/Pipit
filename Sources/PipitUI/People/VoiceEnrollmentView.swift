@@ -1,7 +1,7 @@
+import Observation
 import PipitAudio
 import PipitCore
 import PipitServices
-import Observation
 import SwiftUI
 
 /// Reading a script aloud, and what that leaves behind.

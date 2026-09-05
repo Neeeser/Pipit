@@ -69,35 +69,40 @@ public enum PeoplePickerRanking {
         if !here.isEmpty {
             // On a chip above expected, because a voice that has already been
             // heard is a likelier answer than a name off the invite.
-            let ordered = byName(here.filter { context[$0.id] == .onAChip })
+            let ordered =
+                byName(here.filter { context[$0.id] == .onAChip })
                 + byName(here.filter { context[$0.id] == .expected })
-            sections.append(PeoplePickerSection(
-                title: inThisMeetingTitle, rows: ordered.map { row($0, context: context[$0.id]) }
-            ))
+            sections.append(
+                PeoplePickerSection(
+                    title: inThisMeetingTitle, rows: ordered.map { row($0, context: context[$0.id]) }
+                ))
         }
 
         // While searching, everyone left is one list. Splitting five recent
         // names off the top of three results hides the split's own reason.
         var remaining = rest
         if !searching {
-            let recent = rest
+            let recent =
+                rest
                 .compactMap { entry in entry.identity.lastSeenAt.map { (entry, $0) } }
                 .sorted { $0.1 > $1.1 }
                 .prefix(recentLimit)
                 .map(\.0)
             if !recent.isEmpty {
-                sections.append(PeoplePickerSection(
-                    title: recentTitle, rows: recent.map { row($0, context: nil) }
-                ))
+                sections.append(
+                    PeoplePickerSection(
+                        title: recentTitle, rows: recent.map { row($0, context: nil) }
+                    ))
                 let taken = Set(recent.map(\.id))
                 remaining = rest.filter { !taken.contains($0.id) }
             }
         }
 
         if !remaining.isEmpty {
-            sections.append(PeoplePickerSection(
-                title: everyoneTitle, rows: byName(remaining).map { row($0, context: nil) }
-            ))
+            sections.append(
+                PeoplePickerSection(
+                    title: everyoneTitle, rows: byName(remaining).map { row($0, context: nil) }
+                ))
         }
         return sections
     }
@@ -108,7 +113,8 @@ public enum PeoplePickerRanking {
         of entry: SpeakerDirectoryEntry, context: PeoplePickerContext? = nil
     ) -> String {
         var parts: [String] = []
-        let organization = entry.identity.organization?
+        let organization =
+            entry.identity.organization?
             .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
         if !organization.isEmpty { parts.append(organization) }
         switch context {

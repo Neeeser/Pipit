@@ -84,11 +84,13 @@ struct FolderPlacementTests {
         let backend = FakeAIBackend()
         backend.enrichment = MeetingEnrichment(
             summary: "Discussed the review.",
-            folderCandidates: [ModelFolderCandidate(
-                folderName: "Fenwick Trust", confidence: 0.9,
-                why: "their security review", quote: "The security review is still open.",
-                atSeconds: 1
-            )]
+            folderCandidates: [
+                ModelFolderCandidate(
+                    folderName: "Fenwick Trust", confidence: 0.9,
+                    why: "their security review", quote: "The security review is still open.",
+                    atSeconds: 1
+                )
+            ]
         )
         let run = try await Self.processed(root: root, backend: backend, settings: AppSettings())
 
@@ -130,10 +132,12 @@ struct FolderPlacementTests {
         let backend = FakeAIBackend()
         backend.enrichment = MeetingEnrichment(
             summary: "Discussed the review.",
-            folderCandidates: [ModelFolderCandidate(
-                folderName: "Fenwick Trust", confidence: 0.99, why: "named throughout",
-                quote: "Fenwick Trust", atSeconds: 1
-            )]
+            folderCandidates: [
+                ModelFolderCandidate(
+                    folderName: "Fenwick Trust", confidence: 0.99, why: "named throughout",
+                    quote: "Fenwick Trust", atSeconds: 1
+                )
+            ]
         )
         let run = try await Self.processed(root: root, backend: backend, settings: settings)
 

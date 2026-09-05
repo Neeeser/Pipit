@@ -92,7 +92,8 @@ public struct ReconnectMatcher: Sendable {
             reasons.append("same calendar event")
         }
         if let left = earlier.title, let right = later.title, !left.isEmpty,
-           left.compare(right, options: [.caseInsensitive, .diacriticInsensitive]) == .orderedSame {
+            left.compare(right, options: [.caseInsensitive, .diacriticInsensitive]) == .orderedSame
+        {
             score += 0.2
             reasons.append("same title")
         }

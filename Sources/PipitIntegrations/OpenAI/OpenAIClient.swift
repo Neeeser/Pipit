@@ -104,7 +104,8 @@ public struct OpenAIClient: AIBackend {
         // The diarize model rejects prompts; every other transcription model
         // takes one.
         if let prompt = request.prompt,
-            !AIModelSettings.diarizationChoices.contains(request.model) {
+            !AIModelSettings.diarizationChoices.contains(request.model)
+        {
             fields.append(("prompt", prompt))
         }
 
@@ -123,10 +124,11 @@ public struct OpenAIClient: AIBackend {
         for speaker in request.knownSpeakers {
             fields.append(("known_speaker_names[]", speaker.name))
             // Plain base64 is rejected: the value has to be a data URI.
-            fields.append((
-                "known_speaker_references[]",
-                "data:audio/wav;base64,\(speaker.wavData.base64EncodedString())"
-            ))
+            fields.append(
+                (
+                    "known_speaker_references[]",
+                    "data:audio/wav;base64,\(speaker.wavData.base64EncodedString())"
+                ))
         }
         let body = try await multipartBody(fields: fields, audio: request.audio, extraFiles: [])
         let data = try await postAudio(path: "audio/transcriptions", body: body)
@@ -188,23 +190,23 @@ public struct OpenAIClient: AIBackend {
         context.append("Labels to identify: \(request.labels.joined(separator: ", "))")
 
         let instructions = """
-        You identify speakers in a meeting transcript. Most lines already carry \
-        the speaker's real name. Only the labels listed below are unidentified, \
-        and only those may be named.
+            You identify speakers in a meeting transcript. Most lines already carry \
+            the speaker's real name. Only the labels listed below are unidentified, \
+            and only those may be named.
 
-        Name a label only when someone says that name out loud in the transcript. \
-        The evidence is almost always one person addressing another, and that \
-        person speaking next or just before. Quote the line that shows it, \
-        verbatim, with the timestamp it carries. A guess with no line behind it \
-        is worthless here, so return the label in `unresolved` instead of \
-        inventing one.
+            Name a label only when someone says that name out loud in the transcript. \
+            The evidence is almost always one person addressing another, and that \
+            person speaking next or just before. Quote the line that shows it, \
+            verbatim, with the timestamp it carries. A guess with no line behind it \
+            is worthless here, so return the label in `unresolved` instead of \
+            inventing one.
 
-        You may complete a first name into a full name using the known names \
-        given as context, and must set `expanded_from_known_names` to true when \
-        you do. Never take a name from that list that nobody said. Set \
-        `confidence` in [0,1]: above 0.8 when the name is said clearly and the \
-        turn-taking is unambiguous, lower when either is in doubt.
-        """
+            You may complete a first name into a full name using the known names \
+            given as context, and must set `expanded_from_known_names` to true when \
+            you do. Never take a name from that list that nobody said. Set \
+            `confidence` in [0,1]: above 0.8 when the name is said clearly and the \
+            turn-taking is unambiguous, lower when either is in doubt.
+            """
 
         var body: [String: Any] = [
             "model": model,
@@ -221,7 +223,7 @@ public struct OpenAIClient: AIBackend {
                     "name": "speaker_map",
                     "schema": schema,
                     "strict": true,
-                ],
+                ]
             ],
         ]
         // Mapping labels to names is extraction, not problem solving; low effort
@@ -233,15 +235,15 @@ public struct OpenAIClient: AIBackend {
         let data = try await postJSON(path: "responses", body: body)
         let text = try extractOutputText(from: data)
         guard let payload = text.data(using: .utf8),
-              let object = try? JSONSerialization.jsonObject(with: payload) as? [String: Any],
-              let mapping = object["mapping"] as? [[String: Any]]
+            let object = try? JSONSerialization.jsonObject(with: payload) as? [String: Any],
+            let mapping = object["mapping"] as? [[String: Any]]
         else {
             throw ProcessingError.malformedResponse(reason: "speaker mapping")
         }
         let allowed = Set(request.labels)
         return mapping.compactMap { entry in
             guard let label = entry["label"] as? String, let name = entry["name"] as? String,
-                  let quote = entry["quote"] as? String
+                let quote = entry["quote"] as? String
             else { return nil }
             // A label outside the set asked about is a rename of a speaker the
             // meeting already resolved, which this stage does not get to do.
@@ -308,33 +310,34 @@ public struct OpenAIClient: AIBackend {
             "required": required,
         ]
         var instructions = """
-        You summarise meeting transcripts. Write plainly and specifically: state \
-        what was decided, who owns what, and what happens next. The title is a \
-        short noun phrase naming the meeting, under eight words, with no trailing \
-        punctuation. The summary is a few short paragraphs. Notes are bullet points \
-        of decisions and action items. Never invent participants, dates or figures \
-        that are not in the transcript.
-        """
+            You summarise meeting transcripts. Write plainly and specifically: state \
+            what was decided, who owns what, and what happens next. The title is a \
+            short noun phrase naming the meeting, under eight words, with no trailing \
+            punctuation. The summary is a few short paragraphs. Notes are bullet points \
+            of decisions and action items. Never invent participants, dates or figures \
+            that are not in the transcript.
+            """
         if asksAboutFolders {
             instructions += """
-            \n\nYou also decide whether this meeting belongs in one of the user's \
-            existing folders. Return folder_candidates as at most two entries, best \
-            first, and only for folders in the list you are given. Never invent a \
-            folder name. Every entry needs a verbatim quote from the transcript and \
-            the time in seconds where it appears; an entry you cannot quote for is \
-            an entry to leave out. confidence runs from 0 to 1. why is one short \
-            clause naming the evidence, under twelve words, with no trailing \
-            punctuation.
+                \n\nYou also decide whether this meeting belongs in one of the user's \
+                existing folders. Return folder_candidates as at most two entries, best \
+                first, and only for folders in the list you are given. Never invent a \
+                folder name. Every entry needs a verbatim quote from the transcript and \
+                the time in seconds where it appears; an entry you cannot quote for is \
+                an entry to leave out. confidence runs from 0 to 1. why is one short \
+                clause naming the evidence, under twelve words, with no trailing \
+                punctuation.
 
-            Return an empty array when no folder fits. That is the ordinary \
-            answer, not a failure. Two examples of it. A one to one whose only \
-            link to a client folder is that one person in the call also appears \
-            in that folder: a person is not a topic, so return nothing. A \
-            technical review of a model evaluation, where every folder is a \
-            client: the subject belongs to none of them, so return nothing.
-            """
+                Return an empty array when no folder fits. That is the ordinary \
+                answer, not a failure. Two examples of it. A one to one whose only \
+                link to a client folder is that one person in the call also appears \
+                in that folder: a person is not a topic, so return nothing. A \
+                technical review of a model evaluation, where every folder is a \
+                client: the subject belongs to none of them, so return nothing.
+                """
         }
-        var context = "Provider: \(request.provider.displayName). Duration: \(Int(request.durationSeconds / 60)) minutes."
+        var context =
+            "Provider: \(request.provider.displayName). Duration: \(Int(request.durationSeconds / 60)) minutes."
         if asksAboutFolders {
             let catalogue = request.folders.map { folder -> String in
                 var line = "- \(folder.name)"
@@ -366,7 +369,7 @@ public struct OpenAIClient: AIBackend {
                     "name": "meeting_enrichment",
                     "schema": schema,
                     "strict": true,
-                ],
+                ]
             ],
         ]
         // Titles and summaries need no deliberation; low effort keeps enrichment
@@ -377,7 +380,7 @@ public struct OpenAIClient: AIBackend {
         let data = try await postJSON(path: "responses", body: body)
         let text = try extractOutputText(from: data)
         guard let payload = text.data(using: .utf8),
-              let object = try? JSONSerialization.jsonObject(with: payload) as? [String: Any]
+            let object = try? JSONSerialization.jsonObject(with: payload) as? [String: Any]
         else {
             throw ProcessingError.malformedResponse(reason: "enrichment")
         }
@@ -397,7 +400,7 @@ public struct OpenAIClient: AIBackend {
         guard let entries = value as? [[String: Any]] else { return [] }
         return entries.compactMap { entry -> ModelFolderCandidate? in
             guard let folder = entry["folder"] as? String, !folder.isEmpty,
-                  let confidence = entry["confidence"] as? Double
+                let confidence = entry["confidence"] as? Double
             else { return nil }
             return ModelFolderCandidate(
                 folderName: folder,
@@ -487,7 +490,7 @@ public struct OpenAIClient: AIBackend {
 
     private func errorMessage(from data: Data) -> String? {
         guard let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-              let error = object["error"] as? [String: Any]
+            let error = object["error"] as? [String: Any]
         else { return nil }
         return error["message"] as? String
     }
@@ -508,8 +511,8 @@ public struct OpenAIClient: AIBackend {
         let rawSegments = (object["segments"] as? [[String: Any]]) ?? []
         var segments: [RawTranscriptSegment] = rawSegments.compactMap { segment in
             guard let start = segment["start"] as? Double,
-                  let end = segment["end"] as? Double,
-                  let text = segment["text"] as? String
+                let end = segment["end"] as? Double,
+                let text = segment["text"] as? String
             else { return nil }
             return RawTranscriptSegment(
                 start: start, end: end, text: text, speaker: segment["speaker"] as? String
@@ -536,17 +539,18 @@ public struct OpenAIClient: AIBackend {
         guard !words.isEmpty, !segments.isEmpty else { return }
         for raw in words {
             guard let text = raw["word"] as? String,
-                  let start = raw["start"] as? Double,
-                  let end = raw["end"] as? Double
+                let start = raw["start"] as? Double,
+                let end = raw["end"] as? Double
             else { continue }
             let index = segments.lastIndex { $0.start <= start } ?? 0
             var nested = segments[index].words ?? []
             // The API returns bare words; the canonical convention is
             // Whisper's, a leading space per word, which is what the
             // assembler concatenates by.
-            nested.append(RawTranscriptWord(
-                start: start, end: end, text: text.hasPrefix(" ") ? text : " " + text
-            ))
+            nested.append(
+                RawTranscriptWord(
+                    start: start, end: end, text: text.hasPrefix(" ") ? text : " " + text
+                ))
             segments[index].words = nested
         }
     }
@@ -600,9 +604,10 @@ struct MultipartBody: Sendable {
         }
         for (name, filename, payload) in files {
             body.append(Data("--\(boundary)\r\n".utf8))
-            body.append(Data(
-                "Content-Disposition: form-data; name=\"\(name)\"; filename=\"\(filename)\"\r\n".utf8
-            ))
+            body.append(
+                Data(
+                    "Content-Disposition: form-data; name=\"\(name)\"; filename=\"\(filename)\"\r\n".utf8
+                ))
             body.append(Data("Content-Type: application/octet-stream\r\n\r\n".utf8))
             body.append(payload)
             body.append(Data("\r\n".utf8))

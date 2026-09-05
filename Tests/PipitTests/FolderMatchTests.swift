@@ -46,10 +46,12 @@ struct FolderMatchTests {
         FolderProfile(
             name: "Fenwick Trust", about: "Client work with Fenwick Trust",
             members: [
-                facts("Northwind <> Fenwick Trust", provider: .googleMeet, at: 14 * 60, weekday: 3,
-                      people: ["Marlow", "Bryn Callister", "Rowan Ashby"]),
-                facts("Rowan Ashby, Bryn Callister", provider: .googleMeet, at: 12 * 60 + 34,
-                      weekday: 6, people: ["Bryn Callister", "Rowan Ashby"]),
+                facts(
+                    "Northwind <> Fenwick Trust", provider: .googleMeet, at: 14 * 60, weekday: 3,
+                    people: ["Marlow", "Bryn Callister", "Rowan Ashby"]),
+                facts(
+                    "Rowan Ashby, Bryn Callister", provider: .googleMeet, at: 12 * 60 + 34,
+                    weekday: 6, people: ["Bryn Callister", "Rowan Ashby"]),
             ]
         )
     }
@@ -118,8 +120,9 @@ struct FolderMatchTests {
         // Fenwick Trust holds two meetings with different titles. Nothing
         // about a third Google Meet makes it the next one.
         let match = FolderMatcher.recurrence(
-            of: Self.facts("Quarterly planning", provider: .googleMeet, at: 9 * 60, weekday: 4,
-                      people: ["Marlow"]),
+            of: Self.facts(
+                "Quarterly planning", provider: .googleMeet, at: 9 * 60, weekday: 4,
+                people: ["Marlow"]),
             in: [Self.client()]
         )
         #expect(match == nil)
@@ -137,11 +140,13 @@ struct FolderMatchTests {
     @Test("a model answer becomes a suggestion that may not file")
     func aModelAnswerBecomesASuggestionThatMayNotFile() async throws {
         let match = FolderMatcher.fromModel(
-            [ModelFolderCandidate(
-                folderName: "Fenwick Trust", confidence: 0.82,
-                why: "twelve minutes on their security review",
-                quote: "their security review is still open", atSeconds: 51.4
-            )],
+            [
+                ModelFolderCandidate(
+                    folderName: "Fenwick Trust", confidence: 0.82,
+                    why: "twelve minutes on their security review",
+                    quote: "their security review is still open", atSeconds: 51.4
+                )
+            ],
             meeting: Self.facts("Tomas Kilbride and Bryn Callister + Rowan Ashby"),
             profiles: [Self.standup(), Self.client()], reach: .clearTopics
         )
@@ -180,11 +185,13 @@ struct FolderMatchTests {
             folderName: "Fenwick Trust", confidence: 0.62, why: "they came up once",
             quote: "Fenwick Trust", atSeconds: 12
         )
-        #expect(FolderMatcher.fromModel(
-            [candidate], meeting: Self.facts("Bryn Callister"),
-            profiles: [Self.client()], reach: .clearTopics
-        ) == nil)
-        #expect(FolderMatcher.fromModel(
+        #expect(
+            FolderMatcher.fromModel(
+                [candidate], meeting: Self.facts("Bryn Callister"),
+                profiles: [Self.client()], reach: .clearTopics
+            ) == nil)
+        #expect(
+            FolderMatcher.fromModel(
                 [candidate], meeting: Self.facts("Bryn Callister"),
                 profiles: [Self.client()], reach: .anyLikely
             )?.folderName == "Fenwick Trust")
@@ -192,37 +199,46 @@ struct FolderMatchTests {
 
     @Test("an answer with no quote behind it is dropped")
     func anAnswerWithNoQuoteBehindItIsDropped() async throws {
-        #expect(FolderMatcher.fromModel(
-            [ModelFolderCandidate(
-                folderName: "Fenwick Trust", confidence: 0.9, why: "it felt like them"
-            )],
-            meeting: Self.facts("Bryn Callister"),
-            profiles: [Self.client()], reach: .clearTopics
-        ) == nil)
+        #expect(
+            FolderMatcher.fromModel(
+                [
+                    ModelFolderCandidate(
+                        folderName: "Fenwick Trust", confidence: 0.9, why: "it felt like them"
+                    )
+                ],
+                meeting: Self.facts("Bryn Callister"),
+                profiles: [Self.client()], reach: .clearTopics
+            ) == nil)
     }
 
     @Test("no model answer is taken when the reach is recurring meetings only")
     func noModelAnswerIsTakenWhenTheReachIsRecurringMeetingsOnly() async throws {
-        #expect(FolderMatcher.fromModel(
-            [ModelFolderCandidate(
-                folderName: "Fenwick Trust", confidence: 0.99, why: "named throughout",
-                quote: "Fenwick Trust", atSeconds: 3
-            )],
-            meeting: Self.facts("Bryn Callister"),
-            profiles: [Self.client()], reach: .recurringOnly
-        ) == nil)
+        #expect(
+            FolderMatcher.fromModel(
+                [
+                    ModelFolderCandidate(
+                        folderName: "Fenwick Trust", confidence: 0.99, why: "named throughout",
+                        quote: "Fenwick Trust", atSeconds: 3
+                    )
+                ],
+                meeting: Self.facts("Bryn Callister"),
+                profiles: [Self.client()], reach: .recurringOnly
+            ) == nil)
     }
 
     @Test("a folder the model invented is not offered")
     func aFolderTheModelInventedIsNotOffered() async throws {
-        #expect(FolderMatcher.fromModel(
-            [ModelFolderCandidate(
-                folderName: "Fico", confidence: 0.95, why: "a new client",
-                quote: "Fico", atSeconds: 8
-            )],
-            meeting: Self.facts("First Fico Meeting"),
-            profiles: [Self.standup(), Self.client()], reach: .clearTopics
-        ) == nil)
+        #expect(
+            FolderMatcher.fromModel(
+                [
+                    ModelFolderCandidate(
+                        folderName: "Fico", confidence: 0.95, why: "a new client",
+                        quote: "Fico", atSeconds: 8
+                    )
+                ],
+                meeting: Self.facts("First Fico Meeting"),
+                profiles: [Self.standup(), Self.client()], reach: .clearTopics
+            ) == nil)
     }
 
 }

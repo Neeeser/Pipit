@@ -44,17 +44,20 @@ public final class ManualClock: Clock, @unchecked Sendable {
     }
 
     public var monotonicSeconds: Double {
-        lock.lock(); defer { lock.unlock() }
+        lock.lock()
+        defer { lock.unlock() }
         return _monotonic
     }
 
     public var now: Date {
-        lock.lock(); defer { lock.unlock() }
+        lock.lock()
+        defer { lock.unlock() }
         return _now
     }
 
     public func advance(_ seconds: Double) {
-        lock.lock(); defer { lock.unlock() }
+        lock.lock()
+        defer { lock.unlock() }
         _monotonic += seconds
         _now = _now.addingTimeInterval(seconds)
     }

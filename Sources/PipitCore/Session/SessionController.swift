@@ -274,9 +274,10 @@ public struct SessionController: Sendable {
             snapshot.title = best.title
             snapshot.providerMeetingID = best.meetingID
             armedPrefixes = best.audioBundlePrefixes
-            actions.append(.armCapture(
-                bundlePrefixes: best.audioBundlePrefixes, capturesRemote: true
-            ))
+            actions.append(
+                .armCapture(
+                    bundlePrefixes: best.audioBundlePrefixes, capturesRemote: true
+                ))
             if best.confidence == .confirmed {
                 actions.append(contentsOf: confirm(best, now: now, wallClock: wallClock))
             }
@@ -289,7 +290,8 @@ public struct SessionController: Sendable {
                 // user joins, and one flap must not throw the pre-roll away.
                 if candidateEvidenceLostAt == nil { candidateEvidenceLostAt = now }
                 if let lostAt = candidateEvidenceLostAt,
-                   now - lostAt >= configuration.candidateEvidenceGraceSeconds {
+                    now - lostAt >= configuration.candidateEvidenceGraceSeconds
+                {
                     return finishCandidate(reason: "candidate_evidence_gone")
                 }
                 return []
@@ -299,7 +301,8 @@ public struct SessionController: Sendable {
             if best.confidence == .confirmed {
                 actions.append(contentsOf: confirm(best, now: now, wallClock: wallClock))
             } else if let since = candidateSince,
-                      now - since >= configuration.candidateTimeoutSeconds {
+                now - since >= configuration.candidateTimeoutSeconds
+            {
                 return finishCandidate(reason: "candidate_timeout")
             }
             return actions
@@ -403,28 +406,33 @@ public struct SessionController: Sendable {
         // for a candidate is retargeted instead. An in-person recording has no
         // remote track, so that one is rebuilt.
         let reuseArmedCapture = wasCandidate && source.capturesRemoteAudio
-        let capture: SessionAction = reuseArmedCapture
+        let capture: SessionAction =
+            reuseArmedCapture
             ? .retargetCapture(bundlePrefixes: bundlePrefixes)
             : .armCapture(bundlePrefixes: bundlePrefixes, capturesRemote: source.capturesRemoteAudio)
         armedPrefixes = bundlePrefixes
         var actions: [SessionAction] = [
             capture,
-            .commitRecording(CommitRequest(
-                source: source, provider: source.provider, titles: titles,
-                providerMeetingID: nil, url: nil, browser: nil,
-                applicationBundleID: applicationBundleID,
-                isProvisional: isProvisional, startedAt: wallClock
-            )),
+            .commitRecording(
+                CommitRequest(
+                    source: source, provider: source.provider, titles: titles,
+                    providerMeetingID: nil, url: nil, browser: nil,
+                    applicationBundleID: applicationBundleID,
+                    isProvisional: isProvisional, startedAt: wallClock
+                )),
         ]
         if isProvisional, let applicationBundleID {
             askedAbout = (provider: source.provider, application: applicationBundleID)
-            actions.append(.askToKeepProvisional(
-                bundleIdentifier: applicationBundleID, title: titles.window
-            ))
+            actions.append(
+                .askToKeepProvisional(
+                    bundleIdentifier: applicationBundleID, title: titles.window
+                ))
         } else {
-            actions.append(.notify(.startedRecording(
-                provider: source.provider, title: titles.resolved
-            )))
+            actions.append(
+                .notify(
+                    .startedRecording(
+                        provider: source.provider, title: titles.resolved
+                    )))
         }
         return actions
     }
@@ -472,12 +480,13 @@ public struct SessionController: Sendable {
         if let asked = askedAbout {
             // The prompt is raised per call, not per meeting, so the question the
             // user answered covers every meeting that application reports.
-            suppressed.append(SuppressedCall(
-                provider: asked.provider,
-                application: MicrophoneIgnoreList.applicationIdentifier(for: asked.application),
-                meetingID: nil,
-                lastSeen: now
-            ))
+            suppressed.append(
+                SuppressedCall(
+                    provider: asked.provider,
+                    application: MicrophoneIgnoreList.applicationIdentifier(for: asked.application),
+                    meetingID: nil,
+                    lastSeen: now
+                ))
         }
         return finishRecording(reason: reason, discard: true)
     }
@@ -505,8 +514,8 @@ public struct SessionController: Sendable {
 
     private static func matches(_ call: SuppressedCall, _ candidate: ProviderEvidence) -> Bool {
         guard candidate.provider == call.provider,
-              let application = candidate.applicationBundleID,
-              MicrophoneIgnoreList.applicationIdentifier(for: application) == call.application
+            let application = candidate.applicationBundleID,
+            MicrophoneIgnoreList.applicationIdentifier(for: application) == call.application
         else { return false }
         guard let suppressedID = call.meetingID, let candidateID = candidate.meetingID else {
             return true
@@ -573,12 +582,13 @@ public struct SessionController: Sendable {
         }
 
         var actions: [SessionAction] = [
-            .commitRecording(CommitRequest(
-                source: source, provider: best.provider, titles: titles,
-                providerMeetingID: best.meetingID, url: best.url, browser: best.browser,
-                applicationBundleID: best.applicationBundleID,
-                isProvisional: snapshot.isProvisional, startedAt: wallClock
-            )),
+            .commitRecording(
+                CommitRequest(
+                    source: source, provider: best.provider, titles: titles,
+                    providerMeetingID: best.meetingID, url: best.url, browser: best.browser,
+                    applicationBundleID: best.applicationBundleID,
+                    isProvisional: snapshot.isProvisional, startedAt: wallClock
+                ))
         ]
         // The candidate may have been armed for a different application: a generic
         // call that turns into a Meet tab arms on the unknown app and confirms on

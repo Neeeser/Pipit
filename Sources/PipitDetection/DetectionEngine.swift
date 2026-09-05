@@ -93,7 +93,6 @@ public final class DetectionEngine: @unchecked Sendable {
         }
     }
 
-
     /// Who the meeting client says is in the call.
     ///
     /// Slack wins over the browser when both are readable, because the huddle
@@ -129,8 +128,8 @@ public final class DetectionEngine: @unchecked Sendable {
             // recorded, and a dead content script would leave a stale event
             // latched. currentEvent weighs tabs and drops the untrustworthy.
             guard let event = browsers[kind]?.sensor.currentEvent(at: now),
-                  event.state.isActiveCall,
-                  let people = event.people, !people.isEmpty
+                event.state.isActiveCall,
+                let people = event.people, !people.isEmpty
             else { continue }
             return SensorReading(
                 source: "\(event.provider.rawValue)-dom",
@@ -270,21 +269,23 @@ public final class DetectionEngine: @unchecked Sendable {
             helperProducingOutput: slackProducesOutput,
             at: now
         )
-        let slackConfidence: MeetingConfidence = switch slackDetector.state {
-        case .joined, .leaving: .confirmed
-        case .candidate: .candidate
-        case .idle: .none
-        }
+        let slackConfidence: MeetingConfidence =
+            switch slackDetector.state {
+            case .joined, .leaving: .confirmed
+            case .candidate: .candidate
+            case .idle: .none
+            }
         if slackConfidence > .none {
-            evidence.append(ProviderEvidence(
-                provider: .slack,
-                confidence: slackConfidence,
-                source: .accessibility,
-                title: slackDetector.conversationTitle,
-                muted: slackDetector.isMuted,
-                applicationBundleID: configuration.slackBundleIdentifier,
-                audioBundlePrefixes: configuration.slackAudioPrefixes
-            ))
+            evidence.append(
+                ProviderEvidence(
+                    provider: .slack,
+                    confidence: slackConfidence,
+                    source: .accessibility,
+                    title: slackDetector.conversationTitle,
+                    muted: slackDetector.isMuted,
+                    applicationBundleID: configuration.slackBundleIdentifier,
+                    audioBundlePrefixes: configuration.slackAudioPrefixes
+                ))
         }
 
         // Browsers
@@ -306,9 +307,11 @@ public final class DetectionEngine: @unchecked Sendable {
 
         // Unsupported applications
         if configuration.genericDetection {
-            let knownPrefixes = configuration.slackAudioPrefixes
+            let knownPrefixes =
+                configuration.slackAudioPrefixes
                 + configuration.browsers.flatMap(\.bundleIdentifiers)
-            let unknownStates = audioStates
+            let unknownStates =
+                audioStates
                 .filter { state in !knownPrefixes.contains { state.bundleIdentifier.hasPrefix($0) } }
                 .map { state in
                     ApplicationAudioState(

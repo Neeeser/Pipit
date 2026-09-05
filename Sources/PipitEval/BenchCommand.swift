@@ -176,10 +176,11 @@ enum BenchCommand {
         for meeting in names {
             let path = layout.truth(meeting: meeting)
             let truth = try BenchTruth.read(from: path)
-            cases.append(Case(
-                truth: truth, truthPath: path,
-                audio: options.audioDirectory.appendingPathComponent(truth.source)
-            ))
+            cases.append(
+                Case(
+                    truth: truth, truthPath: path,
+                    audio: options.audioDirectory.appendingPathComponent(truth.source)
+                ))
         }
         return cases
     }
@@ -283,7 +284,9 @@ enum BenchCommand {
             return 2
         }
         guard options.diarizer == "cloud" || Self.localDiarizers.contains(options.diarizer) else {
-            note("bench: unknown --diarizer \(options.diarizer). Valid: \(Self.localDiarizers.sorted().joined(separator: ", ")), cloud")
+            note(
+                "bench: unknown --diarizer \(options.diarizer). Valid: \(Self.localDiarizers.sorted().joined(separator: ", ")), cloud"
+            )
             return 2
         }
         guard !engines.isEmpty else {
@@ -492,7 +495,7 @@ enum BenchCommand {
         guard let transcript = try created.store.readCanonicalTranscript() else {
             throw BenchFailure(
                 "no transcript: stopped at \(final.processing.state)"
-                + " \(final.processing.lastFailure?.message ?? "")"
+                    + " \(final.processing.lastFailure?.message ?? "")"
             )
         }
         let utterances = transcript.utterances.map {
@@ -521,40 +524,63 @@ enum BenchCommand {
         print("")
         let label = repeats > 1 ? "  run \(row.run)/\(repeats)" : ""
         print("\(score.meeting)  \(row.engine) + \(row.diarizer) diarization  [\(row.state)]\(overlap)\(label)")
-        print(String(format: "  WER                 %5.1f%%   (no filler %.1f%%, conversational %.1f%%)",
-                     score.wer * 100, score.werNoFiller * 100, score.werConversational * 100))
-        print(String(format: "  ordering floor      %5.1f%%   (at least %.1f%% of WER is not ordering)",
-                     score.orderingFloorWer * 100, score.netOfFloorWer * 100))
+        print(
+            String(
+                format: "  WER                 %5.1f%%   (no filler %.1f%%, conversational %.1f%%)",
+                score.wer * 100, score.werNoFiller * 100, score.werConversational * 100))
+        print(
+            String(
+                format: "  ordering floor      %5.1f%%   (at least %.1f%% of WER is not ordering)",
+                score.orderingFloorWer * 100, score.netOfFloorWer * 100))
         if let cp = score.cpWer, let tcp = score.tcpWer {
-            print(String(format: "  per-speaker WER     %5.1f%%   (time-constrained %.1f%%, every word scored, overlap included)",
-                         cp * 100, tcp * 100))
+            print(
+                String(
+                    format:
+                        "  per-speaker WER     %5.1f%%   (time-constrained %.1f%%, every word scored, overlap included)",
+                    cp * 100, tcp * 100))
         }
-        print(String(format: "  words               %5d ref / %d hyp   (%.0f/min, %.0f%% of the window is speech)",
-                     score.referenceWords, score.hypothesisWords,
-                     score.wordsPerMinute, score.speechCoverage * 100))
-        print(String(format: "  attribution         %5.1f%%   (of labelled %.1f%%, merged %.1f%%)",
-                     score.attribution * 100, score.attributionOfLabelled * 100,
-                     score.attributionMerged * 100))
-        print(String(format: "  coverage            %5.1f%%   (%d of %d words asked about)",
-                     score.attributionCoverage * 100, score.attributionScored,
-                     score.attributionScored + score.overlapExcluded))
+        print(
+            String(
+                format: "  words               %5d ref / %d hyp   (%.0f/min, %.0f%% of the window is speech)",
+                score.referenceWords, score.hypothesisWords,
+                score.wordsPerMinute, score.speechCoverage * 100))
+        print(
+            String(
+                format: "  attribution         %5.1f%%   (of labelled %.1f%%, merged %.1f%%)",
+                score.attribution * 100, score.attributionOfLabelled * 100,
+                score.attributionMerged * 100))
+        print(
+            String(
+                format: "  coverage            %5.1f%%   (%d of %d words asked about)",
+                score.attributionCoverage * 100, score.attributionScored,
+                score.attributionScored + score.overlapExcluded))
         print("  speakers            \(score.hypothesisSpeakers) found / \(score.referenceSpeakers) true")
         if let der = score.der {
-            print(String(format: "  DER                 %5.1f%%   (miss %.1f  FA %.1f  conf %.1f)",
-                         der * 100, (score.derMissed ?? 0) * 100,
-                         (score.derFalseAlarm ?? 0) * 100, (score.derConfusion ?? 0) * 100))
+            print(
+                String(
+                    format: "  DER                 %5.1f%%   (miss %.1f  FA %.1f  conf %.1f)",
+                    der * 100, (score.derMissed ?? 0) * 100,
+                    (score.derFalseAlarm ?? 0) * 100, (score.derConfusion ?? 0) * 100))
             if let strict = score.derStrict {
-                print(String(format: "  DER strict          %5.1f%%   (injective mapping, no cluster merging)",
-                             strict * 100))
+                print(
+                    String(
+                        format: "  DER strict          %5.1f%%   (injective mapping, no cluster merging)",
+                        strict * 100))
             }
         }
-        print(String(format: "  repeated 8-grams    %5d     (%.2f%% of the stream)",
-                     score.repeatedNgrams, score.repeatedShare * 100))
-        print(String(format: "  overlapping lines   %5d     worst %.1fs",
-                     score.overlappingPairs, score.worstOverlapSeconds))
-        print(String(format: "  RTFx                %5.1f     (%.0fs audio in %.0fs)",
-                     row.audioSeconds / max(row.processingSeconds, 0.001),
-                     row.audioSeconds, row.processingSeconds))
+        print(
+            String(
+                format: "  repeated 8-grams    %5d     (%.2f%% of the stream)",
+                score.repeatedNgrams, score.repeatedShare * 100))
+        print(
+            String(
+                format: "  overlapping lines   %5d     worst %.1fs",
+                score.overlappingPairs, score.worstOverlapSeconds))
+        print(
+            String(
+                format: "  RTFx                %5.1f     (%.0fs audio in %.0fs)",
+                row.audioSeconds / max(row.processingSeconds, 0.001),
+                row.audioSeconds, row.processingSeconds))
         if let scratch = row.scratch { print("  scratch             \(scratch)") }
         // Redirected output is block-buffered, so a run of fourteen cases shows
         // nothing for half an hour and reads as hung.
@@ -563,18 +589,22 @@ enum BenchCommand {
 
     /// What repeated runs of one case did and did not agree on.
     static func reportSpread(_ runs: [Row]) {
-        print(String(format: "  over %d runs        WER %.1f%% (%.1f to %.1f)  attribution %.1f%% (%.1f to %.1f)",
-                     runs.count,
-                     mean(runs.map(\.score.wer)) * 100,
-                     (runs.map(\.score.wer).min() ?? 0) * 100,
-                     (runs.map(\.score.wer).max() ?? 0) * 100,
-                     mean(runs.map(\.score.attribution)) * 100,
-                     (runs.map(\.score.attribution).min() ?? 0) * 100,
-                     (runs.map(\.score.attribution).max() ?? 0) * 100))
+        print(
+            String(
+                format: "  over %d runs        WER %.1f%% (%.1f to %.1f)  attribution %.1f%% (%.1f to %.1f)",
+                runs.count,
+                mean(runs.map(\.score.wer)) * 100,
+                (runs.map(\.score.wer).min() ?? 0) * 100,
+                (runs.map(\.score.wer).max() ?? 0) * 100,
+                mean(runs.map(\.score.attribution)) * 100,
+                (runs.map(\.score.attribution).min() ?? 0) * 100,
+                (runs.map(\.score.attribution).max() ?? 0) * 100))
         let ders = runs.compactMap(\.score.der)
         if !ders.isEmpty {
-            print(String(format: "                      DER %.1f%% (%.1f to %.1f)",
-                         mean(ders) * 100, (ders.min() ?? 0) * 100, (ders.max() ?? 0) * 100))
+            print(
+                String(
+                    format: "                      DER %.1f%% (%.1f to %.1f)",
+                    mean(ders) * 100, (ders.min() ?? 0) * 100, (ders.max() ?? 0) * 100))
         }
         fflush(stdout)
     }
@@ -602,7 +632,8 @@ enum BenchCommand {
         // The count is rows, which is cases times repeats, so it is named for
         // what it counts rather than left saying "cases" over a number three
         // times the roster.
-        var header = "  engine       \(repeats > 1 ? "runs" : "case")     tcp    cpWER   WER   floor     net   no filler   conv"
+        var header =
+            "  engine       \(repeats > 1 ? "runs" : "case")     tcp    cpWER   WER   floor     net   no filler   conv"
         header += "   attribution   coverage   merged     DER   strict   repeats   RTFx     size"
         if repeats > 1 { header += "   WER spread" }
         print(header)
@@ -616,23 +647,26 @@ enum BenchCommand {
             let padded = engine.padding(
                 toLength: max(engine.count, 10), withPad: " ", startingAt: 0
             )
-            var line = padded.prefix(10) + String(
-                format: " %5d  %5.1f%%  %5.1f%%  %5.1f%%  %5.1f%%  %5.1f%%     %5.1f%%  %5.1f%%        %5.1f%%     %5.1f%%   %5.1f%%  %5.1f%%   %5.1f%%   %d",
-                group.count,
-                tcp.isEmpty ? 0 : median(tcp) * 100,
-                cp.isEmpty ? 0 : median(cp) * 100,
-                median(group.map(\.score.wer)) * 100,
-                median(group.map(\.score.orderingFloorWer)) * 100,
-                median(group.map(\.score.netOfFloorWer)) * 100,
-                median(group.map(\.score.werNoFiller)) * 100,
-                median(group.map(\.score.werConversational)) * 100,
-                median(group.map(\.score.attribution)) * 100,
-                median(group.map(\.score.attributionCoverage)) * 100,
-                median(group.map(\.score.attributionMerged)) * 100,
-                ders.isEmpty ? 0 : median(ders) * 100,
-                strict.isEmpty ? 0 : median(strict) * 100,
-                group.reduce(0) { $0 + $1.score.repeatedNgrams }
-            )
+            var line =
+                padded.prefix(10)
+                + String(
+                    format:
+                        " %5d  %5.1f%%  %5.1f%%  %5.1f%%  %5.1f%%  %5.1f%%     %5.1f%%  %5.1f%%        %5.1f%%     %5.1f%%   %5.1f%%  %5.1f%%   %5.1f%%   %d",
+                    group.count,
+                    tcp.isEmpty ? 0 : median(tcp) * 100,
+                    cp.isEmpty ? 0 : median(cp) * 100,
+                    median(group.map(\.score.wer)) * 100,
+                    median(group.map(\.score.orderingFloorWer)) * 100,
+                    median(group.map(\.score.netOfFloorWer)) * 100,
+                    median(group.map(\.score.werNoFiller)) * 100,
+                    median(group.map(\.score.werConversational)) * 100,
+                    median(group.map(\.score.attribution)) * 100,
+                    median(group.map(\.score.attributionCoverage)) * 100,
+                    median(group.map(\.score.attributionMerged)) * 100,
+                    ders.isEmpty ? 0 : median(ders) * 100,
+                    strict.isEmpty ? 0 : median(strict) * 100,
+                    group.reduce(0) { $0 + $1.score.repeatedNgrams }
+                )
             line += String(format: "   %5.1f", median(speeds))
             line += "  " + installSize(engineName: engine, diarizer: group.first?.diarizer ?? "local")
             if repeats > 1 {

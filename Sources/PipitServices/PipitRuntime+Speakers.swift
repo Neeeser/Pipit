@@ -251,7 +251,8 @@ extension PipitRuntime {
         guard let store = speakerStore else { return }
         do {
             if let identifier = settings.processing.localUserIdentityID,
-               let existing = try await store.current(identifier) {
+                let existing = try await store.current(identifier)
+            {
                 if existing.resolvedName != settings.localUserName, !settings.localUserName.isEmpty {
                     _ = try await store.rename(existing.id, to: settings.localUserName)
                     // Past meetings cache the name beside the identity, and every
@@ -359,11 +360,12 @@ extension PipitRuntime {
                 // A candidate heard once is not shown as a recurring voice: it
                 // becomes one only when it turns up again.
                 if identity.kind == .anonymous, identity.state == .ephemeral { continue }
-                rows.append(SpeakerDirectoryEntry(
-                    identity: identity,
-                    profile: try await store.profileStatus(of: identity.id, model: .fluidAudioOffline),
-                    meetingCount: try await store.meetingCount(for: identity.id)
-                ))
+                rows.append(
+                    SpeakerDirectoryEntry(
+                        identity: identity,
+                        profile: try await store.profileStatus(of: identity.id, model: .fluidAudioOffline),
+                        meetingCount: try await store.meetingCount(for: identity.id)
+                    ))
             }
             return rows
         } catch {
@@ -420,13 +422,15 @@ extension PipitRuntime {
             // Only a folded half needs resolving: its own identifier is not in
             // the list, because the conversation is listed under the recording
             // it started with.
-            let conversation = conversations.contains(occurrence.meetingID)
+            let conversation =
+                conversations.contains(occurrence.meetingID)
                 ? occurrence.meetingID
                 : repository.logicalMeeting(id: occurrence.meetingID)?
                     .primary.metadata.id ?? occurrence.meetingID
             seconds[conversation, default: 0] += occurrence.speechSeconds
         }
-        return listed
+        return
+            listed
             .filter { seconds[$0.id] != nil }
             .prefix(limit)
             .map { summary in
@@ -456,8 +460,8 @@ extension PipitRuntime {
         for recording in logical.recordings {
             let audio = recording.store.layout.recordingAudio
             guard FileManager.default.fileExists(atPath: audio.path),
-                  let map = try? recording.store.readSpeakerMap(),
-                  let transcript = try? recording.store.readCanonicalTranscript()
+                let map = try? recording.store.readSpeakerMap(),
+                let transcript = try? recording.store.readCanonicalTranscript()
             else { continue }
             let keys = Set(
                 map.entries
@@ -465,9 +469,10 @@ extension PipitRuntime {
                     .map(\.key)
             )
             guard !keys.isEmpty else { continue }
-            guard let longest = transcript.utterances
-                .filter({ keys.contains($0.speakerKey) })
-                .max(by: { $0.end - $0.start < $1.end - $1.start })
+            guard
+                let longest = transcript.utterances
+                    .filter({ keys.contains($0.speakerKey) })
+                    .max(by: { $0.end - $0.start < $1.end - $1.start })
             else { continue }
             let start = max(0, longest.start)
             return VoiceSample(
@@ -708,7 +713,7 @@ extension PipitRuntime {
         var rows: [MeetingSpeakerRow] = []
         for (index, recording) in recordings.enumerated() {
             guard let transcript = try? recording.store.readCanonicalTranscript(),
-                  let map = try? recording.store.readSpeakerMap()
+                let map = try? recording.store.readSpeakerMap()
             else { continue }
             var perKey: [MeetingSpeakerRow] = []
             for speaker in transcript.speakers {
@@ -729,25 +734,27 @@ extension PipitRuntime {
                 // Both halves call their first speaker the same thing, so a
                 // generated name says which half it came from. A name a person
                 // typed stands on its own.
-                let fallback = recordings.count > 1
+                let fallback =
+                    recordings.count > 1
                     ? "\(SpeakerMap.fallbackName(for: key)), part \(index + 1)"
                     : SpeakerMap.fallbackName(for: key)
-                perKey.append(MeetingSpeakerRow(
-                    clusterID: key,
-                    recordingID: recording.metadata.id,
-                    displayName: stored ?? fallback,
-                    isUnnamed: stored == nil,
-                    // Absent provenance means nothing measured this, so it is
-                    // not High. The badge reads a human or microphone-track
-                    // assignment from its origin, and everything else falls
-                    // back honestly.
-                    band: assignment?.provenance?.band ?? .unknown,
-                    origin: assignment?.origin ?? .ai,
-                    identity: identity,
-                    speechSeconds: speaker.speechSeconds,
-                    provenance: assignment?.provenance,
-                    meetingCount: heardIn
-                ))
+                perKey.append(
+                    MeetingSpeakerRow(
+                        clusterID: key,
+                        recordingID: recording.metadata.id,
+                        displayName: stored ?? fallback,
+                        isUnnamed: stored == nil,
+                        // Absent provenance means nothing measured this, so it is
+                        // not High. The badge reads a human or microphone-track
+                        // assignment from its origin, and everything else falls
+                        // back honestly.
+                        band: assignment?.provenance?.band ?? .unknown,
+                        origin: assignment?.origin ?? .ai,
+                        identity: identity,
+                        speechSeconds: speaker.speechSeconds,
+                        provenance: assignment?.provenance,
+                        meetingCount: heardIn
+                    ))
             }
             rows.append(contentsOf: Self.collapsed(perKey, named: map))
         }
@@ -770,21 +777,25 @@ extension PipitRuntime {
         _ rows: [MeetingSpeakerRow], named map: SpeakerMap
     ) -> [MeetingSpeakerRow] {
         let byKey = Dictionary(rows.map { ($0.clusterID, $0) }, uniquingKeysWith: { first, _ in first })
-        let groups = SpeakerGrouping.groups(rows.map { row in
-            SpeakerGroupMember(
-                key: row.clusterID,
-                displayName: map.displayName(for: row.clusterID),
-                identityID: map.entries[row.clusterID]?.identityID,
-                participantID: map.entries[row.clusterID]?.participantID
-            )
-        })
+        let groups = SpeakerGrouping.groups(
+            rows.map { row in
+                SpeakerGroupMember(
+                    key: row.clusterID,
+                    displayName: map.displayName(for: row.clusterID),
+                    identityID: map.entries[row.clusterID]?.identityID,
+                    participantID: map.entries[row.clusterID]?.participantID
+                )
+            })
         return groups.compactMap { group in
             let members = group.compactMap { byKey[$0.key] }
-            guard var leader = members.max(by: { left, right in
-                if left.isUnnamed != right.isUnnamed { return left.isUnnamed }
-                return left.speechSeconds < right.speechSeconds
-            }) else { return nil }
-            leader.otherClusterIDs = members
+            guard
+                var leader = members.max(by: { left, right in
+                    if left.isUnnamed != right.isUnnamed { return left.isUnnamed }
+                    return left.speechSeconds < right.speechSeconds
+                })
+            else { return nil }
+            leader.otherClusterIDs =
+                members
                 .filter { $0.clusterID != leader.clusterID }
                 .map(\.clusterID)
             leader.speechSeconds = members.reduce(0) { $0 + $1.speechSeconds }
@@ -827,15 +838,17 @@ extension PipitRuntime {
             for suggestion in set.visible(forUnnamed: unnamed) {
                 // The same fallback the speaker chips draw, so a pill and the
                 // chip it points at agree on what that speaker is called.
-                let label = recordings.count > 1
+                let label =
+                    recordings.count > 1
                     ? "\(SpeakerMap.fallbackName(for: suggestion.label)), part \(index + 1)"
                     : SpeakerMap.fallbackName(for: suggestion.label)
-                rows.append(MeetingSuggestionRow(
-                    clusterID: suggestion.label,
-                    recordingID: recording.metadata.id,
-                    speakerLabel: label,
-                    suggestion: suggestion
-                ))
+                rows.append(
+                    MeetingSuggestionRow(
+                        clusterID: suggestion.label,
+                        recordingID: recording.metadata.id,
+                        speakerLabel: label,
+                        suggestion: suggestion
+                    ))
             }
         }
         return rows
@@ -856,7 +869,7 @@ extension PipitRuntime {
         var total = 0
         for recording in recordings {
             guard let map = try? recording.store.readSpeakerMap(),
-                  let keys = try? recording.store.readTranscriptSpeakers().map(\.key)
+                let keys = try? recording.store.readTranscriptSpeakers().map(\.key)
             else { continue }
             total += keys.count {
                 $0 != SpeakerLabel.localUser
@@ -996,13 +1009,15 @@ extension PipitRuntime {
             var identityID: IdentityID?
             if let store = speakerStore {
                 let people = try? await store.identities(kind: .person)
-                identityID = people?.first {
-                    $0.resolvedName.compare(trimmed, options: .caseInsensitive) == .orderedSame
-                }?.id
+                identityID =
+                    people?.first {
+                        $0.resolvedName.compare(trimmed, options: .caseInsensitive) == .orderedSame
+                    }?.id
             }
-            linked.append(Participant(
-                displayName: trimmed, origin: .human, identityID: identityID
-            ))
+            linked.append(
+                Participant(
+                    displayName: trimmed, origin: .human, identityID: identityID
+                ))
         }
         do {
             _ = try found.store.updateMetadata { metadata in

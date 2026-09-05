@@ -121,12 +121,18 @@ public struct AudioMixer: Sendable {
         // truncated one that reads as finished.
         defer { if output != nil { try? FileManager.default.removeItem(at: partial) } }
 
-        let micReader = micSegments.isEmpty ? nil : TrackAudioReader(
-            segments: micSegments, segmentsDirectory: mic.directory, targetFormat: format
-        )
-        let remoteReader = remoteSegments.isEmpty ? nil : TrackAudioReader(
-            segments: remoteSegments, segmentsDirectory: remote.directory, targetFormat: format
-        )
+        let micReader =
+            micSegments.isEmpty
+            ? nil
+            : TrackAudioReader(
+                segments: micSegments, segmentsDirectory: mic.directory, targetFormat: format
+            )
+        let remoteReader =
+            remoteSegments.isEmpty
+            ? nil
+            : TrackAudioReader(
+                segments: remoteSegments, segmentsDirectory: remote.directory, targetFormat: format
+            )
 
         // Whichever source started later is delayed by the difference between the
         // host times each stamped its first frame with.
@@ -154,7 +160,7 @@ public struct AudioMixer: Sendable {
 
         while sources.contains(where: { !$0.isFinished }) {
             guard let mixed = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: blockFrames),
-                  let mixedData = mixed.floatChannelData
+                let mixedData = mixed.floatChannelData
             else { break }
             for frame in 0..<Int(blockFrames) { mixedData[0][frame] = 0 }
             var producedFrames = 0
@@ -170,7 +176,7 @@ public struct AudioMixer: Sendable {
                 }
                 let request = AVAudioFrameCount(Int(blockFrames) - offset)
                 guard let buffer = try source.reader.read(frames: request), buffer.frameLength > 0,
-                      let channelData = buffer.floatChannelData
+                    let channelData = buffer.floatChannelData
                 else {
                     source.isFinished = true
                     continue

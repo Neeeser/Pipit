@@ -264,8 +264,8 @@ struct MicrophoneRecoveryCoordinatorTests {
         )
         #expect(
             coordinator.warnings().contains {
-            if case .microphoneUnrecovered = $0 { return true }
-            return false
+                if case .microphoneUnrecovered = $0 { return true }
+                return false
             },
             "and the user is told, rather than the loop running quietly"
         )
@@ -630,8 +630,8 @@ struct MicrophoneRecoveryCoordinatorTests {
         #expect(coordinator.health != .healthy, "a microphone that never built is not healthy")
         #expect(
             coordinator.warnings().contains {
-            if case .microphoneUnrecovered = $0 { return true }
-            return false
+                if case .microphoneUnrecovered = $0 { return true }
+                return false
             },
             "and the user is told"
         )
@@ -1036,15 +1036,17 @@ struct MicrophoneRecoveryCoordinatorTests {
         // format on whatever it was instantiated with. The build takes
         // this queued reading, so the two differ here by construction.
         engine.queueFormatReadings([
-            AudioFormatDescriptor(sampleRate: 16_000, channelCount: 1),
+            AudioFormatDescriptor(sampleRate: 16_000, channelCount: 1)
         ])
         coordinator.start()
 
         #expect(delegate.micBinds.count == 1)
         #expect(delegate.micBinds.first?.reason == "session_start")
-        #expect(delegate.micBinds.first?.device == MicrophoneDeviceDescription(
-            uid: "BuiltInMicrophoneDevice", name: "Fake input", sampleRate: 48_000, channelCount: 3
-        ))
+        #expect(
+            delegate.micBinds.first?.device
+                == MicrophoneDeviceDescription(
+                    uid: "BuiltInMicrophoneDevice", name: "Fake input", sampleRate: 48_000, channelCount: 3
+                ))
         #expect(
             delegate.micBinds.first?.build.format == AudioFormatDescriptor(sampleRate: 16_000, channelCount: 1),
             "the format the segments are written at, not the device's"
@@ -1498,10 +1500,11 @@ struct RemoteTapCoordinatorTests {
         #expect(delegate.remoteBinds.first?.processIDs == [79_590])
         #expect(delegate.remoteBinds.first?.producing == [true])
         #expect(
-            delegate.remoteBinds.first?.binding == RemoteTapBinding(
-            format: AudioFormatDescriptor(sampleRate: 48_000, channelCount: 2),
-            streamCount: 2, tapStreamIndex: 1
-            ),
+            delegate.remoteBinds.first?.binding
+                == RemoteTapBinding(
+                    format: AudioFormatDescriptor(sampleRate: 48_000, channelCount: 2),
+                    streamCount: 2, tapStreamIndex: 1
+                ),
             "the binding the tap reported reaches the manifest, not a rebuilt one"
         )
 

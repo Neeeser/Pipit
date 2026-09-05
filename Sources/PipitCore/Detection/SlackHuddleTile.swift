@@ -44,7 +44,7 @@ public enum SlackHuddleTileParser {
         guard identifier.hasPrefix(identifierPrefix) else { return nil }
         guard !identifier.contains(descriptionSuffix) else { return nil }
         guard let id = identifier.split(separator: "_").last.map(String.init),
-              !id.isEmpty, id != identifier, isPlausibleUserID(id)
+            !id.isEmpty, id != identifier, isPlausibleUserID(id)
         else { return nil }
         return id
     }

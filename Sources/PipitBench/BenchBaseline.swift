@@ -119,17 +119,19 @@ public struct BenchBaselines: Codable, Sendable, Equatable {
         }
         let werDrift = (score.werNoFiller - baseline.werNoFiller) * 100
         if werDrift > tolerances.wer {
-            broken.append(String(
-                format: "filler-stripped WER %.1f%% against %.1f%%",
-                score.werNoFiller * 100, baseline.werNoFiller * 100
-            ))
+            broken.append(
+                String(
+                    format: "filler-stripped WER %.1f%% against %.1f%%",
+                    score.werNoFiller * 100, baseline.werNoFiller * 100
+                ))
         }
         let attributionDrift = (baseline.attribution - score.attribution) * 100
         if attributionDrift > tolerances.attribution {
-            broken.append(String(
-                format: "attribution %.1f%% against %.1f%%",
-                score.attribution * 100, baseline.attribution * 100
-            ))
+            broken.append(
+                String(
+                    format: "attribution %.1f%% against %.1f%%",
+                    score.attribution * 100, baseline.attribution * 100
+                ))
         }
         if let baselineDer = baseline.der, let der = score.der, (der - baselineDer) * 100 > tolerances.der {
             broken.append(String(format: "DER %.1f%% against %.1f%%", der * 100, baselineDer * 100))
@@ -137,9 +139,10 @@ public struct BenchBaselines: Codable, Sendable, Equatable {
         if let baselineTcp = baseline.tcpWer, let tcp = score.tcpWer,
             (tcp - baselineTcp) * 100 > tolerances.tcpWer
         {
-            broken.append(String(
-                format: "tcpWER %.1f%% against %.1f%%", tcp * 100, baselineTcp * 100
-            ))
+            broken.append(
+                String(
+                    format: "tcpWER %.1f%% against %.1f%%", tcp * 100, baselineTcp * 100
+                ))
         }
         return broken
     }

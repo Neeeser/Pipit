@@ -31,7 +31,7 @@ public enum LineDivision {
             // the moment stays with the piece it started in, because that is
             // where its audio began.
             guard let index = words.firstIndex(where: { $0.start >= cut.atSeconds }),
-                  index > 0, index < words.count, boundaries.last != index
+                index > 0, index < words.count, boundaries.last != index
             else { continue }
             boundaries.append(index)
         }
@@ -49,21 +49,22 @@ public enum LineDivision {
             // line would leave that audio belonging to nobody.
             let pieceStart = start == 0 ? utterance.start : first.start
             let pieceEnd = end == words.count ? utterance.end : last.end
-            pieces.append(Utterance(
-                id: Utterance.identifier(
-                    chunkID: utterance.chunkID, track: utterance.track,
-                    start: pieceStart, end: pieceEnd
-                ),
-                start: pieceStart,
-                end: max(pieceEnd, pieceStart + 0.001),
-                track: utterance.track,
-                rawSpeakerLabel: utterance.rawSpeakerLabel,
-                speakerKey: utterance.speakerKey,
-                text: text,
-                chunkID: utterance.chunkID,
-                model: utterance.model,
-                words: slice
-            ))
+            pieces.append(
+                Utterance(
+                    id: Utterance.identifier(
+                        chunkID: utterance.chunkID, track: utterance.track,
+                        start: pieceStart, end: pieceEnd
+                    ),
+                    start: pieceStart,
+                    end: max(pieceEnd, pieceStart + 0.001),
+                    track: utterance.track,
+                    rawSpeakerLabel: utterance.rawSpeakerLabel,
+                    speakerKey: utterance.speakerKey,
+                    text: text,
+                    chunkID: utterance.chunkID,
+                    model: utterance.model,
+                    words: slice
+                ))
         }
         return pieces.count > 1 ? pieces : [utterance]
     }
@@ -77,7 +78,7 @@ public enum LineDivision {
     public static func boundary(in utterance: Utterance, near seconds: Double) -> Double? {
         guard let words = utterance.words, words.count > 1 else { return nil }
         guard let index = words.firstIndex(where: { $0.start >= seconds }),
-              index > 0, index < words.count
+            index > 0, index < words.count
         else { return nil }
         return words[index].start
     }

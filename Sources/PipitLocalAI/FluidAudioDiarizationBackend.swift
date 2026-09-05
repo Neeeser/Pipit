@@ -1,5 +1,5 @@
-import Foundation
 import FluidAudio
+import Foundation
 import PipitAudio
 import PipitCore
 
@@ -308,7 +308,8 @@ extension LocalModelManager {
             .map(\.embedding256)
         guard !vectors.isEmpty else { return nil }
         let ownSegments = result.segments.filter { $0.speakerId == dominant.key }
-        let quality = ownSegments.isEmpty
+        let quality =
+            ownSegments.isEmpty
             ? 1.0
             : ownSegments.reduce(0.0) { $0 + Double($1.qualityScore) } / Double(ownSegments.count)
         return SingleSpeakerSample(
@@ -356,11 +357,12 @@ extension LocalModelManager {
                 guard last > first else { continue }
                 let concatStart = Double(concatenated.count) / rate
                 concatenated.append(contentsOf: samples[first..<last])
-                mapping.append((
-                    concatStart: concatStart,
-                    concatEnd: Double(concatenated.count) / rate,
-                    originalStart: interval.start
-                ))
+                mapping.append(
+                    (
+                        concatStart: concatStart,
+                        concatEnd: Double(concatenated.count) / rate,
+                        originalStart: interval.start
+                    ))
             }
             // Below a second the embedding model has nothing to work with.
             guard concatenated.count >= Int(rate) else { continue }
@@ -372,9 +374,10 @@ extension LocalModelManager {
                 let (start, end) = Self.originalSpan(
                     concatStart: chunk.startTimeSeconds, concatEnd: chunk.endTimeSeconds, mapping: mapping
                 )
-                output.append(DiarizationChunkEmbedding(
-                    clusterID: clusterID, start: start, end: end, vector: chunk.embedding256
-                ))
+                output.append(
+                    DiarizationChunkEmbedding(
+                        clusterID: clusterID, start: start, end: end, vector: chunk.embedding256
+                    ))
             }
         }
         return output.sorted { $0.start < $1.start }

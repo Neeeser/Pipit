@@ -79,10 +79,13 @@ struct BackendStep: View {
                     + "Voice profiles stay on this Mac either way, and are never uploaded."
             )
 
-            Picker("", selection: Binding(
-                get: { runtime.settings.processing.isFullyLocal ? ProcessingBackendChoice.local : .openAI },
-                set: { model.chooseBackend($0) }
-            )) {
+            Picker(
+                "",
+                selection: Binding(
+                    get: { runtime.settings.processing.isFullyLocal ? ProcessingBackendChoice.local : .openAI },
+                    set: { model.chooseBackend($0) }
+                )
+            ) {
                 choice(
                     .local, "On this Mac",
                     "Nothing leaves the machine. Needs a one-time model download."
@@ -306,7 +309,7 @@ struct PermissionStep: View {
                     // the list, and the model opens the pane straight after so the
                     // row the illustration shows is actually there.
                     Button(actionLabel) { Task { await model.request(kind) } }
-                    .buttonStyle(.borderedProminent)
+                        .buttonStyle(.borderedProminent)
 
                     if kind.acceptsDroppedApplication { AppDragChip() }
                 }

@@ -36,26 +36,28 @@ struct ReconnectTests {
             $0.possibleContinuationOf = first.metadata.id
             $0.possibleContinuationReason = "same meeting, 15 minutes later"
         }
-        try first.store.writeCanonicalTranscript(CanonicalTranscript(
-            generatedAt: started,
-            utterances: [
-                Utterance(
-                    id: "a1", start: 0, end: 5, track: .remote, rawSpeakerLabel: nil,
-                    speakerKey: "remote-001_speaker_00", text: "before the drop",
-                    chunkID: "c", model: "m"
-                ),
-            ]
-        ))
-        try second.store.writeCanonicalTranscript(CanonicalTranscript(
-            generatedAt: started.addingTimeInterval(900),
-            utterances: [
-                Utterance(
-                    id: "b1", start: 0, end: 5, track: .remote, rawSpeakerLabel: nil,
-                    speakerKey: "remote-001_speaker_00", text: "after the rejoin",
-                    chunkID: "c", model: "m"
-                ),
-            ]
-        ))
+        try first.store.writeCanonicalTranscript(
+            CanonicalTranscript(
+                generatedAt: started,
+                utterances: [
+                    Utterance(
+                        id: "a1", start: 0, end: 5, track: .remote, rawSpeakerLabel: nil,
+                        speakerKey: "remote-001_speaker_00", text: "before the drop",
+                        chunkID: "c", model: "m"
+                    )
+                ]
+            ))
+        try second.store.writeCanonicalTranscript(
+            CanonicalTranscript(
+                generatedAt: started.addingTimeInterval(900),
+                utterances: [
+                    Utterance(
+                        id: "b1", start: 0, end: 5, track: .remote, rawSpeakerLabel: nil,
+                        speakerKey: "remote-001_speaker_00", text: "after the rejoin",
+                        chunkID: "c", model: "m"
+                    )
+                ]
+            ))
         var secondMap = SpeakerMap()
         secondMap.assign("Nadia", to: "remote-001_speaker_00")
         try second.store.writeSpeakerMap(secondMap)

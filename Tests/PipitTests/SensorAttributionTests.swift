@@ -75,10 +75,11 @@ struct SensorTimelineTests {
         var builder = SensorTimelineBuilder(source: "slack")
         let roster = [participant("U1", "Ada"), participant("U2", "Grace")]
         for tick in stride(from: 0.0, through: 2.0, by: 0.25) {
-            builder.record(SensorObservation(
-                at: tick, participants: roster, speakingID: "U1",
-                unmutedIDs: ["U1", "U2"]
-            ))
+            builder.record(
+                SensorObservation(
+                    at: tick, participants: roster, speakingID: "U1",
+                    unmutedIDs: ["U1", "U2"]
+                ))
         }
         let raw = builder.finish()
         #expect(raw.turns.count == 1)
@@ -137,17 +138,20 @@ struct SensorTimelineTests {
     @Test("the roster is the union across the call, not the last read")
     func theRosterIsTheUnionAcrossTheCallNotTheLastRead() async throws {
         var builder = SensorTimelineBuilder(source: "slack")
-        builder.record(SensorObservation(
-            at: 0, participants: [participant("U1", "Ada")], speakingID: nil
-        ))
-        builder.record(SensorObservation(
-            at: 1, participants: [participant("U1", "Ada"), participant("U2", "Grace")],
-            speakingID: nil
-        ))
+        builder.record(
+            SensorObservation(
+                at: 0, participants: [participant("U1", "Ada")], speakingID: nil
+            ))
+        builder.record(
+            SensorObservation(
+                at: 1, participants: [participant("U1", "Ada"), participant("U2", "Grace")],
+                speakingID: nil
+            ))
         // Grace leaves before the end. She was still in the meeting.
-        builder.record(SensorObservation(
-            at: 2, participants: [participant("U1", "Ada")], speakingID: nil
-        ))
+        builder.record(
+            SensorObservation(
+                at: 2, participants: [participant("U1", "Ada")], speakingID: nil
+            ))
         let raw = builder.finish()
         #expect(raw.participants.count == 2)
         #expect(raw.participants.contains { $0.id == "U2" })
@@ -156,12 +160,14 @@ struct SensorTimelineTests {
     @Test("a name that arrives late replaces a placeholder")
     func aNameThatArrivesLateReplacesAPlaceholder() async throws {
         var builder = SensorTimelineBuilder(source: "meet")
-        builder.record(SensorObservation(
-            at: 0, participants: [participant("d406", nil)], speakingID: nil
-        ))
-        builder.record(SensorObservation(
-            at: 1, participants: [participant("d406", "Nadia")], speakingID: nil
-        ))
+        builder.record(
+            SensorObservation(
+                at: 0, participants: [participant("d406", nil)], speakingID: nil
+            ))
+        builder.record(
+            SensorObservation(
+                at: 1, participants: [participant("d406", "Nadia")], speakingID: nil
+            ))
         let raw = builder.finish()
         #expect(raw.participants.first?.displayName == "Nadia")
     }
@@ -174,12 +180,14 @@ struct SensorTimelineTests {
         // the audio.
         var builder = SensorTimelineBuilder(source: "meet")
         let roster = [participant("d406", "Ada")]
-        builder.record(SensorObservation(
-            at: 0, participants: roster, speakingID: "d999"
-        ))
-        builder.record(SensorObservation(
-            at: 5, participants: roster, speakingID: "d999"
-        ))
+        builder.record(
+            SensorObservation(
+                at: 0, participants: roster, speakingID: "d999"
+            ))
+        builder.record(
+            SensorObservation(
+                at: 5, participants: roster, speakingID: "d999"
+            ))
         let raw = builder.finish()
         #expect(raw.turns.count == 0)
         #expect(raw.participants.count == 1)
@@ -349,11 +357,11 @@ struct SensorTimelineTests {
         // a missing key would silently turn naming off for every meeting
         // recorded before the field was added.
         let json = """
-        {"version":1,"source":"slack-huddle-ax",
-         "participants":[{"id":"U1","displayName":"Ada","isSelf":false}],
-         "turns":[{"start":0,"end":10,"participantID":"U1"}],
-         "unmutedIDs":["U1"]}
-        """
+            {"version":1,"source":"slack-huddle-ax",
+             "participants":[{"id":"U1","displayName":"Ada","isSelf":false}],
+             "turns":[{"start":0,"end":10,"participantID":"U1"}],
+             "unmutedIDs":["U1"]}
+            """
         let decoded = try JSONDecoder().decode(
             RawSensors.self, from: Data(json.utf8)
         )
@@ -369,13 +377,15 @@ struct SensorTimelineTests {
         // during a confirmed live huddle, so an empty read means no
         // information rather than an empty room.
         var builder = SensorTimelineBuilder(source: "slack")
-        builder.record(SensorObservation(
-            at: 0, participants: [participant("U1", "Ada")], speakingID: "U1"
-        ))
+        builder.record(
+            SensorObservation(
+                at: 0, participants: [participant("U1", "Ada")], speakingID: "U1"
+            ))
         builder.record(SensorObservation(at: 1, participants: [], speakingID: nil))
-        builder.record(SensorObservation(
-            at: 2, participants: [participant("U1", "Ada")], speakingID: "U1"
-        ))
+        builder.record(
+            SensorObservation(
+                at: 2, participants: [participant("U1", "Ada")], speakingID: "U1"
+            ))
         let raw = builder.finish()
         #expect(raw.participants.count == 1)
     }
@@ -408,18 +418,19 @@ struct SensorShiftTests {
         // every turn that far early, and a uniform shift keeps overlap
         // high, so no coverage guard would have caught it.
         let preRoll = 15.0
-        let origin = 1_000.0            // host time of the first frame
-        let commit = origin + preRoll   // host time when the meeting committed
+        let origin = 1_000.0  // host time of the first frame
+        let commit = origin + preRoll  // host time when the meeting committed
 
         var recorder = SensorRecorder(anchorMonotonic: commit)
         let roster = [participant("U1", "Ada")]
         // Ada talks from 20 s to 30 s after the commit, read twice a
         // second the way detection actually reads.
         for tick in stride(from: 20.0, through: 30.0, by: 0.5) {
-            recorder.record(SensorReading(
-                source: "slack-huddle-ax", provider: .slack, at: commit + tick,
-                participants: roster, speakingID: "U1"
-            ))
+            recorder.record(
+                SensorReading(
+                    source: "slack-huddle-ax", provider: .slack, at: commit + tick,
+                    participants: roster, speakingID: "U1"
+                ))
         }
         let finished = recorder.finish(timelineOriginHostTime: origin)
         let raw = try #require(finished)
@@ -435,10 +446,11 @@ struct SensorShiftTests {
         // A timeline nobody can place still overlaps clusters, so it
         // would name people confidently and wrongly.
         var recorder = SensorRecorder(anchorMonotonic: 100)
-        recorder.record(SensorReading(
-            source: "slack-huddle-ax", provider: .slack, at: 101,
-            participants: [participant("U1", "Ada")], speakingID: "U1"
-        ))
+        recorder.record(
+            SensorReading(
+                source: "slack-huddle-ax", provider: .slack, at: 101,
+                participants: [participant("U1", "Ada")], speakingID: "U1"
+            ))
         #expect(recorder.finish(timelineOriginHostTime: nil) == nil)
     }
 
@@ -684,8 +696,10 @@ struct SensorAttributionTests {
             participants: [participant("U1", "Ada")], turns: [("U1", 0, 400)]
         )
         let result = SensorAttribution.attribute(
-            intervals: [interval("a", 0, 130), interval("b", 140, 260),
-                        interval("c", 270, 390)],
+            intervals: [
+                interval("a", 0, 130), interval("b", 140, 260),
+                interval("c", 270, 390),
+            ],
             sensors: raw
         )
         #expect(result.matches.count == 0)
@@ -1206,14 +1220,16 @@ struct SensorIdentityLinkTests {
         // Slack user ids into a record labelled meet-dom, and nothing
         // downstream could tell the two apart.
         var recorder = SensorRecorder(anchorMonotonic: 0)
-        recorder.record(SensorReading(
-            source: "meet-dom", provider: .googleMeet, at: 1,
-            participants: [participant("d406", "Ada")], speakingID: "d406"
-        ))
-        recorder.record(SensorReading(
-            source: "slack-huddle-ax", provider: .slack, at: 2,
-            participants: [participant("U1", "Someone else")], speakingID: "U1"
-        ))
+        recorder.record(
+            SensorReading(
+                source: "meet-dom", provider: .googleMeet, at: 1,
+                participants: [participant("d406", "Ada")], speakingID: "d406"
+            ))
+        recorder.record(
+            SensorReading(
+                source: "slack-huddle-ax", provider: .slack, at: 2,
+                participants: [participant("U1", "Someone else")], speakingID: "U1"
+            ))
         let finished = recorder.finish(timelineOriginHostTime: 0)
         let raw = try #require(finished)
         #expect(raw.source == "meet-dom")
@@ -1477,20 +1493,23 @@ private func remoteChunk(words: [RawTranscriptWord]) -> RawTranscriptChunk {
     RawTranscriptChunk(
         id: "remote_chunk_001", track: .remote, timelineOffset: 0, durationSeconds: 600,
         model: "test", responseFormat: "verbose_json",
-        segments: [RawTranscriptSegment(
-            start: words.first?.start ?? 0, end: words.last?.end ?? 0,
-            text: words.map(\.text).joined(), speaker: nil, words: words
-        )]
+        segments: [
+            RawTranscriptSegment(
+                start: words.first?.start ?? 0, end: words.last?.end ?? 0,
+                text: words.map(\.text).joined(), speaker: nil, words: words
+            )
+        ]
     )
 }
 
 private func run(_ intervals: [DiarizationInterval]) -> RawDiarization {
     var diarization = RawDiarization()
-    diarization.setActive(DiarizationRun(
-        id: "remote-001", track: .remote, backend: "test",
-        producedAt: Date(timeIntervalSince1970: 0), timelineOffset: 0,
-        intervals: intervals
-    ))
+    diarization.setActive(
+        DiarizationRun(
+            id: "remote-001", track: .remote, backend: "test",
+            producedAt: Date(timeIntervalSince1970: 0), timelineOffset: 0,
+            intervals: intervals
+        ))
     return diarization
 }
 
@@ -1597,7 +1616,7 @@ struct SensorAssemblyTests {
         let sensors = RawSensors(
             source: "slack-huddle-ax",
             participants: [
-                SensorParticipant(id: "U_ME", displayName: "Marlow", isSelf: true),
+                SensorParticipant(id: "U_ME", displayName: "Marlow", isSelf: true)
             ],
             turns: [SensorTurn(start: 0, end: 10, participantID: "U_ME")]
         )
@@ -1668,33 +1687,35 @@ struct SensorRoundTripTests {
         let store = created.store
 
         var diarization = RawDiarization()
-        diarization.setActive(DiarizationRun(
-            id: "remote-001", track: .remote, backend: "test",
-            producedAt: Date(timeIntervalSince1970: 1_787_070_000), timelineOffset: 0,
-            clusters: [
-                DiarizationCluster(id: "1", speechSeconds: 8),
-                DiarizationCluster(id: "2", speechSeconds: 8),
-            ],
-            intervals: [
-                DiarizationInterval(start: 1, end: 9, clusterID: "1"),
-                DiarizationInterval(start: 11, end: 19, clusterID: "2"),
-            ]
-        ))
+        diarization.setActive(
+            DiarizationRun(
+                id: "remote-001", track: .remote, backend: "test",
+                producedAt: Date(timeIntervalSince1970: 1_787_070_000), timelineOffset: 0,
+                clusters: [
+                    DiarizationCluster(id: "1", speechSeconds: 8),
+                    DiarizationCluster(id: "2", speechSeconds: 8),
+                ],
+                intervals: [
+                    DiarizationInterval(start: 1, end: 9, clusterID: "1"),
+                    DiarizationInterval(start: 11, end: 19, clusterID: "2"),
+                ]
+            ))
         try store.writeRawDiarization(diarization)
 
-        try store.writeRawSensors(RawSensors(
-            source: "slack-huddle-ax",
-            participants: [
-                SensorParticipant(id: "U_ME", displayName: "Marlow", isSelf: true),
-                SensorParticipant(id: "U_ADA", displayName: "Ada"),
-                SensorParticipant(id: "U_GRACE", displayName: "Grace"),
-            ],
-            turns: [
-                SensorTurn(start: 0, end: 10, participantID: "U_ADA"),
-                SensorTurn(start: 10, end: 20, participantID: "U_GRACE"),
-            ],
-            unmutedIDs: ["U_ME", "U_ADA", "U_GRACE"]
-        ))
+        try store.writeRawSensors(
+            RawSensors(
+                source: "slack-huddle-ax",
+                participants: [
+                    SensorParticipant(id: "U_ME", displayName: "Marlow", isSelf: true),
+                    SensorParticipant(id: "U_ADA", displayName: "Ada"),
+                    SensorParticipant(id: "U_GRACE", displayName: "Grace"),
+                ],
+                turns: [
+                    SensorTurn(start: 0, end: 10, participantID: "U_ADA"),
+                    SensorTurn(start: 10, end: 20, participantID: "U_GRACE"),
+                ],
+                unmutedIDs: ["U_ME", "U_ADA", "U_GRACE"]
+            ))
 
         let sensors = try #require(store.readRawSensors())
         let entries = SensorAttribution.assignments(
@@ -1749,11 +1770,12 @@ struct SensorRoundTripTests {
         speakers.assign("Nadia", to: "remote-001_speaker_01")
 
         var diarization = RawDiarization()
-        diarization.setActive(DiarizationRun(
-            id: "remote-001", track: .remote, backend: "test",
-            producedAt: Date(timeIntervalSince1970: 0), timelineOffset: 0,
-            intervals: [DiarizationInterval(start: 1, end: 9, clusterID: "1")]
-        ))
+        diarization.setActive(
+            DiarizationRun(
+                id: "remote-001", track: .remote, backend: "test",
+                producedAt: Date(timeIntervalSince1970: 0), timelineOffset: 0,
+                intervals: [DiarizationInterval(start: 1, end: 9, clusterID: "1")]
+            ))
         let sensors = RawSensors(
             source: "slack-huddle-ax",
             participants: [SensorParticipant(id: "U_ADA", displayName: "Ada")],
@@ -1774,11 +1796,12 @@ struct SensorRoundTripTests {
         // renders a name. Showing that to a person would be worse than
         // showing nothing.
         var diarization = RawDiarization()
-        diarization.setActive(DiarizationRun(
-            id: "remote-001", track: .remote, backend: "test",
-            producedAt: Date(timeIntervalSince1970: 0), timelineOffset: 0,
-            intervals: [DiarizationInterval(start: 1, end: 9, clusterID: "1")]
-        ))
+        diarization.setActive(
+            DiarizationRun(
+                id: "remote-001", track: .remote, backend: "test",
+                producedAt: Date(timeIntervalSince1970: 0), timelineOffset: 0,
+                intervals: [DiarizationInterval(start: 1, end: 9, clusterID: "1")]
+            ))
         let sensors = RawSensors(
             source: "meet-dom",
             participants: [SensorParticipant(id: "spaces/x/devices/406")],

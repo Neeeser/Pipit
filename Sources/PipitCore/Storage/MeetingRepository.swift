@@ -25,7 +25,8 @@ public struct MeetingStore: Sendable {
     public func readMetadata() throws -> MeetingMetadata {
         // The legacy fallback keeps a folder restored from an old backup
         // readable; the startup migration normalises it on the next launch.
-        let url = FileManager.default.fileExists(atPath: layout.metadata.path)
+        let url =
+            FileManager.default.fileExists(atPath: layout.metadata.path)
             ? layout.metadata
             : layout.legacyMetadata
         let data = try read(url)
@@ -119,7 +120,7 @@ public struct MeetingStore: Sendable {
     /// already do.
     public func readRawSensors() -> RawSensors? {
         guard FileManager.default.fileExists(atPath: layout.rawSensors.path),
-              let data = try? read(layout.rawSensors)
+            let data = try? read(layout.rawSensors)
         else { return nil }
         return try? ArchiveCoding.decode(
             RawSensors.self, from: data, path: layout.rawSensors.path
@@ -135,7 +136,7 @@ public struct MeetingStore: Sendable {
     /// segment, which is what those meetings already show.
     public func readSpeechEvidence() -> SpeechEvidence? {
         guard FileManager.default.fileExists(atPath: layout.speechEvidence.path),
-              let data = try? read(layout.speechEvidence)
+            let data = try? read(layout.speechEvidence)
         else { return nil }
         return try? ArchiveCoding.decode(
             SpeechEvidence.self, from: data, path: layout.speechEvidence.path
@@ -162,10 +163,10 @@ public struct MeetingStore: Sendable {
     /// meetings already show.
     public func readSpeakerSuggestions() -> SpeakerSuggestionSet {
         guard FileManager.default.fileExists(atPath: layout.speakerSuggestions.path),
-              let data = try? read(layout.speakerSuggestions),
-              let set = try? ArchiveCoding.decode(
-                  SpeakerSuggestionSet.self, from: data, path: layout.speakerSuggestions.path
-              )
+            let data = try? read(layout.speakerSuggestions),
+            let set = try? ArchiveCoding.decode(
+                SpeakerSuggestionSet.self, from: data, path: layout.speakerSuggestions.path
+            )
         else { return SpeakerSuggestionSet() }
         return set
     }
@@ -301,9 +302,11 @@ public struct MeetingStore: Sendable {
             if let alignment = readAlignment(chunkID: chunk.id), !alignment.segments.isEmpty {
                 raw.chunks[index].segments = alignment.segments
             } else {
-                raw.chunks[index].segments = [RawTranscriptSegment(
-                    start: 0, end: chunk.durationSeconds, text: text, speaker: nil
-                )]
+                raw.chunks[index].segments = [
+                    RawTranscriptSegment(
+                        start: 0, end: chunk.durationSeconds, text: text, speaker: nil
+                    )
+                ]
             }
         }
         return raw
@@ -379,7 +382,8 @@ public struct MeetingStore: Sendable {
         // Archive-versus-segments is decided above, by the metadata alone. The
         // directory check below only answers where the segment chain lives for
         // a folder whose layout migration has not run.
-        let directory = FileManager.default.fileExists(atPath: layout.segments.path)
+        let directory =
+            FileManager.default.fileExists(atPath: layout.segments.path)
             ? layout.segments
             : layout.legacySegments
         return TrackAudioLocation(segments: timeline.segments(track: track), directory: directory)
@@ -610,13 +614,16 @@ public struct MeetingRepository: Sendable {
 
     /// The identifiers of the meetings sitting directly inside a directory.
     private func identifiers(in directory: URL) -> Set<String> {
-        guard let entries = try? FileManager.default.contentsOfDirectory(
-            at: directory, includingPropertiesForKeys: nil, options: [.skipsHiddenFiles]
-        ) else { return [] }
+        guard
+            let entries = try? FileManager.default.contentsOfDirectory(
+                at: directory, includingPropertiesForKeys: nil, options: [.skipsHiddenFiles]
+            )
+        else { return [] }
         var out: Set<String> = []
         for entry in entries where entry.hasDirectoryPath {
-            guard let metadata = try? MeetingStore(layout: MeetingLayout(root: entry))
-                .readMetadata()
+            guard
+                let metadata = try? MeetingStore(layout: MeetingLayout(root: entry))
+                    .readMetadata()
             else { continue }
             Self.remember(id: metadata.id, directory: entry, archiveRoot: archive.root)
             out.insert(metadata.id)
@@ -646,7 +653,7 @@ public struct MeetingRepository: Sendable {
         // parted, and for one whose folder a person renamed in Finder. Either
         // way the name on disk is not Pipit's to change.
         guard let recorded = found.metadata.directoryName,
-              recorded == current.lastPathComponent
+            recorded == current.lastPathComponent
         else { return current }
 
         // Where it sits, not what the metadata remembers: a folder renamed in
@@ -714,8 +721,9 @@ public struct MeetingRepository: Sendable {
     /// and only the pipeline knows which they are.
     public func settleFolderNames(skipping isBusy: (String) -> Bool = { _ in false }) {
         for directory in meetingDirectories() {
-            guard let metadata = try? MeetingStore(layout: MeetingLayout(root: directory))
-                .readMetadata()
+            guard
+                let metadata = try? MeetingStore(layout: MeetingLayout(root: directory))
+                    .readMetadata()
             else { continue }
             guard metadata.processing.state == .complete || metadata.processing.state == .failed
             else { continue }
@@ -834,10 +842,13 @@ public struct MeetingRepository: Sendable {
     /// The metadata of the meetings in one folder, newest first.
     public func meetingMetadata(inFolder folder: String, limit: Int? = nil) -> [MeetingMetadata] {
         let directory = archive.folderDirectory(folder)
-        guard let entries = try? FileManager.default.contentsOfDirectory(
-            at: directory, includingPropertiesForKeys: nil, options: [.skipsHiddenFiles]
-        ) else { return [] }
-        let all = entries
+        guard
+            let entries = try? FileManager.default.contentsOfDirectory(
+                at: directory, includingPropertiesForKeys: nil, options: [.skipsHiddenFiles]
+            )
+        else { return [] }
+        let all =
+            entries
             .filter(\.hasDirectoryPath)
             .compactMap { try? MeetingStore(layout: MeetingLayout(root: $0)).readMetadata() }
             .filter { $0.mergedIntoMeetingID == nil }
@@ -849,10 +860,13 @@ public struct MeetingRepository: Sendable {
     /// Every meeting in one folder, newest first.
     public func meetings(inFolder folder: String) -> [MeetingSummary] {
         let directory = archive.folderDirectory(folder)
-        guard let entries = try? FileManager.default.contentsOfDirectory(
-            at: directory, includingPropertiesForKeys: nil, options: [.skipsHiddenFiles]
-        ) else { return [] }
-        return entries
+        guard
+            let entries = try? FileManager.default.contentsOfDirectory(
+                at: directory, includingPropertiesForKeys: nil, options: [.skipsHiddenFiles]
+            )
+        else { return [] }
+        return
+            entries
             .filter(\.hasDirectoryPath)
             .compactMap { summary(forDirectory: $0) }
             .sorted { $0.startedAt > $1.startedAt }
@@ -874,7 +888,7 @@ public struct MeetingRepository: Sendable {
         for directory in meetingDirectories() {
             let store = MeetingStore(layout: MeetingLayout(root: directory))
             guard let metadata = try? store.readMetadata(),
-                  metadata.mergedIntoMeetingID != nil
+                metadata.mergedIntoMeetingID != nil
             else { continue }
             out.append(metadata.id)
         }
@@ -884,9 +898,11 @@ public struct MeetingRepository: Sendable {
     /// Every meeting directory in the archive, folded continuations included.
     public func meetingDirectories() -> [URL] {
         let fileManager = FileManager.default
-        guard let years = try? fileManager.contentsOfDirectory(
-            at: archive.root, includingPropertiesForKeys: nil, options: [.skipsHiddenFiles]
-        ) else { return [] }
+        guard
+            let years = try? fileManager.contentsOfDirectory(
+                at: archive.root, includingPropertiesForKeys: nil, options: [.skipsHiddenFiles]
+            )
+        else { return [] }
 
         var directories: [URL] = []
         let foldersRoot = archive.foldersRoot.standardizedFileURL.path
@@ -895,13 +911,17 @@ public struct MeetingRepository: Sendable {
             // below it is a meeting, exactly where a month walk expects one.
             // Without this every filed meeting was listed twice.
             guard year.standardizedFileURL.path != foldersRoot else { continue }
-            guard let months = try? fileManager.contentsOfDirectory(
-                at: year, includingPropertiesForKeys: nil, options: [.skipsHiddenFiles]
-            ) else { continue }
+            guard
+                let months = try? fileManager.contentsOfDirectory(
+                    at: year, includingPropertiesForKeys: nil, options: [.skipsHiddenFiles]
+                )
+            else { continue }
             for month in months where month.hasDirectoryPath {
-                guard let meetings = try? fileManager.contentsOfDirectory(
-                    at: month, includingPropertiesForKeys: nil, options: [.skipsHiddenFiles]
-                ) else { continue }
+                guard
+                    let meetings = try? fileManager.contentsOfDirectory(
+                        at: month, includingPropertiesForKeys: nil, options: [.skipsHiddenFiles]
+                    )
+                else { continue }
                 directories.append(contentsOf: meetings.filter(\.hasDirectoryPath))
             }
         }
@@ -915,14 +935,18 @@ public struct MeetingRepository: Sendable {
     /// keeps the `YYYY/MM` path it has always had, and filing one moves it here.
     public func filedMeetingDirectories() -> [URL] {
         let fileManager = FileManager.default
-        guard let folders = try? fileManager.contentsOfDirectory(
-            at: archive.foldersRoot, includingPropertiesForKeys: nil, options: [.skipsHiddenFiles]
-        ) else { return [] }
+        guard
+            let folders = try? fileManager.contentsOfDirectory(
+                at: archive.foldersRoot, includingPropertiesForKeys: nil, options: [.skipsHiddenFiles]
+            )
+        else { return [] }
         var directories: [URL] = []
         for folder in folders where folder.hasDirectoryPath {
-            guard let meetings = try? fileManager.contentsOfDirectory(
-                at: folder, includingPropertiesForKeys: nil, options: [.skipsHiddenFiles]
-            ) else { continue }
+            guard
+                let meetings = try? fileManager.contentsOfDirectory(
+                    at: folder, includingPropertiesForKeys: nil, options: [.skipsHiddenFiles]
+                )
+            else { continue }
             directories.append(contentsOf: meetings.filter(\.hasDirectoryPath))
         }
         return directories
@@ -1031,7 +1055,7 @@ public struct MeetingRepository: Sendable {
         var frontier = found.metadata.absorbedMeetingIDs
         while let next = frontier.popLast(), seen.count < 64 {
             guard seen.insert(next).inserted,
-                  let child = findMeeting(id: next, includingMerged: true)
+                let child = findMeeting(id: next, includingMerged: true)
             else { continue }
             continuations.append(
                 RecordedMeeting(metadata: child.metadata, store: child.store)
@@ -1089,20 +1113,24 @@ public struct MeetingRepository: Sendable {
     /// identified by.
     private func directoryNamedForIdentifier(_ id: String) -> URL? {
         let fileManager = FileManager.default
-        guard let years = try? fileManager.contentsOfDirectory(
-            at: archive.root, includingPropertiesForKeys: nil, options: [.skipsHiddenFiles]
-        ) else { return nil }
+        guard
+            let years = try? fileManager.contentsOfDirectory(
+                at: archive.root, includingPropertiesForKeys: nil, options: [.skipsHiddenFiles]
+            )
+        else { return nil }
         let foldersRoot = archive.foldersRoot.standardizedFileURL.path
         for year in years where year.hasDirectoryPath {
             guard year.standardizedFileURL.path != foldersRoot else { continue }
-            guard let months = try? fileManager.contentsOfDirectory(
-                at: year, includingPropertiesForKeys: nil, options: [.skipsHiddenFiles]
-            ) else { continue }
+            guard
+                let months = try? fileManager.contentsOfDirectory(
+                    at: year, includingPropertiesForKeys: nil, options: [.skipsHiddenFiles]
+                )
+            else { continue }
             for month in months where month.hasDirectoryPath {
                 let candidate = month.appendingPathComponent(id, isDirectory: true)
                 var isDirectory: ObjCBool = false
                 guard fileManager.fileExists(atPath: candidate.path, isDirectory: &isDirectory),
-                      isDirectory.boolValue
+                    isDirectory.boolValue
                 else { continue }
                 if holdsMeeting(id: id, at: candidate) { return candidate }
             }
@@ -1122,8 +1150,9 @@ public struct MeetingRepository: Sendable {
     }
 
     private func holdsMeeting(id: String, at directory: URL) -> Bool {
-        guard let metadata = try? MeetingStore(layout: MeetingLayout(root: directory))
-            .readMetadata()
+        guard
+            let metadata = try? MeetingStore(layout: MeetingLayout(root: directory))
+                .readMetadata()
         else { return false }
         return metadata.id == id
     }
@@ -1148,13 +1177,16 @@ public struct MeetingRepository: Sendable {
     /// The first `listMeetings` of a launch resolves one identifier per meeting,
     /// and without this each of those re-read the whole month.
     private func scanMonth(_ month: URL, for id: String) -> URL? {
-        guard let entries = try? FileManager.default.contentsOfDirectory(
-            at: month, includingPropertiesForKeys: nil, options: [.skipsHiddenFiles]
-        ) else { return nil }
+        guard
+            let entries = try? FileManager.default.contentsOfDirectory(
+                at: month, includingPropertiesForKeys: nil, options: [.skipsHiddenFiles]
+            )
+        else { return nil }
         var match: URL?
         for entry in entries where entry.hasDirectoryPath {
-            guard let metadata = try? MeetingStore(layout: MeetingLayout(root: entry))
-                .readMetadata()
+            guard
+                let metadata = try? MeetingStore(layout: MeetingLayout(root: entry))
+                    .readMetadata()
             else { continue }
             Self.remember(id: metadata.id, directory: entry, archiveRoot: archive.root)
             if metadata.id == id { match = entry }
@@ -1166,10 +1198,11 @@ public struct MeetingRepository: Sendable {
     private static func monthDirectory(forIdentifier id: String, root: URL) -> URL? {
         let parts = id.split(separator: "-")
         guard parts.count >= 2,
-              parts[0].count == 4, parts[1].count == 2,
-              parts[0].allSatisfy(\.isNumber), parts[1].allSatisfy(\.isNumber)
+            parts[0].count == 4, parts[1].count == 2,
+            parts[0].allSatisfy(\.isNumber), parts[1].allSatisfy(\.isNumber)
         else { return nil }
-        let month = root
+        let month =
+            root
             .appendingPathComponent(String(parts[0]), isDirectory: true)
             .appendingPathComponent(String(parts[1]), isDirectory: true)
         return FileManager.default.fileExists(atPath: month.path) ? month : nil

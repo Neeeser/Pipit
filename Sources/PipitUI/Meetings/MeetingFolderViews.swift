@@ -288,7 +288,7 @@ struct FolderDetailView: View {
     private var suggested: [(row: MeetingRow, suggestion: FolderSuggestion)] {
         model.rows.compactMap { meeting in
             guard let suggestion = meeting.folderSuggestion,
-                  suggestion.folderName == row.name
+                suggestion.folderName == row.name
             else { return nil }
             return (meeting, suggestion)
         }
@@ -331,10 +331,12 @@ struct FolderPrompts: ViewModifier {
     func body(content: Content) -> some View {
         content
             .alert("New Folder", isPresented: newFolderShowing) {
-                TextField("Name", text: Binding(
-                    get: { model.pendingNewFolder?.name ?? "" },
-                    set: { model.pendingNewFolder?.name = $0 }
-                ))
+                TextField(
+                    "Name",
+                    text: Binding(
+                        get: { model.pendingNewFolder?.name ?? "" },
+                        set: { model.pendingNewFolder?.name = $0 }
+                    ))
                 Button("Cancel", role: .cancel) { model.pendingNewFolder = nil }
                 Button("Create") { Task { await model.commitNewFolder() } }
             } message: {
@@ -352,10 +354,12 @@ struct FolderPrompts: ViewModifier {
             } message: {
                 Text(model.folderProblem ?? "")
             }
-            .sheet(item: Binding(
-                get: { model.recurringOffer },
-                set: { model.recurringOffer = $0 }
-            )) { offer in
+            .sheet(
+                item: Binding(
+                    get: { model.recurringOffer },
+                    set: { model.recurringOffer = $0 }
+                )
+            ) { offer in
                 RecurringOfferSheet(model: model, offer: offer)
             }
     }
@@ -429,10 +433,12 @@ struct RecurringOfferSheet: View {
 
             VStack(alignment: .leading, spacing: 8) {
                 ForEach(offer.proposal.clauses) { clause in
-                    Toggle(isOn: Binding(
-                        get: { offer.ticked.contains(clause.kind) },
-                        set: { _ in model.toggleOfferClause(clause.kind) }
-                    )) {
+                    Toggle(
+                        isOn: Binding(
+                            get: { offer.ticked.contains(clause.kind) },
+                            set: { _ in model.toggleOfferClause(clause.kind) }
+                        )
+                    ) {
                         VStack(alignment: .leading, spacing: 1) {
                             Text(clause.label).font(.callout)
                             Text(clause.detail).font(.caption).foregroundStyle(.secondary)

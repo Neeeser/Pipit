@@ -265,7 +265,8 @@ public actor ProcessingPipeline {
             // only fix, and the user starts that. `retry` refuses the same
             // meeting with a message the user reads.
             if metadata.source == .imported, stage == .finalizing,
-                metadata.processing.state == .failed {
+                metadata.processing.state == .failed
+            {
                 Log.processing.info(
                     "failed import left failed meeting=\(metadata.logIdentifier, privacy: .public)"
                 )
@@ -410,7 +411,8 @@ public actor ProcessingPipeline {
         // that started during enrichment must not share the disk with a
         // transcode and a bulk delete.
         if metadata.processing.state == .complete,
-           AudioCompactor.hasWork(store: store, metadata: metadata) {
+            AudioCompactor.hasWork(store: store, metadata: metadata)
+        {
             while gate.isBlocked {
                 report(metadata, chunks: nil, detail: "Waiting until recording finishes")
                 if holdsSlot {
@@ -466,7 +468,8 @@ public actor ProcessingPipeline {
                 name: folder.name,
                 about: folder.about,
                 rule: folder.rule.isEmpty ? nil : FolderRuleSummary.text(folder.rule),
-                recentTitles: repository
+                recentTitles:
+                    repository
                     .meetingMetadata(inFolder: folder.name, limit: 8)
                     .map(\.displayTitle)
             )
@@ -486,7 +489,8 @@ public actor ProcessingPipeline {
         guard !profiles.isEmpty else { return }
 
         let facts = MeetingFacts(metadata: metadata)
-        let suggestion = FolderMatcher.recurrence(of: facts, in: profiles, now: clock.now)
+        let suggestion =
+            FolderMatcher.recurrence(of: facts, in: profiles, now: clock.now)
             ?? FolderMatcher.fromModel(
                 candidates, meeting: facts, profiles: profiles,
                 reach: settings.enrichment.effectiveFolderReach, now: clock.now
@@ -507,7 +511,7 @@ public actor ProcessingPipeline {
         )
 
         guard settings.enrichment.filesMatchingMeetings,
-              FolderMatcher.mayFileWithoutAsking(suggestion, in: profiles)
+            FolderMatcher.mayFileWithoutAsking(suggestion, in: profiles)
         else { return }
         do {
             try repository.move(meetingID: metadata.id, toFolder: suggestion.folderName)
@@ -984,7 +988,8 @@ public actor ProcessingPipeline {
                 end: chunk.timelineOffset - leadIn + chunk.durationSeconds,
                 overlapEnd: 0
             )
-            let location = try locations[chunk.track]
+            let location =
+                try locations[chunk.track]
                 ?? store.trackAudioLocation(
                     track: chunk.track, metadata: store.readMetadata(), timeline: timeline
                 )
@@ -1045,20 +1050,23 @@ public actor ProcessingPipeline {
         var raw = try store.readRawTranscript()
         let chunkID = "\(track.rawValue)_full"
         guard !raw.chunks.contains(where: { $0.id == chunkID }) else { return }
-        guard let audio = try scratch.trackAudio(
-            meetingID: metadata.id, track: track, segments: location.segments,
-            segmentsDirectory: location.directory
-        ) else { return }
+        guard
+            let audio = try scratch.trackAudio(
+                meetingID: metadata.id, track: track, segments: location.segments,
+                segmentsDirectory: location.directory
+            )
+        else { return }
 
         let meetingID = metadata.id
         let title = metadata.displayTitle
         let state = metadata.processing.state
         let progress = onProgress
         let output = try await backend.transcribe(audio: audio) { fraction in
-            progress(Progress(
-                meetingID: meetingID, state: state, completedChunks: 0, totalChunks: 0,
-                title: title, fraction: fraction, detail: nil
-            ))
+            progress(
+                Progress(
+                    meetingID: meetingID, state: state, completedChunks: 0, totalChunks: 0,
+                    title: title, fraction: fraction, detail: nil
+                ))
         }
 
         let textOnly = output.segments.isEmpty && !output.text.isEmpty
@@ -1071,17 +1079,18 @@ public actor ProcessingPipeline {
                 >= Self.maxAttemptsPerStage,
             scope: .wholeTrack
         )
-        raw.chunks.append(RawTranscriptChunk(
-            id: chunkID,
-            track: track,
-            timelineOffset: timeline.leadIn(track: track),
-            durationSeconds: output.durationSeconds ?? location.seconds,
-            model: backend.identifier,
-            responseFormat: Self.localResponseFormat(for: backend.timing),
-            segments: looping ? [] : output.segments,
-            text: looping || !textOnly ? nil : output.text,
-            rawResponseFile: nil
-        ))
+        raw.chunks.append(
+            RawTranscriptChunk(
+                id: chunkID,
+                track: track,
+                timelineOffset: timeline.leadIn(track: track),
+                durationSeconds: output.durationSeconds ?? location.seconds,
+                model: backend.identifier,
+                responseFormat: Self.localResponseFormat(for: backend.timing),
+                segments: looping ? [] : output.segments,
+                text: looping || !textOnly ? nil : output.text,
+                rawResponseFile: nil
+            ))
         try store.writeRawTranscript(raw)
     }
 
@@ -1168,7 +1177,8 @@ public actor ProcessingPipeline {
         isLastAttempt: Bool, scope: LoopScope
     ) throws -> Bool {
         guard purpose == .words else { return false }
-        let text = response.text.isEmpty
+        let text =
+            response.text.isEmpty
             ? response.segments.map(\.text).joined(separator: " ")
             : response.text
         let share = DegenerateTranscriptPolicy.repeatedShare(of: text)
@@ -1274,7 +1284,8 @@ public actor ProcessingPipeline {
         // the other side.
         let foreignWords = raw.chunks(track: track, purpose: .words)
             .contains { $0.model != backend.identifier }
-        let purpose = existing?.purpose
+        let purpose =
+            existing?.purpose
             ?? (transcriberOwnsWords(settings) || foreignWords ? .speakers : .words)
 
         try await runChunks(
@@ -1299,11 +1310,12 @@ public actor ProcessingPipeline {
                 // occurrence rows and the speaker map join without a lookup
                 // table.
                 let cluster = SpeakerLabel.namespaced(chunkID: chunk.id, rawLabel: speaker)
-                intervals.append(DiarizationInterval(
-                    start: chunk.timelineOffset + segment.start,
-                    end: chunk.timelineOffset + segment.end,
-                    clusterID: cluster
-                ))
+                intervals.append(
+                    DiarizationInterval(
+                        start: chunk.timelineOffset + segment.start,
+                        end: chunk.timelineOffset + segment.end,
+                        clusterID: cluster
+                    ))
                 speech[cluster, default: 0] += max(0, segment.end - segment.start)
             }
         }
@@ -1343,20 +1355,23 @@ public actor ProcessingPipeline {
     ) async throws {
         var diarization = try store.readRawDiarization()
         guard diarization.activeRun(track: track) == nil else { return }
-        guard let audio = try scratch.trackAudio(
-            meetingID: metadata.id, track: track, segments: location.segments,
-            segmentsDirectory: location.directory
-        ) else { return }
+        guard
+            let audio = try scratch.trackAudio(
+                meetingID: metadata.id, track: track, segments: location.segments,
+                segmentsDirectory: location.directory
+            )
+        else { return }
 
         let meetingID = metadata.id
         let title = metadata.displayTitle
         let state = metadata.processing.state
         let progress = onProgress
         let output = try await backend.diarize(audio: audio) { fraction in
-            progress(Progress(
-                meetingID: meetingID, state: state, completedChunks: 0, totalChunks: 0,
-                title: title, fraction: fraction, detail: nil
-            ))
+            progress(
+                Progress(
+                    meetingID: meetingID, state: state, completedChunks: 0, totalChunks: 0,
+                    title: title, fraction: fraction, detail: nil
+                ))
         }
 
         let leadIn = timeline.leadIn(track: track)
@@ -1496,7 +1511,6 @@ public actor ProcessingPipeline {
         }
     }
 
-
     /// Records the microphone track as an appearance by whoever it belongs to.
     ///
     /// Every other speaker reaches `speaker_occurrence` through a diarization
@@ -1522,7 +1536,8 @@ public actor ProcessingPipeline {
         // towards a person who had just taken their name off it.
         let cleared = speakers.clearedKeys.contains(SpeakerLabel.localUser)
         guard assignment != nil || cleared else { return false }
-        let seconds = transcript.speakers
+        let seconds =
+            transcript.speakers
             .first { $0.key == SpeakerLabel.localUser }?.speechSeconds ?? 0
         guard seconds > 0 else { return false }
         do {
@@ -1564,8 +1579,8 @@ public actor ProcessingPipeline {
         for summary in repository.listMeetings() {
             for store in repository.stores(ofConversation: summary) {
                 guard let metadata = try? store.readMetadata(),
-                      var speakers = try? store.readSpeakerMap(),
-                      let transcript = try? store.readCanonicalTranscript()
+                    var speakers = try? store.readSpeakerMap(),
+                    let transcript = try? store.readCanonicalTranscript()
                 else { continue }
                 // A meeting processed before Settings held an identity at all
                 // names the microphone track and links it to nobody. The track
@@ -1580,8 +1595,9 @@ public actor ProcessingPipeline {
                 guard micHoldsLocalUserAlone(metadata, evidence: store.readSpeechEvidence())
                 else { continue }
                 if let localUserID,
-                   speakers.entries[SpeakerLabel.localUser]?.identityID == nil,
-                   speakers.entries[SpeakerLabel.localUser]?.origin == .deterministic {
+                    speakers.entries[SpeakerLabel.localUser]?.identityID == nil,
+                    speakers.entries[SpeakerLabel.localUser]?.origin == .deterministic
+                {
                     speakers.linkIdentity(localUserID, to: SpeakerLabel.localUser, named: nil)
                     try? store.writeSpeakerMap(speakers)
                 }
@@ -1663,7 +1679,7 @@ public actor ProcessingPipeline {
     ) async {
         guard let service = backends.speakers else { return }
         guard let sensors = sensorRecord(store: store, metadata: metadata),
-              let provider = SensorAttribution.handleProvider(source: sensors.source)
+            let provider = SensorAttribution.handleProvider(source: sensors.source)
         else { return }
         let selfIDs = Set(sensors.participants.filter(\.isSelf).map(\.id))
         let held = Set(sensors.turns.map(\.participantID)).subtracting(selfIDs)
@@ -1671,9 +1687,11 @@ public actor ProcessingPipeline {
         let speakerStore = await service.speakerStore
         var named = 0
         for participantID in held.sorted() {
-            guard let identity = await speakerStore.identity(
-                handle: participantID, provider: provider
-            ), identity.isNamed else { continue }
+            guard
+                let identity = await speakerStore.identity(
+                    handle: participantID, provider: provider
+                ), identity.isNamed
+            else { continue }
             // Every key this account holds, not only the key named after it.
             // The cluster keys carry the same `participantID`, so the pointer
             // reaches them too: they take the bank's name and its identity
@@ -1810,7 +1828,8 @@ public actor ProcessingPipeline {
         // A pause-aware boundary needs an energy profile; skip the pass entirely
         // for recordings short enough to send in one request.
         let planner = ChunkPlanner(configuration: configuration ?? chunking)
-        let energy: EnergyProfile = duration > planner.configuration.maxChunkSeconds
+        let energy: EnergyProfile =
+            duration > planner.configuration.maxChunkSeconds
             ? ((try? EnergyProfile.compute(stream: stream)) ?? .empty)
             : .empty
         let plans = planner.plan(durationSeconds: duration, energy: energy)
@@ -1847,7 +1866,9 @@ public actor ProcessingPipeline {
             let legacyID = "\(track.rawValue)_\(plan.chunkID)"
             if raw.chunks.contains(
                 where: { $0.id == chunkID || ($0.id == legacyID && $0.purpose == purpose) }
-            ) { continue }
+            ) {
+                continue
+            }
 
             let audioURL = workingDirectory.appendingPathComponent("\(chunkID).m4a")
             let frames = try exporter.export(
@@ -1870,7 +1891,8 @@ public actor ProcessingPipeline {
         let maxConcurrentUploads = concurrency ?? 3
         // Read before the group, because the attempt count belongs to the stage
         // and the group must not reach into the metadata being written here.
-        let lastAttempt = metadata.processing.attemptCount(for: .transcribing)
+        let lastAttempt =
+            metadata.processing.attemptCount(for: .transcribing)
             >= Self.maxAttemptsPerStage
         try await withThrowingTaskGroup(of: (PreparedChunk, TranscriptionOutput).self) { group in
             var nextIndex = 0
@@ -1892,19 +1914,20 @@ public actor ProcessingPipeline {
                     response: response, chunkID: chunk.chunkID, purpose: purpose,
                     isLastAttempt: lastAttempt, scope: .chunk
                 )
-                raw.chunks.append(RawTranscriptChunk(
-                    id: chunk.chunkID,
-                    track: track,
-                    timelineOffset: chunk.plan.start + leadIn,
-                    durationSeconds: chunk.plan.duration,
-                    model: model,
-                    responseFormat: response.segments.contains { $0.speaker != nil }
-                        ? "diarized_json" : (textOnly ? "json" : "verbose_json"),
-                    segments: looping ? [] : response.segments,
-                    text: looping || !textOnly ? nil : response.text,
-                    rawResponseFile: response.rawBody == nil ? nil : "api/\(chunk.chunkID).json",
-                    purpose: purpose
-                ))
+                raw.chunks.append(
+                    RawTranscriptChunk(
+                        id: chunk.chunkID,
+                        track: track,
+                        timelineOffset: chunk.plan.start + leadIn,
+                        durationSeconds: chunk.plan.duration,
+                        model: model,
+                        responseFormat: response.segments.contains { $0.speaker != nil }
+                            ? "diarized_json" : (textOnly ? "json" : "verbose_json"),
+                        segments: looping ? [] : response.segments,
+                        text: looping || !textOnly ? nil : response.text,
+                        rawResponseFile: response.rawBody == nil ? nil : "api/\(chunk.chunkID).json",
+                        purpose: purpose
+                    ))
                 try store.writeRawTranscript(raw)
                 report(metadata, chunks: (raw.chunks(track: track, purpose: purpose).count, plans.count))
                 try? FileManager.default.removeItem(at: chunk.audioURL)
@@ -1945,8 +1968,9 @@ public actor ProcessingPipeline {
         // other, and writing the name back on the next pass made the control do
         // nothing there.
         if micIsLocalUser,
-           speakers.entries[SpeakerLabel.localUser] == nil,
-           !speakers.clearedKeys.contains(SpeakerLabel.localUser) {
+            speakers.entries[SpeakerLabel.localUser] == nil,
+            !speakers.clearedKeys.contains(SpeakerLabel.localUser)
+        {
             speakers.entries[SpeakerLabel.localUser] = SpeakerAssignment(
                 displayName: settings.localUserName,
                 origin: .deterministic,
@@ -2033,7 +2057,7 @@ public actor ProcessingPipeline {
         diarization: RawDiarization
     ) -> (run: DiarizationRun, spans: [AudioSpan])? {
         guard SpeakerLabel.sensorParticipantID(from: key) != nil,
-              let sensors = sensorRecord(store: store, metadata: metadata)
+            let sensors = sensorRecord(store: store, metadata: metadata)
         else { return nil }
         for run in diarization.activeRuns where run.track == .remote {
             let spans = SensorAttribution.enrollmentIntervals(
@@ -2069,15 +2093,18 @@ public actor ProcessingPipeline {
         for run in diarization.activeRuns {
             for cluster in run.clusters {
                 let key = SpeakerLabel.namespaced(chunkID: run.id, rawLabel: cluster.id)
-                guard let vector = try await speakerStore.occurrenceEmbedding(
-                    meetingID: metadata.id, clusterID: key
-                ) else { continue }
-                clusters.append(SpeakerClusterInput(
-                    clusterID: key, track: run.track,
-                    speechSeconds: cluster.speechSeconds, centroid: vector,
-                    quality: cluster.quality,
-                    spans: clusterSpans(cluster.id, in: run), analysisID: run.id
-                ))
+                guard
+                    let vector = try await speakerStore.occurrenceEmbedding(
+                        meetingID: metadata.id, clusterID: key
+                    )
+                else { continue }
+                clusters.append(
+                    SpeakerClusterInput(
+                        clusterID: key, track: run.track,
+                        speechSeconds: cluster.speechSeconds, centroid: vector,
+                        quality: cluster.quality,
+                        spans: clusterSpans(cluster.id, in: run), analysisID: run.id
+                    ))
             }
         }
         // Sensor keys are deliberately not submitted. Their spans are a subset
@@ -2149,7 +2176,8 @@ public actor ProcessingPipeline {
                 named: identity.isNamed ? identity.resolvedName : nil
             )
             if micIsDiarized, result.track == .mic, let localUser, identity.id == localUser,
-               result.resolution.band == .high {
+                result.resolution.band == .high
+            {
                 speakers.applySuggestion(
                     SpeakerAssignment(
                         displayName: settings.localUserName,
@@ -2162,10 +2190,12 @@ public actor ProcessingPipeline {
                 )
             }
             if identity.isNamed,
-               !metadata.participants.contains(where: { $0.displayName == identity.resolvedName }) {
-                metadata.participants.append(Participant(
-                    displayName: identity.resolvedName, origin: .ai
-                ))
+                !metadata.participants.contains(where: { $0.displayName == identity.resolvedName })
+            {
+                metadata.participants.append(
+                    Participant(
+                        displayName: identity.resolvedName, origin: .ai
+                    ))
             }
         }
         try store.writeSpeakerMap(speakers)
@@ -2205,10 +2235,12 @@ public actor ProcessingPipeline {
             )
             guard !location.isEmpty else { continue }
             guard await localModelsAvailable() else { return }
-            guard let audio = try scratch.trackAudio(
-                meetingID: metadata.id, track: run.track, segments: location.segments,
-                segmentsDirectory: location.directory
-            ) else { continue }
+            guard
+                let audio = try scratch.trackAudio(
+                    meetingID: metadata.id, track: run.track, segments: location.segments,
+                    segmentsDirectory: location.directory
+                )
+            else { continue }
 
             let leadIn = timeline.leadIn(track: run.track)
             let wanted = Set(missing.map(\.id))
@@ -2253,10 +2285,10 @@ public actor ProcessingPipeline {
         store: MeetingStore, metadata: MeetingMetadata, settings: AppSettings
     ) async throws {
         guard settings.processing.speakers.learnMyVoice,
-              micHoldsLocalUserAlone(metadata, evidence: store.readSpeechEvidence()),
-              let service = backends.speakers,
-              let embed = backends.singleSpeakerEmbedding,
-              let identityID = settings.processing.localUserIdentityID
+            micHoldsLocalUserAlone(metadata, evidence: store.readSpeechEvidence()),
+            let service = backends.speakers,
+            let embed = backends.singleSpeakerEmbedding,
+            let identityID = settings.processing.localUserIdentityID
         else { return }
         guard try await service.wantsLocalUserSample(identityID: identityID) else { return }
 
@@ -2289,14 +2321,18 @@ public actor ProcessingPipeline {
         // stand in for it either, because a silent far end diarizes to no
         // clusters and leaves nothing to match against. `micHoldsLocalUserAlone`
         // above is the guard that means what this comment always claimed.
-        guard !store.trackAudioLocation(
-            track: .remote, metadata: metadata, timeline: timeline
-        ).isEmpty else { return }
+        guard
+            !store.trackAudioLocation(
+                track: .remote, metadata: metadata, timeline: timeline
+            ).isEmpty
+        else { return }
         guard await localModelsAvailable() else { return }
-        guard let audio = try scratch.trackAudio(
-            meetingID: metadata.id, track: .mic, segments: location.segments,
-            segmentsDirectory: location.directory
-        ) else { return }
+        guard
+            let audio = try scratch.trackAudio(
+                meetingID: metadata.id, track: .mic, segments: location.segments,
+                segmentsDirectory: location.directory
+            )
+        else { return }
 
         guard let sample = try await embed(audio) else { return }
         // The sample's spans are relative to the audio submitted, which starts at
@@ -2309,11 +2345,13 @@ public actor ProcessingPipeline {
         // Declined when the microphone track's dominant voice is somebody else
         // on this call. Not a failure: the meeting is fine, the profile simply
         // learns nothing from it.
-        guard let status = try await service.learnLocalUserVoice(
-            meetingID: metadata.id, identityID: identityID, vector: sample.vector,
-            speechSeconds: sample.speechSeconds, quality: sample.quality,
-            spans: spans, now: clock.now
-        ) else { return }
+        guard
+            let status = try await service.learnLocalUserVoice(
+                meetingID: metadata.id, identityID: identityID, vector: sample.vector,
+                speechSeconds: sample.speechSeconds, quality: sample.quality,
+                spans: spans, now: clock.now
+            )
+        else { return }
         Log.processing.info(
             "local voice profile: \(status.recordingCount, privacy: .public) recordings, \(status.sampleCount, privacy: .public) samples"
         )
@@ -2365,10 +2403,12 @@ public actor ProcessingPipeline {
                     speechSeconds: sample.speechSeconds,
                     qualityScore: sample.quality,
                     source: .spokenEnrollment,
-                    evidence: [VoiceEvidence(
-                        meetingID: recordingID, track: .mic, spans: sample.spans,
-                        confirmation: .spokenEnrollment
-                    )]
+                    evidence: [
+                        VoiceEvidence(
+                            meetingID: recordingID, track: .mic, spans: sample.spans,
+                            confirmation: .spokenEnrollment
+                        )
+                    ]
                 ),
                 now: clock.now
             )
@@ -2549,14 +2589,15 @@ public actor ProcessingPipeline {
         guard let transcript = try store.readCanonicalTranscript() else { return }
         let speakers = try store.readSpeakerMap()
         let renderer = TranscriptRenderer()
-        try store.writeTranscriptMarkdown(renderer.markdown(
-            transcript: transcript,
-            speakers: speakers,
-            title: metadata.displayTitle,
-            startedAt: metadata.startedAt,
-            durationSeconds: metadata.durationSeconds,
-            participants: await participants(in: speakers)
-        ))
+        try store.writeTranscriptMarkdown(
+            renderer.markdown(
+                transcript: transcript,
+                speakers: speakers,
+                title: metadata.displayTitle,
+                startedAt: metadata.startedAt,
+                durationSeconds: metadata.durationSeconds,
+                participants: await participants(in: speakers)
+            ))
     }
 
     /// Renders the derived files and links the calendar event.
@@ -2603,15 +2644,16 @@ public actor ProcessingPipeline {
         _ metadata: MeetingMetadata, chunks: (Int, Int)?,
         fraction: Double? = nil, detail: String? = nil
     ) {
-        onProgress(Progress(
-            meetingID: metadata.id,
-            state: metadata.processing.state,
-            completedChunks: chunks?.0 ?? 0,
-            totalChunks: chunks?.1 ?? 0,
-            title: metadata.displayTitle,
-            fraction: fraction,
-            detail: detail
-        ))
+        onProgress(
+            Progress(
+                meetingID: metadata.id,
+                state: metadata.processing.state,
+                completedChunks: chunks?.0 ?? 0,
+                totalChunks: chunks?.1 ?? 0,
+                title: metadata.displayTitle,
+                fraction: fraction,
+                detail: detail
+            ))
     }
 
     /// Re-assembles the canonical transcript from the raw chunks on disk and
@@ -2727,9 +2769,10 @@ public actor ProcessingPipeline {
             // Only a human statement writes one; an automatic voice match at
             // any confidence never does.
             if let participantID = SpeakerLabel.sensorParticipantID(from: key),
-               let source = found.store.readRawSensors()?.source,
-               let provider = SensorAttribution.handleProvider(source: source),
-               let service = backends.speakers {
+                let source = found.store.readRawSensors()?.source,
+                let provider = SensorAttribution.handleProvider(source: source),
+                let service = backends.speakers
+            {
                 try await service.speakerStore.setHandle(
                     IdentityHandle(provider: provider, handle: participantID),
                     to: resolved, now: clock.now
@@ -2748,9 +2791,10 @@ public actor ProcessingPipeline {
             // withdraw the binding too, or the next meeting with this account,
             // and a re-analysis of this one, writes the cleared name back.
             if let participantID = SpeakerLabel.sensorParticipantID(from: key),
-               let source = found.store.readRawSensors()?.source,
-               let provider = SensorAttribution.handleProvider(source: source),
-               let service = backends.speakers {
+                let source = found.store.readRawSensors()?.source,
+                let provider = SensorAttribution.handleProvider(source: source),
+                let service = backends.speakers
+            {
                 try await service.speakerStore.removeHandle(
                     IdentityHandle(provider: provider, handle: participantID)
                 )
@@ -2775,9 +2819,10 @@ public actor ProcessingPipeline {
         guard let service = backends.speakers else { return }
         let store = await service.speakerStore
         if let found = repository.findMeeting(id: meetingID, includingMerged: true),
-           let audio = try audioBehind(
-               clusterID, store: found.store, metadata: found.metadata
-           ) {
+            let audio = try audioBehind(
+                clusterID, store: found.store, metadata: found.metadata
+            )
+        {
             // Nobody is claiming the audio, so nothing is exempt: every vector
             // that stood on it loses it. Leaving it behind used to mean the
             // person the name was taken away from kept the voice, and because
@@ -2881,9 +2926,11 @@ public actor ProcessingPipeline {
         }
         var windows: [(line: Utterance, part: SpeakerRangePart)] = []
         for part in parts {
-            guard let line = before.utterances.first(where: {
-                $0.id == part.utteranceID && $0.track == track
-            }) else { continue }
+            guard
+                let line = before.utterances.first(where: {
+                    $0.id == part.utteranceID && $0.track == track
+                })
+            else { continue }
             windows.append((line, part))
         }
         guard !windows.isEmpty else { throw ProcessingError.utteranceNotFound(id: first) }
@@ -2906,8 +2953,10 @@ public actor ProcessingPipeline {
         // match no piece at all: the boundary was written and the name was not.
         var selected: [String] = []
         for (line, part) in windows {
-            for piece in after.utterances where piece.chunkID == line.chunkID
-                && piece.track == track && piece.start >= line.start && piece.end <= line.end {
+            for piece in after.utterances
+            where piece.chunkID == line.chunkID
+                && piece.track == track && piece.start >= line.start && piece.end <= line.end
+            {
                 let spokenStart = piece.words?.first?.start ?? piece.start
                 let spokenEnd = piece.words?.last?.end ?? piece.end
                 let middle = (spokenStart + spokenEnd) / 2
@@ -2947,7 +2996,7 @@ public actor ProcessingPipeline {
             var pieces = [window.line]
             for moment in [window.part.startSeconds, window.part.endSeconds] {
                 guard let piece = pieces.first(where: { moment > $0.start && moment < $0.end }),
-                      let boundary = LineDivision.boundary(in: piece, near: moment)
+                    let boundary = LineDivision.boundary(in: piece, near: moment)
                 else { continue }
                 let cut = LineCut(
                     track: piece.track, atSeconds: boundary, chunkID: piece.chunkID,
@@ -2966,16 +3015,17 @@ public actor ProcessingPipeline {
                         let clippedStart = max(start, part.start)
                         let clippedEnd = min(end, part.end)
                         guard clippedEnd > clippedStart else { continue }
-                        speakers.utteranceOverrides.append(UtteranceOverride(
-                            track: part.track,
-                            anchorSeconds: (clippedStart + clippedEnd) / 2,
-                            startSeconds: clippedStart,
-                            endSeconds: clippedEnd,
-                            assignment: override.assignment,
-                            createdAt: override.createdAt,
-                            utteranceID: part.id,
-                            chunkID: part.chunkID
-                        ))
+                        speakers.utteranceOverrides.append(
+                            UtteranceOverride(
+                                track: part.track,
+                                anchorSeconds: (clippedStart + clippedEnd) / 2,
+                                startSeconds: clippedStart,
+                                endSeconds: clippedEnd,
+                                assignment: override.assignment,
+                                createdAt: override.createdAt,
+                                utteranceID: part.id,
+                                chunkID: part.chunkID
+                            ))
                     }
                 }
                 if let at = pieces.firstIndex(where: { $0.id == piece.id }) {
@@ -3025,7 +3075,8 @@ public actor ProcessingPipeline {
         // succession both read an empty map, and the second write dropped the
         // first line's name. It also reverted the cluster names recognition wrote
         // while the user was typing.
-        let resolved = trimmed.isEmpty
+        let resolved =
+            trimmed.isEmpty
             ? nil
             : try await identity(named: trimmed, existing: identityID)
 
@@ -3267,10 +3318,12 @@ public actor ProcessingPipeline {
         } else {
             try await prepareLocalModels(metadata: metadata)
         }
-        guard let audio = try scratch.trackAudio(
-            meetingID: metadata.id, track: track, segments: location.segments,
-            segmentsDirectory: location.directory
-        ) else { return }
+        guard
+            let audio = try scratch.trackAudio(
+                meetingID: metadata.id, track: track, segments: location.segments,
+                segmentsDirectory: location.directory
+            )
+        else { return }
 
         let output = try await reanalyze(metadata.id, audio, speakerCount)
         var diarization = try store.readRawDiarization()
@@ -3380,9 +3433,9 @@ public actor ProcessingPipeline {
         let store = await service.speakerStore
         let occurrences = try await store.occurrences(meetingID: meetingID)
         guard let found = occurrences.first(where: { $0.clusterID == clusterID }),
-              let identityID = found.resolvedIdentityID,
-              let identity = try await store.current(identityID),
-              identity.kind == .anonymous
+            let identityID = found.resolvedIdentityID,
+            let identity = try await store.current(identityID),
+            identity.kind == .anonymous
         else { return nil }
         return identity.id
     }
@@ -3410,7 +3463,7 @@ public actor ProcessingPipeline {
         store: MeetingStore, metadata: MeetingMetadata, key: String
     ) async throws -> IdentityHandle? {
         guard let sensors = sensorRecord(store: store, metadata: metadata),
-              let provider = SensorAttribution.handleProvider(source: sensors.source)
+            let provider = SensorAttribution.handleProvider(source: sensors.source)
         else { return nil }
         var participantID = SpeakerLabel.sensorParticipantID(from: key)
         if participantID == nil {
@@ -3439,13 +3492,14 @@ public actor ProcessingPipeline {
         // audio into their profile, and made the typed name an alias of them
         // for good. `.human` outranks everything and is never overwritten.
         if let account,
-           try await person(named: trimmed) == nil,
-           let bound = await store.identity(handle: account.handle, provider: account.provider),
-           bound.resolvedName.isEmpty
-               || bound.resolvedName.caseInsensitiveCompare(trimmed) == .orderedSame
-               || bound.aliases.contains(where: {
-                   $0.caseInsensitiveCompare(trimmed) == .orderedSame
-               }) {
+            try await person(named: trimmed) == nil,
+            let bound = await store.identity(handle: account.handle, provider: account.provider),
+            bound.resolvedName.isEmpty
+                || bound.resolvedName.caseInsensitiveCompare(trimmed) == .orderedSame
+                || bound.aliases.contains(where: {
+                    $0.caseInsensitiveCompare(trimmed) == .orderedSame
+                })
+        {
             return bound.id
         }
         if let existing {
@@ -3501,16 +3555,18 @@ public actor ProcessingPipeline {
         let store = await service.speakerStore
         let occurrences = try await store.occurrences(meetingID: meetingID)
         guard let occurrence = occurrences.first(where: { $0.clusterID == clusterID }) else { return }
-        guard let vector = try await store.occurrenceEmbedding(
-            meetingID: meetingID, clusterID: clusterID
-        ) else { return }
+        guard
+            let vector = try await store.occurrenceEmbedding(
+                meetingID: meetingID, clusterID: clusterID
+            )
+        else { return }
         // Without the audio the cluster covers there is nothing to record and
         // nothing to retract later, so the confirmation writes the name and
         // learns no voice from it.
         guard let found = repository.findMeeting(id: meetingID, includingMerged: true),
-              let audio = try audioBehind(
-                  clusterID, store: found.store, metadata: found.metadata
-              ), !audio.spans.isEmpty
+            let audio = try audioBehind(
+                clusterID, store: found.store, metadata: found.metadata
+            ), !audio.spans.isEmpty
         else { return }
         // Minus the lines inside it a person has already given to somebody else.
         // A line-level correction outranks the cluster's name on screen, so
@@ -3547,9 +3603,9 @@ public actor ProcessingPipeline {
         identityID: IdentityID, settings: AppSettings
     ) async throws {
         guard settings.processing.speakers.learnFromCorrections,
-              let service = backends.speakers,
-              let extractor = backends.embeddings,
-              let transcript = try store.readCanonicalTranscript()
+            let service = backends.speakers,
+            let extractor = backends.embeddings,
+            let transcript = try store.readCanonicalTranscript()
         else { return }
 
         // One meeting contributes one enrolment. Without this, correcting more
@@ -3557,10 +3613,12 @@ public actor ProcessingPipeline {
         // near-identical vectors from one session into a profile that is meant
         // to be diverse.
         let speakerStore = await service.speakerStore
-        guard try await !speakerStore.hasEnrolment(
-            identityID: identityID, meetingID: metadata.id,
-            source: .humanConfirmedUtterances, model: extractor.model
-        ) else { return }
+        guard
+            try await !speakerStore.hasEnrolment(
+                identityID: identityID, meetingID: metadata.id,
+                source: .humanConfirmedUtterances, model: extractor.model
+            )
+        else { return }
 
         // The lines this person was confirmed on, minus any that another line
         // overlaps: the assembler folds words spoken over a speaker into the
@@ -3568,7 +3626,7 @@ public actor ProcessingPipeline {
         var confirmed: [Utterance] = []
         for utterance in transcript.utterances {
             guard let assignment = speakers.assignment(for: utterance),
-                  assignment.origin == .human, assignment.identityID == identityID
+                assignment.origin == .human, assignment.identityID == identityID
             else { continue }
             // A line-level correction only counts as this person's speech when
             // it covers most of the line. After a re-analysis merges a short
@@ -3618,10 +3676,12 @@ public actor ProcessingPipeline {
         guard !location.isEmpty else { return }
 
         guard await localModelsAvailable() else { return }
-        guard let audio = try scratch.trackAudio(
-            meetingID: metadata.id, track: track, segments: location.segments,
-            segmentsDirectory: location.directory
-        ) else { return }
+        guard
+            let audio = try scratch.trackAudio(
+                meetingID: metadata.id, track: track, segments: location.segments,
+                segmentsDirectory: location.directory
+            )
+        else { return }
 
         let leadIn = timeline.leadIn(track: track)
         let intervals = lines.map {
@@ -3648,14 +3708,14 @@ public actor ProcessingPipeline {
         in store: MeetingStore, track: CaptureTrack, besides identityID: IdentityID
     ) -> [AudioSpan] {
         guard let transcript = (try? store.readCanonicalTranscript()) ?? nil,
-              let speakers = try? store.readSpeakerMap()
+            let speakers = try? store.readSpeakerMap()
         else { return [] }
         return AudioSpan.union(
             transcript.utterances.compactMap { utterance in
                 guard utterance.track == track,
-                      let override = speakers.override(for: utterance)?.assignment,
-                      override.origin == .human,
-                      override.identityID != identityID
+                    let override = speakers.override(for: utterance)?.assignment,
+                    override.origin == .human,
+                    override.identityID != identityID
                 else { return nil }
                 return AudioSpan(start: utterance.start, end: utterance.end)
             }
@@ -3681,12 +3741,14 @@ public actor ProcessingPipeline {
         // meetings were visited and then skipped for not matching.
         let family = try await store.family(of: identityID)
         for meetingID in try await store.meetingsReferencing(identityID) {
-                // Including a folded continuation. It is a real recording holding
+            // Including a folded continuation. It is a real recording holding
             // real lines, so a rename that skipped it left the second half of a
             // dropped call showing a name nobody uses any more.
-            guard let found = repository.findMeeting(
-                id: meetingID, includingMerged: true
-            ) else { continue }
+            guard
+                let found = repository.findMeeting(
+                    id: meetingID, includingMerged: true
+                )
+            else { continue }
             var speakers = try found.store.readSpeakerMap()
             // Only the cached name is rewritten. The identity link stays as it
             // was written, because reads resolve through the merge tombstone
@@ -3784,14 +3846,15 @@ public actor ProcessingPipeline {
         // from is the one currently on disk.
         let participants = await participants(in: try store.readSpeakerMap())
         let speakers = try store.readSpeakerMap()
-        try store.writeTranscriptMarkdown(TranscriptRenderer().markdown(
-            transcript: transcript,
-            speakers: speakers,
-            title: metadata.displayTitle,
-            startedAt: metadata.startedAt,
-            durationSeconds: metadata.durationSeconds,
-            participants: participants
-        ))
+        try store.writeTranscriptMarkdown(
+            TranscriptRenderer().markdown(
+                transcript: transcript,
+                speakers: speakers,
+                title: metadata.displayTitle,
+                startedAt: metadata.startedAt,
+                durationSeconds: metadata.durationSeconds,
+                participants: participants
+            ))
     }
 
     /// Who was in the meeting, with whatever the user has written about them.
@@ -3807,13 +3870,14 @@ public actor ProcessingPipeline {
         var out: [TranscriptParticipant] = []
         for identityID in speakers.referencedIdentities {
             guard let identity = try? await store.current(identityID),
-                  seen.insert(identity.id).inserted
+                seen.insert(identity.id).inserted
             else { continue }
-            out.append(TranscriptParticipant(
-                name: identity.resolvedName,
-                organization: identity.organization,
-                notes: identity.notes
-            ))
+            out.append(
+                TranscriptParticipant(
+                    name: identity.resolvedName,
+                    organization: identity.organization,
+                    notes: identity.notes
+                ))
         }
         return out.sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
     }

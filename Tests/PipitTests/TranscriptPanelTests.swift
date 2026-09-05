@@ -27,7 +27,8 @@ struct TranscriptPanelTests {
             $0.durationSeconds = 240
             $0.processing = ProcessingStatus(state: .complete, updatedAt: started)
         }
-        let sentence = "so the way this works is that every word carries its own moment "
+        let sentence =
+            "so the way this works is that every word carries its own moment "
             + "and the boundary a reader puts in the transcript lands on one of them"
         var utterances: [Utterance] = []
         for index in 0..<8 {
@@ -39,14 +40,15 @@ struct TranscriptPanelTests {
                     text: " \($0.element)"
                 )
             }
-            utterances.append(Utterance(
-                id: Utterance.identifier(
-                    chunkID: "c1", track: .remote, start: start, end: start + 28
-                ),
-                start: start, end: start + 28, track: .remote,
-                rawSpeakerLabel: "remote-001_speaker_00", speakerKey: "remote-001_speaker_00",
-                text: sentence, chunkID: "c1", model: "m", words: words
-            ))
+            utterances.append(
+                Utterance(
+                    id: Utterance.identifier(
+                        chunkID: "c1", track: .remote, start: start, end: start + 28
+                    ),
+                    start: start, end: start + 28, track: .remote,
+                    rawSpeakerLabel: "remote-001_speaker_00", speakerKey: "remote-001_speaker_00",
+                    text: sentence, chunkID: "c1", model: "m", words: words
+                ))
         }
         try created.store.writeCanonicalTranscript(
             CanonicalTranscript(generatedAt: started, utterances: utterances)

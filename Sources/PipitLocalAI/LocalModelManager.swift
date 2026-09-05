@@ -1,6 +1,6 @@
 import CoreML
-import Foundation
 import FluidAudio
+import Foundation
 import PipitAudio
 import PipitCore
 import WhisperKit
@@ -119,7 +119,7 @@ public actor LocalModelManager {
                 .appendingPathComponent("models", isDirectory: true)
                 .appendingPathComponent("openai", isDirectory: true)
             guard let contents = try? manager.contentsOfDirectory(atPath: tokenizers.path),
-                  !contents.isEmpty
+                !contents.isEmpty
             else { return false }
             return true
         case .diarizer:
@@ -145,12 +145,13 @@ public actor LocalModelManager {
     /// A progress tick, carrying whatever is already on disk so the rows for
     /// installed units keep reporting their sizes while another downloads.
     private func publishProgress(fraction: Double, detail: String) {
-        publish(.downloading(
-            fraction: fraction, detail: detail,
-            present: Self.computeState(
-                receipts: receipts, required: required, locations: locations
-            ).present
-        ))
+        publish(
+            .downloading(
+                fraction: fraction, detail: detail,
+                present: Self.computeState(
+                    receipts: receipts, required: required, locations: locations
+                ).present
+            ))
     }
 
     private func publish(_ newState: LocalModelState) {
@@ -201,9 +202,11 @@ public actor LocalModelManager {
                 let share = Double(unit.approximateBytes) / Double(totalBytes)
                 try Task.checkCancellation()
                 try await installUnit(unit, force: force) { fraction, detail in
-                    Task { await self.publishProgress(
-                        fraction: base + share * min(max(fraction, 0), 1), detail: detail
-                    ) }
+                    Task {
+                        await self.publishProgress(
+                            fraction: base + share * min(max(fraction, 0), 1), detail: detail
+                        )
+                    }
                 }
                 completedBytes += unit.approximateBytes
             }
@@ -663,9 +666,10 @@ public actor LocalModelManager {
             } else {
                 let start = full.last?.end ?? 0
                 let end = timed[(index + 1)...].compactMap { $0 }.first?.start ?? start
-                full.append(CtcForcedAlignment.AlignedWord(
-                    text: word, start: start, end: max(start, end)
-                ))
+                full.append(
+                    CtcForcedAlignment.AlignedWord(
+                        text: word, start: start, end: max(start, end)
+                    ))
             }
         }
 

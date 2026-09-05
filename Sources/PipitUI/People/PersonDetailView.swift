@@ -245,10 +245,15 @@ struct PersonDetailView: View {
                     .font(.caption2)
                     .foregroundStyle(.tertiary)
             }
-            TextEditor(text: Binding(
-                get: { model.notesDraft },
-                set: { model.notesDraft = $0; model.notesChanged() }
-            ))
+            TextEditor(
+                text: Binding(
+                    get: { model.notesDraft },
+                    set: {
+                        model.notesDraft = $0
+                        model.notesChanged()
+                    }
+                )
+            )
             .font(.callout)
             .frame(minHeight: 90)
             .padding(4)

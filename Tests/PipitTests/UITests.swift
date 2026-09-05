@@ -1,7 +1,6 @@
 import AppKit
 import EventKit
 import Foundation
-import UniformTypeIdentifiers
 import PipitAudio
 import PipitCore
 import PipitIntegrations
@@ -9,6 +8,7 @@ import PipitServices
 import PipitUI
 import SwiftUI
 import Testing
+import UniformTypeIdentifiers
 
 /// Builds each window's view tree and forces a layout pass.
 ///
@@ -207,7 +207,10 @@ struct UITests {
         let model = await MainActor.run {
             SetupModel(
                 runtime: PipitRuntime(settingsDirectory: root),
-                keyPresence: { await lookups.bump(); return true },
+                keyPresence: {
+                    await lookups.bump()
+                    return true
+                },
                 // Choosing a backend starts the download for that
                 // choice. With the real one this test fetched the
                 // aligner from HuggingFace to answer a question about
@@ -344,13 +347,14 @@ struct UITests {
                 chunkID: "mic_chunk_001", model: "test"
             )
         }
-        try created.store.writeCanonicalTranscript(CanonicalTranscript(
-            generatedAt: started,
-            utterances: [
-                utterance(key: "mic_chunk_001_speaker_00", start: 0, end: 6),
-                utterance(key: "mic_chunk_001_speaker_01", start: 7, end: 7),
-            ]
-        ))
+        try created.store.writeCanonicalTranscript(
+            CanonicalTranscript(
+                generatedAt: started,
+                utterances: [
+                    utterance(key: "mic_chunk_001_speaker_00", start: 0, end: 6),
+                    utterance(key: "mic_chunk_001_speaker_01", start: 7, end: 7),
+                ]
+            ))
 
         let model = await MainActor.run { () -> MeetingReviewModel in
             let runtime = PipitRuntime(settingsDirectory: root)
@@ -726,9 +730,10 @@ struct UITests {
         try store.save(settings)
 
         // Strip a field, as if the file were written before it existed.
-        var object = try JSONSerialization.jsonObject(
-            with: Data(contentsOf: store.url)
-        ) as! [String: Any]
+        var object =
+            try JSONSerialization.jsonObject(
+                with: Data(contentsOf: store.url)
+            ) as! [String: Any]
         object.removeValue(forKey: "firefoxSensorHasConnected")
         try JSONSerialization.data(withJSONObject: object).write(to: store.url)
 
@@ -754,9 +759,10 @@ struct UITests {
         settings.hasCompletedOnboarding = true
         try store.save(settings)
         for stale in [true, false] {
-            var object = try JSONSerialization.jsonObject(
-                with: Data(contentsOf: store.url)
-            ) as! [String: Any]
+            var object =
+                try JSONSerialization.jsonObject(
+                    with: Data(contentsOf: store.url)
+                ) as! [String: Any]
             object["echoCancellation"] = stale
             try JSONSerialization.data(withJSONObject: object).write(to: store.url)
 
@@ -788,9 +794,10 @@ struct UITests {
             #expect(!item.isEnabled, "an informational row is not clickable")
 
             let heading = MenuBarController.informationItem("Processing", emphasis: true)
-            let colour = heading.attributedTitle?.attribute(
-                .foregroundColor, at: 0, effectiveRange: nil
-            ) as? NSColor
+            let colour =
+                heading.attributedTitle?.attribute(
+                    .foregroundColor, at: 0, effectiveRange: nil
+                ) as? NSColor
             #expect(colour == NSColor.labelColor, "a heading uses the primary label colour")
         }
     }

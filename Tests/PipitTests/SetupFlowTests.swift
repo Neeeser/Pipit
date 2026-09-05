@@ -408,7 +408,8 @@ struct SetupFlowTests {
         #expect(await requested.all == [LocalModelUnit.required(for: defaults)])
         await MainActor.run { model.finish() }
         #expect(
-            SettingsStore(directory: root).load().processing.localTranscriptionModel == LocalTranscriptionModel.preferred,
+            SettingsStore(directory: root).load().processing.localTranscriptionModel
+                == LocalTranscriptionModel.preferred,
             "and finishing setup stores the engine nobody touched"
         )
     }

@@ -65,8 +65,8 @@ struct AboutView: View {
         let short = info?["CFBundleShortVersionString"] as? String
         let build = info?["CFBundleVersion"] as? String
         switch (short, build) {
-        case let (short?, build?): return "Version \(short) (\(build))"
-        case let (short?, nil): return "Version \(short)"
+        case (let short?, let build?): return "Version \(short) (\(build))"
+        case (let short?, nil): return "Version \(short)"
         // A debug binary run outside the bundle has neither.
         default: return "Development build"
         }

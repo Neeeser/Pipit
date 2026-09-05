@@ -161,10 +161,12 @@ public final class MenuBarController: NSObject, NSMenuDelegate {
 
     private static func iconImage(for status: RuntimeStatus) -> NSImage? {
         let asset = NSImage(named: NSImage.Name(iconAssetName(for: status)))
-        let image = asset ?? NSImage(
-            systemSymbolName: fallbackSymbolName(for: status),
-            accessibilityDescription: nil
-        )
+        let image =
+            asset
+            ?? NSImage(
+                systemSymbolName: fallbackSymbolName(for: status),
+                accessibilityDescription: nil
+            )
         guard let copy = image?.copy() as? NSImage else { return nil }
         copy.size = NSSize(width: 18, height: 18)
         copy.isTemplate = true
@@ -180,11 +182,13 @@ public final class MenuBarController: NSObject, NSMenuDelegate {
     private static func rasterized(_ image: NSImage) -> NSImage {
         let size = image.size
         let scale: CGFloat = 2
-        guard let rep = NSBitmapImageRep(
-            bitmapDataPlanes: nil, pixelsWide: Int(size.width * scale), pixelsHigh: Int(size.height * scale),
-            bitsPerSample: 8, samplesPerPixel: 4, hasAlpha: true, isPlanar: false,
-            colorSpaceName: .deviceRGB, bytesPerRow: 0, bitsPerPixel: 0
-        ) else { return image }
+        guard
+            let rep = NSBitmapImageRep(
+                bitmapDataPlanes: nil, pixelsWide: Int(size.width * scale), pixelsHigh: Int(size.height * scale),
+                bitsPerSample: 8, samplesPerPixel: 4, hasAlpha: true, isPlanar: false,
+                colorSpaceName: .deviceRGB, bytesPerRow: 0, bitsPerPixel: 0
+            )
+        else { return image }
         rep.size = size
         NSGraphicsContext.saveGraphicsState()
         NSGraphicsContext.current = NSGraphicsContext(bitmapImageRep: rep)
@@ -199,7 +203,8 @@ public final class MenuBarController: NSObject, NSMenuDelegate {
     /// The red bird with its mark at a given height, for the permission panel
     /// to say who is talking.
     public static func attentionImage(height: CGFloat) -> NSImage? {
-        let asset = NSImage(named: NSImage.Name("pipit-idle"))
+        let asset =
+            NSImage(named: NSImage.Name("pipit-idle"))
             ?? NSImage(systemSymbolName: "waveform.circle.fill", accessibilityDescription: nil)
         guard let copy = asset?.copy() as? NSImage else { return nil }
         copy.size = NSSize(width: height, height: height)
@@ -248,9 +253,11 @@ public final class MenuBarController: NSObject, NSMenuDelegate {
     /// The icon is a template, so the mark cannot be a second colour. A hole
     /// cleared around it is what keeps it readable against the icon behind.
     private static func badged(_ base: NSImage) -> NSImage {
-        guard let mark = NSImage(
-            systemSymbolName: "exclamationmark.circle.fill", accessibilityDescription: nil
-        ) else { return base }
+        guard
+            let mark = NSImage(
+                systemSymbolName: "exclamationmark.circle.fill", accessibilityDescription: nil
+            )
+        else { return base }
         let badged = NSImage(size: base.size, flipped: false) { rect in
             base.draw(in: rect)
             let diameter = rect.width * 0.6
@@ -342,7 +349,8 @@ public final class MenuBarController: NSObject, NSMenuDelegate {
             menu.addItem(.separator())
             menu.addItem(Self.informationItem("Processing", emphasis: true))
             for progress in runtime.processing.values.sorted(by: { $0.meetingID < $1.meetingID }) {
-                let detail = progress.totalChunks > 0
+                let detail =
+                    progress.totalChunks > 0
                     ? "\(progress.state.displayName) \(progress.completedChunks)/\(progress.totalChunks)"
                     : progress.state.displayName
                 menu.addItem(Self.informationItem("  \(progress.title): \(detail)"))
@@ -427,7 +435,9 @@ public final class MenuBarController: NSObject, NSMenuDelegate {
         let title = status.title ?? status.provider.displayName
         menu.addItem(Self.informationItem("◌ Meeting disconnected", emphasis: true))
         menu.addItem(Self.informationItem("  \(title)"))
-        menu.addItem(Self.informationItem("  Recording is paused. It resumes if the meeting comes back, and ends after 90 seconds."))
+        menu.addItem(
+            Self.informationItem(
+                "  Recording is paused. It resumes if the meeting comes back, and ends after 90 seconds."))
 
         menu.addItem(.separator())
         let stop = NSMenuItem(title: "End Meeting Now", action: #selector(stopRecording), keyEquivalent: "")
@@ -445,7 +455,8 @@ public final class MenuBarController: NSObject, NSMenuDelegate {
         let item = NSMenuItem(title: text, action: nil, keyEquivalent: "")
         item.isEnabled = false
         let size = NSFont.menuFont(ofSize: 0).pointSize
-        let font = emphasis
+        let font =
+            emphasis
             ? NSFont.systemFont(ofSize: size, weight: .semibold)
             : NSFont.menuFont(ofSize: 0)
         item.attributedTitle = NSAttributedString(

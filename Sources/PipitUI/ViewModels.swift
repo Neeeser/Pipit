@@ -1,12 +1,12 @@
 import AppKit
 import Foundation
+import Observation
 import PipitAudio
 import PipitCore
 import PipitDetection
 import PipitIntegrations
 import PipitServices
 import PipitSpeakers
-import Observation
 import SwiftUI
 
 // SwiftUI's `@State` and `@Binding` are macros in the current SDK, and their
@@ -357,7 +357,8 @@ public final class MeetingReviewModel {
     }
 
     public func search(_ query: String) {
-        navigation = query.trimmingCharacters(in: .whitespaces).isEmpty
+        navigation =
+            query.trimmingCharacters(in: .whitespaces).isEmpty
             ? nil : .find(query, in: blocks)
     }
 
@@ -507,7 +508,8 @@ public final class MeetingReviewModel {
                 correctedLines.insert(line.id)
             }
             guard let index = combinedLines.firstIndex(where: { $0.id == line.id }) else { continue }
-            combinedLines[index].speakerName = name.isEmpty
+            combinedLines[index].speakerName =
+                name.isEmpty
                 ? SpeakerMap.fallbackName(for: line.utterance.speakerKey)
                 : name
             // Written on the line as well as into `correctedLines`, because a
@@ -571,7 +573,8 @@ public final class MeetingReviewModel {
     /// The stretch the picker is open on inside this turn, if it is open on one.
     public func namingRange(inBlock blockID: String) -> SpeakerNamingTarget? {
         guard let naming, case .range = naming.subject,
-              naming.id.hasPrefix("range:\(blockID):") else { return nil }
+            naming.id.hasPrefix("range:\(blockID):")
+        else { return nil }
         return naming
     }
 
@@ -587,9 +590,11 @@ public final class MeetingReviewModel {
     public var pickerContext: [IdentityID: PeoplePickerContext] {
         var map: [IdentityID: PeoplePickerContext] = [:]
         for name in expectedParticipants {
-            guard let entry = knownPeople.first(where: {
-                $0.identity.resolvedName.localizedCaseInsensitiveCompare(name) == .orderedSame
-            }) else { continue }
+            guard
+                let entry = knownPeople.first(where: {
+                    $0.identity.resolvedName.localizedCaseInsensitiveCompare(name) == .orderedSame
+                })
+            else { continue }
             map[entry.id] = .expected
         }
         for row in speakerRows {
@@ -861,11 +866,21 @@ public final class MeetingReviewModel {
     }
 
     public func titleBinding() -> Binding<String> {
-        Binding(get: { self.title }, set: { self.title = $0; self.scheduleEditSave() })
+        Binding(
+            get: { self.title },
+            set: {
+                self.title = $0
+                self.scheduleEditSave()
+            })
     }
 
     public func notesBinding() -> Binding<String> {
-        Binding(get: { self.notes }, set: { self.notes = $0; self.scheduleEditSave() })
+        Binding(
+            get: { self.notes },
+            set: {
+                self.notes = $0
+                self.scheduleEditSave()
+            })
     }
 }
 

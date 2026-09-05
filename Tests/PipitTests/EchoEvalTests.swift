@@ -398,7 +398,8 @@ struct EchoEvalTests {
         )
 
         #expect(Self.contents(of: folder) == before, "the command wrote into the meeting")
-        #expect(!(FileManager.default.fileExists(
+        #expect(
+            !(FileManager.default.fileExists(
                 atPath: meeting.store.layout.cleanedMicFile.path
             )), "no cleaned track was left behind")
         #expect(try meeting.store.readMetadata().cleanedMic == nil)
@@ -482,7 +483,8 @@ struct EchoEvalTests {
         let room = (0..<30).map { _ in window(far: -90, before: -80, after: -80) }
         // A call on speakers: the far end plays for most of it and the
         // user's own windows lose nothing.
-        let speakers = (0..<60).map { _ in window(far: -25, before: -30, after: -55) }
+        let speakers =
+            (0..<60).map { _ in window(far: -25, before: -30, after: -55) }
             + (0..<30).map { _ in window(far: -90, before: -30, after: -30.3) } + room
         let kept = EchoCancellationPass.judge(windows: speakers)
         #expect(kept.outcome == CleaningOutcome.cleaned)
@@ -494,7 +496,8 @@ struct EchoEvalTests {
         )
 
         // The same call with the user's solo speech gutted.
-        let gutted = (0..<60).map { _ in window(far: -25, before: -30, after: -55) }
+        let gutted =
+            (0..<60).map { _ in window(far: -25, before: -30, after: -55) }
             + (0..<30).map { _ in window(far: -90, before: -30, after: -45) } + room
         let dropped = EchoCancellationPass.judge(windows: gutted)
         #expect(dropped.outcome == CleaningOutcome.bypassedNoEchoPath)
@@ -506,7 +509,8 @@ struct EchoEvalTests {
 
         // Enough gated windows is enough: the median holds and the share
         // does not.
-        let tail = (0..<60).map { _ in window(far: -25, before: -30, after: -55) }
+        let tail =
+            (0..<60).map { _ in window(far: -25, before: -30, after: -55) }
             + (0..<26).map { _ in window(far: -90, before: -30, after: -30) }
             + (0..<4).map { _ in window(far: -90, before: -30, after: -60) } + room
         #expect(
@@ -514,14 +518,16 @@ struct EchoEvalTests {
         )
 
         // Too few user-only windows to judge harm on: kept.
-        let brief = (0..<60).map { _ in window(far: -25, before: -30, after: -55) }
+        let brief =
+            (0..<60).map { _ in window(far: -25, before: -30, after: -55) }
             + (0..<5).map { _ in window(far: -90, before: -30, after: -60) } + room
         let unjudged = EchoCancellationPass.judge(windows: brief)
         #expect(unjudged.outcome == CleaningOutcome.cleaned)
         #expect(unjudged.userHarmMedianDB == nil)
 
         // Too little far end to have been judged on at all.
-        let quiet = (0..<10).map { _ in window(far: -25, before: -30, after: -55) }
+        let quiet =
+            (0..<10).map { _ in window(far: -25, before: -30, after: -55) }
             + (0..<60).map { _ in window(far: -90, before: -30, after: -30) } + room
         #expect(
             EchoCancellationPass.judge(windows: quiet).outcome == CleaningOutcome.skippedNoReference

@@ -33,18 +33,18 @@ struct CloudModelTests {
         // whisper-1 with word granularity returns `words` at the top
         // level, not inside each segment.
         let body = """
-        {"text": "hello there general",
-         "duration": 4.0,
-         "segments": [
-           {"start": 0.0, "end": 2.0, "text": "hello there"},
-           {"start": 2.0, "end": 4.0, "text": "general"}
-         ],
-         "words": [
-           {"word": "hello", "start": 0.1, "end": 0.6},
-           {"word": "there", "start": 0.7, "end": 1.2},
-           {"word": "general", "start": 2.2, "end": 2.9}
-         ]}
-        """.data(using: .utf8)!
+            {"text": "hello there general",
+             "duration": 4.0,
+             "segments": [
+               {"start": 0.0, "end": 2.0, "text": "hello there"},
+               {"start": 2.0, "end": 4.0, "text": "general"}
+             ],
+             "words": [
+               {"word": "hello", "start": 0.1, "end": 0.6},
+               {"word": "there", "start": 0.7, "end": 1.2},
+               {"word": "general", "start": 2.2, "end": 2.9}
+             ]}
+            """.data(using: .utf8)!
         let response = try OpenAIClient.parseTranscription(body, allowTextOnly: false)
         #expect(response.segments.count == 2)
         #expect(

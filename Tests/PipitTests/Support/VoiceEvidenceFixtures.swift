@@ -19,14 +19,16 @@ public enum VoiceEvidenceFixture {
         start: Double? = nil
     ) -> [VoiceEvidence] {
         let begin = start ?? lane(cluster ?? source.rawValue)
-        return [VoiceEvidence(
-            meetingID: meeting,
-            track: track,
-            spans: [AudioSpan(start: begin, end: begin + max(seconds, 0.001))],
-            confirmation: source,
-            analysisID: nil,
-            clusterID: cluster
-        )]
+        return [
+            VoiceEvidence(
+                meetingID: meeting,
+                track: track,
+                spans: [AudioSpan(start: begin, end: begin + max(seconds, 0.001))],
+                confirmation: source,
+                analysisID: nil,
+                clusterID: cluster
+            )
+        ]
     }
 
     /// A stable hour-wide lane per key. Deterministic across runs, which

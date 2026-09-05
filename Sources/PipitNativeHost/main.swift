@@ -30,7 +30,8 @@ struct BrowserMessageReader {
 
     func next() -> [String: Any]? {
         guard let header = readExactly(4) else { return nil }
-        let length = Int(header[header.startIndex])
+        let length =
+            Int(header[header.startIndex])
             | Int(header[header.startIndex + 1]) << 8
             | Int(header[header.startIndex + 2]) << 16
             | Int(header[header.startIndex + 3]) << 24
@@ -111,37 +112,40 @@ final class AppConnection {
 func sensorMessage(from raw: [String: Any], browser: BrowserKind) -> SensorMessage? {
     switch raw["type"] as? String {
     case "hello":
-        return .hello(SensorMessage.Hello(
-            browser: browser,
-            extensionVersion: raw["extensionVersion"] as? String,
-            hostVersion: hostVersion
-        ))
+        return .hello(
+            SensorMessage.Hello(
+                browser: browser,
+                extensionVersion: raw["extensionVersion"] as? String,
+                hostVersion: hostVersion
+            ))
     case "tab_removed":
         guard let tabID = raw["tabId"] as? Int else { return nil }
         return .tabClosed(browser: browser, tabID: tabID)
     case "state":
-        let provider: MeetingProvider = switch raw["provider"] as? String {
-        case "meet": .googleMeet
-        case "zoom": .zoom
-        default: .unknown
-        }
+        let provider: MeetingProvider =
+            switch raw["provider"] as? String {
+            case "meet": .googleMeet
+            case "zoom": .zoom
+            default: .unknown
+            }
         let state = BrowserMeetingState(rawValue: (raw["state"] as? String) ?? "unknown") ?? .unknown
         let timestamp = (raw["sentAt"] as? Double).map { $0 / 1_000 } ?? Date().timeIntervalSince1970
-        return .event(BrowserMeetingEvent(
-            browser: browser,
-            provider: provider,
-            state: state,
-            timestamp: timestamp,
-            url: raw["url"] as? String,
-            meetingID: raw["meetingId"] as? String,
-            title: raw["title"] as? String,
-            muted: raw["muted"] as? Bool,
-            tabID: raw["tabId"] as? Int,
-            participants: raw["participants"] as? [String],
-            people: people(from: raw["people"]),
-            activeSpeaker: raw["activeSpeaker"] as? String,
-            otherAudibleTabs: raw["otherAudibleTabs"] as? Int
-        ))
+        return .event(
+            BrowserMeetingEvent(
+                browser: browser,
+                provider: provider,
+                state: state,
+                timestamp: timestamp,
+                url: raw["url"] as? String,
+                meetingID: raw["meetingId"] as? String,
+                title: raw["title"] as? String,
+                muted: raw["muted"] as? Bool,
+                tabID: raw["tabId"] as? Int,
+                participants: raw["participants"] as? [String],
+                people: people(from: raw["people"]),
+                activeSpeaker: raw["activeSpeaker"] as? String,
+                otherAudibleTabs: raw["otherAudibleTabs"] as? Int
+            ))
     default:
         return nil
     }
@@ -168,7 +172,8 @@ private func people(from value: Any?) -> [BrowserParticipant]? {
 let arguments = CommandLine.arguments
 // Browsers pass the manifest path (and on Chrome the extension origin) as
 // arguments; the browser is identified from the manifest location.
-let browser: BrowserKind = arguments.contains { $0.contains("Chrome") || $0.contains("chromium") }
+let browser: BrowserKind =
+    arguments.contains { $0.contains("Chrome") || $0.contains("chromium") }
     ? .chrome
     : .firefox
 

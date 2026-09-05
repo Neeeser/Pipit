@@ -78,7 +78,8 @@ public struct RecoveryScanner: Sendable {
             }
             guard metadata.processing.state != .complete else { continue }
 
-            let needsRecovery = metadata.processing.state == .recording
+            let needsRecovery =
+                metadata.processing.state == .recording
                 || metadata.processing.state == .finalizing
             if needsRecovery {
                 // A folder still in the old layout waits for its migration.
@@ -107,7 +108,9 @@ public struct RecoveryScanner: Sendable {
                     )
                 } catch {
                     // The meeting id embeds its title, so it is logged privately.
-                    Log.storage.error("recovery failed for \(metadata.id, privacy: .private): \(logSafeDescription(error), privacy: .public)")
+                    Log.storage.error(
+                        "recovery failed for \(metadata.id, privacy: .private): \(logSafeDescription(error), privacy: .public)"
+                    )
                     report.unreadable.append(metadata.id)
                 }
                 continue
@@ -160,9 +163,10 @@ public struct RecoveryScanner: Sendable {
         // A segment file with no manifest record at all: the open line was lost.
         // Reconstruct it from the filename and the file's own format.
         let known = Set(timeline.segments.map(\.file))
-        let files = (try? FileManager.default.contentsOfDirectory(
-            at: store.layout.segments, includingPropertiesForKeys: nil, options: [.skipsHiddenFiles]
-        )) ?? []
+        let files =
+            (try? FileManager.default.contentsOfDirectory(
+                at: store.layout.segments, includingPropertiesForKeys: nil, options: [.skipsHiddenFiles]
+            )) ?? []
         for url in files where url.pathExtension == "caf" {
             let name = url.lastPathComponent
             guard !known.contains(name), let parsed = Self.parseSegmentFileName(name) else { continue }
@@ -221,7 +225,7 @@ public struct RecoveryScanner: Sendable {
                 RecordingRun(
                     id: "run-001", startedAt: metadata.startedAt, endedAt: metadata.endedAt,
                     durationSeconds: finalTimeline.duration, wasInterrupted: true, endReason: "interrupted"
-                ),
+                )
             ]
         }
 

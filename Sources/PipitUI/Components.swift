@@ -32,7 +32,8 @@ public enum Format {
     public static func listDate(_ date: Date, now: Date = Date(), calendar: Calendar = .current) -> String {
         let yesterday = calendar.date(byAdding: .day, value: -1, to: now)
         if calendar.isDate(date, inSameDayAs: now) || date > now
-            || (yesterday.map { calendar.isDate(date, inSameDayAs: $0) } ?? false) {
+            || (yesterday.map { calendar.isDate(date, inSameDayAs: $0) } ?? false)
+        {
             return timeOfDay(date)
         }
         return date.formatted(date: .abbreviated, time: .shortened)

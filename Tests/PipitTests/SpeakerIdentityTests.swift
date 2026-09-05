@@ -186,8 +186,10 @@ struct SpeakerPolicyTests {
     @Test("at most three candidates are offered, and none below the bar")
     func atMostThreeCandidatesAreOfferedAndNoneBelowTheBar() async throws {
         let resolved = policy.resolve(
-            candidates: [Self.person(1, 0.66), Self.person(2, 0.64), Self.person(3, 0.62),
-                         Self.person(4, 0.60), Self.person(5, 0.30)],
+            candidates: [
+                Self.person(1, 0.66), Self.person(2, 0.64), Self.person(3, 0.62),
+                Self.person(4, 0.60), Self.person(5, 0.30),
+            ],
             speechSeconds: 60
         )
         #expect(resolved.band == .medium)
@@ -268,11 +270,13 @@ struct SpeakerStoreTests {
         defer { try? FileManager.default.removeItem(at: root) }
 
         let bryn = try await store.createPerson(name: "Bryn", organization: "Acme")
-        let result = try await store.enrol(VoiceEnrollmentCandidate(
-            identityID: bryn.id, vector: SpeakerFixtures.vector(seed: 3), model: .fluidAudioOffline,
-            speechSeconds: 90, qualityScore: 1, source: .humanConfirmedCluster,
-            evidence: VoiceEvidenceFixture.evidence(meeting: "m1", cluster: "c1", seconds: 90, source: .humanConfirmedCluster)
-        ))
+        let result = try await store.enrol(
+            VoiceEnrollmentCandidate(
+                identityID: bryn.id, vector: SpeakerFixtures.vector(seed: 3), model: .fluidAudioOffline,
+                speechSeconds: 90, qualityScore: 1, source: .humanConfirmedCluster,
+                evidence: VoiceEvidenceFixture.evidence(
+                    meeting: "m1", cluster: "c1", seconds: 90, source: .humanConfirmedCluster)
+            ))
         guard case .success = result else {
             Issue.record("enrolment refused: \(result)")
             return
@@ -290,11 +294,12 @@ struct SpeakerStoreTests {
         let (store, root) = try SpeakerFixtures.makeStore()
         defer { try? FileManager.default.removeItem(at: root) }
         let bryn = try await store.createPerson(name: "Bryn")
-        _ = try await store.enrol(VoiceEnrollmentCandidate(
-            identityID: bryn.id, vector: SpeakerFixtures.vector(seed: 3), model: .fluidAudioOffline,
-            speechSeconds: 90, qualityScore: 1, source: .humanConfirmedCluster,
-            evidence: VoiceEvidenceFixture.evidence(meeting: "m1", seconds: 90, source: .humanConfirmedCluster)
-        ))
+        _ = try await store.enrol(
+            VoiceEnrollmentCandidate(
+                identityID: bryn.id, vector: SpeakerFixtures.vector(seed: 3), model: .fluidAudioOffline,
+                speechSeconds: 90, qualityScore: 1, source: .humanConfirmedCluster,
+                evidence: VoiceEvidenceFixture.evidence(meeting: "m1", seconds: 90, source: .humanConfirmedCluster)
+            ))
         let other = EmbeddingModelIdentifier(rawValue: "some-future-model-512", dimension: 512)
         #expect(
             try await store.searchableProfiles(model: other).isEmpty,
@@ -308,35 +313,41 @@ struct SpeakerStoreTests {
         defer { try? FileManager.default.removeItem(at: root) }
         let service = SpeakerRecognitionService(store: store)
         let bryn = try await store.createPerson(name: "Bryn")
-        _ = try await store.enrol(VoiceEnrollmentCandidate(
-            identityID: bryn.id, vector: SpeakerFixtures.vector(seed: 5), model: .fluidAudioOffline,
-            speechSeconds: 120, qualityScore: 1, source: .humanConfirmedCluster,
-            evidence: VoiceEvidenceFixture.evidence(meeting: "m1", seconds: 120, source: .humanConfirmedCluster)
-        ))
+        _ = try await store.enrol(
+            VoiceEnrollmentCandidate(
+                identityID: bryn.id, vector: SpeakerFixtures.vector(seed: 5), model: .fluidAudioOffline,
+                speechSeconds: 120, qualityScore: 1, source: .humanConfirmedCluster,
+                evidence: VoiceEvidenceFixture.evidence(meeting: "m1", seconds: 120, source: .humanConfirmedCluster)
+            ))
         // A gallery of one has no runner-up and so no measurable
         // separation, which the policy answers with a suggestion. Two
         // voices is what a real gallery looks like.
         let other = try await store.createPerson(name: "Nadia")
-        _ = try await store.enrol(VoiceEnrollmentCandidate(
-            identityID: other.id, vector: SpeakerFixtures.vector(seed: 200), model: .fluidAudioOffline,
-            speechSeconds: 120, qualityScore: 1, source: .humanConfirmedCluster,
-            evidence: VoiceEvidenceFixture.evidence(
-                meeting: "m0", seconds: 120, source: .humanConfirmedCluster
-            )
-        ))
+        _ = try await store.enrol(
+            VoiceEnrollmentCandidate(
+                identityID: other.id, vector: SpeakerFixtures.vector(seed: 200), model: .fluidAudioOffline,
+                speechSeconds: 120, qualityScore: 1, source: .humanConfirmedCluster,
+                evidence: VoiceEvidenceFixture.evidence(
+                    meeting: "m0", seconds: 120, source: .humanConfirmedCluster
+                )
+            ))
         let before = try await store.profileStatus(of: bryn.id, model: .fluidAudioOffline)
 
         // The same voice again, matched at the highest confidence.
         let resolved = try await service.resolve(
             meetingID: "m2",
-            clusters: [SpeakerClusterInput(
-                clusterID: "run-001_speaker_00", track: .remote,
-                speechSeconds: 300, centroid: SpeakerFixtures.vector(seed: 5),
-                spans: [AudioSpan(
-                    start: VoiceEvidenceFixture.lane("run-001_speaker_00"),
-                    end: VoiceEvidenceFixture.lane("run-001_speaker_00") + 300
-                )]
-            )],
+            clusters: [
+                SpeakerClusterInput(
+                    clusterID: "run-001_speaker_00", track: .remote,
+                    speechSeconds: 300, centroid: SpeakerFixtures.vector(seed: 5),
+                    spans: [
+                        AudioSpan(
+                            start: VoiceEvidenceFixture.lane("run-001_speaker_00"),
+                            end: VoiceEvidenceFixture.lane("run-001_speaker_00") + 300
+                        )
+                    ]
+                )
+            ],
             settings: SpeakerRecognitionSettings(),
             now: Date()
         )
@@ -355,11 +366,12 @@ struct SpeakerStoreTests {
         let (store, root) = try SpeakerFixtures.makeStore()
         defer { try? FileManager.default.removeItem(at: root) }
         let bryn = try await store.createPerson(name: "Bryn")
-        let result = try await store.enrol(VoiceEnrollmentCandidate(
-            identityID: bryn.id, vector: SpeakerFixtures.vector(seed: 6), model: .fluidAudioOffline,
-            speechSeconds: 300, qualityScore: 1, source: .anonymousSeed,
-            evidence: VoiceEvidenceFixture.evidence(meeting: "m1", seconds: 300, source: .anonymousSeed)
-        ))
+        let result = try await store.enrol(
+            VoiceEnrollmentCandidate(
+                identityID: bryn.id, vector: SpeakerFixtures.vector(seed: 6), model: .fluidAudioOffline,
+                speechSeconds: 300, qualityScore: 1, source: .anonymousSeed,
+                evidence: VoiceEvidenceFixture.evidence(meeting: "m1", seconds: 300, source: .anonymousSeed)
+            ))
         guard case .failure = result else {
             Issue.record("a seed vector must not enter a named profile")
             return
@@ -374,11 +386,12 @@ struct SpeakerStoreTests {
         let (store, root) = try SpeakerFixtures.makeStore()
         defer { try? FileManager.default.removeItem(at: root) }
         let bryn = try await store.createPerson(name: "Bryn")
-        let result = try await store.enrol(VoiceEnrollmentCandidate(
-            identityID: bryn.id, vector: SpeakerFixtures.vector(seed: 7), model: .fluidAudioOffline,
-            speechSeconds: 12, qualityScore: 1, source: .humanConfirmedCluster,
-            evidence: VoiceEvidenceFixture.evidence(meeting: "m1", seconds: 12, source: .humanConfirmedCluster)
-        ))
+        let result = try await store.enrol(
+            VoiceEnrollmentCandidate(
+                identityID: bryn.id, vector: SpeakerFixtures.vector(seed: 7), model: .fluidAudioOffline,
+                speechSeconds: 12, qualityScore: 1, source: .humanConfirmedCluster,
+                evidence: VoiceEvidenceFixture.evidence(meeting: "m1", seconds: 12, source: .humanConfirmedCluster)
+            ))
         guard case .failure(let reason) = result else {
             Issue.record("12 seconds is below the enrolment bar")
             return
@@ -395,12 +408,14 @@ struct SpeakerStoreTests {
         // Each round re-embeds the whole confirmed set, so a later round
         // supersedes the earlier one rather than counting it again.
         for seconds in [15.0, 30.0] {
-            try await store.addPendingEnrollment(VoiceEnrollmentCandidate(
-                identityID: bryn.id, vector: SpeakerFixtures.vector(seed: 8), model: .fluidAudioOffline,
-                speechSeconds: seconds, qualityScore: 1,
-                source: .humanConfirmedUtterances,
-            evidence: VoiceEvidenceFixture.evidence(meeting: "m1", seconds: seconds, source: .humanConfirmedUtterances)
-        ))
+            try await store.addPendingEnrollment(
+                VoiceEnrollmentCandidate(
+                    identityID: bryn.id, vector: SpeakerFixtures.vector(seed: 8), model: .fluidAudioOffline,
+                    speechSeconds: seconds, qualityScore: 1,
+                    source: .humanConfirmedUtterances,
+                    evidence: VoiceEvidenceFixture.evidence(
+                        meeting: "m1", seconds: seconds, source: .humanConfirmedUtterances)
+                ))
         }
         let pending = try await store.pendingSpeechSeconds(for: bryn.id, model: .fluidAudioOffline)
         #expect(
@@ -412,12 +427,13 @@ struct SpeakerStoreTests {
             "30 seconds is not enough"
         )
 
-        try await store.addPendingEnrollment(VoiceEnrollmentCandidate(
-            identityID: bryn.id, vector: SpeakerFixtures.vector(seed: 8), model: .fluidAudioOffline,
-            speechSeconds: 50, qualityScore: 1,
-            source: .humanConfirmedUtterances,
-            evidence: VoiceEvidenceFixture.evidence(meeting: "m1", seconds: 50, source: .humanConfirmedUtterances)
-        ))
+        try await store.addPendingEnrollment(
+            VoiceEnrollmentCandidate(
+                identityID: bryn.id, vector: SpeakerFixtures.vector(seed: 8), model: .fluidAudioOffline,
+                speechSeconds: 50, qualityScore: 1,
+                source: .humanConfirmedUtterances,
+                evidence: VoiceEvidenceFixture.evidence(meeting: "m1", seconds: 50, source: .humanConfirmedUtterances)
+            ))
         #expect(
             try await store.flushPendingEnrollment(for: bryn.id, model: .fluidAudioOffline),
             "50 seconds clears it"
@@ -445,14 +461,18 @@ struct SpeakerStoreTests {
 
         let first = try await service.resolve(
             meetingID: "m1",
-            clusters: [SpeakerClusterInput(
-                clusterID: "remote-001_speaker_00", track: .remote,
-                speechSeconds: 120, centroid: voice,
-                spans: [AudioSpan(
-                    start: VoiceEvidenceFixture.lane("remote-001_speaker_00"),
-                    end: VoiceEvidenceFixture.lane("remote-001_speaker_00") + 120
-                )]
-            )],
+            clusters: [
+                SpeakerClusterInput(
+                    clusterID: "remote-001_speaker_00", track: .remote,
+                    speechSeconds: 120, centroid: voice,
+                    spans: [
+                        AudioSpan(
+                            start: VoiceEvidenceFixture.lane("remote-001_speaker_00"),
+                            end: VoiceEvidenceFixture.lane("remote-001_speaker_00") + 120
+                        )
+                    ]
+                )
+            ],
             settings: settings
         )
         #expect(first.first?.createdIdentity == true)
@@ -465,14 +485,18 @@ struct SpeakerStoreTests {
         // under a key nothing has seen.
         let second = try await service.resolve(
             meetingID: "m1",
-            clusters: [SpeakerClusterInput(
-                clusterID: "remote-002_speaker_00", track: .remote,
-                speechSeconds: 120, centroid: voice,
-                spans: [AudioSpan(
-                    start: VoiceEvidenceFixture.lane("remote-002_speaker_00"),
-                    end: VoiceEvidenceFixture.lane("remote-002_speaker_00") + 120
-                )]
-            )],
+            clusters: [
+                SpeakerClusterInput(
+                    clusterID: "remote-002_speaker_00", track: .remote,
+                    speechSeconds: 120, centroid: voice,
+                    spans: [
+                        AudioSpan(
+                            start: VoiceEvidenceFixture.lane("remote-002_speaker_00"),
+                            end: VoiceEvidenceFixture.lane("remote-002_speaker_00") + 120
+                        )
+                    ]
+                )
+            ],
             settings: settings
         )
         _ = second
@@ -505,10 +529,12 @@ struct SpeakerStoreTests {
         let cluster = SpeakerClusterInput(
             clusterID: "remote-001_speaker_00", track: .remote,
             speechSeconds: 95, centroid: dave,
-            spans: [AudioSpan(
-                start: VoiceEvidenceFixture.lane("remote-001_speaker_00"),
-                end: VoiceEvidenceFixture.lane("remote-001_speaker_00") + 95
-            )]
+            spans: [
+                AudioSpan(
+                    start: VoiceEvidenceFixture.lane("remote-001_speaker_00"),
+                    end: VoiceEvidenceFixture.lane("remote-001_speaker_00") + 95
+                )
+            ]
         )
 
         // Named wrongly, then corrected.
@@ -564,10 +590,12 @@ struct SpeakerStoreTests {
         let cluster = SpeakerClusterInput(
             clusterID: "remote-001_speaker_00", track: .remote,
             speechSeconds: 95, centroid: SpeakerFixtures.vector(seed: 62),
-            spans: [AudioSpan(
-                start: VoiceEvidenceFixture.lane("remote-001_speaker_00"),
-                end: VoiceEvidenceFixture.lane("remote-001_speaker_00") + 95
-            )]
+            spans: [
+                AudioSpan(
+                    start: VoiceEvidenceFixture.lane("remote-001_speaker_00"),
+                    end: VoiceEvidenceFixture.lane("remote-001_speaker_00") + 95
+                )
+            ]
         )
         _ = try await service.confirmCluster(
             meetingID: "m1", cluster: cluster, identityID: alice.id,
@@ -620,12 +648,13 @@ struct SpeakerStoreTests {
 
         // A caller holding the old identifier, which is what a stored
         // localUserIdentityID is after a merge.
-        _ = try await store.enrol(VoiceEnrollmentCandidate(
-            identityID: duplicate.id, vector: SpeakerFixtures.vector(seed: 21),
-            model: .fluidAudioOffline, speechSeconds: 240, qualityScore: 1,
-            source: .micTrackDeterministic,
-            evidence: VoiceEvidenceFixture.evidence(meeting: "m1", seconds: 240, source: .micTrackDeterministic)
-        ))
+        _ = try await store.enrol(
+            VoiceEnrollmentCandidate(
+                identityID: duplicate.id, vector: SpeakerFixtures.vector(seed: 21),
+                model: .fluidAudioOffline, speechSeconds: 240, qualityScore: 1,
+                source: .micTrackDeterministic,
+                evidence: VoiceEvidenceFixture.evidence(meeting: "m1", seconds: 240, source: .micTrackDeterministic)
+            ))
 
         let profiles = try await store.searchableProfiles(model: .fluidAudioOffline)
         #expect(profiles.count == 1, "the vector is searchable, not stranded")
@@ -643,12 +672,14 @@ struct SpeakerStoreTests {
         defer { try? FileManager.default.removeItem(at: root) }
         let bryn = try await store.createPerson(name: "Bryn")
         for meeting in ["m1", "m2"] {
-            try await store.addPendingEnrollment(VoiceEnrollmentCandidate(
-                identityID: bryn.id, vector: SpeakerFixtures.vector(seed: 8), model: .fluidAudioOffline,
-                speechSeconds: 30, qualityScore: 1,
-                source: .humanConfirmedUtterances,
-            evidence: VoiceEvidenceFixture.evidence(meeting: meeting, seconds: 30, source: .humanConfirmedUtterances)
-        ))
+            try await store.addPendingEnrollment(
+                VoiceEnrollmentCandidate(
+                    identityID: bryn.id, vector: SpeakerFixtures.vector(seed: 8), model: .fluidAudioOffline,
+                    speechSeconds: 30, qualityScore: 1,
+                    source: .humanConfirmedUtterances,
+                    evidence: VoiceEvidenceFixture.evidence(
+                        meeting: meeting, seconds: 30, source: .humanConfirmedUtterances)
+                ))
         }
         #expect(
             !(try await store.flushPendingEnrollment(for: bryn.id, model: .fluidAudioOffline)),
@@ -754,11 +785,12 @@ struct SpeakerStoreTests {
         let (store, root) = try SpeakerFixtures.makeStore()
         defer { try? FileManager.default.removeItem(at: root) }
         let voice = try await store.createAnonymous(state: .persistent)
-        _ = try await store.enrol(VoiceEnrollmentCandidate(
-            identityID: voice.id, vector: SpeakerFixtures.vector(seed: 12), model: .fluidAudioOffline,
-            speechSeconds: 120, qualityScore: 1, source: .anonymousSeed,
-            evidence: VoiceEvidenceFixture.evidence(meeting: "m1", seconds: 120, source: .anonymousSeed)
-        ))
+        _ = try await store.enrol(
+            VoiceEnrollmentCandidate(
+                identityID: voice.id, vector: SpeakerFixtures.vector(seed: 12), model: .fluidAudioOffline,
+                speechSeconds: 120, qualityScore: 1, source: .anonymousSeed,
+                evidence: VoiceEvidenceFixture.evidence(meeting: "m1", seconds: 120, source: .anonymousSeed)
+            ))
         try await store.recordOccurrence(
             meetingID: "m1", clusterID: "run-001_speaker_00", track: .remote,
             speechSeconds: 120, embedding: SpeakerFixtures.vector(seed: 12), model: .fluidAudioOffline,
@@ -790,11 +822,13 @@ struct SpeakerStoreTests {
         let first = try await store.createAnonymous(state: .persistent)
         let second = try await store.createAnonymous(state: .persistent)
         for identity in [first, second] {
-            _ = try await store.enrol(VoiceEnrollmentCandidate(
-                identityID: identity.id, vector: SpeakerFixtures.vector(seed: 13), model: .fluidAudioOffline,
-                speechSeconds: 90, qualityScore: 1, source: .anonymousSeed,
-            evidence: VoiceEvidenceFixture.evidence(meeting: "m\(identity.id.rawValue)", seconds: 90, source: .anonymousSeed)
-        ))
+            _ = try await store.enrol(
+                VoiceEnrollmentCandidate(
+                    identityID: identity.id, vector: SpeakerFixtures.vector(seed: 13), model: .fluidAudioOffline,
+                    speechSeconds: 90, qualityScore: 1, source: .anonymousSeed,
+                    evidence: VoiceEvidenceFixture.evidence(
+                        meeting: "m\(identity.id.rawValue)", seconds: 90, source: .anonymousSeed)
+                ))
             try await store.recordOccurrence(
                 meetingID: "m\(identity.id.rawValue)", clusterID: "c", track: .remote,
                 speechSeconds: 90, embedding: SpeakerFixtures.vector(seed: 13), model: .fluidAudioOffline,
@@ -828,11 +862,13 @@ struct SpeakerStoreTests {
         let (store, root) = try SpeakerFixtures.makeStore()
         defer { try? FileManager.default.removeItem(at: root) }
         let bryn = try await store.createPerson(name: "Bryn")
-        _ = try await store.enrol(VoiceEnrollmentCandidate(
-            identityID: bryn.id, vector: SpeakerFixtures.vector(seed: 14), model: .fluidAudioOffline,
-            speechSeconds: 120, qualityScore: 1, source: .humanConfirmedCluster,
-            evidence: VoiceEvidenceFixture.evidence(meeting: "m1", cluster: "c1", seconds: 120, source: .humanConfirmedCluster)
-        ))
+        _ = try await store.enrol(
+            VoiceEnrollmentCandidate(
+                identityID: bryn.id, vector: SpeakerFixtures.vector(seed: 14), model: .fluidAudioOffline,
+                speechSeconds: 120, qualityScore: 1, source: .humanConfirmedCluster,
+                evidence: VoiceEvidenceFixture.evidence(
+                    meeting: "m1", cluster: "c1", seconds: 120, source: .humanConfirmedCluster)
+            ))
         try await store.recordOccurrence(
             meetingID: "m1", clusterID: "c1", track: .remote, speechSeconds: 120,
             embedding: SpeakerFixtures.vector(seed: 14), model: .fluidAudioOffline, resolution: nil,
@@ -854,11 +890,12 @@ struct SpeakerStoreTests {
         let (store, root) = try SpeakerFixtures.makeStore()
         defer { try? FileManager.default.removeItem(at: root) }
         let bryn = try await store.createPerson(name: "Bryn")
-        _ = try await store.enrol(VoiceEnrollmentCandidate(
-            identityID: bryn.id, vector: SpeakerFixtures.vector(seed: 15), model: .fluidAudioOffline,
-            speechSeconds: 120, qualityScore: 1, source: .humanConfirmedCluster,
-            evidence: VoiceEvidenceFixture.evidence(meeting: "m1", seconds: 120, source: .humanConfirmedCluster)
-        ))
+        _ = try await store.enrol(
+            VoiceEnrollmentCandidate(
+                identityID: bryn.id, vector: SpeakerFixtures.vector(seed: 15), model: .fluidAudioOffline,
+                speechSeconds: 120, qualityScore: 1, source: .humanConfirmedCluster,
+                evidence: VoiceEvidenceFixture.evidence(meeting: "m1", seconds: 120, source: .humanConfirmedCluster)
+            ))
         try await store.delete(bryn.id)
         #expect((try await store.current(bryn.id)) == nil)
         #expect(try await store.searchableProfiles(model: .fluidAudioOffline).isEmpty)
@@ -872,15 +909,18 @@ struct SpeakerStoreTests {
         defer { try? FileManager.default.removeItem(at: root) }
         let bryn = try await store.createPerson(name: "Bryn")
         for index in 0..<30 {
-            _ = try await store.enrol(VoiceEnrollmentCandidate(
-                identityID: bryn.id, vector: SpeakerFixtures.vector(seed: 200 + index),
-                model: .fluidAudioOffline, speechSeconds: 60, qualityScore: 1,
-                source: .humanConfirmedCluster,
-            evidence: VoiceEvidenceFixture.evidence(meeting: "m\(index)", seconds: 60, source: .humanConfirmedCluster)
-        ))
+            _ = try await store.enrol(
+                VoiceEnrollmentCandidate(
+                    identityID: bryn.id, vector: SpeakerFixtures.vector(seed: 200 + index),
+                    model: .fluidAudioOffline, speechSeconds: 60, qualityScore: 1,
+                    source: .humanConfirmedCluster,
+                    evidence: VoiceEvidenceFixture.evidence(
+                        meeting: "m\(index)", seconds: 60, source: .humanConfirmedCluster)
+                ))
         }
         #expect(
-            try await store.profileStatus(of: bryn.id, model: .fluidAudioOffline).sampleCount == policy.maximumEmbeddingsPerIdentity
+            try await store.profileStatus(of: bryn.id, model: .fluidAudioOffline).sampleCount
+                == policy.maximumEmbeddingsPerIdentity
         )
     }
 
@@ -897,12 +937,13 @@ struct SpeakerStoreTests {
         // candidate with no vector at all is not a state production can
         // produce, and testing only that shape hid an inverted
         // predicate that made expiry a no-op forever.
-        _ = try await store.enrol(VoiceEnrollmentCandidate(
-            identityID: heardOnce.id, vector: SpeakerFixtures.vector(seed: 61),
-            model: .fluidAudioOffline, speechSeconds: 60, qualityScore: 0.9,
-            source: .anonymousSeed,
-            evidence: VoiceEvidenceFixture.evidence(meeting: "m1", seconds: 60, source: .anonymousSeed)
-        ), now: old)
+        _ = try await store.enrol(
+            VoiceEnrollmentCandidate(
+                identityID: heardOnce.id, vector: SpeakerFixtures.vector(seed: 61),
+                model: .fluidAudioOffline, speechSeconds: 60, qualityScore: 0.9,
+                source: .anonymousSeed,
+                evidence: VoiceEvidenceFixture.evidence(meeting: "m1", seconds: 60, source: .anonymousSeed)
+            ), now: old)
 
         let removed = try await store.expireEphemeralIdentities(now: Date())
         #expect(removed == 1)
@@ -916,12 +957,13 @@ struct SpeakerStoreTests {
         defer { try? FileManager.default.removeItem(at: root) }
         let old = Date(timeIntervalSince1970: 1_600_000_000)
         let confirmed = try await store.createAnonymous(state: .ephemeral, now: old)
-        _ = try await store.enrol(VoiceEnrollmentCandidate(
-            identityID: confirmed.id, vector: SpeakerFixtures.vector(seed: 62),
-            model: .fluidAudioOffline, speechSeconds: 90, qualityScore: 1,
-            source: .humanConfirmedCluster,
-            evidence: VoiceEvidenceFixture.evidence(meeting: "m1", seconds: 90, source: .humanConfirmedCluster)
-        ), now: old)
+        _ = try await store.enrol(
+            VoiceEnrollmentCandidate(
+                identityID: confirmed.id, vector: SpeakerFixtures.vector(seed: 62),
+                model: .fluidAudioOffline, speechSeconds: 90, qualityScore: 1,
+                source: .humanConfirmedCluster,
+                evidence: VoiceEvidenceFixture.evidence(meeting: "m1", seconds: 90, source: .humanConfirmedCluster)
+            ), now: old)
 
         #expect(try await store.expireEphemeralIdentities(now: Date()) == 0)
         #expect(try await store.current(confirmed.id)?.id == confirmed.id)
@@ -962,17 +1004,19 @@ struct SpeakerStoreTests {
         let (store, root) = try SpeakerFixtures.makeStore()
         defer { try? FileManager.default.removeItem(at: root) }
         let voice = try await store.createAnonymous(state: .persistent)
-        _ = try await store.enrol(VoiceEnrollmentCandidate(
-            identityID: voice.id, vector: SpeakerFixtures.vector(seed: 64), model: .fluidAudioOffline,
-            speechSeconds: 90, qualityScore: 1, source: .anonymousSeed,
-            evidence: VoiceEvidenceFixture.evidence(meeting: "m1", seconds: 90, source: .anonymousSeed)
-        ))
+        _ = try await store.enrol(
+            VoiceEnrollmentCandidate(
+                identityID: voice.id, vector: SpeakerFixtures.vector(seed: 64), model: .fluidAudioOffline,
+                speechSeconds: 90, qualityScore: 1, source: .anonymousSeed,
+                evidence: VoiceEvidenceFixture.evidence(meeting: "m1", seconds: 90, source: .anonymousSeed)
+            ))
         let bryn = try await store.createPerson(name: "Bryn")
-        _ = try await store.enrol(VoiceEnrollmentCandidate(
-            identityID: bryn.id, vector: SpeakerFixtures.vector(seed: 64), model: .fluidAudioOffline,
-            speechSeconds: 90, qualityScore: 1, source: .humanConfirmedCluster,
-            evidence: VoiceEvidenceFixture.evidence(meeting: "m2", seconds: 90, source: .humanConfirmedCluster)
-        ))
+        _ = try await store.enrol(
+            VoiceEnrollmentCandidate(
+                identityID: bryn.id, vector: SpeakerFixtures.vector(seed: 64), model: .fluidAudioOffline,
+                speechSeconds: 90, qualityScore: 1, source: .humanConfirmedCluster,
+                evidence: VoiceEvidenceFixture.evidence(meeting: "m2", seconds: 90, source: .humanConfirmedCluster)
+            ))
         try await store.merge(voice.id, into: bryn.id)
 
         try await store.delete(bryn.id)
@@ -1024,11 +1068,12 @@ struct SpeakerStoreTests {
         let (store, root) = try SpeakerFixtures.makeStore()
         defer { try? FileManager.default.removeItem(at: root) }
         let voice = try await store.createAnonymous(state: .persistent)
-        _ = try await store.enrol(VoiceEnrollmentCandidate(
-            identityID: voice.id, vector: SpeakerFixtures.vector(seed: 65), model: .fluidAudioOffline,
-            speechSeconds: 90, qualityScore: 1, source: .anonymousSeed,
-            evidence: VoiceEvidenceFixture.evidence(meeting: "m1", seconds: 90, source: .anonymousSeed)
-        ))
+        _ = try await store.enrol(
+            VoiceEnrollmentCandidate(
+                identityID: voice.id, vector: SpeakerFixtures.vector(seed: 65), model: .fluidAudioOffline,
+                speechSeconds: 90, qualityScore: 1, source: .anonymousSeed,
+                evidence: VoiceEvidenceFixture.evidence(meeting: "m1", seconds: 90, source: .anonymousSeed)
+            ))
         let bryn = try await store.createPerson(name: "Bryn")
         try await store.merge(voice.id, into: bryn.id)
 
@@ -1046,24 +1091,27 @@ struct SpeakerStoreTests {
         let (store, root) = try SpeakerFixtures.makeStore()
         defer { try? FileManager.default.removeItem(at: root) }
         let bryn = try await store.createPerson(name: "Bryn")
-        _ = try await store.enrol(VoiceEnrollmentCandidate(
-            identityID: bryn.id, vector: SpeakerFixtures.vector(seed: 66), model: .fluidAudioOffline,
-            speechSeconds: 90, qualityScore: 1, source: .humanConfirmedCluster,
-            evidence: VoiceEvidenceFixture.evidence(meeting: "m1", seconds: 90, source: .humanConfirmedCluster)
-        ))
+        _ = try await store.enrol(
+            VoiceEnrollmentCandidate(
+                identityID: bryn.id, vector: SpeakerFixtures.vector(seed: 66), model: .fluidAudioOffline,
+                speechSeconds: 90, qualityScore: 1, source: .humanConfirmedCluster,
+                evidence: VoiceEvidenceFixture.evidence(meeting: "m1", seconds: 90, source: .humanConfirmedCluster)
+            ))
         let voice = try await store.createAnonymous(state: .persistent)
-        _ = try await store.enrol(VoiceEnrollmentCandidate(
-            identityID: voice.id, vector: SpeakerFixtures.vector(seed: 900), model: .fluidAudioOffline,
-            speechSeconds: 90, qualityScore: 1, source: .anonymousSeed,
-            evidence: VoiceEvidenceFixture.evidence(meeting: "m2", seconds: 90, source: .anonymousSeed)
-        ))
+        _ = try await store.enrol(
+            VoiceEnrollmentCandidate(
+                identityID: voice.id, vector: SpeakerFixtures.vector(seed: 900), model: .fluidAudioOffline,
+                speechSeconds: 90, qualityScore: 1, source: .anonymousSeed,
+                evidence: VoiceEvidenceFixture.evidence(meeting: "m2", seconds: 90, source: .anonymousSeed)
+            ))
 
         try await store.merge(voice.id, into: bryn.id)
         #expect(
             try await store.profileStatus(of: bryn.id, model: .fluidAudioOffline).sampleCount == 1,
             "a provisional seed must not reach a named centroid through a merge"
         )
-        let profile = try #require(try await store.searchableProfiles(model: .fluidAudioOffline).first { $0.identity.id == bryn.id })
+        let profile = try #require(
+            try await store.searchableProfiles(model: .fluidAudioOffline).first { $0.identity.id == bryn.id })
         #expect(
             VoiceVector.cosine(profile.centroid, SpeakerFixtures.vector(seed: 66)) > 0.99,
             "Bryn is still scored against his own confirmed voice alone"
@@ -1079,14 +1127,18 @@ struct SpeakerRecognitionTests {
         let service = SpeakerRecognitionService(store: store)
         let resolved = try await service.resolve(
             meetingID: "m1",
-            clusters: [SpeakerClusterInput(
-                clusterID: "run-001_speaker_00", track: .remote,
-                speechSeconds: 120, centroid: SpeakerFixtures.vector(seed: 21),
-                spans: [AudioSpan(
-                    start: VoiceEvidenceFixture.lane("run-001_speaker_00"),
-                    end: VoiceEvidenceFixture.lane("run-001_speaker_00") + 120
-                )]
-            )],
+            clusters: [
+                SpeakerClusterInput(
+                    clusterID: "run-001_speaker_00", track: .remote,
+                    speechSeconds: 120, centroid: SpeakerFixtures.vector(seed: 21),
+                    spans: [
+                        AudioSpan(
+                            start: VoiceEvidenceFixture.lane("run-001_speaker_00"),
+                            end: VoiceEvidenceFixture.lane("run-001_speaker_00") + 120
+                        )
+                    ]
+                )
+            ],
             settings: SpeakerRecognitionSettings(), now: Date()
         )
         #expect(resolved.first?.createdIdentity == true)
@@ -1104,10 +1156,12 @@ struct SpeakerRecognitionTests {
         let cluster = SpeakerClusterInput(
             clusterID: "run-001_speaker_00", track: .remote,
             speechSeconds: 120, centroid: SpeakerFixtures.vector(seed: 22),
-            spans: [AudioSpan(
-                start: VoiceEvidenceFixture.lane("run-001_speaker_00"),
-                end: VoiceEvidenceFixture.lane("run-001_speaker_00") + 120
-            )]
+            spans: [
+                AudioSpan(
+                    start: VoiceEvidenceFixture.lane("run-001_speaker_00"),
+                    end: VoiceEvidenceFixture.lane("run-001_speaker_00") + 120
+                )
+            ]
         )
         // A second voice in that first meeting, so voice memory holds
         // more than one candidate. With exactly one there is no
@@ -1116,10 +1170,12 @@ struct SpeakerRecognitionTests {
         let alsoThere = SpeakerClusterInput(
             clusterID: "run-001_speaker_09", track: .remote,
             speechSeconds: 120, centroid: SpeakerFixtures.vector(seed: 199),
-            spans: [AudioSpan(
-                start: VoiceEvidenceFixture.lane("run-001_speaker_09"),
-                end: VoiceEvidenceFixture.lane("run-001_speaker_09") + 120
-            )]
+            spans: [
+                AudioSpan(
+                    start: VoiceEvidenceFixture.lane("run-001_speaker_09"),
+                    end: VoiceEvidenceFixture.lane("run-001_speaker_09") + 120
+                )
+            ]
         )
         _ = try await service.resolve(
             meetingID: "m1", clusters: [cluster, alsoThere],
@@ -1147,10 +1203,12 @@ struct SpeakerRecognitionTests {
         let cluster = SpeakerClusterInput(
             clusterID: "run-001_speaker_00", track: .remote,
             speechSeconds: 120, centroid: SpeakerFixtures.vector(seed: 51),
-            spans: [AudioSpan(
-                start: VoiceEvidenceFixture.lane("run-001_speaker_00"),
-                end: VoiceEvidenceFixture.lane("run-001_speaker_00") + 120
-            )]
+            spans: [
+                AudioSpan(
+                    start: VoiceEvidenceFixture.lane("run-001_speaker_00"),
+                    end: VoiceEvidenceFixture.lane("run-001_speaker_00") + 120
+                )
+            ]
         )
         _ = try await service.resolve(
             meetingID: "m1", clusters: [cluster],
@@ -1225,21 +1283,23 @@ struct SpeakerRecognitionTests {
         let service = SpeakerRecognitionService(store: store)
         let voice = SpeakerFixtures.vector(seed: 54)
         let remembered = try await store.createAnonymous(state: .persistent)
-        _ = try await store.enrol(VoiceEnrollmentCandidate(
-            identityID: remembered.id, vector: voice, model: .fluidAudioOffline,
-            speechSeconds: 120, qualityScore: 1, source: .anonymousSeed,
-            evidence: VoiceEvidenceFixture.evidence(
-                meeting: "m0", seconds: 120, source: .anonymousSeed
-            )
-        ))
+        _ = try await store.enrol(
+            VoiceEnrollmentCandidate(
+                identityID: remembered.id, vector: voice, model: .fluidAudioOffline,
+                speechSeconds: 120, qualityScore: 1, source: .anonymousSeed,
+                evidence: VoiceEvidenceFixture.evidence(
+                    meeting: "m0", seconds: 120, source: .anonymousSeed
+                )
+            ))
         let other = try await store.createAnonymous(state: .persistent)
-        _ = try await store.enrol(VoiceEnrollmentCandidate(
-            identityID: other.id, vector: SpeakerFixtures.vector(seed: 201), model: .fluidAudioOffline,
-            speechSeconds: 120, qualityScore: 1, source: .anonymousSeed,
-            evidence: VoiceEvidenceFixture.evidence(
-                meeting: "m0b", seconds: 120, source: .anonymousSeed
-            )
-        ))
+        _ = try await store.enrol(
+            VoiceEnrollmentCandidate(
+                identityID: other.id, vector: SpeakerFixtures.vector(seed: 201), model: .fluidAudioOffline,
+                speechSeconds: 120, qualityScore: 1, source: .anonymousSeed,
+                evidence: VoiceEvidenceFixture.evidence(
+                    meeting: "m0b", seconds: 120, source: .anonymousSeed
+                )
+            ))
 
         let resolved = try await service.resolve(
             meetingID: "m1",
@@ -1339,10 +1399,12 @@ struct SpeakerRecognitionTests {
         let cluster = SpeakerClusterInput(
             clusterID: "run-001_speaker_00", track: .remote,
             speechSeconds: 120, centroid: SpeakerFixtures.vector(seed: 53),
-            spans: [AudioSpan(
-                start: VoiceEvidenceFixture.lane("run-001_speaker_00"),
-                end: VoiceEvidenceFixture.lane("run-001_speaker_00") + 120
-            )]
+            spans: [
+                AudioSpan(
+                    start: VoiceEvidenceFixture.lane("run-001_speaker_00"),
+                    end: VoiceEvidenceFixture.lane("run-001_speaker_00") + 120
+                )
+            ]
         )
         // A second voice in that first meeting, so voice memory holds
         // more than one candidate. With exactly one there is no
@@ -1351,10 +1413,12 @@ struct SpeakerRecognitionTests {
         let alsoThere = SpeakerClusterInput(
             clusterID: "run-001_speaker_09", track: .remote,
             speechSeconds: 120, centroid: SpeakerFixtures.vector(seed: 199),
-            spans: [AudioSpan(
-                start: VoiceEvidenceFixture.lane("run-001_speaker_09"),
-                end: VoiceEvidenceFixture.lane("run-001_speaker_09") + 120
-            )]
+            spans: [
+                AudioSpan(
+                    start: VoiceEvidenceFixture.lane("run-001_speaker_09"),
+                    end: VoiceEvidenceFixture.lane("run-001_speaker_09") + 120
+                )
+            ]
         )
         _ = try await service.resolve(
             meetingID: "m1", clusters: [cluster, alsoThere],
@@ -1375,14 +1439,18 @@ struct SpeakerRecognitionTests {
         let service = SpeakerRecognitionService(store: store)
         _ = try await service.resolve(
             meetingID: "m1",
-            clusters: [SpeakerClusterInput(
-                clusterID: "run-001_speaker_04", track: .remote,
-                speechSeconds: 6, centroid: SpeakerFixtures.vector(seed: 23),
-                spans: [AudioSpan(
-                    start: VoiceEvidenceFixture.lane("run-001_speaker_04"),
-                    end: VoiceEvidenceFixture.lane("run-001_speaker_04") + 6
-                )]
-            )],
+            clusters: [
+                SpeakerClusterInput(
+                    clusterID: "run-001_speaker_04", track: .remote,
+                    speechSeconds: 6, centroid: SpeakerFixtures.vector(seed: 23),
+                    spans: [
+                        AudioSpan(
+                            start: VoiceEvidenceFixture.lane("run-001_speaker_04"),
+                            end: VoiceEvidenceFixture.lane("run-001_speaker_04") + 6
+                        )
+                    ]
+                )
+            ],
             settings: SpeakerRecognitionSettings(), now: Date()
         )
         #expect(
@@ -1398,14 +1466,18 @@ struct SpeakerRecognitionTests {
         let service = SpeakerRecognitionService(store: store)
         _ = try await service.resolve(
             meetingID: "m1",
-            clusters: [SpeakerClusterInput(
-                clusterID: "run-001_speaker_00", track: .remote,
-                speechSeconds: 300, centroid: SpeakerFixtures.vector(seed: 24),
-                spans: [AudioSpan(
-                    start: VoiceEvidenceFixture.lane("run-001_speaker_00"),
-                    end: VoiceEvidenceFixture.lane("run-001_speaker_00") + 300
-                )]
-            )],
+            clusters: [
+                SpeakerClusterInput(
+                    clusterID: "run-001_speaker_00", track: .remote,
+                    speechSeconds: 300, centroid: SpeakerFixtures.vector(seed: 24),
+                    spans: [
+                        AudioSpan(
+                            start: VoiceEvidenceFixture.lane("run-001_speaker_00"),
+                            end: VoiceEvidenceFixture.lane("run-001_speaker_00") + 300
+                        )
+                    ]
+                )
+            ],
             settings: SpeakerRecognitionSettings(rememberRecurringVoices: false),
             now: Date()
         )
@@ -1423,10 +1495,12 @@ struct SpeakerRecognitionTests {
             cluster: SpeakerClusterInput(
                 clusterID: "run-001_speaker_01", track: .remote,
                 speechSeconds: 95, centroid: SpeakerFixtures.vector(seed: 25),
-                spans: [AudioSpan(
-                    start: VoiceEvidenceFixture.lane("run-001_speaker_01"),
-                    end: VoiceEvidenceFixture.lane("run-001_speaker_01") + 95
-                )]
+                spans: [
+                    AudioSpan(
+                        start: VoiceEvidenceFixture.lane("run-001_speaker_01"),
+                        end: VoiceEvidenceFixture.lane("run-001_speaker_01") + 95
+                    )
+                ]
             ),
             identityID: bryn.id,
             settings: SpeakerRecognitionSettings()
@@ -1451,12 +1525,13 @@ struct SpeakerRecognitionTests {
             ))
         )
 
-        _ = try await store.enrol(VoiceEnrollmentCandidate(
-            identityID: bryn.id, vector: SpeakerFixtures.vector(seed: 72), model: model,
-            speechSeconds: 60, qualityScore: 0.5,
-            source: .humanConfirmedUtterances,
-            evidence: VoiceEvidenceFixture.evidence(meeting: "m1", seconds: 60, source: .humanConfirmedUtterances)
-        ))
+        _ = try await store.enrol(
+            VoiceEnrollmentCandidate(
+                identityID: bryn.id, vector: SpeakerFixtures.vector(seed: 72), model: model,
+                speechSeconds: 60, qualityScore: 0.5,
+                source: .humanConfirmedUtterances,
+                evidence: VoiceEvidenceFixture.evidence(meeting: "m1", seconds: 60, source: .humanConfirmedUtterances)
+            ))
         #expect(
             try await store.hasEnrolment(
                 identityID: bryn.id, meetingID: "m1",
@@ -1482,10 +1557,12 @@ struct SpeakerRecognitionTests {
             meetingID: "m1",
             cluster: SpeakerClusterInput(
                 clusterID: "c", track: .remote, speechSeconds: 300, centroid: SpeakerFixtures.vector(seed: 26),
-                spans: [AudioSpan(
-                    start: VoiceEvidenceFixture.lane("c"),
-                    end: VoiceEvidenceFixture.lane("c") + 300
-                )]
+                spans: [
+                    AudioSpan(
+                        start: VoiceEvidenceFixture.lane("c"),
+                        end: VoiceEvidenceFixture.lane("c") + 300
+                    )
+                ]
             ),
             identityID: bryn.id,
             settings: SpeakerRecognitionSettings(learnFromCorrections: false)

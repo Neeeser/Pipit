@@ -1,9 +1,9 @@
 import AppKit
 import Foundation
+import Observation
 import PipitCore
 import PipitServices
 import PipitSpeakers
-import Observation
 import SwiftUI
 
 /// Everyone Pipit can recognise, and the edits a person makes to them.
@@ -152,7 +152,10 @@ public final class PeopleDirectoryModel {
     /// focus is gone. A merge can carry accounts in, so this runs on reload as
     /// well as on selection.
     private func refreshHandles() {
-        guard let focused else { handles = []; return }
+        guard let focused else {
+            handles = []
+            return
+        }
         let id = focused.id
         Task { [weak self] in
             guard let self else { return }
@@ -170,7 +173,10 @@ public final class PeopleDirectoryModel {
         // belong to whoever was selected a moment ago, and leaving them there
         // offers a play button that plays somebody else.
         appearances = []
-        guard let focused else { loadingAppearances = false; return }
+        guard let focused else {
+            loadingAppearances = false
+            return
+        }
         let id = focused.id
         loadingAppearances = true
         Task { [weak self] in
@@ -190,13 +196,18 @@ public final class PeopleDirectoryModel {
     /// meetings listens to one of them.
     public func playSample(_ appearance: PersonAppearance) {
         guard let focused else { return }
-        if player.playing == appearance.meetingID { player.stop(); return }
+        if player.playing == appearance.meetingID {
+            player.stop()
+            return
+        }
         let id = focused.id
         Task { [weak self] in
             guard let self else { return }
-            guard let sample = await runtime.voiceSample(
-                of: id, inMeeting: appearance.meetingID
-            ) else { return }
+            guard
+                let sample = await runtime.voiceSample(
+                    of: id, inMeeting: appearance.meetingID
+                )
+            else { return }
             guard self.focused?.id == id else { return }
             self.player.play(sample, tagged: appearance.meetingID)
         }
@@ -230,7 +241,7 @@ public final class PeopleDirectoryModel {
         guard entry.identity.hasAvatar else { return nil }
         Task { [weak self] in
             guard let self, let data = await runtime.avatar(of: entry.id),
-                  let image = NSImage(data: data)
+                let image = NSImage(data: data)
             else { return }
             avatars[entry.id] = image
         }
@@ -312,7 +323,9 @@ public final class PeopleDirectoryModel {
     public func toggleBadge(_ badge: PersonBadge) async {
         guard let entry = focused else { return }
         var badges = entry.identity.badges
-        if let index = badges.firstIndex(of: badge) { badges.remove(at: index) } else {
+        if let index = badges.firstIndex(of: badge) {
+            badges.remove(at: index)
+        } else {
             badges.append(badge)
         }
         await runtime.setBadges(badges, on: entry.id)
@@ -326,7 +339,7 @@ public final class PeopleDirectoryModel {
         panel.allowsMultipleSelection = false
         panel.prompt = "Choose"
         guard panel.runModal() == .OK, let url = panel.url,
-              let image = NSImage(contentsOf: url), let png = Self.thumbnailPNG(image)
+            let image = NSImage(contentsOf: url), let png = Self.thumbnailPNG(image)
         else { return }
         await runtime.setAvatar(png, on: entry.id)
         avatars[entry.id] = NSImage(data: png)
@@ -360,7 +373,7 @@ public final class PeopleDirectoryModel {
         )
         output.unlockFocus()
         guard let tiff = output.tiffRepresentation,
-              let bitmap = NSBitmapImageRep(data: tiff)
+            let bitmap = NSBitmapImageRep(data: tiff)
         else { return nil }
         return bitmap.representation(using: .png, properties: [:])
     }

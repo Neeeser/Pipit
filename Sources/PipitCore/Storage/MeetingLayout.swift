@@ -134,7 +134,8 @@ public struct MeetingArchiveLayout: Sendable {
         let components = Calendar.current.dateComponents([.year, .month], from: startedAt)
         let year = String(format: "%04d", components.year ?? 1970)
         let month = String(format: "%02d", components.month ?? 1)
-        return root
+        return
+            root
             .appendingPathComponent(year, isDirectory: true)
             .appendingPathComponent(month, isDirectory: true)
     }
@@ -208,7 +209,8 @@ public struct MeetingArchiveLayout: Sendable {
     /// Lowercase ASCII, hyphen separated, bounded length. Non-ASCII titles fold to
     /// their closest ASCII form so the directory name stays typeable.
     public static func slugify(_ text: String, maxLength: Int = 48) -> String {
-        let folded = text.folding(options: [.diacriticInsensitive, .caseInsensitive], locale: Locale(identifier: "en_US"))
+        let folded = text.folding(
+            options: [.diacriticInsensitive, .caseInsensitive], locale: Locale(identifier: "en_US"))
         var out = ""
         var lastWasSeparator = true
         for character in folded {

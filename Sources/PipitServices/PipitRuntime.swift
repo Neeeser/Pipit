@@ -236,9 +236,9 @@ public final class PipitRuntime {
         // Release builds read the key from the keychain only. A process
         // environment is readable by any same-user process.
         #if DEBUG
-        let keyStore = LayeredAPIKeyStore(providers: [KeychainAPIKeyStore(), EnvironmentAPIKeyStore()])
+            let keyStore = LayeredAPIKeyStore(providers: [KeychainAPIKeyStore(), EnvironmentAPIKeyStore()])
         #else
-        let keyStore: any APIKeyProviding = KeychainAPIKeyStore()
+            let keyStore: any APIKeyProviding = KeychainAPIKeyStore()
         #endif
         // Read once per process. Every request reading for itself meant a
         // keychain prompt per request on a build the item's access control no
@@ -703,10 +703,12 @@ public final class PipitRuntime {
         metadata.endedAt = started.addingTimeInterval(result.durationSeconds)
         metadata.importedOriginalFilename = result.originalFilename
         metadata.recordedDateSource = recorded.source
-        metadata.runs = [RecordingRun(
-            id: "run-001", startedAt: metadata.startedAt, endedAt: metadata.endedAt,
-            durationSeconds: result.durationSeconds
-        )]
+        metadata.runs = [
+            RecordingRun(
+                id: "run-001", startedAt: metadata.startedAt, endedAt: metadata.endedAt,
+                durationSeconds: result.durationSeconds
+            )
+        ]
         metadata.processing.advance(to: .finalizing, at: clock.now)
         metadata.processing.advance(to: .audioSafe, at: clock.now)
         try created.store.writeMetadata(metadata)
@@ -896,7 +898,8 @@ public final class PipitRuntime {
             // minutes on a meeting that is already complete, and the panel that
             // starts it holds the title field too.
             if updated.processing.state == .complete || updated.processing.state == .failed,
-               currentMeeting?.metadata.id != meetingID {
+                currentMeeting?.metadata.id != meetingID
+            {
                 let processing = pipeline!
                 Task {
                     await processing.settleFolderName(meetingID: meetingID)
@@ -917,7 +920,7 @@ public final class PipitRuntime {
     /// follows, through the same path as any rename.
     public func acceptTitleSuggestion(meetingID: String) {
         guard let found = repository.findMeeting(id: meetingID, includingMerged: true),
-              let suggestion = found.metadata.titleSuggestion
+            let suggestion = found.metadata.titleSuggestion
         else { return }
         saveTitle(suggestion, meetingID: meetingID)
     }
@@ -1009,9 +1012,11 @@ public final class PipitRuntime {
         // this whole path exists to prevent.
         let ordered = logical.continuations + [logical.primary]
         let directories = ordered.map(\.store.layout.root)
-        if let recording = currentMeeting, directories.contains(
-            where: { $0.standardizedFileURL == recording.store.layout.root.standardizedFileURL }
-        ) {
+        if let recording = currentMeeting,
+            directories.contains(
+                where: { $0.standardizedFileURL == recording.store.layout.root.standardizedFileURL }
+            )
+        {
             Log.app.notice("refused to trash the meeting being recorded")
             return .refusedWhileRecording
         }
@@ -1041,8 +1046,11 @@ public final class PipitRuntime {
                     // Stop before the recording the conversation started with.
                     // Its row is the only way back to the folders still here.
                     let error = error as NSError
-                    return (removed, error.domain == NSCocoaErrorDomain
-                        && error.code == NSFeatureUnsupportedError)
+                    return (
+                        removed,
+                        error.domain == NSCocoaErrorDomain
+                            && error.code == NSFeatureUnsupportedError
+                    )
                 }
                 removed += 1
             }
@@ -1053,9 +1061,11 @@ public final class PipitRuntime {
         // asked again rather than believed.
         var settled = 0
         for recording in ordered.prefix(removed) {
-            guard repository.findMeeting(
-                id: recording.metadata.id, includingMerged: true
-            ) == nil else { break }
+            guard
+                repository.findMeeting(
+                    id: recording.metadata.id, includingMerged: true
+                ) == nil
+            else { break }
             settled += 1
         }
         for (index, recording) in ordered.enumerated() {
@@ -1125,7 +1135,8 @@ public final class PipitRuntime {
                 // reports healthy, and the far end is lost with nothing said
                 // until the silence detector gives up forty seconds in.
                 let microphone = await permissions.status(for: .microphone).state
-                let systemAudio = capturesRemote
+                let systemAudio =
+                    capturesRemote
                     ? await permissions.status(for: .screenRecording).state : .granted
                 switch RecordingPreflight.decide(
                     capturesRemote: capturesRemote, microphone: microphone, systemAudio: systemAudio
@@ -1206,9 +1217,11 @@ public final class PipitRuntime {
         for warning in notice.warnings { captureDidWarn(warning) }
         let now = clock.now
         let isManual = sessionController.snapshot.isManual
-        guard PermissionPromptPolicy.shouldPrompt(
-            isManual: isManual, lastPromptedAt: permissionPromptedAt, now: now
-        ) else { return }
+        guard
+            PermissionPromptPolicy.shouldPrompt(
+                isManual: isManual, lastPromptedAt: permissionPromptedAt, now: now
+            )
+        else { return }
         permissionPromptedAt = now
         onPermissionRequired?(notice)
     }
@@ -1288,7 +1301,6 @@ public final class PipitRuntime {
         }
     }
 
-
     /// Folds one reading of the meeting client into this recording's timeline.
     ///
     /// Silently ignored when nothing is being recorded, which is most of the
@@ -1306,7 +1318,8 @@ public final class PipitRuntime {
         // cannot tell the call being recorded from one the user forgot to leave.
         // Where both sides know the call's own identifier, they have to agree.
         if let reported = reading.meetingID, let recorded = meeting.metadata.providerMeetingID,
-           reported != recorded {
+            reported != recorded
+        {
             return
         }
         sensorRecorder?.record(reading)
@@ -1332,9 +1345,11 @@ public final class PipitRuntime {
         }
         // Without an origin the readings cannot be placed, and a timeline at an
         // unknown offset would still overlap clusters and name people wrongly.
-        guard let raw = recorder.finish(
-            timelineOriginHostTime: timeline.timelineOriginHostTime
-        ) else { return }
+        guard
+            let raw = recorder.finish(
+                timelineOriginHostTime: timeline.timelineOriginHostTime
+            )
+        else { return }
         guard !raw.participants.isEmpty else { return }
         do {
             try store.writeRawSensors(raw)
@@ -1355,9 +1370,10 @@ public final class PipitRuntime {
         captureEngine.addMarker("run:\(reason)")
         let updated = try? meeting.store.updateMetadata { metadata in
             let index = metadata.runs.count + 1
-            metadata.runs.append(RecordingRun(
-                id: String(format: "run-%03d", index), startedAt: self.clock.now
-            ))
+            metadata.runs.append(
+                RecordingRun(
+                    id: String(format: "run-%03d", index), startedAt: self.clock.now
+                ))
         }
         if let updated { currentMeeting = (updated, meeting.store) }
     }
@@ -1392,7 +1408,10 @@ public final class PipitRuntime {
     private func finish(reason: String) async {
         let snapshot = await captureEngine.stop(reason: reason)
         provisionalPrompt = nil
-        guard let meeting = currentMeeting else { sensorRecorder = nil; return }
+        guard let meeting = currentMeeting else {
+            sensorRecorder = nil
+            return
+        }
         currentMeeting = nil
         defer { sensorRecorder = nil }
 
@@ -1402,7 +1421,8 @@ public final class PipitRuntime {
             let updated = try meeting.store.updateMetadata { metadata in
                 metadata.endedAt = self.clock.now
                 metadata.durationSeconds = timeline.duration
-                metadata.provisionalDecision = metadata.provisionalDecision == .pending
+                metadata.provisionalDecision =
+                    metadata.provisionalDecision == .pending
                     ? .kept : metadata.provisionalDecision
                 if var run = metadata.runs.last, run.endedAt == nil {
                     run.endedAt = self.clock.now
@@ -1517,12 +1537,12 @@ public final class PipitRuntime {
     /// is read.
     public func combine(meetingID: String, into earlierID: String, reason: String) {
         guard let later = repository.findMeeting(id: meetingID),
-              repository.findMeeting(id: earlierID) != nil
+            repository.findMeeting(id: earlierID) != nil
         else { return }
         // A chain would make the earlier recording both a continuation and the
         // start of one, and `logicalMeeting` would resolve past it.
         guard let target = repository.logicalMeeting(id: earlierID),
-              target.id != meetingID
+            target.id != meetingID
         else { return }
         _ = try? later.store.updateMetadata { metadata in
             metadata.mergedIntoMeetingID = target.id
@@ -1547,7 +1567,7 @@ public final class PipitRuntime {
     /// wrong about it must not be permanent.
     public func detachContinuation(meetingID: String) {
         guard let later = repository.findMeeting(id: meetingID, includingMerged: true),
-              let parentID = later.metadata.mergedIntoMeetingID
+            let parentID = later.metadata.mergedIntoMeetingID
         else { return }
         _ = try? later.store.updateMetadata { metadata in
             metadata.mergedIntoMeetingID = nil
@@ -1631,9 +1651,10 @@ public final class PipitRuntime {
             // Not for a meeting folded into an earlier one. The notification
             // for the meeting it was folded into already covers it, and a
             // second one saying a meeting is ready would open the same pane.
-            let isFolded = repository.findMeeting(
-                id: progress.meetingID, includingMerged: true
-            )?.metadata.mergedIntoMeetingID != nil
+            let isFolded =
+                repository.findMeeting(
+                    id: progress.meetingID, includingMerged: true
+                )?.metadata.mergedIntoMeetingID != nil
             if settings.showNotifications, !isFolded {
                 notifications.readyToReview(title: progress.title, meetingID: progress.meetingID)
             }

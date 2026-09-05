@@ -79,7 +79,8 @@ struct MeetingTranscriptView: View {
         guard let state = detail.metadata?.processing.state else { return "Waiting" }
         if let progress = detail.progress, let text = progress.detail { return text }
         if let progress = detail.progress, let fraction = progress.fraction,
-            fraction > 0, fraction < 1 {
+            fraction > 0, fraction < 1
+        {
             return "\(state.displayName), \(Int(fraction * 100))%"
         }
         return state.displayName
@@ -216,7 +217,7 @@ struct MeetingTranscriptView: View {
         _ action: TranscriptParagraphAction, in block: CombinedLineBlock
     ) -> SpeakerRangeTarget {
         switch action {
-        case let .split(atSeconds, utteranceID):
+        case .split(let atSeconds, let utteranceID):
             let following = block.lines.drop { $0.utterance.id != utteranceID }
             let parts = following.enumerated().map { offset, line in
                 SpeakerRangePart(
@@ -228,7 +229,7 @@ struct MeetingTranscriptView: View {
             return SpeakerRangeTarget(
                 recordingID: block.recordingID, track: block.track, parts: parts
             )
-        case let .assign(parts):
+        case .assign(let parts):
             return SpeakerRangeTarget(
                 recordingID: block.recordingID, track: block.track,
                 parts: parts.map {
@@ -267,8 +268,8 @@ struct MeetingTranscriptView: View {
                 detail.cancelNaming()
                 apply(target, name: person.identity.resolvedName) {
                     switch target.subject {
-                    case let .block(block): detail.assignBlock(block, to: person)
-                    case let .range(range): detail.assignRange(range, to: person)
+                    case .block(let block): detail.assignBlock(block, to: person)
+                    case .range(let range): detail.assignRange(range, to: person)
                     case .cluster: break
                     }
                 }
@@ -277,15 +278,15 @@ struct MeetingTranscriptView: View {
                 detail.cancelNaming()
                 apply(target, name: name) {
                     switch target.subject {
-                    case let .block(block): detail.assignBlock(block, toNewPerson: name)
-                    case let .range(range): detail.assignRange(range, toNewPerson: name)
+                    case .block(let block): detail.assignBlock(block, toNewPerson: name)
+                    case .range(let range): detail.assignRange(range, toNewPerson: name)
                     case .cluster: break
                     }
                 }
             },
             onLeaveUnnamed: {
                 detail.cancelNaming()
-                if case let .block(block) = target.subject { detail.clearBlock(block) }
+                if case .block(let block) = target.subject { detail.clearBlock(block) }
             }
         )
     }
@@ -303,8 +304,8 @@ struct MeetingTranscriptView: View {
         change()
         let lines: Int
         switch target.subject {
-        case let .block(block): lines = block.lines.count
-        case let .range(range): lines = range.parts.count
+        case .block(let block): lines = block.lines.count
+        case .range(let range): lines = range.parts.count
         case .cluster: lines = 0
         }
         guard !name.isEmpty, lines > 0 else { return }
@@ -361,15 +362,27 @@ struct TranscriptNavigatorBar: View {
                 .foregroundStyle(.secondary)
                 .monospacedDigit()
                 .frame(minWidth: 40)
-            Button { detail.stepNavigation(forward: false) } label: { Image(systemName: "chevron.up") }
-                .help("Previous")
-            Button { detail.stepNavigation(forward: true) } label: { Image(systemName: "chevron.down") }
-                .help("Next")
-            Button { detail.endNavigation() } label: { Image(systemName: "xmark") }
-                .buttonStyle(.plain)
-                .foregroundStyle(.secondary)
-                .help("Close")
-                .keyboardShortcut(.cancelAction)
+            Button {
+                detail.stepNavigation(forward: false)
+            } label: {
+                Image(systemName: "chevron.up")
+            }
+            .help("Previous")
+            Button {
+                detail.stepNavigation(forward: true)
+            } label: {
+                Image(systemName: "chevron.down")
+            }
+            .help("Next")
+            Button {
+                detail.endNavigation()
+            } label: {
+                Image(systemName: "xmark")
+            }
+            .buttonStyle(.plain)
+            .foregroundStyle(.secondary)
+            .help("Close")
+            .keyboardShortcut(.cancelAction)
         }
         .controlSize(.small)
         .padding(6)

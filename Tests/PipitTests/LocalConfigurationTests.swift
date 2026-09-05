@@ -1,5 +1,5 @@
-import Foundation
 import FluidAudio
+import Foundation
 import PipitCore
 import PipitLocalAI
 import PipitSpeakers
@@ -254,10 +254,12 @@ struct LocalModelStorageTests {
         let support = FileManager.default.homeDirectoryForCurrentUser
             .appendingPathComponent("Library/Application Support/Pipit")
         let locations = LocalModelLocations(applicationSupport: support)
-        for url in [locations.root, locations.whisperBase, locations.whisperModelFolder,
-                    locations.diarizerDirectory, locations.parakeetDirectory,
-                    locations.cohereDirectory, locations.alignerDirectory,
-                    locations.inventory] {
+        for url in [
+            locations.root, locations.whisperBase, locations.whisperModelFolder,
+            locations.diarizerDirectory, locations.parakeetDirectory,
+            locations.cohereDirectory, locations.alignerDirectory,
+            locations.inventory,
+        ] {
             #expect(!url.path.contains("/Documents/"), "\(url.path) is inside Documents")
             #expect(
                 url.path.contains("Application Support/Pipit"),
@@ -331,7 +333,7 @@ struct LocalModelStorageTests {
             .diarizer: LocalUnitReceipt(
                 revision: LocalSpeechStack.revision(for: .diarizer),
                 bytes: 1, installedAt: Date()
-            ),
+            )
         ])
         let manager = LocalModelManager(
             applicationSupport: root, required: [.diarizer, .voiceActivity]

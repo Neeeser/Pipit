@@ -57,15 +57,18 @@ struct ProcessingSettingsPane: View {
     private func backendPicker(
         keyPath: WritableKeyPath<ProcessingSettings, ProcessingBackendChoice>
     ) -> some View {
-        Picker("Runs on", selection: Binding(
-            get: { runtime.settings.processing[keyPath: keyPath] },
-            set: { newValue in
-                var settings = runtime.settings
-                settings.processing[keyPath: keyPath] = newValue
-                runtime.update(settings: settings)
-                Task { await runtime.installLocalModels() }
-            }
-        )) {
+        Picker(
+            "Runs on",
+            selection: Binding(
+                get: { runtime.settings.processing[keyPath: keyPath] },
+                set: { newValue in
+                    var settings = runtime.settings
+                    settings.processing[keyPath: keyPath] = newValue
+                    runtime.update(settings: settings)
+                    Task { await runtime.installLocalModels() }
+                }
+            )
+        ) {
             Text("Cloud — OpenAI").tag(ProcessingBackendChoice.openAI)
             Text("Local — on this Mac").tag(ProcessingBackendChoice.local)
         }
@@ -79,18 +82,21 @@ struct ProcessingSettingsPane: View {
         let current = runtime.settings.models.transcription
         let isPreset = AIModelSettings.transcriptionChoices.contains(current)
         return VStack(alignment: .leading, spacing: 6) {
-            Picker("Model", selection: Binding(
-                get: { isPreset ? current : Self.customModelTag },
-                set: { newValue in
-                    var settings = runtime.settings
-                    settings.models.transcription =
-                        newValue == Self.customModelTag ? "" : newValue
-                    runtime.update(settings: settings)
-                    // gpt-transcribe returns no timings; the aligner that
-                    // supplies them is a local download.
-                    Task { await runtime.installLocalModels() }
-                }
-            )) {
+            Picker(
+                "Model",
+                selection: Binding(
+                    get: { isPreset ? current : Self.customModelTag },
+                    set: { newValue in
+                        var settings = runtime.settings
+                        settings.models.transcription =
+                            newValue == Self.customModelTag ? "" : newValue
+                        runtime.update(settings: settings)
+                        // gpt-transcribe returns no timings; the aligner that
+                        // supplies them is a local download.
+                        Task { await runtime.installLocalModels() }
+                    }
+                )
+            ) {
                 cloudChoice(
                     "gpt-4o-transcribe-diarize",
                     "Speaker identification built in: one request returns the words "
@@ -107,14 +113,17 @@ struct ProcessingSettingsPane: View {
             }
             .pickerStyle(.radioGroup)
             if !isPreset {
-                TextField("model identifier", text: Binding(
-                    get: { runtime.settings.models.transcription },
-                    set: { newValue in
-                        var settings = runtime.settings
-                        settings.models.transcription = newValue
-                        runtime.update(settings: settings)
-                    }
-                ))
+                TextField(
+                    "model identifier",
+                    text: Binding(
+                        get: { runtime.settings.models.transcription },
+                        set: { newValue in
+                            var settings = runtime.settings
+                            settings.models.transcription = newValue
+                            runtime.update(settings: settings)
+                        }
+                    )
+                )
                 .frame(width: 280)
             }
             if AIModelSettings.transcriptionTiming(for: current) == .text, isPreset {
@@ -245,14 +254,16 @@ struct ProcessingSettingsPane: View {
     private func speakerToggle(
         _ title: String, keyPath: WritableKeyPath<SpeakerRecognitionSettings, Bool>
     ) -> some View {
-        Toggle(title, isOn: Binding(
-            get: { runtime.settings.processing.speakers[keyPath: keyPath] },
-            set: { newValue in
-                var settings = runtime.settings
-                settings.processing.speakers[keyPath: keyPath] = newValue
-                runtime.update(settings: settings)
-            }
-        ))
+        Toggle(
+            title,
+            isOn: Binding(
+                get: { runtime.settings.processing.speakers[keyPath: keyPath] },
+                set: { newValue in
+                    var settings = runtime.settings
+                    settings.processing.speakers[keyPath: keyPath] = newValue
+                    runtime.update(settings: settings)
+                }
+            ))
     }
 }
 

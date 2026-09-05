@@ -143,10 +143,12 @@ struct SessionControllerTests {
             wallClock: wall.addingTimeInterval(1.5)
         )
         #expect(controller.snapshot.state == .recording)
-        guard let commit = actions.compactMap({ action -> CommitRequest? in
-            if case .commitRecording(let request) = action { return request }
-            return nil
-        }).first else {
+        guard
+            let commit = actions.compactMap({ action -> CommitRequest? in
+                if case .commitRecording(let request) = action { return request }
+                return nil
+            }).first
+        else {
             Issue.record("expected a commit, got \(actions)")
             return
         }
@@ -366,13 +368,13 @@ struct SessionControllerTests {
         )
         let commitIndex = try #require(
             actions.firstIndex {
-            if case .commitRecording = $0 { return true } else { return false }
-        }
+                if case .commitRecording = $0 { return true } else { return false }
+            }
         )
         let askIndex = try #require(
             actions.firstIndex {
-            if case .askToKeepProvisional = $0 { return true } else { return false }
-        }
+                if case .askToKeepProvisional = $0 { return true } else { return false }
+            }
         )
         #expect(commitIndex < askIndex, "capture must already be running when we ask")
 

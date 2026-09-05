@@ -110,8 +110,9 @@ struct LiveEndToEndTests {
 
     @Test(
         "a meeting over an hour is chunked, merged and de-duplicated",
-        .enabled(if: LiveEndToEndTests.wantsLongRun,
-                 "set PIPIT_LIVE_LONG=1 to run the long-meeting test"),
+        .enabled(
+            if: LiveEndToEndTests.wantsLongRun,
+            "set PIPIT_LIVE_LONG=1 to run the long-meeting test"),
         .enabled(if: LiveOpenAITests.isEnabled, LiveOpenAITests.liveReason),
         .enabled(if: LiveOpenAITests.hasKey, LiveOpenAITests.keyReason),
         .enabled(if: LiveOpenAITests.hasFixture, LiveOpenAITests.fixtureReason),
@@ -172,11 +173,12 @@ struct LiveEndToEndTests {
         }
         // Raw labels stay distinct per chunk: the API's labels are only
         // meaningful inside one request.
-        let rawLabels = Set(raw.chunks.flatMap { chunk in
-            chunk.segments.compactMap(\.speaker).map {
-                SpeakerLabel.namespaced(chunkID: chunk.id, rawLabel: $0)
-            }
-        })
+        let rawLabels = Set(
+            raw.chunks.flatMap { chunk in
+                chunk.segments.compactMap(\.speaker).map {
+                    SpeakerLabel.namespaced(chunkID: chunk.id, rawLabel: $0)
+                }
+            })
         #expect(rawLabels.count >= raw.chunks.count, "labels collapsed across chunks")
 
         let transcript = try #require(try created.store.readCanonicalTranscript())

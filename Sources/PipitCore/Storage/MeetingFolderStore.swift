@@ -58,10 +58,13 @@ public struct MeetingFolderStore: Sendable {
     /// one in Finder and drop meetings into it, and refusing to list it would
     /// hide meetings that are plainly there.
     public func folders() -> [MeetingFolder] {
-        guard let entries = try? FileManager.default.contentsOfDirectory(
-            at: archive.foldersRoot, includingPropertiesForKeys: nil, options: [.skipsHiddenFiles]
-        ) else { return [] }
-        return entries
+        guard
+            let entries = try? FileManager.default.contentsOfDirectory(
+                at: archive.foldersRoot, includingPropertiesForKeys: nil, options: [.skipsHiddenFiles]
+            )
+        else { return [] }
+        return
+            entries
             .filter(\.hasDirectoryPath)
             .map { read(named: $0.lastPathComponent) }
             .sorted { $0.name.localizedStandardCompare($1.name) == .orderedAscending }
@@ -144,7 +147,8 @@ public struct MeetingFolderStore: Sendable {
         let entries = try FileManager.default.contentsOfDirectory(
             at: directory, includingPropertiesForKeys: nil, options: [.skipsHiddenFiles]
         )
-        let remaining = entries
+        let remaining =
+            entries
             .map(\.lastPathComponent)
             .filter { $0 != archive.folderManifest(name).lastPathComponent }
             .sorted()
@@ -166,9 +170,9 @@ public struct MeetingFolderStore: Sendable {
 
     private func read(named name: String) -> MeetingFolder {
         guard let data = try? Data(contentsOf: archive.folderManifest(name)),
-              var folder = try? ArchiveCoding.decode(
-                  MeetingFolder.self, from: data, path: archive.folderManifest(name).path
-              )
+            var folder = try? ArchiveCoding.decode(
+                MeetingFolder.self, from: data, path: archive.folderManifest(name).path
+            )
         else { return MeetingFolder(name: name) }
         // The directory is the identity. A manifest carried in from somewhere
         // else, or left behind by a rename made in Finder, does not get to say

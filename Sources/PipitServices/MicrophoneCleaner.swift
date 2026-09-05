@@ -81,7 +81,8 @@ public struct MicrophoneCleaner: Sendable {
             track: .remote, metadata: metadata, timeline: timeline
         )
         guard !microphone.isEmpty, !reference.isEmpty,
-              try EchoCancellationPass.referenceHoldsAudio(reference) else {
+            try EchoCancellationPass.referenceHoldsAudio(reference)
+        else {
             try discardCleanedTrack(store: store, metadata: &metadata)
             log(outcome: .skippedNoReference)
             return .skippedNoReference
@@ -241,9 +242,11 @@ public struct MicrophoneCleaner: Sendable {
         microphone: TrackAudioLocation, reference: TrackAudioLocation,
         timeline: RecordingTimeline, to destination: URL
     ) throws -> EchoCancellationPass.Result {
-        guard let format = AVAudioFormat(
-            standardFormatWithSampleRate: EchoCancellationPass.readFormat.sampleRate, channels: 1
-        ) else {
+        guard
+            let format = AVAudioFormat(
+                standardFormatWithSampleRate: EchoCancellationPass.readFormat.sampleRate, channels: 1
+            )
+        else {
             throw ProcessingError.audioUnreadable(path: destination.lastPathComponent)
         }
         let settings = TrackArchiveExporter.Settings.archive
@@ -253,12 +256,14 @@ public struct MicrophoneCleaner: Sendable {
         try? FileManager.default.removeItem(at: destination)
         var file: AVAudioFile?
         do {
-            file = try AVAudioFile(forWriting: destination, settings: [
-                AVFormatIDKey: kAudioFormatMPEG4AAC,
-                AVSampleRateKey: settings.sampleRate,
-                AVNumberOfChannelsKey: settings.channelCount,
-                AVEncoderBitRateKey: settings.bitRate,
-            ])
+            file = try AVAudioFile(
+                forWriting: destination,
+                settings: [
+                    AVFormatIDKey: kAudioFormatMPEG4AAC,
+                    AVSampleRateKey: settings.sampleRate,
+                    AVNumberOfChannelsKey: settings.channelCount,
+                    AVEncoderBitRateKey: settings.bitRate,
+                ])
         } catch {
             throw ProcessingError.audioUnreadable(path: destination.lastPathComponent)
         }
@@ -288,9 +293,11 @@ public struct MicrophoneCleaner: Sendable {
             samples.removeAll(keepingCapacity: true)
             return
         }
-        guard let buffer = AVAudioPCMBuffer(
-            pcmFormat: format, frameCapacity: AVAudioFrameCount(samples.count)
-        ), let data = buffer.floatChannelData else {
+        guard
+            let buffer = AVAudioPCMBuffer(
+                pcmFormat: format, frameCapacity: AVAudioFrameCount(samples.count)
+            ), let data = buffer.floatChannelData
+        else {
             throw ProcessingError.audioUnreadable(path: file.url.lastPathComponent)
         }
         buffer.frameLength = AVAudioFrameCount(samples.count)

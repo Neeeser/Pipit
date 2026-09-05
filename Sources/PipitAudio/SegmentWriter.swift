@@ -84,7 +84,8 @@ public final class SegmentWriter: Sendable {
 
     public var stats: Stats {
         state.withLock { state in
-            let current = state.format.sampleRate > 0
+            let current =
+                state.format.sampleRate > 0
                 ? Double(state.framesInSegment) / state.format.sampleRate
                 : 0
             return Stats(
@@ -158,7 +159,7 @@ public final class SegmentWriter: Sendable {
             return
         }
         guard buffer.format.sampleRate == format.sampleRate,
-              buffer.format.channelCount == format.channelCount
+            buffer.format.channelCount == format.channelCount
         else {
             // A buffer that does not match the open segment means the format changed
             // without the coordinator noticing. Rotate rather than drop the audio.
@@ -183,10 +184,11 @@ public final class SegmentWriter: Sendable {
             }
             if shouldLog {
                 manifest.append(
-                    .sourceHealth(.init(
-                        track: track, state: .failed,
-                        detail: "segment write failed (\(failures) so far)"
-                    )),
+                    .sourceHealth(
+                        .init(
+                            track: track, state: .failed,
+                            detail: "segment write failed (\(failures) so far)"
+                        )),
                     hostTime: clock.monotonicSeconds, wallClock: clock.now
                 )
             }
@@ -251,9 +253,11 @@ public final class SegmentWriter: Sendable {
         guard missing >= SegmentWriter.gapFloorSeconds else { return }
         let seconds = min(missing, SegmentWriter.gapCeilingSeconds)
         let frames = AVAudioFrameCount((seconds * format.sampleRate).rounded())
-        guard frames > 0, let silence = AVAudioPCMBuffer(
-            pcmFormat: format, frameCapacity: frames
-        ) else { return }
+        guard frames > 0,
+            let silence = AVAudioPCMBuffer(
+                pcmFormat: format, frameCapacity: frames
+            )
+        else { return }
         // A fresh buffer is not documented to be zeroed, and this one is about
         // to become audio somebody listens to.
         silence.frameLength = frames
@@ -275,10 +279,11 @@ public final class SegmentWriter: Sendable {
             state.totalFrames += Int64(frames)
         }
         manifest.append(
-            .sourceHealth(.init(
-                track: track, state: .recovering,
-                detail: "gap filled \(Int((seconds * 1000).rounded())) ms"
-            )),
+            .sourceHealth(
+                .init(
+                    track: track, state: .recovering,
+                    detail: "gap filled \(Int((seconds * 1000).rounded())) ms"
+                )),
             hostTime: clock.monotonicSeconds, wallClock: clock.now
         )
     }
@@ -306,20 +311,22 @@ public final class SegmentWriter: Sendable {
 
     /// Every format change reaches the manifest, whichever path noticed it.
     private func recordFormatChange(from previous: AVAudioFormat, to format: AVAudioFormat, reason: String) {
-        guard previous.sampleRate != format.sampleRate
-            || previous.channelCount != format.channelCount
+        guard
+            previous.sampleRate != format.sampleRate
+                || previous.channelCount != format.channelCount
         else { return }
         manifest.append(
-            .formatChange(.init(
-                track: track,
-                from: AudioFormatDescriptor(
-                    sampleRate: previous.sampleRate, channelCount: Int(previous.channelCount)
-                ),
-                to: AudioFormatDescriptor(
-                    sampleRate: format.sampleRate, channelCount: Int(format.channelCount)
-                ),
-                reason: reason
-            )),
+            .formatChange(
+                .init(
+                    track: track,
+                    from: AudioFormatDescriptor(
+                        sampleRate: previous.sampleRate, channelCount: Int(previous.channelCount)
+                    ),
+                    to: AudioFormatDescriptor(
+                        sampleRate: format.sampleRate, channelCount: Int(format.channelCount)
+                    ),
+                    reason: reason
+                )),
             hostTime: clock.monotonicSeconds,
             wallClock: clock.now
         )
@@ -364,11 +371,12 @@ public final class SegmentWriter: Sendable {
         }
 
         manifest.append(
-            .segmentOpen(.init(
-                track: track, index: index, file: url.lastPathComponent, firstFrameHostTime: nil,
-                startFrame: startFrame, sampleRate: format.sampleRate,
-                channelCount: Int(format.channelCount), reason: reason
-            )),
+            .segmentOpen(
+                .init(
+                    track: track, index: index, file: url.lastPathComponent, firstFrameHostTime: nil,
+                    startFrame: startFrame, sampleRate: format.sampleRate,
+                    channelCount: Int(format.channelCount), reason: reason
+                )),
             hostTime: clock.monotonicSeconds,
             wallClock: clock.now
         )
@@ -377,10 +385,12 @@ public final class SegmentWriter: Sendable {
     private func closeSegment(reason: String) {
         // Releasing the AVAudioFile finalises the container, so the URL is read
         // out first and the reference dropped inside the lock.
-        let closing = state.withLock { state -> (index: Int, frames: Int64, seconds: Double, firstFrame: Double, url: URL)? in
+        let closing = state.withLock {
+            state -> (index: Int, frames: Int64, seconds: Double, firstFrame: Double, url: URL)? in
             guard let file = state.file else { return nil }
             let url = file.url
-            let seconds = state.format.sampleRate > 0
+            let seconds =
+                state.format.sampleRate > 0
                 ? Double(state.framesInSegment) / state.format.sampleRate
                 : 0
             state.completedSeconds += seconds
@@ -397,22 +407,23 @@ public final class SegmentWriter: Sendable {
         let byteCount = (attributes?[.size] as? NSNumber)?.int64Value ?? 0
 
         manifest.append(
-            .segmentClose(.init(
-                track: track, index: closing.index, frameCount: closing.frames, byteCount: byteCount,
-                seconds: closing.seconds,
-                firstFrameHostTime: closing.firstFrame >= 0 ? closing.firstFrame : nil,
-                reason: reason
-            )),
+            .segmentClose(
+                .init(
+                    track: track, index: closing.index, frameCount: closing.frames, byteCount: byteCount,
+                    seconds: closing.seconds,
+                    firstFrameHostTime: closing.firstFrame >= 0 ? closing.firstFrame : nil,
+                    reason: reason
+                )),
             hostTime: clock.monotonicSeconds,
             wallClock: clock.now
         )
     }
 }
 
-public extension AVAudioPCMBuffer {
+extension AVAudioPCMBuffer {
     /// A deep copy. Tap and IOProc buffers are only valid for the duration of the
     /// callback, so anything handed to another queue has to be copied first.
-    func deepCopy() -> AVAudioPCMBuffer? {
+    public func deepCopy() -> AVAudioPCMBuffer? {
         guard let copy = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: frameCapacity) else {
             return nil
         }

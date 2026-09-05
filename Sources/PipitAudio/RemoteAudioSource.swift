@@ -118,10 +118,12 @@ public final class RemoteAudioSource: ProcessTapController, Sendable {
             AudioHardwareDestroyProcessTap(tapID)
             throw CaptureError.tapFormatUnavailable
         }
-        guard let format = AVAudioFormat(
-            standardFormatWithSampleRate: streamDescription.mSampleRate,
-            channels: AVAudioChannelCount(streamDescription.mChannelsPerFrame)
-        ) else {
+        guard
+            let format = AVAudioFormat(
+                standardFormatWithSampleRate: streamDescription.mSampleRate,
+                channels: AVAudioChannelCount(streamDescription.mChannelsPerFrame)
+            )
+        else {
             AudioHardwareDestroyProcessTap(tapID)
             throw CaptureError.tapFormatUnavailable
         }
@@ -133,10 +135,12 @@ public final class RemoteAudioSource: ProcessTapController, Sendable {
             kAudioAggregateDeviceIsStackedKey: false,
             kAudioAggregateDeviceTapAutoStartKey: true,
             kAudioAggregateDeviceSubDeviceListKey: [[String: Any]](),
-            kAudioAggregateDeviceTapListKey: [[
-                kAudioSubTapUIDKey: uuid.uuidString,
-                kAudioSubTapDriftCompensationKey: true,
-            ]],
+            kAudioAggregateDeviceTapListKey: [
+                [
+                    kAudioSubTapUIDKey: uuid.uuidString,
+                    kAudioSubTapDriftCompensationKey: true,
+                ]
+            ],
         ]
         if let outputUID = CoreAudioSystem.defaultOutputDeviceUID() {
             aggregateDescription[kAudioAggregateDeviceMainSubDeviceKey] = outputUID
@@ -213,9 +217,10 @@ public final class RemoteAudioSource: ProcessTapController, Sendable {
                 }
             }
             guard let buffer = selection.buffer else { return }
-            sink(AudioBufferPacket(
-                buffer: buffer, hostTime: HostTime.seconds(inputTime.pointee.mHostTime)
-            ))
+            sink(
+                AudioBufferPacket(
+                    buffer: buffer, hostTime: HostTime.seconds(inputTime.pointee.mHostTime)
+                ))
         }
         guard ioStatus == noErr, let ioProcID else {
             // The call can fail after writing an ID; destroying it first avoids

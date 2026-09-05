@@ -201,7 +201,8 @@ public final class MeetingsWindowModel {
         if selection.isEmpty, let first = sections.first?.rows.first {
             select(first.id, extending: false)
         } else if selection.count == 1, let focused = selection.first,
-            detail?.meetingID != focused {
+            detail?.meetingID != focused
+        {
             // One at a time, and only what the pane is showing. A set has no
             // order, so taking the first of several selected rows opened a pane
             // on whichever one it happened to hand back, behind the panel that
@@ -848,7 +849,8 @@ public final class MeetingsWindowModel {
         guard !rows.isEmpty else { return }
         let failures = await runtime.file(meetingIDs: rows.map(\.id), in: folder)
         if let first = failures.values.first {
-            folderProblem = (first as? MeetingFolderError)?.message
+            folderProblem =
+                (first as? MeetingFolderError)?.message
                 ?? "The meeting could not be moved."
         }
         archiveChanges += 1
@@ -903,7 +905,8 @@ public final class MeetingsWindowModel {
     public func deleteFolder(_ name: String) async {
         let failures = await runtime.deleteFolder(name)
         if let refusal = failures[name] as? MeetingFolderError,
-            case .folderNotEmpty(_, let remaining) = refusal {
+            case .folderNotEmpty(_, let remaining) = refusal
+        {
             folderProblem =
                 "\(remaining.count) \(remaining.count == 1 ? "item" : "items") in the folder "
                 + "\(remaining.count == 1 ? "is not a meeting" : "are not meetings") "

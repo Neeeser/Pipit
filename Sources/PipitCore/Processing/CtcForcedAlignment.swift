@@ -153,11 +153,12 @@ public enum CtcForcedAlignment {
             let lastToken = tokenIndex + word.tokens.count - 1
             tokenIndex = lastToken + 1
             precondition(wordOfToken[firstToken] == index)
-            aligned.append(AlignedWord(
-                text: word.text,
-                start: Double(firstFrame[firstToken]) * frameDuration,
-                end: Double(lastFrame[lastToken] + 1) * frameDuration
-            ))
+            aligned.append(
+                AlignedWord(
+                    text: word.text,
+                    start: Double(firstFrame[firstToken]) * frameDuration,
+                    end: Double(lastFrame[lastToken] + 1) * frameDuration
+                ))
         }
         return aligned
     }
@@ -217,23 +218,25 @@ public enum CtcForcedAlignment {
 
         func flush() {
             guard let first = pending.first, let last = pending.last else { return }
-            segments.append(RawTranscriptSegment(
-                start: first.start,
-                end: last.end,
-                text: pending.map(\.text).joined(separator: " "),
-                speaker: nil,
-                // Word texts carry a leading space, the Whisper convention the
-                // assembler concatenates by.
-                words: pending.map {
-                    RawTranscriptWord(start: $0.start, end: $0.end, text: " " + $0.text)
-                }
-            ))
+            segments.append(
+                RawTranscriptSegment(
+                    start: first.start,
+                    end: last.end,
+                    text: pending.map(\.text).joined(separator: " "),
+                    speaker: nil,
+                    // Word texts carry a leading space, the Whisper convention the
+                    // assembler concatenates by.
+                    words: pending.map {
+                        RawTranscriptWord(start: $0.start, end: $0.end, text: " " + $0.text)
+                    }
+                ))
             pending = []
         }
 
         for word in words {
             if let last = pending.last, let first = pending.first,
-                word.start - last.end > pauseSeconds || word.end - first.start > maximumSeconds {
+                word.start - last.end > pauseSeconds || word.end - first.start > maximumSeconds
+            {
                 flush()
             }
             pending.append(word)

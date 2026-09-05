@@ -30,16 +30,17 @@ final class LoadedWhisper: @unchecked Sendable {
     static func load(
         model: String, downloadBase: URL, modelFolder: String
     ) async throws -> LoadedWhisper {
-        let pipeline = try await WhisperKit(WhisperKitConfig(
-            model: model,
-            downloadBase: downloadBase,
-            modelFolder: modelFolder,
-            verbose: false,
-            logLevel: .error,
-            prewarm: false,
-            load: true,
-            download: false
-        ))
+        let pipeline = try await WhisperKit(
+            WhisperKitConfig(
+                model: model,
+                downloadBase: downloadBase,
+                modelFolder: modelFolder,
+                verbose: false,
+                logLevel: .error,
+                prewarm: false,
+                load: true,
+                download: false
+            ))
         return LoadedWhisper(pipeline: pipeline)
     }
 

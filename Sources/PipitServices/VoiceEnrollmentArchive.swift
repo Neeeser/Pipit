@@ -32,9 +32,10 @@ public struct VoiceEnrollmentArchive: Sendable {
     /// Every recording this person has read, oldest first.
     public func recordings(for identityID: IdentityID) -> [URL] {
         let directory = directory(for: identityID)
-        let found = (try? FileManager.default.contentsOfDirectory(
-            at: directory, includingPropertiesForKeys: nil
-        )) ?? []
+        let found =
+            (try? FileManager.default.contentsOfDirectory(
+                at: directory, includingPropertiesForKeys: nil
+            )) ?? []
         return found.filter { $0.pathExtension == "wav" }.sorted { $0.path < $1.path }
     }
 

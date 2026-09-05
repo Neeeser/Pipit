@@ -48,20 +48,23 @@ public struct AudioImporter: Sendable {
         }
         // Imported audio is written mono: an imported recording has no separate
         // local speaker, so the whole file is diarized as one track.
-        guard let targetFormat = AVAudioFormat(
-            standardFormatWithSampleRate: sourceFormat.sampleRate, channels: 1
-        ) else {
+        guard
+            let targetFormat = AVAudioFormat(
+                standardFormatWithSampleRate: sourceFormat.sampleRate, channels: 1
+            )
+        else {
             throw ProcessingError.audioUnreadable(path: source.lastPathComponent)
         }
 
         let manifest = try ManifestWriter(url: store.layout.manifest)
         defer { manifest.close() }
         manifest.append(
-            .sessionStart(.init(
-                meetingID: meetingID, source: .imported, segmentSeconds: segmentSeconds,
-                appVersion: PipitVersion.current,
-                processID: ProcessInfo.processInfo.processIdentifier
-            )),
+            .sessionStart(
+                .init(
+                    meetingID: meetingID, source: .imported, segmentSeconds: segmentSeconds,
+                    appVersion: PipitVersion.current,
+                    processID: ProcessInfo.processInfo.processIdentifier
+                )),
             hostTime: clock.monotonicSeconds, wallClock: clock.now
         )
 
@@ -71,7 +74,7 @@ public struct AudioImporter: Sendable {
         )
 
         guard let converter = AVAudioConverter(from: sourceFormat, to: targetFormat),
-              let readBuffer = AVAudioPCMBuffer(pcmFormat: sourceFormat, frameCapacity: 16_384)
+            let readBuffer = AVAudioPCMBuffer(pcmFormat: sourceFormat, frameCapacity: 16_384)
         else {
             throw ProcessingError.audioUnreadable(path: source.lastPathComponent)
         }

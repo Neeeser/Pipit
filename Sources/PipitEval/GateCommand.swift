@@ -64,23 +64,25 @@ enum GateCommand {
                 // totals disagree with the transcript they are meant to explain.
                 guard let reading = evidence.reading(from: start, to: end) else {
                     kept += 1
-                    print(String(
-                        format: "%9.2f %8.2f  %6@ %6@ %6@  %-7@  %@",
-                        start, end, "-" as NSString, "-" as NSString, "-" as NSString,
-                        "keep" as NSString,
-                        String(text.prefix(60))
-                    ))
+                    print(
+                        String(
+                            format: "%9.2f %8.2f  %6@ %6@ %6@  %-7@  %@",
+                            start, end, "-" as NSString, "-" as NSString, "-" as NSString,
+                            "keep" as NSString,
+                            String(text.prefix(60))
+                        ))
                     continue
                 }
                 let decision = LocalSpeechPolicy.decide(text: text, reading: reading)
                 if decision == .spoken { kept += 1 } else { dropped += 1 }
-                print(String(
-                    format: "%9.2f %8.2f  %6.3f %6.1f %6.1f  %-7@  %@",
-                    start, end, reading.speechProbability ?? -1, reading.loudestLocalDB,
-                    reading.loudestFarDB ?? 0,
-                    decision == .spoken ? "keep" : "DROP" as NSString,
-                    String(text.prefix(60))
-                ))
+                print(
+                    String(
+                        format: "%9.2f %8.2f  %6.3f %6.1f %6.1f  %-7@  %@",
+                        start, end, reading.speechProbability ?? -1, reading.loudestLocalDB,
+                        reading.loudestFarDB ?? 0,
+                        decision == .spoken ? "keep" : "DROP" as NSString,
+                        String(text.prefix(60))
+                    ))
             }
         }
         print("")

@@ -74,9 +74,10 @@ public struct AppleSpeechTranscriptionBackend: TranscriptionBackend {
             let width = (end - start) / Double(tokens.count)
             for (index, token) in tokens.enumerated() {
                 let wordStart = start + Double(index) * width
-                out.append(CtcForcedAlignment.AlignedWord(
-                    text: token, start: wordStart, end: wordStart + width
-                ))
+                out.append(
+                    CtcForcedAlignment.AlignedWord(
+                        text: token, start: wordStart, end: wordStart + width
+                    ))
             }
             reach = max(reach, end)
         }
@@ -97,62 +98,62 @@ public enum AppleSpeechError: Error, CustomStringConvertible {
 }
 
 #if compiler(>=6.2)
-@available(macOS 26.0, *)
-enum AppleSpeechAnalyzerRunner {
-    struct Output {
-        var text: String
-        var runs: [(text: String, start: Double?, end: Double?)]
-        var durationSeconds: Double
-    }
-
-    /// One file through SpeechAnalyzer, results collected until the module
-    /// finishes. Selecting this engine is the consent for the system's own
-    /// asset download, the way picking any model is; the OS shows and owns
-    /// that download.
-    static func transcribe(audio: URL) async throws -> Output {
-        guard
-            let locale = await SpeechTranscriber.supportedLocale(equivalentTo: Locale.current)
-        else { throw AppleSpeechError.localeUnsupported }
-        let transcriber = SpeechTranscriber(
-            locale: locale,
-            transcriptionOptions: [],
-            reportingOptions: [],
-            attributeOptions: [.audioTimeRange]
-        )
-        if await AssetInventory.status(forModules: [transcriber]) != .installed {
-            // Reserving an already-reserved locale is a no-op; a failure here
-            // surfaces through the installation request below.
-            _ = try? await AssetInventory.reserve(locale: locale)
-            if let request = try await AssetInventory.assetInstallationRequest(
-                supporting: [transcriber]
-            ) {
-                try await request.downloadAndInstall()
-            }
+    @available(macOS 26.0, *)
+    enum AppleSpeechAnalyzerRunner {
+        struct Output {
+            var text: String
+            var runs: [(text: String, start: Double?, end: Double?)]
+            var durationSeconds: Double
         }
 
-        let file = try AVAudioFile(forReading: audio)
-        let seconds = Double(file.length) / file.processingFormat.sampleRate
-        let analyzer = try await SpeechAnalyzer(
-            inputAudioFile: file, modules: [transcriber], finishAfterFile: true
-        )
-        _ = analyzer
-
-        var runs: [(text: String, start: Double?, end: Double?)] = []
-        var text = ""
-        for try await result in transcriber.results {
-            let attributed = result.text
-            text += String(attributed.characters)
-            for run in attributed.runs {
-                let piece = String(attributed[run.range].characters)
-                guard !piece.isEmpty else { continue }
-                if let range = run.audioTimeRange {
-                    runs.append((piece, range.start.seconds, range.end.seconds))
-                } else {
-                    runs.append((piece, nil, nil))
+        /// One file through SpeechAnalyzer, results collected until the module
+        /// finishes. Selecting this engine is the consent for the system's own
+        /// asset download, the way picking any model is; the OS shows and owns
+        /// that download.
+        static func transcribe(audio: URL) async throws -> Output {
+            guard
+                let locale = await SpeechTranscriber.supportedLocale(equivalentTo: Locale.current)
+            else { throw AppleSpeechError.localeUnsupported }
+            let transcriber = SpeechTranscriber(
+                locale: locale,
+                transcriptionOptions: [],
+                reportingOptions: [],
+                attributeOptions: [.audioTimeRange]
+            )
+            if await AssetInventory.status(forModules: [transcriber]) != .installed {
+                // Reserving an already-reserved locale is a no-op; a failure here
+                // surfaces through the installation request below.
+                _ = try? await AssetInventory.reserve(locale: locale)
+                if let request = try await AssetInventory.assetInstallationRequest(
+                    supporting: [transcriber]
+                ) {
+                    try await request.downloadAndInstall()
                 }
             }
+
+            let file = try AVAudioFile(forReading: audio)
+            let seconds = Double(file.length) / file.processingFormat.sampleRate
+            let analyzer = try await SpeechAnalyzer(
+                inputAudioFile: file, modules: [transcriber], finishAfterFile: true
+            )
+            _ = analyzer
+
+            var runs: [(text: String, start: Double?, end: Double?)] = []
+            var text = ""
+            for try await result in transcriber.results {
+                let attributed = result.text
+                text += String(attributed.characters)
+                for run in attributed.runs {
+                    let piece = String(attributed[run.range].characters)
+                    guard !piece.isEmpty else { continue }
+                    if let range = run.audioTimeRange {
+                        runs.append((piece, range.start.seconds, range.end.seconds))
+                    } else {
+                        runs.append((piece, nil, nil))
+                    }
+                }
+            }
+            return Output(text: text, runs: runs, durationSeconds: seconds)
         }
-        return Output(text: text, runs: runs, durationSeconds: seconds)
     }
-}
 #endif

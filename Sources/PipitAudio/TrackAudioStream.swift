@@ -50,9 +50,11 @@ public final class TrackAudioReader {
         guard frames > 0 else { return nil }
         while true {
             if converter == nil, !openNextSegmentGroup() { return nil }
-            guard let converter, let output = AVAudioPCMBuffer(
-                pcmFormat: targetFormat, frameCapacity: frames
-            ) else { return nil }
+            guard let converter,
+                let output = AVAudioPCMBuffer(
+                    pcmFormat: targetFormat, frameCapacity: frames
+                )
+            else { return nil }
 
             var conversionError: NSError?
             // The converter calls the input block synchronously on this thread,
@@ -234,7 +236,7 @@ public final class TrackAudioReader {
         guard index < segments.count else { return nil }
         let segment = segments[index]
         guard segment.format.sampleRate == format.sampleRate,
-              segment.format.channelCount == Int(format.channelCount)
+            segment.format.channelCount == Int(format.channelCount)
         else { return nil }
         let url = segmentsDirectory.appendingPathComponent(segment.file)
         guard let file = try? AVAudioFile(forReading: url), file.length > 0 else { return nil }
@@ -304,8 +306,8 @@ public struct TrackAudioStream: Sendable {
 }
 
 /// Computes an energy profile by streaming a recorded track once.
-public extension EnergyProfile {
-    static func compute(stream: TrackAudioStream, windowSeconds: Double = 0.1) throws -> EnergyProfile {
+extension EnergyProfile {
+    public static func compute(stream: TrackAudioStream, windowSeconds: Double = 0.1) throws -> EnergyProfile {
         let samplesPerWindow = Int(windowSeconds * stream.format.sampleRate)
         guard samplesPerWindow > 0 else { return EnergyProfile(windowSeconds: windowSeconds, values: []) }
 

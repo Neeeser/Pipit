@@ -399,11 +399,11 @@ public final class MicrophoneRecoveryCoordinator: Sendable {
         // torn down on the poll after a wake or a reconnect.
         let retryFailedBuild: Bool = state.withLock { state in
             guard let wait = state.wait, wait.cause == .buildFailed, state.policy.isRunning,
-                  now >= wait.until,
-                  // A pending change decides the rebuild instead, under its own
-                  // name; taken here it was filed as manual and the change,
-                  // still pending, rebuilt again a poll later.
-                  !state.policy.configurationChangePending
+                now >= wait.until,
+                // A pending change decides the rebuild instead, under its own
+                // name; taken here it was filed as manual and the change,
+                // still pending, rebuilt again a poll later.
+                !state.policy.configurationChangePending
             else { return false }
             state.wait = nil
             return true
@@ -507,7 +507,7 @@ public final class MicrophoneRecoveryCoordinator: Sendable {
             // holds, which costs at most the ceiling.
             let differentDevice: Bool = {
                 guard pending.cause == .silentEngine,
-                      let current = controller.currentInputDeviceUID()
+                    let current = controller.currentInputDeviceUID()
                 else { return false }
                 return state.withLock { state in
                     guard let active = state.activeDeviceUID, current != active else { return false }
@@ -608,7 +608,8 @@ public final class MicrophoneRecoveryCoordinator: Sendable {
                 // built. One that arrived during the build stays: it may be the
                 // footprint, and it may be a device that arrived just now.
                 if state.policy.configurationChangePending,
-                   state.policy.lastConfigurationChangeAt < state.buildCommittedAt {
+                    state.policy.lastConfigurationChangeAt < state.buildCommittedAt
+                {
                     state.policy.clearPendingConfigurationChange()
                 }
                 // Success is not recovery until a buffer arrives, for the wait
@@ -688,7 +689,9 @@ public enum CaptureWarning: Sendable, Equatable {
     public static func message(forKey key: String) -> String {
         for warning in stored where warning.dedupKey == key { return warning.message }
         if key.hasPrefix("permission_revoked_mic") { return CaptureWarning.permissionRevoked(track: .mic).message }
-        if key.hasPrefix("permission_revoked_remote") { return CaptureWarning.permissionRevoked(track: .remote).message }
+        if key.hasPrefix("permission_revoked_remote") {
+            return CaptureWarning.permissionRevoked(track: .remote).message
+        }
         if key.hasPrefix("segment_write_failed") { return CaptureWarning.segmentWriteFailed(track: .mic).message }
         return key
     }

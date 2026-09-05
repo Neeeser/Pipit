@@ -156,7 +156,8 @@ public enum FolderMatcher {
         _ meeting: MeetingFacts, _ folder: FolderProfile, _ now: Date
     ) -> FolderSuggestion? {
         guard let series = meeting.calendarSeriesID, !series.isEmpty else { return nil }
-        let held = folder.members.count { $0.calendarSeriesID == series }
+        let held =
+            folder.members.count { $0.calendarSeriesID == series }
             + folder.rule.calendarSeriesIDs.count { $0 == series }
         guard held >= 2 else { return nil }
         return FolderSuggestion(
@@ -204,7 +205,7 @@ public enum FolderMatcher {
         let onProvider = folder.members.filter { $0.provider == meeting.provider }
         guard onProvider.count >= 3 else { return nil }
         guard let median = folder.medianStartMinute,
-              abs(median - meeting.startMinute) <= slotToleranceMinutes
+            abs(median - meeting.startMinute) <= slotToleranceMinutes
         else { return nil }
 
         let mine = Set(meeting.participantNames.map(normalized))
@@ -239,7 +240,8 @@ public enum FolderMatcher {
     ) -> FolderSuggestion? {
         guard reach.asksAModel else { return nil }
         let known = Set(profiles.map(\.name))
-        let usable = candidates
+        let usable =
+            candidates
             .filter { known.contains($0.folderName) }
             .filter { !meeting.excludedFolders.contains($0.folderName) }
             .filter { !($0.quote ?? "").trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }

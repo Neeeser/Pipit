@@ -144,7 +144,8 @@ public enum SetupFlow {
             // build that finished it kept a record of visited steps.
             return visited || snapshot.settings.hasCompletedOnboarding ? .done : .notVisited
         case .optionalPermissions:
-            let both = snapshot.state(of: .calendar) == .granted
+            let both =
+                snapshot.state(of: .calendar) == .granted
                 && snapshot.state(of: .notifications) == .granted
             if both { return .done }
             return visited ? .skipped : .notVisited

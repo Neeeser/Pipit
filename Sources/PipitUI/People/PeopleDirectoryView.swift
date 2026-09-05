@@ -84,9 +84,12 @@ public struct PeopleDirectoryView: View {
             VStack(spacing: 8) {
                 TextField("Search name, organization, notes", text: model.text(\.query))
                     .textFieldStyle(.roundedBorder)
-                Picker("", selection: Binding(
-                    get: { model.filter }, set: { model.filter = $0 }
-                )) {
+                Picker(
+                    "",
+                    selection: Binding(
+                        get: { model.filter }, set: { model.filter = $0 }
+                    )
+                ) {
                     ForEach(PeopleFilter.allCases) { Text($0.label).tag($0) }
                 }
                 .pickerStyle(.segmented)
@@ -104,12 +107,14 @@ public struct PeopleDirectoryView: View {
         ScrollView {
             LazyVStack(alignment: .leading, spacing: 0) {
                 if model.visibleCount == 0 {
-                    Text(model.entries.isEmpty
-                        ? "Nobody yet. Naming a speaker on a meeting creates them here."
-                        : "No match.")
-                        .font(.callout)
-                        .foregroundStyle(.secondary)
-                        .padding(12)
+                    Text(
+                        model.entries.isEmpty
+                            ? "Nobody yet. Naming a speaker on a meeting creates them here."
+                            : "No match."
+                    )
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+                    .padding(12)
                 }
                 ForEach(model.sections) { section in
                     Text("\(section.title) · \(section.entries.count)")
@@ -265,15 +270,20 @@ public struct PeopleDirectoryView: View {
 
     private var organizationSheet: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text(model.organizationPrompt.map {
-                $0.targets.count == 1
-                    ? "Organization" : "Organization for \($0.targets.count) people"
-            } ?? "Organization")
+            Text(
+                model.organizationPrompt.map {
+                    $0.targets.count == 1
+                        ? "Organization" : "Organization for \($0.targets.count) people"
+                } ?? "Organization"
+            )
             .font(.headline)
-            TextField("Organization", text: Binding(
-                get: { model.organizationPrompt?.draft ?? "" },
-                set: { model.organizationPrompt?.draft = $0 }
-            ))
+            TextField(
+                "Organization",
+                text: Binding(
+                    get: { model.organizationPrompt?.draft ?? "" },
+                    set: { model.organizationPrompt?.draft = $0 }
+                )
+            )
             .frame(width: 280)
             HStack {
                 Spacer()
@@ -296,11 +306,13 @@ struct PeopleSelectionSummary: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
             Text("\(model.selection.count) selected").font(.title3)
-            Text(model.selectedEntries.prefix(8).map(\.identity.resolvedName)
-                .joined(separator: ", ")
-                + (model.selection.count > 8 ? ", and \(model.selection.count - 8) more" : ""))
-                .font(.callout)
-                .foregroundStyle(.secondary)
+            Text(
+                model.selectedEntries.prefix(8).map(\.identity.resolvedName)
+                    .joined(separator: ", ")
+                    + (model.selection.count > 8 ? ", and \(model.selection.count - 8) more" : "")
+            )
+            .font(.callout)
+            .foregroundStyle(.secondary)
             HStack(spacing: 8) {
                 Button("Set organization…") { model.beginSetOrganization() }
                 Button("Merge into one person") { Task { await model.mergeSelection() } }

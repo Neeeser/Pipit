@@ -122,14 +122,16 @@ public struct SpeechEvidence: Codable, Sendable, Equatable {
         from start: Double, to end: Double, farEndUsable: Bool
     ) -> SpeechReading? {
         guard let local = span(micLevels, windowSeconds: levelWindowSeconds, from: start, to: end),
-              let loudestLocal = local.max() else { return nil }
+            let loudestLocal = local.max()
+        else { return nil }
         // A far end that never rose above the floor is not a reference. Reading
         // it as one makes every comparison against it trivially true: the
         // microphone outreads -120 dB everywhere, and a filtered copy of
         // silence accounts for none of the microphone's energy, so the level
         // and echo clauses both answer yes to whatever they are asked. The
         // honest shape for it is the one-track shape.
-        let far = farEndUsable
+        let far =
+            farEndUsable
             ? span(remoteLevels, windowSeconds: levelWindowSeconds, from: start, to: end)
             : nil
         let probability = span(micSpeech, windowSeconds: speechWindowSeconds, from: start, to: end)
@@ -154,7 +156,8 @@ public struct SpeechEvidence: Codable, Sendable, Equatable {
         // A backend supplies these times, and converting a non-finite or
         // astronomically large one to Int traps rather than returning anything.
         guard start.isFinite, end.isFinite, start >= 0,
-              start / windowSeconds < Double(values.count) else { return nil }
+            start / windowSeconds < Double(values.count)
+        else { return nil }
         let first = Int(start / windowSeconds)
         guard first < values.count else { return nil }
         let reach = min(end / windowSeconds, Double(values.count))

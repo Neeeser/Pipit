@@ -61,12 +61,14 @@ struct MicrophoneCleanerTests {
             "expected 30 ± 0.2, got \(cleaned.track.seconds)"
         )
 
-        let raw = try MicrophoneCleaningFixtures.samples(store.rawTrackAudioLocation(
-            track: .mic, metadata: metadata, timeline: timeline
-        ))
-        let clean = try MicrophoneCleaningFixtures.samples(store.trackAudioLocation(
-            track: .mic, metadata: metadata, timeline: timeline
-        ))
+        let raw = try MicrophoneCleaningFixtures.samples(
+            store.rawTrackAudioLocation(
+                track: .mic, metadata: metadata, timeline: timeline
+            ))
+        let clean = try MicrophoneCleaningFixtures.samples(
+            store.trackAudioLocation(
+                track: .mic, metadata: metadata, timeline: timeline
+            ))
         #expect(clean.count == raw.count, "the cleaned track runs as long as the recording")
 
         // Measured over the last third, where the user is silent. The
@@ -177,7 +179,8 @@ struct MicrophoneCleanerTests {
         // reads the metadata it is handed, so a caller left holding the copy
         // it passed in would keep reading the recording for the rest of the
         // run, with the cleaned file written and nothing using it.
-        #expect(store.trackAudioLocation(track: .mic, metadata: carried, timeline: timeline)
+        #expect(
+            store.trackAudioLocation(track: .mic, metadata: carried, timeline: timeline)
                 .segments.first?.file == "mic.cleaned.m4a")
     }
 
@@ -254,7 +257,8 @@ struct MicrophoneCleanerTests {
             !(FileManager.default.fileExists(atPath: store.layout.cleanedMicFile.path)),
             "the earlier run's file is gone with its record"
         )
-        #expect(store.trackAudioLocation(
+        #expect(
+            store.trackAudioLocation(
                 track: .mic, metadata: carried, timeline: try store.readTimeline()
             ).directory.lastPathComponent == "segments")
     }
@@ -326,12 +330,14 @@ struct MicrophoneCleanerTests {
         #expect(outcome == CleaningOutcome.cleaned)
 
         let metadata = try store.readMetadata()
-        let raw = try MicrophoneCleaningFixtures.samples(store.rawTrackAudioLocation(
-            track: .mic, metadata: metadata, timeline: timeline
-        ))
-        let clean = try MicrophoneCleaningFixtures.samples(store.trackAudioLocation(
-            track: .mic, metadata: metadata, timeline: timeline
-        ))
+        let raw = try MicrophoneCleaningFixtures.samples(
+            store.rawTrackAudioLocation(
+                track: .mic, metadata: metadata, timeline: timeline
+            ))
+        let clean = try MicrophoneCleaningFixtures.samples(
+            store.trackAudioLocation(
+                track: .mic, metadata: metadata, timeline: timeline
+            ))
         // Up to 28 s, past which the far end's track has run out and the
         // microphone carries no echo to remove.
         let before = MicrophoneCleaningFixtures.toneEnergy(
@@ -376,9 +382,10 @@ struct MicrophoneCleanerTests {
         let url = location.directory.appendingPathComponent(segment.file)
         func writeShortSegment() throws {
             let file = try AVAudioFile(forWriting: url, settings: format.settings)
-            try file.write(from: MicrophoneCleaningFixtures.buffer(
-                Array(recorded.prefix(Int(20 * MicrophoneCleaningFixtures.rate))), format: format
-            ))
+            try file.write(
+                from: MicrophoneCleaningFixtures.buffer(
+                    Array(recorded.prefix(Int(20 * MicrophoneCleaningFixtures.rate))), format: format
+                ))
         }
         try writeShortSegment()
 
@@ -452,7 +459,8 @@ struct MicrophoneCleanerTests {
         // record that has to go.
         #expect(carried.cleanedMic == nil)
         #expect(try store.readMetadata().cleanedMic == nil)
-        #expect(store.trackAudioLocation(
+        #expect(
+            store.trackAudioLocation(
                 track: .mic, metadata: carried, timeline: try store.readTimeline()
             ).directory.lastPathComponent == "segments")
     }
@@ -471,7 +479,8 @@ struct MicrophoneCleanerTests {
         )
         let store = meeting.store
         let timeline = try store.readTimeline()
-        #expect(!(store.rawTrackAudioLocation(
+        #expect(
+            !(store.rawTrackAudioLocation(
                 track: .remote, metadata: meeting.metadata, timeline: timeline
             ).isEmpty), "the far end was recorded, it just holds nothing")
 

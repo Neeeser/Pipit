@@ -11,7 +11,9 @@ struct CapturePreflightTests {
         // come from the grant itself, before anything is armed.
         for state in [PermissionState.denied, .notDetermined, .grantedButNotEffective] {
             #expect(
-                RecordingPreflight.warnings(capturesRemote: true, systemAudio: state) == [.systemAudioPermissionMissing],
+                RecordingPreflight.warnings(capturesRemote: true, systemAudio: state) == [
+                    .systemAudioPermissionMissing
+                ],
                 "\(state.rawValue) means silence from the tap"
             )
         }
@@ -27,12 +29,24 @@ struct CapturePreflightTests {
 
     @Test("no microphone grant refuses the recording, no system audio grant lets it run with a warning")
     func noMicrophoneGrantRefusesTheRecordingNoSystemAudioGrantLetsIt() async throws {
-        #expect(RecordingPreflight.decide(capturesRemote: true, microphone: .denied, systemAudio: .granted) == RecordingPreflight.Decision.refuse(.microphonePermissionMissing))
-        #expect(RecordingPreflight.decide(capturesRemote: false, microphone: .notDetermined, systemAudio: .denied) == RecordingPreflight.Decision.refuse(.microphonePermissionMissing))
-        #expect(RecordingPreflight.decide(capturesRemote: true, microphone: .granted, systemAudio: .denied) == RecordingPreflight.Decision.proceed([.systemAudioPermissionMissing]))
-        #expect(RecordingPreflight.decide(capturesRemote: true, microphone: .granted, systemAudio: .granted) == RecordingPreflight.Decision.proceed([]))
-        #expect(RecordingPreflight.decide(capturesRemote: false, microphone: .granted, systemAudio: .denied) == RecordingPreflight.Decision.proceed([]))
-        #expect(CaptureWarning.message(forKey: "microphone_permission_missing") == CaptureWarning.microphonePermissionMissing.message)
+        #expect(
+            RecordingPreflight.decide(capturesRemote: true, microphone: .denied, systemAudio: .granted)
+                == RecordingPreflight.Decision.refuse(.microphonePermissionMissing))
+        #expect(
+            RecordingPreflight.decide(capturesRemote: false, microphone: .notDetermined, systemAudio: .denied)
+                == RecordingPreflight.Decision.refuse(.microphonePermissionMissing))
+        #expect(
+            RecordingPreflight.decide(capturesRemote: true, microphone: .granted, systemAudio: .denied)
+                == RecordingPreflight.Decision.proceed([.systemAudioPermissionMissing]))
+        #expect(
+            RecordingPreflight.decide(capturesRemote: true, microphone: .granted, systemAudio: .granted)
+                == RecordingPreflight.Decision.proceed([]))
+        #expect(
+            RecordingPreflight.decide(capturesRemote: false, microphone: .granted, systemAudio: .denied)
+                == RecordingPreflight.Decision.proceed([]))
+        #expect(
+            CaptureWarning.message(forKey: "microphone_permission_missing")
+                == CaptureWarning.microphonePermissionMissing.message)
     }
 
     @Test("one missing grant is offered from the panel, two send the person into Setup")
@@ -103,17 +117,22 @@ struct CapturePreflightTests {
         #expect(PermissionPromptPolicy.shouldPrompt(isManual: true, lastPromptedAt: justNow, now: now))
         #expect(PermissionPromptPolicy.shouldPrompt(isManual: false, lastPromptedAt: nil, now: now))
         #expect(!PermissionPromptPolicy.shouldPrompt(isManual: false, lastPromptedAt: justNow, now: now))
-        #expect(PermissionPromptPolicy.shouldPrompt(
-            isManual: false, lastPromptedAt: now.addingTimeInterval(-60), now: now
-        ))
+        #expect(
+            PermissionPromptPolicy.shouldPrompt(
+                isManual: false, lastPromptedAt: now.addingTimeInterval(-60), now: now
+            ))
     }
 
     @Test("a warning stored by key reads back as its message")
     func aWarningStoredByKeyReadsBackAsItsMessage() async throws {
         let key = CaptureWarning.systemAudioPermissionMissing.dedupKey
         #expect(CaptureWarning.message(forKey: key) == CaptureWarning.systemAudioPermissionMissing.message)
-        #expect(CaptureWarning.message(forKey: "remote_silent_while_producing") == CaptureWarning.remoteSilentWhileProducing(seconds: 0).message)
-        #expect(CaptureWarning.message(forKey: "permission_revoked_mic") == CaptureWarning.permissionRevoked(track: .mic).message)
+        #expect(
+            CaptureWarning.message(forKey: "remote_silent_while_producing")
+                == CaptureWarning.remoteSilentWhileProducing(seconds: 0).message)
+        #expect(
+            CaptureWarning.message(forKey: "permission_revoked_mic")
+                == CaptureWarning.permissionRevoked(track: .mic).message)
         // What older builds wrote is free text and is shown as it was.
         #expect(CaptureWarning.message(forKey: "capture ended in state degraded") == "capture ended in state degraded")
     }

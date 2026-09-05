@@ -49,10 +49,12 @@ public enum MicrophoneCleaningFixtures {
             now: started
         )
         let manifest = try ManifestWriter(url: created.store.layout.manifest)
-        manifest.append(.sessionStart(.init(
-            meetingID: created.metadata.id, source: source, segmentSeconds: 600,
-            appVersion: "test", processID: 1
-        )))
+        manifest.append(
+            .sessionStart(
+                .init(
+                    meetingID: created.metadata.id, source: source, segmentSeconds: 600,
+                    appVersion: "test", processID: 1
+                )))
         let format = AVAudioFormat(standardFormatWithSampleRate: rate, channels: 1)!
 
         let micWriter = SegmentWriter(
@@ -67,16 +69,19 @@ public enum MicrophoneCleaningFixtures {
                 track: .remote, layout: created.store.layout, manifest: manifest,
                 format: format, segmentSeconds: 600
             )
-            remoteWriter.enqueueSynchronously(AudioBufferPacket(
-                buffer: buffer(remote, format: format), hostTime: 100 + remoteStartOffset
-            ))
+            remoteWriter.enqueueSynchronously(
+                AudioBufferPacket(
+                    buffer: buffer(remote, format: format), hostTime: 100 + remoteStartOffset
+                ))
             remoteWriter.finish(reason: "test")
         }
         let seconds = Double(mic.count) / rate
-        manifest.append(.sessionEnd(.init(
-            reason: "test", micSeconds: seconds,
-            remoteSeconds: remote.map { Double($0.count) / rate } ?? 0
-        )))
+        manifest.append(
+            .sessionEnd(
+                .init(
+                    reason: "test", micSeconds: seconds,
+                    remoteSeconds: remote.map { Double($0.count) / rate } ?? 0
+                )))
         manifest.close()
 
         var metadata = created.metadata

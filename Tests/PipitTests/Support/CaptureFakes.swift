@@ -352,13 +352,14 @@ public final class RecordingCaptureDelegate: CaptureCoordinatorDelegate, Sendabl
         targets: [RemoteAudioTarget], reason: RebuildReason, bindCount: Int, binding: RemoteTapBinding
     ) {
         state.withLock {
-            $0.remoteBinds.append(RemoteBind(
-                reason: reason.label,
-                processIDs: targets.map(\.processID),
-                producing: targets.map(\.isRunningOutput),
-                count: bindCount,
-                binding: binding
-            ))
+            $0.remoteBinds.append(
+                RemoteBind(
+                    reason: reason.label,
+                    processIDs: targets.map(\.processID),
+                    producing: targets.map(\.isRunningOutput),
+                    count: bindCount,
+                    binding: binding
+                ))
         }
     }
 

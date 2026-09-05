@@ -83,8 +83,8 @@ public func makeBuffer(
     if list.count > 1, list.allSatisfy({ $0.mNumberChannels == 1 }) {
         let frames = Int(list[0].mDataByteSize) / MemoryLayout<Float>.size
         guard frames > 0,
-              let buffer = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: AVAudioFrameCount(frames)),
-              let destination = buffer.floatChannelData
+            let buffer = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: AVAudioFrameCount(frames)),
+            let destination = buffer.floatChannelData
         else { return TapStreamSelection(buffer: nil, usedFallback: false) }
         buffer.frameLength = AVAudioFrameCount(frames)
         for channel in 0..<channels {
@@ -99,7 +99,8 @@ public func makeBuffer(
 
     // Otherwise every stream is interleaved. Take the one that matches the tap.
     let usedFallback = tapStreamIndex != nil
-    let stream = list.first { Int($0.mNumberChannels) == channels && $0.mData != nil }
+    let stream =
+        list.first { Int($0.mNumberChannels) == channels && $0.mData != nil }
         ?? list.first { $0.mData != nil }
     guard let stream else { return TapStreamSelection(buffer: nil, usedFallback: usedFallback) }
     return TapStreamSelection(
@@ -115,8 +116,8 @@ private func copyInterleaved(_ stream: AudioBuffer, into format: AVAudioFormat) 
     let sourceChannels = max(1, Int(stream.mNumberChannels))
     let frames = Int(stream.mDataByteSize) / MemoryLayout<Float>.size / sourceChannels
     guard frames > 0,
-          let buffer = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: AVAudioFrameCount(frames)),
-          let destination = buffer.floatChannelData
+        let buffer = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: AVAudioFrameCount(frames)),
+        let destination = buffer.floatChannelData
     else { return nil }
     buffer.frameLength = AVAudioFrameCount(frames)
     let source = data.assumingMemoryBound(to: Float.self)

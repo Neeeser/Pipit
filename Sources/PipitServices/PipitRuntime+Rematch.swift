@@ -69,22 +69,23 @@ extension PipitRuntime {
             var rows: [VoiceRematch] = []
             for match in matches {
                 let heardIn = await appearances(of: match.voice.id, limit: 3)
-                rows.append(VoiceRematch(
-                    voice: match.voice,
-                    match: match.match,
-                    band: match.resolution.band,
-                    score: match.resolution.best?.score ?? 0,
-                    runnerUpScore: match.resolution.runnerUp?.score,
-                    speechSeconds: match.speechSeconds,
-                    heardIn: heardIn,
-                    // Only a voice heard once is on a clock. Hearing it again is
-                    // what makes it persistent, and a persistent voice is kept.
-                    forgottenAt: match.voice.state == .ephemeral
-                        ? (match.voice.lastSeenAt ?? match.voice.createdAt)
-                            .addingTimeInterval(Double(expiryDays) * 86_400)
-                        : nil,
-                    matchProfileBegan: try? await store.firstEnrolment(of: match.match.id)
-                ))
+                rows.append(
+                    VoiceRematch(
+                        voice: match.voice,
+                        match: match.match,
+                        band: match.resolution.band,
+                        score: match.resolution.best?.score ?? 0,
+                        runnerUpScore: match.resolution.runnerUp?.score,
+                        speechSeconds: match.speechSeconds,
+                        heardIn: heardIn,
+                        // Only a voice heard once is on a clock. Hearing it again is
+                        // what makes it persistent, and a persistent voice is kept.
+                        forgottenAt: match.voice.state == .ephemeral
+                            ? (match.voice.lastSeenAt ?? match.voice.createdAt)
+                                .addingTimeInterval(Double(expiryDays) * 86_400)
+                            : nil,
+                        matchProfileBegan: try? await store.firstEnrolment(of: match.match.id)
+                    ))
             }
             Log.app.info("re-scored unnamed voices: \(rows.count, privacy: .public) matched")
             // Most certain first. A reader works down the list and stops when

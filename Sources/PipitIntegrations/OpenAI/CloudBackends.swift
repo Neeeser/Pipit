@@ -73,9 +73,10 @@ public struct OpenAIDiarizationBackend: DiarizationBackend {
         var speechByCluster: [String: Double] = [:]
         for segment in response.segments {
             guard let speaker = segment.speaker else { continue }
-            intervals.append(DiarizationInterval(
-                start: segment.start, end: segment.end, clusterID: speaker
-            ))
+            intervals.append(
+                DiarizationInterval(
+                    start: segment.start, end: segment.end, clusterID: speaker
+                ))
             speechByCluster[speaker, default: 0] += max(0, segment.end - segment.start)
         }
         let clusters = speechByCluster.keys.sorted().map {

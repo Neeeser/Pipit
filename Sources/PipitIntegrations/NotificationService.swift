@@ -64,7 +64,7 @@ public struct NotificationService: Sendable {
             actions: [
                 UNNotificationAction(
                     identifier: Action.reveal.rawValue, title: "Reveal in Finder", options: [.foreground]
-                ),
+                )
             ],
             intentIdentifiers: []
         )
@@ -73,7 +73,7 @@ public struct NotificationService: Sendable {
             actions: [
                 UNNotificationAction(
                     identifier: Action.retry.rawValue, title: "Retry", options: []
-                ),
+                )
             ],
             intentIdentifiers: []
         )

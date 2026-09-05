@@ -88,7 +88,8 @@ public struct LocalModelLocations: Sendable, Equatable {
         var container = deep
         while container.deletingLastPathComponent().standardizedFileURL.path
             != root.standardizedFileURL.path,
-            container.path.hasPrefix(root.path) {
+            container.path.hasPrefix(root.path)
+        {
             container = container.deletingLastPathComponent()
         }
         return container.path.hasPrefix(root.path) ? container : deep
@@ -154,7 +155,8 @@ public enum LocalModelState: Sendable, Equatable {
     public var present: LocalModelSnapshot {
         switch self {
         case .notInstalled(let snapshot), .installed(let snapshot),
-            .outdated(let snapshot): snapshot
+            .outdated(let snapshot):
+            snapshot
         case .downloading(_, _, let snapshot), .failed(_, let snapshot): snapshot
         }
     }
@@ -183,7 +185,8 @@ public struct LocalModelReceiptStore: Sendable {
 
     public func read() -> [LocalModelUnit: LocalUnitReceipt] {
         if let data = try? Data(contentsOf: locations.inventory),
-            let stored = try? Self.decoder.decode([String: LocalUnitReceipt].self, from: data) {
+            let stored = try? Self.decoder.decode([String: LocalUnitReceipt].self, from: data)
+        {
             var receipts: [LocalModelUnit: LocalUnitReceipt] = [:]
             for (key, receipt) in stored {
                 guard let unit = LocalModelUnit(rawValue: key) else { continue }
@@ -253,9 +256,11 @@ enum DirectorySize {
             let attributes = try? manager.attributesOfItem(atPath: url.path)
             return (attributes?[.size] as? NSNumber)?.int64Value ?? 0
         }
-        guard let enumerator = manager.enumerator(
-            at: url, includingPropertiesForKeys: [.fileSizeKey, .isRegularFileKey]
-        ) else { return 0 }
+        guard
+            let enumerator = manager.enumerator(
+                at: url, includingPropertiesForKeys: [.fileSizeKey, .isRegularFileKey]
+            )
+        else { return 0 }
         var total: Int64 = 0
         for case let file as URL in enumerator {
             let values = try? file.resourceValues(forKeys: [.fileSizeKey, .isRegularFileKey])

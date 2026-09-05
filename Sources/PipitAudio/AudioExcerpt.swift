@@ -26,9 +26,11 @@ public struct AudioExcerptCutter: Sendable {
         guard sourceFormat.sampleRate > 0 else {
             throw ProcessingError.audioUnreadable(path: source.lastPathComponent)
         }
-        guard let monoFormat = AVAudioFormat(
-            standardFormatWithSampleRate: sourceFormat.sampleRate, channels: 1
-        ) else {
+        guard
+            let monoFormat = AVAudioFormat(
+                standardFormatWithSampleRate: sourceFormat.sampleRate, channels: 1
+            )
+        else {
             throw ProcessingError.audioUnreadable(path: source.lastPathComponent)
         }
 
@@ -59,8 +61,8 @@ public struct AudioExcerptCutter: Sendable {
         )
 
         guard let converter = AVAudioConverter(from: sourceFormat, to: monoFormat),
-              let readBuffer = AVAudioPCMBuffer(pcmFormat: sourceFormat, frameCapacity: 16_384),
-              let writeBuffer = AVAudioPCMBuffer(pcmFormat: monoFormat, frameCapacity: 16_384)
+            let readBuffer = AVAudioPCMBuffer(pcmFormat: sourceFormat, frameCapacity: 16_384),
+            let writeBuffer = AVAudioPCMBuffer(pcmFormat: monoFormat, frameCapacity: 16_384)
         else {
             throw ProcessingError.audioUnreadable(path: source.lastPathComponent)
         }

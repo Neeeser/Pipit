@@ -144,7 +144,8 @@ public struct RecordingTimeline: Sendable, Equatable {
         // by the boundary check below if they cost anything, and treating every
         // restart as a gap threw the record away for most real meetings.
         if let last = ordered.last, let start = last.resolvedFirstFrameHostTime,
-           restartMoments.contains(where: { $0.track == track && $0.hostTime > start }) {
+            restartMoments.contains(where: { $0.track == track && $0.hostTime > start })
+        {
             return false
         }
         for (previous, next) in zip(ordered, ordered.dropFirst()) {
@@ -152,7 +153,7 @@ public struct RecordingTimeline: Sendable, Equatable {
             // is also not evidence of a gap, and refusing on it would drop the
             // record for a recording that is very likely fine.
             guard let start = previous.resolvedFirstFrameHostTime,
-                  let following = next.resolvedFirstFrameHostTime
+                let following = next.resolvedFirstFrameHostTime
             else { continue }
             let recorded = previous.seconds
             guard recorded > 0 else { continue }
@@ -325,8 +326,8 @@ public enum ManifestReader {
     }
 }
 
-private extension Data {
-    func hasSuffix(newline: Bool) -> Bool {
+extension Data {
+    fileprivate func hasSuffix(newline: Bool) -> Bool {
         guard newline, let last else { return false }
         return last == 0x0A
     }

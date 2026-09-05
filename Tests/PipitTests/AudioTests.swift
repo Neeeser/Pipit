@@ -118,7 +118,8 @@ struct AudioTests {
         )
         #expect(abs(speech - 0.5) < 0.001, "half a second of speech, got \(speech)")
 
-        #expect(VoiceEnrollmentRecorder.speechSeconds(
+        #expect(
+            VoiceEnrollmentRecorder.speechSeconds(
                 in: AudioFixtures.makeTone(seconds: 0.5, sampleRate: 48_000, amplitude: 0.001)
             ) == 0, "a room nobody is talking in fills no bar")
     }
@@ -311,10 +312,12 @@ struct AudioTests {
         }
 
         let second = (total / 2)..<total
-        let damageDB = 10 * log10(
-            (AudioFixtures.energy(Array(heard[second])) + 1e-12)
-                / (AudioFixtures.energy(Array(cleaned[second])) + 1e-12)
-        )
+        let damageDB =
+            10
+            * log10(
+                (AudioFixtures.energy(Array(heard[second])) + 1e-12)
+                    / (AudioFixtures.energy(Array(cleaned[second])) + 1e-12)
+            )
         #expect(
             damageDB > 20,
             """
@@ -354,14 +357,16 @@ struct AudioTests {
             format: format, segmentSeconds: 60
         )
 
-        writer.enqueueSynchronously(AudioBufferPacket(
-            buffer: AudioFixtures.makeTone(seconds: 0.5, sampleRate: 48_000), hostTime: 100
-        ))
+        writer.enqueueSynchronously(
+            AudioBufferPacket(
+                buffer: AudioFixtures.makeTone(seconds: 0.5, sampleRate: 48_000), hostTime: 100
+            ))
         // The engine tears down and rebuilds. Nothing arrives for
         // 1.13 s, then capture resumes.
-        writer.enqueueSynchronously(AudioBufferPacket(
-            buffer: AudioFixtures.makeTone(seconds: 0.5, sampleRate: 48_000), hostTime: 101.6317
-        ))
+        writer.enqueueSynchronously(
+            AudioBufferPacket(
+                buffer: AudioFixtures.makeTone(seconds: 0.5, sampleRate: 48_000), hostTime: 101.6317
+            ))
         writer.finish(reason: "test")
         manifest.close()
 
@@ -397,11 +402,12 @@ struct AudioTests {
             format: format, segmentSeconds: 1
         )
         for index in 0..<5 {
-            writer.enqueueSynchronously(AudioBufferPacket(
-                buffer: AudioFixtures.makeTone(seconds: 0.5, sampleRate: 48_000),
-                // A hair late every time, as a real clock is.
-                hostTime: Double(index) * 0.5 + Double(index) * 0.000_02
-            ))
+            writer.enqueueSynchronously(
+                AudioBufferPacket(
+                    buffer: AudioFixtures.makeTone(seconds: 0.5, sampleRate: 48_000),
+                    // A hair late every time, as a real clock is.
+                    hostTime: Double(index) * 0.5 + Double(index) * 0.000_02
+                ))
         }
         writer.finish(reason: "test")
         manifest.close()
@@ -429,14 +435,16 @@ struct AudioTests {
             track: .mic, layout: layout, manifest: manifest, format: wideband, segmentSeconds: 60
         )
 
-        writer.enqueueSynchronously(AudioBufferPacket(
-            buffer: AudioFixtures.makeTone(seconds: 2, sampleRate: 48_000), hostTime: 0
-        ))
+        writer.enqueueSynchronously(
+            AudioBufferPacket(
+                buffer: AudioFixtures.makeTone(seconds: 2, sampleRate: 48_000), hostTime: 0
+            ))
         // Bluetooth switches to the hands-free profile.
         writer.changeFormat(narrowband, reason: "config_change")
-        writer.enqueueSynchronously(AudioBufferPacket(
-            buffer: AudioFixtures.makeTone(seconds: 3, sampleRate: 16_000), hostTime: 2
-        ))
+        writer.enqueueSynchronously(
+            AudioBufferPacket(
+                buffer: AudioFixtures.makeTone(seconds: 3, sampleRate: 16_000), hostTime: 2
+            ))
         writer.finish(reason: "test")
         manifest.close()
 
@@ -460,9 +468,10 @@ struct AudioTests {
     func thePreRollRingStaysBoundedAndKeepsTheNewestAudio() async throws {
         let ring = PreRollBuffer(capacitySeconds: 2)
         for index in 0..<40 {
-            ring.append(AudioBufferPacket(
-                buffer: AudioFixtures.makeTone(seconds: 0.1, sampleRate: 48_000), hostTime: Double(index) * 0.1
-            ))
+            ring.append(
+                AudioBufferPacket(
+                    buffer: AudioFixtures.makeTone(seconds: 0.1, sampleRate: 48_000), hostTime: Double(index) * 0.1
+                ))
         }
         #expect(ring.bufferedSeconds <= 2.05, "buffered \(ring.bufferedSeconds)s")
         #expect(ring.bufferedSeconds >= 1.9)
@@ -490,15 +499,17 @@ struct AudioTests {
             format: AVAudioFormat(standardFormatWithSampleRate: 48_000, channels: 1)!,
             segmentSeconds: 60
         )
-        writer.enqueueSynchronously(AudioBufferPacket(
-            buffer: AudioFixtures.makeTone(seconds: 2, sampleRate: 48_000), hostTime: 0
-        ))
+        writer.enqueueSynchronously(
+            AudioBufferPacket(
+                buffer: AudioFixtures.makeTone(seconds: 2, sampleRate: 48_000), hostTime: 0
+            ))
         writer.changeFormat(
             AVAudioFormat(standardFormatWithSampleRate: 16_000, channels: 1)!, reason: "bluetooth"
         )
-        writer.enqueueSynchronously(AudioBufferPacket(
-            buffer: AudioFixtures.makeTone(seconds: 2, sampleRate: 16_000), hostTime: 2
-        ))
+        writer.enqueueSynchronously(
+            AudioBufferPacket(
+                buffer: AudioFixtures.makeTone(seconds: 2, sampleRate: 16_000), hostTime: 2
+            ))
         writer.finish(reason: "test")
         manifest.close()
 
@@ -893,9 +904,10 @@ struct AudioTests {
             segmentSeconds: 5
         )
         for index in 0..<6 {
-            writer.enqueueSynchronously(AudioBufferPacket(
-                buffer: AudioFixtures.makeTone(seconds: 2, sampleRate: 48_000), hostTime: Double(index) * 2
-            ))
+            writer.enqueueSynchronously(
+                AudioBufferPacket(
+                    buffer: AudioFixtures.makeTone(seconds: 2, sampleRate: 48_000), hostTime: Double(index) * 2
+                ))
         }
         writer.finish(reason: "test")
         manifest.close()
@@ -939,9 +951,10 @@ struct AudioTests {
         let remoteWriter = SegmentWriter(
             track: .remote, layout: layout, manifest: manifest, format: format, segmentSeconds: 60
         )
-        remoteWriter.enqueueSynchronously(AudioBufferPacket(
-            buffer: AudioFixtures.makeTone(seconds: 4, sampleRate: 48_000, frequency: 220), hostTime: 100.0
-        ))
+        remoteWriter.enqueueSynchronously(
+            AudioBufferPacket(
+                buffer: AudioFixtures.makeTone(seconds: 4, sampleRate: 48_000, frequency: 220), hostTime: 100.0
+            ))
         remoteWriter.finish(reason: "test")
 
         // The microphone starts a second later, exactly as it does in a real
@@ -949,9 +962,10 @@ struct AudioTests {
         let micWriter = SegmentWriter(
             track: .mic, layout: layout, manifest: manifest, format: format, segmentSeconds: 60
         )
-        micWriter.enqueueSynchronously(AudioBufferPacket(
-            buffer: AudioFixtures.makeTone(seconds: 3, sampleRate: 48_000, frequency: 440), hostTime: 101.0
-        ))
+        micWriter.enqueueSynchronously(
+            AudioBufferPacket(
+                buffer: AudioFixtures.makeTone(seconds: 3, sampleRate: 48_000, frequency: 440), hostTime: 101.0
+            ))
         micWriter.finish(reason: "test")
         manifest.close()
 
@@ -996,10 +1010,11 @@ struct AudioTests {
             track: .remote, layout: layout, manifest: manifest,
             format: format, segmentSeconds: 60
         )
-        writer.enqueueSynchronously(AudioBufferPacket(
-            buffer: AudioFixtures.makeTone(seconds: 4, sampleRate: 48_000, frequency: 220),
-            hostTime: 100.0
-        ))
+        writer.enqueueSynchronously(
+            AudioBufferPacket(
+                buffer: AudioFixtures.makeTone(seconds: 4, sampleRate: 48_000, frequency: 220),
+                hostTime: 100.0
+            ))
         writer.finish(reason: "test")
         manifest.close()
         let timeline = try ManifestReader.timeline(contentsOf: layout.manifest)

@@ -79,9 +79,11 @@ public enum MonoAudioDecoder {
         } catch {
             throw ProcessingError.audioUnreadable(path: url.lastPathComponent)
         }
-        guard let outputFormat = AVAudioFormat(
-            commonFormat: .pcmFormatFloat32, sampleRate: 16_000, channels: 1, interleaved: false
-        ), let converter = AVAudioConverter(from: file.processingFormat, to: outputFormat) else {
+        guard
+            let outputFormat = AVAudioFormat(
+                commonFormat: .pcmFormatFloat32, sampleRate: 16_000, channels: 1, interleaved: false
+            ), let converter = AVAudioConverter(from: file.processingFormat, to: outputFormat)
+        else {
             throw ProcessingError.audioUnreadable(path: url.lastPathComponent)
         }
         converter.sampleRateConverterQuality = AVAudioQuality.high.rawValue
@@ -96,14 +98,18 @@ public enum MonoAudioDecoder {
         var finished = false
 
         while !finished {
-            guard let outputBuffer = AVAudioPCMBuffer(
-                pcmFormat: outputFormat, frameCapacity: outputCapacity
-            ) else { throw ProcessingError.audioUnreadable(path: url.lastPathComponent) }
+            guard
+                let outputBuffer = AVAudioPCMBuffer(
+                    pcmFormat: outputFormat, frameCapacity: outputCapacity
+                )
+            else { throw ProcessingError.audioUnreadable(path: url.lastPathComponent) }
             var conversionError: NSError?
             let status = converter.convert(to: outputBuffer, error: &conversionError) { _, inputStatus in
-                guard let inputBuffer = AVAudioPCMBuffer(
-                    pcmFormat: file.processingFormat, frameCapacity: inputFrames
-                ) else {
+                guard
+                    let inputBuffer = AVAudioPCMBuffer(
+                        pcmFormat: file.processingFormat, frameCapacity: inputFrames
+                    )
+                else {
                     inputStatus.pointee = .endOfStream
                     return nil
                 }

@@ -71,7 +71,7 @@ public enum MicrophoneIgnoreList {
     public static func applicationIdentifier(for bundleIdentifier: String) -> String {
         let components = bundleIdentifier.split(separator: ".")
         guard let helper = components.firstIndex(where: { $0.lowercased() == "helper" }),
-              helper >= 2
+            helper >= 2
         else { return bundleIdentifier }
         return components[..<helper].joined(separator: ".")
     }
@@ -85,7 +85,8 @@ public enum MicrophoneIgnoreList {
         // Helper processes of an ignored application, Pipit's own included:
         // its capture must never look like a meeting to itself, and it is the
         // helper that would hold the microphone.
-        let excluded = systemServices
+        let excluded =
+            systemServices
             .union(notMeetings)
             .union(ownBundleIdentifiers)
             .union(additional)
@@ -189,9 +190,11 @@ public struct GenericCallDetector: Sendable {
 
         for state in states {
             guard state.holdsMicrophone else { continue }
-            guard !MicrophoneIgnoreList.isIgnored(
-                state.bundleIdentifier, additional: configuration.neverRecord
-            ) else { continue }
+            guard
+                !MicrophoneIgnoreList.isIgnored(
+                    state.bundleIdentifier, additional: configuration.neverRecord
+                )
+            else { continue }
             seen.insert(state.bundleIdentifier)
 
             var entry = tracked[state.bundleIdentifier] ?? Tracked(since: now, lastSeen: now)
@@ -200,7 +203,8 @@ public struct GenericCallDetector: Sendable {
             if let title = state.windowTitle { entry.windowTitle = title }
             if state.producesOutput { entry.sawOutput = true }
             let held = now - entry.since
-            let threshold = entry.sawOutput
+            let threshold =
+                entry.sawOutput
                 ? configuration.dwellSecondsWithOutput
                 : configuration.dwellSeconds
             // Both lists name applications, and the microphone is held by a
@@ -211,14 +215,16 @@ public struct GenericCallDetector: Sendable {
 
             if !entry.promoted, preapproved || held >= threshold {
                 entry.promoted = true
-                events.append(.callLikely(Candidate(
-                    bundleIdentifier: state.bundleIdentifier,
-                    processID: state.processID,
-                    heldForSeconds: held,
-                    hasTwoWayAudio: entry.sawOutput,
-                    windowTitle: state.windowTitle,
-                    isPreapproved: preapproved
-                )))
+                events.append(
+                    .callLikely(
+                        Candidate(
+                            bundleIdentifier: state.bundleIdentifier,
+                            processID: state.processID,
+                            heldForSeconds: held,
+                            hasTwoWayAudio: entry.sawOutput,
+                            windowTitle: state.windowTitle,
+                            isPreapproved: preapproved
+                        )))
             }
             tracked[state.bundleIdentifier] = entry
         }
