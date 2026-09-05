@@ -41,8 +41,11 @@ List or filter application tests with:
 
 ```sh
 ./scripts/test.sh --list
-./scripts/test.sh --filter CaptureRecovery
+./scripts/test.sh --filter MicrophoneRecoveryCoordinatorTests
 ```
+
+The filter matches the Swift type name of a suite or test, not the display
+name in its `@Suite` or `@Test` label.
 
 Run the browser sensor tests after changing `extension/`:
 

@@ -39,7 +39,8 @@ struct UITests {
             }
             // Settings, including the tabs that read live audio state.
             ViewFixtures.render(SettingsView(model: SettingsModel(runtime: runtime)))
-            // Reaching this line is the assertion: the panels built without trapping.
+            // Nothing is asserted here. Reaching this line means the panels
+            // built without trapping.
         }
         try? FileManager.default.removeItem(at: root)
     }
