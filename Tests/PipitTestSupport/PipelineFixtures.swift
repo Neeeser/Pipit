@@ -246,3 +246,28 @@ public enum PipelineFixtures {
         )
     }
 }
+
+/// Counts how many tasks hold a resource at once, so a test can say what the
+/// peak was rather than sampling it.
+public final class LockedCounter: @unchecked Sendable {
+    private let lock = NSLock()
+    private var current = 0
+    public private(set) var peak = 0
+    public private(set) var total = 0
+
+    public init() {}
+
+    public func enter() {
+        lock.lock()
+        current += 1
+        total += 1
+        peak = max(peak, current)
+        lock.unlock()
+    }
+
+    public func leave() {
+        lock.lock()
+        current -= 1
+        lock.unlock()
+    }
+}

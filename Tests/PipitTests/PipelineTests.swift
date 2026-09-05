@@ -1,0 +1,1249 @@
+import AVFoundation
+import Foundation
+import Synchronization
+import PipitAudio
+import PipitCore
+import PipitIntegrations
+import PipitServices
+import PipitTestSupport
+import Testing
+
+@Suite("ProcessingPipeline")
+struct PipelineTests {
+    /// A transcriber that runs one piece of work before it answers, so a test
+    /// can make something happen while a stage is in flight.
+    private final class InterferingTranscriber: TranscriptionBackend, @unchecked Sendable {
+        var identifier = "stub-interfering"
+        var isLocal = true
+        var limits = BackendAudioLimits.none
+        var timing = TranscriptTiming.text
+        let interference = Mutex<(@Sendable () async -> Void)?>(nil)
+
+        func transcribe(
+            audio: URL, progress: @escaping @Sendable (Double) -> Void
+        ) async throws -> TranscriptionOutput {
+            if let work = interference.withLock({ $0 }) { await work() }
+            progress(1)
+            return TranscriptionOutput(segments: [], text: "we ship friday", durationSeconds: 6)
+        }
+    }
+
+    @Test("a meeting trashed while it is transcribing does not come back")
+    func aMeetingTrashedWhileItIsTranscribingDoesNotComeBack() async throws {
+        // Every write goes through AtomicFile, which creates the
+        // directories it needs. A job that carried on after the folder
+        // left the archive put the meeting back as a row holding no
+        // audio and no transcript, and nothing said where it came from.
+        let root = try TestPaths.makeTemporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let meeting = try PipelineFixtures.makeRecordedMeeting(root: root, seconds: 6)
+        let folder = meeting.store.layout.root
+
+        var settings = AppSettings()
+        settings.processing.transcription = .local
+        settings.enrichment = EnrichmentSettings(
+            generateTitle: false, generateDescription: false, generateNotes: false,
+            generateSummary: false, suggestSpeakers: false
+        )
+        let resolved = settings
+        let transcriber = InterferingTranscriber()
+        let pipeline = PipelineFixtures.makePipeline(
+            repository: meeting.repository,
+            backend: FakeAIBackend(),
+            transcriber: transcriber,
+            diarizer: StubLocalDiarizer(intervals: [], chunkEmbeddings: []),
+            speakers: nil,
+            settings: resolved,
+            scratchRoot: root.appendingPathComponent("scratch")
+        )
+        let meetingID = meeting.metadata.id
+        let trashed = root.appendingPathComponent("Trash", isDirectory: true)
+        transcriber.interference.withLock {
+            $0 = { [pipeline] in
+                // What the window does: the folder moves, and the job
+                // is told once it has.
+                try? FileManager.default.moveItem(at: folder, to: trashed)
+                await pipeline.forget(meetingID: meetingID, movedAt: Date())
+            }
+        }
+
+        await pipeline.process(meetingID: meetingID)
+
+        #expect(
+            !FileManager.default.fileExists(atPath: folder.path),
+            "the folder the user trashed has not come back"
+        )
+        #expect(
+            FileManager.default.fileExists(atPath: trashed.path),
+            "and what was moved is untouched"
+        )
+        #expect(
+            meeting.repository.findMeeting(id: meetingID, includingMerged: true)?.metadata == nil,
+            "and no row comes back for it"
+        )
+    }
+
+    @Test("a meeting put back from the Trash while it processed is left alone")
+    func aMeetingPutBackFromTheTrashWhileItProcessedIsLeftAlone() async throws {
+        // The confirmation says the folder is recoverable. A job that
+        // removed the restored folder at its next stage boundary would
+        // take the meeting with it, permanently and without a word.
+        let root = try TestPaths.makeTemporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let meeting = try PipelineFixtures.makeRecordedMeeting(root: root, seconds: 6)
+        let folder = meeting.store.layout.root
+        // A meeting folder is made when the recording starts, so it is
+        // always older than the moment somebody trashes it, and Put
+        // Back restores that date with the folder. What tells the
+        // restored meeting apart from a folder a stage recreated.
+        try FileManager.default.setAttributes(
+            [.creationDate: Date().addingTimeInterval(-3_600)],
+            ofItemAtPath: folder.path
+        )
+
+        var settings = AppSettings()
+        settings.processing.transcription = .local
+        settings.enrichment = EnrichmentSettings(
+            generateTitle: false, generateDescription: false, generateNotes: false,
+            generateSummary: false, suggestSpeakers: false
+        )
+        let resolved = settings
+        let transcriber = InterferingTranscriber()
+        let pipeline = PipelineFixtures.makePipeline(
+            repository: meeting.repository,
+            backend: FakeAIBackend(),
+            transcriber: transcriber,
+            diarizer: StubLocalDiarizer(intervals: [], chunkEmbeddings: []),
+            speakers: nil,
+            settings: resolved,
+            scratchRoot: root.appendingPathComponent("scratch")
+        )
+        let meetingID = meeting.metadata.id
+        let trashed = root.appendingPathComponent("Trash", isDirectory: true)
+        transcriber.interference.withLock {
+            $0 = { [pipeline] in
+                try? FileManager.default.moveItem(at: folder, to: trashed)
+                await pipeline.forget(meetingID: meetingID, movedAt: Date())
+                // Put Back, from the Finder, before the stage that was
+                // running reaches its next boundary.
+                try? FileManager.default.moveItem(at: trashed, to: folder)
+            }
+        }
+
+        await pipeline.process(meetingID: meetingID)
+
+        #expect(
+            FileManager.default.fileExists(atPath: folder.path),
+            "the meeting the user put back is still there"
+        )
+        let metadata = try #require(
+            meeting.repository.findMeeting(id: meetingID)?.metadata
+        )
+        #expect(
+            metadata.processing.state == .complete,
+            "and the job it interrupted carried on to the end"
+        )
+    }
+
+    @Test("a meeting trashed while it compacts does not come back")
+    func aMeetingTrashedWhileItCompactsDoesNotComeBack() async throws {
+        // Compaction runs for minutes after a meeting is complete, and
+        // writes its archive files through AtomicFile like everything
+        // else. The launch sweep was left out of the marks entirely, so
+        // a meeting trashed while it transcoded came back holding audio
+        // and no metadata.
+        let root = try TestPaths.makeTemporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let meeting = try PipelineFixtures.makeRecordedMeeting(root: root, seconds: 6)
+        _ = try meeting.store.updateMetadata {
+            $0.processing = ProcessingStatus(state: .complete, updatedAt: Date())
+        }
+        let folder = meeting.store.layout.root
+        let trashed = root.appendingPathComponent("Trash", isDirectory: true)
+        let pipeline = PipelineFixtures.makePipeline(
+            repository: meeting.repository,
+            backend: FakeAIBackend(),
+            transcriber: StubTextTranscriber(text: "unused"),
+            diarizer: StubLocalDiarizer(intervals: [], chunkEmbeddings: []),
+            speakers: nil,
+            settings: AppSettings(),
+            scratchRoot: root.appendingPathComponent("scratch")
+        )
+        let meetingID = meeting.metadata.id
+
+        let compaction = Task { await pipeline.compactAudio(meetingID: meetingID) }
+        // Once the job holds the folder, which is what the window asks
+        // before it moves anything.
+        var held = false
+        for _ in 0..<400 where !held {
+            held = await pipeline.forget(meetingID: meetingID, movedAt: Date())
+            if !held { try? await Task.sleep(for: .milliseconds(5)) }
+        }
+        #expect(held, "the compaction job took the folder")
+        try? FileManager.default.moveItem(at: folder, to: trashed)
+        await compaction.value
+
+        #expect(
+            !FileManager.default.fileExists(atPath: folder.path),
+            "the folder the user trashed has not come back"
+        )
+    }
+
+    @Test("a chunk that came back with words is accepted without reading its audio")
+    func aChunkThatCameBackWithWordsIsAcceptedWithoutReadingItsAudio() async throws {
+        // The level only separates silence from a lost transcript, so
+        // decoding on the success path costs a full converter pass per
+        // chunk and turns audio that has become unreadable into a
+        // permanent failure for a transcript already in hand.
+        final class Counter: @unchecked Sendable { var reads = 0 }
+        let counter = Counter()
+        let measure: (URL) throws -> AudioLevel = { _ in
+            counter.reads += 1
+            return AudioLevel(peakDBFS: 0, rmsDBFS: 0)
+        }
+        let withSegments = TranscriptionOutput(
+            segments: [RawTranscriptSegment(start: 0, end: 1, text: "Hello.", speaker: nil)],
+            text: ""
+        )
+        try ProcessingPipeline.requireTranscribedOrSilent(
+            response: withSegments, audio: URL(fileURLWithPath: "/nonexistent.caf"),
+            chunkID: "mic_0", purpose: .words, level: measure
+        )
+        let textOnly = TranscriptionOutput(segments: [], text: "Hello.")
+        try ProcessingPipeline.requireTranscribedOrSilent(
+            response: textOnly, audio: URL(fileURLWithPath: "/nonexistent.caf"),
+            chunkID: "mic_1", purpose: .words, level: measure
+        )
+        #expect(counter.reads == 0, "a non-empty response never reads the audio")
+
+        var failed = false
+        do {
+            try ProcessingPipeline.requireTranscribedOrSilent(
+                response: TranscriptionOutput(segments: [], text: ""),
+                audio: URL(fileURLWithPath: "/nonexistent.caf"),
+                chunkID: "mic_2", purpose: .words, level: measure
+            )
+        } catch {
+            failed = true
+        }
+        #expect(counter.reads == 1, "an empty response reads the audio")
+        #expect(failed, "an empty response for audible audio fails")
+    }
+
+    @Test("an empty response whose audio cannot be read fails retryably")
+    func anEmptyResponseWhoseAudioCannotBeReadFailsRetryably() async throws {
+        // Nothing proves the audio was silent, so the chunk cannot be
+        // accepted, and a non-retryable failure would strand the
+        // meeting on a scratch file that a retry may well read.
+        struct Unreadable: Error {}
+        var caught: ProcessingError?
+        do {
+            try ProcessingPipeline.requireTranscribedOrSilent(
+                response: TranscriptionOutput(segments: [], text: ""),
+                audio: URL(fileURLWithPath: "/nonexistent.caf"),
+                chunkID: "mic_0", purpose: .words, level: { _ in throw Unreadable() }
+            )
+        } catch let error as ProcessingError {
+            caught = error
+        }
+        #expect(caught == .emptyTranscript(chunk: "mic_0"), "fails as an empty transcript")
+        #expect(caught?.isRetryable == true, "the stage retries")
+    }
+
+    @Test("a chunk that loops one phrase fails retryably")
+    func aChunkThatLoopsOnePhraseFailsRetryably() async throws {
+        // A speech model given a window with little speech in it can
+        // repeat one phrase for the length of the window. Five of
+        // sixteen ES2003a chunks came back with the same fabricated
+        // paragraph: 438 invented words against a 386-word reference,
+        // 266 insertions, 153 repeated 8-grams and 193% DER, with the
+        // meeting reporting success. How many chunks loop varies from
+        // run to run; that any of them do is what this measures.
+        // The paragraph, verbatim.
+        let loop = "The world is a very important part of the world. And I think "
+            + "that's what we need to do in terms of the world, and it's not just "
+            + "about the world, but also about the world, and we need to be able to "
+            + "make sure that there are people who are not going to be able to do "
+            + "that. So, I think that's what we need to do in terms of the world."
+        #expect(
+            DegenerateTranscriptPolicy.repeatedShare(of: loop) > 0.25,
+            "the loop scores \(DegenerateTranscriptPolicy.repeatedShare(of: loop))"
+        )
+        var caught: ProcessingError?
+        do {
+            _ = try ProcessingPipeline.dropIfLooping(
+                response: TranscriptionOutput(segments: [], text: loop),
+                chunkID: "remote_chunk_007", purpose: .words, isLastAttempt: false,
+                scope: .chunk
+            )
+        } catch let error as ProcessingError {
+            caught = error
+        }
+        #expect(
+            caught == .degenerateTranscript(chunk: "remote_chunk_007"),
+            "a looping chunk is a failed chunk"
+        )
+        #expect(caught?.isRetryable == true, "the stage retries")
+
+        // A decoder that loops deterministically loops again, so the
+        // last attempt records the window as nothing rather than
+        // failing a meeting whose other fifteen chunks are speech.
+        let dropped = try ProcessingPipeline.dropIfLooping(
+            response: TranscriptionOutput(segments: [], text: loop),
+            chunkID: "remote_chunk_007", purpose: .words, isLastAttempt: true, scope: .chunk
+        )
+        #expect(dropped, "the last attempt drops the chunk instead of failing")
+
+        // A whole track is the meeting, so the same drop would leave an
+        // empty transcript reported as success. It fails on every
+        // attempt instead.
+        var wholeTrack: ProcessingError?
+        do {
+            _ = try ProcessingPipeline.dropIfLooping(
+                response: TranscriptionOutput(segments: [], text: loop),
+                chunkID: "remote_full", purpose: .words, isLastAttempt: true,
+                scope: .wholeTrack
+            )
+        } catch let error as ProcessingError {
+            wholeTrack = error
+        }
+        #expect(
+            wholeTrack == .degenerateTranscript(chunk: "remote_full"),
+            "a whole track is never recorded as nothing"
+        )
+
+        // The eleven ES2003a chunks that hold speech score between
+        // 0.00 and 0.03, so a chunk that says one thing twice is
+        // still a chunk of speech and is kept.
+        let spoken = ((0..<100).map { "word\($0)" }
+            + (0..<8).map { "word\($0)" }).joined(separator: " ")
+        #expect(
+            DegenerateTranscriptPolicy.repeatedShare(of: spoken) < 0.2,
+            "a repeated sentence scores \(DegenerateTranscriptPolicy.repeatedShare(of: spoken))"
+        )
+        let keptSpeech = try ProcessingPipeline.dropIfLooping(
+            response: TranscriptionOutput(segments: [], text: spoken),
+            chunkID: "remote_chunk_008", purpose: .words, isLastAttempt: true, scope: .chunk
+        )
+        #expect(!keptSpeech, "speech is kept")
+        // And a chunk asked for speakers rather than words is not
+        // measured on its text at all.
+        let keptLabels = try ProcessingPipeline.dropIfLooping(
+            response: TranscriptionOutput(segments: [], text: loop),
+            chunkID: "remote_chunk_009", purpose: .speakers, isLastAttempt: false, scope: .chunk
+        )
+        #expect(!keptLabels, "a speakers chunk is not measured on its text")
+    }
+
+    @Test("speech with few words in it is not a loop")
+    func speechWithFewWordsInItIsNotALoop() async throws {
+        // The measure counts repeated phrase positions, and a speaker
+        // with a handful of words saturates it: a window of nothing but
+        // backchannel and a window of somebody counting both score 1.00
+        // ungated, five times the limit, with the forty-word floor the
+        // only thing in the way. Thirty-five seconds of listening noise
+        // on a remote track clears forty words easily. So a chunk is
+        // measured only where its vocabulary is wide enough that the
+        // repetition cannot be explained by how few words it holds.
+        let fabricated = "The world is a very important part of the world. And I think "
+            + "that's what we need to do in terms of the world, and it's not just "
+            + "about the world, but also about the world, and we need to be able to "
+            + "make sure that there are people who are not going to be able to do "
+            + "that. So, I think that's what we need to do in terms of the world."
+        let dialogue = "Okay so the remote control needs to be cheap, right, but we "
+            + "also said it should look modern. I think if we go with the rubber "
+            + "buttons we can keep the cost down. Mm-hmm. And what about the "
+            + "display, do we need one at all? Well, the marketing report said "
+            + "younger users expect some kind of feedback, so maybe a small LED "
+            + "instead. That could work. Let's put that down as an option and come "
+            + "back to it after lunch when we have the costings."
+        let backchannel = String(
+            repeating: "yeah yeah right yeah okay yeah right okay ", count: 6
+        )
+        let counting = String(
+            repeating: "one two three four five six seven eight nine ten ", count: 4
+        )
+
+        // 76 words, 36 of them distinct: a decoder inventing sentences.
+        #expect(
+            DegenerateTranscriptPolicy.repeatedShare(of: fabricated) > 0.25,
+            "the fabricated paragraph scores \(DegenerateTranscriptPolicy.repeatedShare(of: fabricated))"
+        )
+        // 87 words, 71 distinct: ordinary conversation, like the eleven
+        // ES2003a chunks that hold speech.
+        #expect(
+            DegenerateTranscriptPolicy.repeatedShare(of: dialogue) == 0,
+            "ordinary dialogue is not a loop"
+        )
+        // 48 words, 3 distinct.
+        #expect(
+            DegenerateTranscriptPolicy.repeatedShare(of: backchannel) == 0,
+            "a window of backchannel is somebody listening, not a decoder looping"
+        )
+        // 40 words, 10 distinct.
+        #expect(
+            DegenerateTranscriptPolicy.repeatedShare(of: counting) == 0,
+            "counting to ten four times is speech"
+        )
+        #expect(DegenerateTranscriptPolicy.decide(text: backchannel) == .accept)
+        #expect(DegenerateTranscriptPolicy.decide(text: counting) == .accept)
+        #expect(DegenerateTranscriptPolicy.decide(text: dialogue) == .accept)
+        #expect(DegenerateTranscriptPolicy.decide(text: fabricated) == .fail)
+    }
+
+    @Test("each track is placed at its own start on the meeting timeline")
+    func eachTrackIsPlacedAtItsOwnStartOnTheMeetingTimeline() async throws {
+        // The remote writer opens on the first packet from the meeting
+        // application, which here is 12 s after the microphone started. A
+        // chunk offset is a position inside one track, so without the
+        // track's lead-in every remote utterance lands 12 s early.
+        let root = try TestPaths.makeTemporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let meeting = try PipelineFixtures.makeRecordedMeeting(root: root, seconds: 6, remoteStartOffset: 12)
+
+        let backend = FakeAIBackend()
+        backend.transcriptionSegments = [
+            RawTranscriptSegment(start: 0, end: 2, text: "Mine.", speaker: nil),
+        ]
+        backend.diarizationSegments = [
+            RawTranscriptSegment(start: 0, end: 2, text: "Theirs.", speaker: "A"),
+        ]
+        let pipeline = PipelineFixtures.makePipeline(repository: meeting.repository, backend: backend)
+        await pipeline.process(meetingID: meeting.metadata.id)
+
+        let transcript = try meeting.store.readCanonicalTranscript()
+        let mine = transcript?.utterances.first { $0.text == "Mine." }
+        let theirs = transcript?.utterances.first { $0.text == "Theirs." }
+        #expect(mine?.start == 0, "the earlier track starts the timeline")
+        #expect(
+            theirs?.start == 12,
+            "the later track is offset by when it actually started"
+        )
+    }
+
+    @Test("a recorded meeting runs through to complete")
+    func aRecordedMeetingRunsThroughToComplete() async throws {
+        let root = try TestPaths.makeTemporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let meeting = try PipelineFixtures.makeRecordedMeeting(root: root)
+
+        let backend = FakeAIBackend()
+        backend.transcriptionSegments = [
+            RawTranscriptSegment(start: 0, end: 2, text: "I think we change retrieval.", speaker: nil),
+        ]
+        backend.diarizationSegments = [
+            RawTranscriptSegment(start: 0, end: 2, text: "Chris here, agreed.", speaker: "A"),
+        ]
+        backend.suggestions = [
+            SpeakerSuggestion(
+                label: "remote_chunk_001_speaker_00", name: "Chris",
+                confidence: 0.98, quote: "Chris here, agreed.", atSeconds: 0
+            ),
+        ]
+
+        let pipeline = PipelineFixtures.makePipeline(repository: meeting.repository, backend: backend)
+        await pipeline.process(meetingID: meeting.metadata.id)
+
+        let final = try meeting.store.readMetadata()
+        #expect(final.processing.state == .complete)
+        #expect(final.processing.lastFailure == nil)
+
+        let transcript = try #require(try meeting.store.readCanonicalTranscript())
+        #expect(transcript.utterances.count == 2)
+        let speakers = try meeting.store.readSpeakerMap()
+        #expect(speakers.resolvedName(for: SpeakerLabel.localUser) == "Me")
+        // The model's answer is a suggestion, so the speaker map is
+        // left exactly as speaker resolution left it.
+        #expect(speakers.entries["remote_chunk_001_speaker_00"] == nil)
+        let suggestions = meeting.store.readSpeakerSuggestions()
+            .visible(forUnnamed: ["remote_chunk_001_speaker_00"])
+        #expect(suggestions.count == 1)
+        #expect(suggestions.first?.name == "Chris")
+        #expect(suggestions.first?.quote == "Chris here, agreed.")
+
+        let markdown = try String(
+            contentsOf: meeting.store.layout.transcriptMarkdown, encoding: .utf8
+        )
+        #expect(
+            FileManager.default.fileExists(atPath: meeting.store.layout.summary.path),
+            "summary.md should exist"
+        )
+        // The AI title is a candidate, and the provider title still wins.
+        #expect(final.titles.ai == "Retrieval logic")
+        #expect(final.displayTitle == "Weekly sync")
+
+        // The microphone track was transcribed, the remote track diarized.
+        #expect(backend.calls.filter { $0.kind == "transcribe" }.count == 1)
+        #expect(backend.calls.filter { $0.kind == "diarize" }.count == 1)
+    }
+
+    @Test("a rename during processing is not overwritten by a stage")
+    func aRenameDuringProcessingIsNotOverwrittenByAStage() async throws {
+        // The pipeline reads metadata.json, changes its own fields and
+        // writes the whole document back, while the user renames the
+        // meeting from the meetings window. Without serialisation the slower
+        // writer restores the copy it read and the rename disappears.
+        let root = try TestPaths.makeTemporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let meeting = try PipelineFixtures.makeRecordedMeeting(root: root)
+        let store = meeting.store
+
+        let renames = Task.detached {
+            for index in 0..<200 {
+                _ = try? store.updateMetadata { $0.titles.human = "Renamed \(index)" }
+            }
+        }
+        let stages = Task.detached {
+            for _ in 0..<200 {
+                _ = try? store.updateMetadata { metadata in
+                    metadata.processing.advance(to: .transcribing, at: Date())
+                    metadata.durationSeconds += 1
+                }
+            }
+        }
+        await renames.value
+        await stages.value
+
+        let final = try store.readMetadata()
+        #expect(
+            final.titles.human == "Renamed 199",
+            "the last rename survived every stage write"
+        )
+        #expect(final.processing.state == .transcribing)
+        #expect(final.durationSeconds > 0)
+    }
+
+    @Test("a rate limit is retried on its own and the meeting completes")
+    func aRateLimitIsRetriedOnItsOwnAndTheMeetingCompletes() async throws {
+        let root = try TestPaths.makeTemporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let meeting = try PipelineFixtures.makeRecordedMeeting(root: root)
+
+        let backend = FakeAIBackend()
+        backend.failNextTranscription = .rateLimited(retryAfter: 30)
+        backend.transcriptionSegments = [
+            RawTranscriptSegment(start: 0, end: 2, text: "Back again.", speaker: nil),
+        ]
+        backend.diarizationSegments = [
+            RawTranscriptSegment(start: 0, end: 2, text: "Welcome back.", speaker: "A"),
+        ]
+        let pipeline = PipelineFixtures.makePipeline(repository: meeting.repository, backend: backend)
+        await pipeline.process(meetingID: meeting.metadata.id)
+
+        let recovered = try meeting.store.readMetadata()
+        #expect(recovered.processing.state == .complete, "the second attempt succeeded")
+        #expect(recovered.processing.attemptCount(for: .transcribing) == 2)
+    }
+
+    @Test("a failure that keeps happening stops asking and keeps the audio")
+    func aFailureThatKeepsHappeningStopsAskingAndKeepsTheAudio() async throws {
+        let root = try TestPaths.makeTemporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let meeting = try PipelineFixtures.makeRecordedMeeting(root: root)
+        let segmentsBefore = try FileManager.default.contentsOfDirectory(
+            atPath: meeting.store.layout.segments.path
+        ).sorted()
+
+        let backend = FakeAIBackend()
+        backend.alwaysFailTranscription = .serverError(status: 503)
+        let pipeline = PipelineFixtures.makePipeline(repository: meeting.repository, backend: backend)
+        await pipeline.process(meetingID: meeting.metadata.id)
+
+        let failed = try meeting.store.readMetadata()
+        #expect(failed.processing.state == .failed)
+        #expect(failed.processing.resumeStage == .transcribing)
+        #expect(failed.processing.lastFailure?.isRetryable == true)
+        #expect(
+            failed.processing.attemptCount(for: .transcribing) == 3,
+            "three attempts, then the meeting waits for the user"
+        )
+        let segmentsAfter = try FileManager.default.contentsOfDirectory(
+            atPath: meeting.store.layout.segments.path
+        ).sorted()
+        #expect(segmentsAfter == segmentsBefore, "source audio must be untouched")
+
+        // The Retry action still works once the outage is over.
+        backend.alwaysFailTranscription = nil
+        backend.transcriptionSegments = [
+            RawTranscriptSegment(start: 0, end: 2, text: "Back again.", speaker: nil),
+        ]
+        backend.diarizationSegments = [
+            RawTranscriptSegment(start: 0, end: 2, text: "Welcome back.", speaker: "A"),
+        ]
+        await pipeline.retry(meetingID: meeting.metadata.id)
+        let afterRetry = try meeting.store.readMetadata()
+        #expect(afterRetry.processing.state == .complete)
+    }
+
+    @Test("an authentication failure is not retried in a loop")
+    func anAuthenticationFailureIsNotRetriedInALoop() async throws {
+        let root = try TestPaths.makeTemporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let meeting = try PipelineFixtures.makeRecordedMeeting(root: root)
+
+        let backend = FakeAIBackend()
+        backend.failNextTranscription = .authenticationFailed
+        let pipeline = PipelineFixtures.makePipeline(repository: meeting.repository, backend: backend)
+        await pipeline.process(meetingID: meeting.metadata.id)
+
+        let failed = try meeting.store.readMetadata()
+        #expect(failed.processing.state == .failed)
+        #expect(failed.processing.lastFailure?.isRetryable == false)
+        #expect(
+            failed.processing.lastFailure?.message.contains("recording is safe") == true,
+            "the user is told the audio survived"
+        )
+    }
+
+    @Test("work already done is not repeated on resume")
+    func workAlreadyDoneIsNotRepeatedOnResume() async throws {
+        let root = try TestPaths.makeTemporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let meeting = try PipelineFixtures.makeRecordedMeeting(root: root)
+
+        let backend = FakeAIBackend()
+        backend.transcriptionSegments = [
+            RawTranscriptSegment(start: 0, end: 2, text: "First half.", speaker: nil),
+        ]
+        backend.failNextDiarization = .serverError(status: 503)
+        backend.diarizationSegments = [
+            RawTranscriptSegment(start: 0, end: 2, text: "Second half.", speaker: "A"),
+        ]
+        let pipeline = PipelineFixtures.makePipeline(repository: meeting.repository, backend: backend)
+        await pipeline.process(meetingID: meeting.metadata.id)
+        let processed = try meeting.store.readMetadata()
+        #expect(processed.processing.state == .complete)
+        let transcribeCalls = backend.calls.filter { $0.kind == "transcribe" }.count
+        #expect(
+            transcribeCalls == 1,
+            "diarization failed and was retried; transcription was already done"
+        )
+        await pipeline.retry(meetingID: meeting.metadata.id)
+        #expect(
+            backend.calls.filter { $0.kind == "transcribe" }.count == transcribeCalls,
+            "a completed chunk must not be sent again"
+        )
+    }
+
+    @Test("an in-person recording diarizes its only track")
+    func anInPersonRecordingDiarizesItsOnlyTrack() async throws {
+        let root = try TestPaths.makeTemporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let meeting = try PipelineFixtures.makeRecordedMeeting(root: root, source: .inPerson)
+
+        let backend = FakeAIBackend()
+        backend.diarizationSegments = [
+            RawTranscriptSegment(start: 0, end: 2, text: "Morning.", speaker: "A"),
+            RawTranscriptSegment(start: 3, end: 5, text: "Morning to you.", speaker: "B"),
+        ]
+        let pipeline = PipelineFixtures.makePipeline(repository: meeting.repository, backend: backend)
+        await pipeline.process(meetingID: meeting.metadata.id)
+
+        let processed = try meeting.store.readMetadata()
+        #expect(processed.processing.state == .complete)
+        #expect(backend.calls.filter { $0.kind == "transcribe" }.count == 0)
+        #expect(backend.calls.filter { $0.kind == "diarize" }.count == 1)
+
+        let transcript = try #require(try meeting.store.readCanonicalTranscript())
+        #expect(transcript.utterances[0].speakerKey == "mic_chunk_001_speaker_00")
+        #expect(transcript.utterances[0].speakerKey != SpeakerLabel.localUser)
+    }
+
+    @Test("enrichment can be switched off entirely")
+    func enrichmentCanBeSwitchedOffEntirely() async throws {
+        let root = try TestPaths.makeTemporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let meeting = try PipelineFixtures.makeRecordedMeeting(root: root)
+
+        var settings = AppSettings()
+        settings.enrichment = EnrichmentSettings(
+            generateTitle: false, generateDescription: false, generateNotes: false,
+            generateSummary: false, suggestSpeakers: false
+        )
+        let backend = FakeAIBackend()
+        backend.transcriptionSegments = [
+            RawTranscriptSegment(start: 0, end: 2, text: "Plain transcript only.", speaker: nil),
+        ]
+        backend.diarizationSegments = [
+            RawTranscriptSegment(start: 0, end: 2, text: "Understood.", speaker: "A"),
+        ]
+        let pipeline = PipelineFixtures.makePipeline(
+            repository: meeting.repository, backend: backend, settings: settings
+        )
+        await pipeline.process(meetingID: meeting.metadata.id)
+
+        let processed = try meeting.store.readMetadata()
+        #expect(processed.processing.state == .complete)
+        #expect(backend.calls.filter { $0.kind == "enrich" }.count == 0)
+        #expect(backend.calls.filter { $0.kind == "resolve" }.count == 0)
+        let transcript = try #require(try meeting.store.readCanonicalTranscript())
+        #expect(transcript.utterances.count == 2, "the transcript is still produced")
+    }
+
+    @Test("a speaker rename re-renders without touching the API")
+    func aSpeakerRenameReRendersWithoutTouchingTheAPI() async throws {
+        let root = try TestPaths.makeTemporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let meeting = try PipelineFixtures.makeRecordedMeeting(root: root)
+
+        let backend = FakeAIBackend()
+        backend.transcriptionSegments = [
+            RawTranscriptSegment(start: 0, end: 2, text: "Mine.", speaker: nil),
+        ]
+        backend.diarizationSegments = [
+            RawTranscriptSegment(start: 0, end: 2, text: "Theirs.", speaker: "A"),
+        ]
+        let pipeline = PipelineFixtures.makePipeline(repository: meeting.repository, backend: backend)
+        await pipeline.process(meetingID: meeting.metadata.id)
+        let callsAfterProcessing = backend.calls.count
+
+        try await pipeline.applySpeakerName(
+            "Tim", to: "remote_chunk_001_speaker_00", meetingID: meeting.metadata.id
+        )
+        let markdown = try String(
+            contentsOf: meeting.store.layout.transcriptMarkdown, encoding: .utf8
+        )
+        #expect(markdown.contains("Tim"))
+        #expect(backend.calls.count == callsAfterProcessing, "renaming must cost no API calls")
+
+        let raw = try meeting.store.readRawTranscript()
+        #expect(
+            raw.chunks.first { $0.track == .remote }?.segments.first?.speaker == "A",
+            "raw diarization stays as the API returned it"
+        )
+    }
+
+    @Test("chunks of one track upload concurrently")
+    func chunksOfOneTrackUploadConcurrently() async throws {
+        // A 25-minute import took over ten minutes because its chunks
+        // were sent one at a time. Each request here blocks until it has
+        // seen a second request in flight, so a sequential pipeline
+        // never reaches 2 and the assertion fails.
+        let root = try TestPaths.makeTemporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let meeting = try PipelineFixtures.makeRecordedMeeting(root: root, source: .inPerson, seconds: 12)
+
+        let backend = ConcurrencyProbeBackend()
+        let pipeline = ProcessingPipeline(
+            repository: meeting.repository,
+            backend: backend,
+            clock: ManualClock(),
+            settingsProvider: { AppSettings() },
+            wait: { _ in },
+            chunking: ChunkPlanner.Configuration(
+                targetChunkSeconds: 3, maxChunkSeconds: 4, minChunkSeconds: 1,
+                searchWindowSeconds: 0.5, overlapSeconds: 0.5
+            )
+        )
+        await pipeline.process(meetingID: meeting.metadata.id)
+
+        #expect(backend.requestCount >= 3, "the recording split into several chunks")
+        #expect(
+            backend.peakInFlight >= 2,
+            "chunk requests overlap instead of running one at a time"
+        )
+        let processed = try meeting.store.readMetadata()
+        #expect(processed.processing.state == .complete)
+    }
+
+    @Test("an empty transcript for audible audio fails the meeting")
+    func anEmptyTranscriptForAudibleAudioFailsTheMeeting() async throws {
+        // A 168-second chunk of ordinary speech came back as
+        // {"text":""} with HTTP 200, was billed, and was recorded as a
+        // finished chunk: the meeting reported complete with 47% of its
+        // words missing. An empty answer for audio that carries signal
+        // is a failure, not a result.
+        let root = try TestPaths.makeTemporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let meeting = try PipelineFixtures.makeRecordedMeeting(root: root)
+
+        let backend = FakeAIBackend()
+        backend.transcriptionSegments = []
+        backend.diarizationSegments = [
+            RawTranscriptSegment(start: 0, end: 2, text: "Theirs.", speaker: "A"),
+        ]
+        let pipeline = PipelineFixtures.makePipeline(repository: meeting.repository, backend: backend)
+        await pipeline.process(meetingID: meeting.metadata.id)
+
+        let status = try meeting.store.readMetadata().processing
+        #expect(status.state == .failed, "an empty transcript must not report success")
+        let failure = try #require(status.lastFailure)
+        #expect(failure.isRetryable, "the meeting can be retried")
+        let raw = try meeting.store.readRawTranscript()
+        #expect(
+            raw.chunks(track: .mic, purpose: .words).count == 0,
+            "no empty chunk is filed as done"
+        )
+    }
+
+    @Test("an empty transcript for silent audio is accepted")
+    func anEmptyTranscriptForSilentAudioIsAccepted() async throws {
+        // A muted microphone transcribes to nothing legitimately, and
+        // must not leave a meeting failing forever.
+        let root = try TestPaths.makeTemporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let meeting = try PipelineFixtures.makeRecordedMeeting(root: root, amplitude: 0)
+
+        let backend = FakeAIBackend()
+        backend.transcriptionSegments = []
+        backend.diarizationSegments = [
+            RawTranscriptSegment(start: 0, end: 2, text: "Theirs.", speaker: "A"),
+        ]
+        let pipeline = PipelineFixtures.makePipeline(repository: meeting.repository, backend: backend)
+        await pipeline.process(meetingID: meeting.metadata.id)
+
+        let processed = try meeting.store.readMetadata()
+        #expect(processed.processing.state == .complete)
+    }
+
+    @Test("reasoning effort is requested only from models that accept it")
+    func reasoningEffortIsRequestedOnlyFromModelsThatAcceptIt() async throws {
+        #expect(AIModelSettings.acceptsReasoningEffort("gpt-5.6-luna"))
+        #expect(AIModelSettings.acceptsReasoningEffort("gpt-5.1-mini"))
+        #expect(AIModelSettings.acceptsReasoningEffort("o4-mini"))
+        // GPT-4-generation models reject the field with a 400.
+        #expect(!AIModelSettings.acceptsReasoningEffort("gpt-4.1"))
+        #expect(!AIModelSettings.acceptsReasoningEffort("gpt-4o-transcribe-diarize"))
+        #expect(!AIModelSettings.acceptsReasoningEffort("whisper-1"))
+    }
+
+    @Test("splitting a turn names the words after the boundary only")
+    func splittingATurnNamesTheWordsAfterTheBoundaryOnly() async throws {
+        let root = try TestPaths.makeTemporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let meeting = try Self.makeTranscribedMeeting(root: root)
+        let pipeline = PipelineFixtures.makePipeline(
+            repository: meeting.repository, backend: FakeAIBackend()
+        )
+
+        // "so what do you think" | "i think we ship on friday": the
+        // question and its answer, run together by the diarizer. A
+        // split runs to the end of the turn, which is already a
+        // boundary, so it records one cut and not two.
+        _ = try await pipeline.applySpeakerRange(
+            "Dana", meetingID: meeting.id, track: .remote,
+            parts: try Self.windows(of: meeting.store, from: 5, to: 11)
+        )
+
+        let map = try meeting.store.readSpeakerMap()
+        #expect(map.lineCuts.count == 1, "one boundary, recorded once")
+        #expect(
+            abs((map.lineCuts.first?.atSeconds ?? 0) - 5) <= 0.001,
+            "expected \(5) ± \(0.001), got \(map.lineCuts.first?.atSeconds ?? 0)"
+        )
+
+        let lines = try #require(
+            try meeting.store.readCanonicalTranscript()
+        ).utterances
+        #expect(lines.count == 2, "the line reads as two")
+        #expect(lines[0].text == "so what do you think")
+        #expect(lines[1].text == "i think we ship on friday")
+        #expect(map.resolvedName(for: lines[1]) == "Dana")
+        #expect(
+            map.resolvedName(for: lines[0]) == "Priya",
+            "the words before the boundary stay with the cluster"
+        )
+        let markdown = try String(
+            contentsOf: meeting.store.layout.transcriptMarkdown, encoding: .utf8
+        )
+        #expect(markdown.contains("Dana"), "and the markdown says so too")
+        #expect(markdown.contains("Priya"), "on the half that kept its name")
+    }
+
+    @Test("pulling a phrase out leaves the words either side alone")
+    func pullingAPhraseOutLeavesTheWordsEitherSideAlone() async throws {
+        // What an interjection needs: the diarizer missed someone
+        // chiming in, and correcting the whole turn would move the
+        // speaker's own words with it.
+        let root = try TestPaths.makeTemporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let meeting = try Self.makeTranscribedMeeting(root: root)
+        let pipeline = PipelineFixtures.makePipeline(
+            repository: meeting.repository, backend: FakeAIBackend()
+        )
+
+        _ = try await pipeline.applySpeakerRange(
+            "Dana", meetingID: meeting.id, track: .remote,
+            parts: try Self.windows(of: meeting.store, from: 5, to: 7)
+        )
+
+        let map = try meeting.store.readSpeakerMap()
+        let lines = try #require(
+            try meeting.store.readCanonicalTranscript()
+        ).utterances
+        #expect(lines.count == 3, "two boundaries, three pieces")
+        #expect(lines.map { map.resolvedName(for: $0) } == ["Priya", "Dana", "Priya"])
+        #expect(lines[1].text == "i think", "only the phrase moved")
+    }
+
+    @Test("a name set before the split stays on the piece nobody touched")
+    func aNameSetBeforeTheSplitStaysOnThePieceNobodyTouched() async throws {
+        // Both pieces sit inside the correction's span, so a correction
+        // on one of them would take the wide override off the other and
+        // the first half would silently revert to the cluster.
+        let root = try TestPaths.makeTemporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let meeting = try Self.makeTranscribedMeeting(root: root)
+        let pipeline = PipelineFixtures.makePipeline(
+            repository: meeting.repository, backend: FakeAIBackend()
+        )
+
+        let first = try #require(
+            try meeting.store.readCanonicalTranscript()
+        ).utterances[0]
+        _ = try await pipeline.applyUtteranceSpeaker(
+            "Sam", utteranceIDs: [first.id], meetingID: meeting.id
+        )
+        _ = try await pipeline.applySpeakerRange(
+            "Dana", meetingID: meeting.id, track: .remote,
+            parts: try Self.windows(of: meeting.store, from: 5, to: 11)
+        )
+
+        let map = try meeting.store.readSpeakerMap()
+        let lines = try #require(
+            try meeting.store.readCanonicalTranscript()
+        ).utterances
+        #expect(lines.map { map.resolvedName(for: $0) } == ["Sam", "Dana"])
+    }
+
+    @Test("splitting a line keeps a narrow correction narrow")
+    func splittingALineKeepsANarrowCorrectionNarrow() async throws {
+        // A name set on a short interjection displays across the turn
+        // it was merged into and confirms none of it. Stretching that
+        // correction to the piece it lands in would confirm the whole
+        // piece, and the words before the interjection are somebody
+        // else's voice going into that person's profile.
+        let root = try TestPaths.makeTemporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let meeting = try Self.makeTranscribedMeeting(root: root)
+        let pipeline = PipelineFixtures.makePipeline(
+            repository: meeting.repository, backend: FakeAIBackend()
+        )
+
+        // Confirmed on "what do" alone, two seconds of an 11 s line.
+        var speakers = try meeting.store.readSpeakerMap()
+        speakers.utteranceOverrides.append(UtteranceOverride(
+            track: .remote, anchorSeconds: 2, startSeconds: 1, endSeconds: 3,
+            assignment: SpeakerAssignment(displayName: "Sam", origin: .human),
+            createdAt: Date(), chunkID: "c1"
+        ))
+        try meeting.store.writeSpeakerMap(speakers)
+
+        _ = try await pipeline.applySpeakerRange(
+            "Dana", meetingID: meeting.id, track: .remote,
+            parts: try Self.windows(of: meeting.store, from: 5, to: 11)
+        )
+
+        let map = try meeting.store.readSpeakerMap()
+        let sam = try #require(
+            map.utteranceOverrides.first { $0.assignment.displayName == "Sam" }
+        )
+        #expect(
+            abs((sam.startSeconds ?? 0) - 1) <= 0.001,
+            "expected \(1) ± \(0.001), got \(sam.startSeconds ?? 0) — the correction still starts where the person put it"
+        )
+        #expect(
+            abs((sam.endSeconds ?? 0) - 3) <= 0.001,
+            "expected \(3) ± \(0.001), got \(sam.endSeconds ?? 0) — and still ends there, rather than growing to the piece"
+        )
+        let lines = try #require(
+            try meeting.store.readCanonicalTranscript()
+        ).utterances
+        #expect(lines.count == 2)
+        #expect(map.resolvedName(for: lines[0]) == "Sam", "it still names its line")
+        #expect(
+            !map.confirms(lines[0]),
+            "and still confirms none of it, so the other four seconds of that piece cannot reach Sam's voice profile"
+        )
+    }
+
+    @Test("a split reaches the line the reader clicked, not an overlapping twin")
+    func aSplitReachesTheLineTheReaderClickedNotAnOverlappingTwin() async throws {
+        // Chunks overlap by eight seconds and a near-duplicate is only
+        // dropped above a similarity bar, so two lines on one track
+        // routinely hold the same second. Placed by time alone the
+        // boundary went into whichever sorted first, and the other
+        // speaker's words were handed to the person being named.
+        let root = try TestPaths.makeTemporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let meeting = try Self.makeTranscribedMeeting(root: root, withOverlappingTwin: true)
+        let pipeline = PipelineFixtures.makePipeline(
+            repository: meeting.repository, backend: FakeAIBackend()
+        )
+
+        // The reader clicked the second chunk's line, which sorts after
+        // the first line and sits entirely inside its span.
+        let all = try #require(try meeting.store.readCanonicalTranscript()).utterances
+        let clicked = try #require(all.first { $0.chunkID == "c2" })
+        _ = try await pipeline.applySpeakerRange(
+            "Dana", meetingID: meeting.id, track: .remote, parts: [SpeakerRangePart(
+                utteranceID: clicked.id, startSeconds: 6, endSeconds: 10
+            )]
+        )
+
+        let map = try meeting.store.readSpeakerMap()
+        #expect(
+            map.lineCuts.first?.chunkID == "c2", "the boundary went in the line clicked"
+        )
+        let lines = try #require(
+            try meeting.store.readCanonicalTranscript()
+        ).utterances
+        let untouched = try #require(lines.first { $0.chunkID == "c1" })
+        #expect(
+            abs((untouched.end - untouched.start) - 11) <= 0.001,
+            "expected \(11) ± \(0.001), got \(untouched.end - untouched.start) — the other chunk's line was not divided"
+        )
+        #expect(
+            map.resolvedName(for: untouched) == "Priya",
+            "and did not change hands"
+        )
+        #expect(map.utteranceOverrides.count == 1, "one piece changed hands")
+        #expect(
+            lines.filter { $0.chunkID == "c2" }.map(\.text)
+                == ["the other", "chunk heard this too"]
+        )
+    }
+
+    @Test("pulling out the first words of a turn names them")
+    func pullingOutTheFirstWordsOfATurnNamesThem() async throws {
+        // A line starts before its first word and ends after its last,
+        // and the outermost piece keeps those edges. Compared against
+        // the span rather than the words, the first phrase of a turn
+        // matched no piece: the boundary was written, the name was not,
+        // and the paragraph split in two with one name on both halves.
+        let root = try TestPaths.makeTemporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let meeting = try Self.makeTranscribedMeeting(root: root, padded: true)
+        let pipeline = PipelineFixtures.makePipeline(
+            repository: meeting.repository, backend: FakeAIBackend()
+        )
+
+        // "so", the first word, which starts a second after the line
+        // does and lasts less than that second.
+        _ = try await pipeline.applySpeakerRange(
+            "Dana", meetingID: meeting.id, track: .remote,
+            parts: try Self.windows(of: meeting.store, from: 1, to: 1.7)
+        )
+
+        let map = try meeting.store.readSpeakerMap()
+        let lines = try #require(
+            try meeting.store.readCanonicalTranscript()
+        ).utterances
+        #expect(lines.count == 2)
+        #expect(lines[0].text == "so")
+        #expect(map.resolvedName(for: lines[0]) == "Dana")
+        #expect(map.resolvedName(for: lines[1]) == "Priya", "the rest is untouched")
+    }
+
+    @Test("pulling out the last words of a turn names them")
+    func pullingOutTheLastWordsOfATurnNamesThem() async throws {
+        let root = try TestPaths.makeTemporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let meeting = try Self.makeTranscribedMeeting(root: root, padded: true)
+        let pipeline = PipelineFixtures.makePipeline(
+            repository: meeting.repository, backend: FakeAIBackend()
+        )
+
+        // "friday", the last word, which ends a second before the line
+        // does and lasts less than that second.
+        _ = try await pipeline.applySpeakerRange(
+            "Dana", meetingID: meeting.id, track: .remote,
+            parts: try Self.windows(of: meeting.store, from: 11, to: 11.7)
+        )
+
+        let map = try meeting.store.readSpeakerMap()
+        let lines = try #require(
+            try meeting.store.readCanonicalTranscript()
+        ).utterances
+        #expect(lines.count == 2)
+        #expect(lines[1].text == "friday")
+        #expect(map.resolvedName(for: lines[1]) == "Dana")
+        #expect(map.resolvedName(for: lines[0]) == "Priya")
+    }
+
+    @Test("a split names the rest of the turn as it is printed")
+    func aSplitNamesTheRestOfTheTurnAsItIsPrinted() async throws {
+        // The turn shows the first chunk's line and then the second
+        // chunk's, which began earlier. Everything after the boundary
+        // on screen belongs to the person named, including the line
+        // whose clock says it started before the boundary.
+        let root = try TestPaths.makeTemporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let meeting = try Self.makeTranscribedMeeting(root: root, withOverlappingTwin: true)
+        let pipeline = PipelineFixtures.makePipeline(
+            repository: meeting.repository, backend: FakeAIBackend()
+        )
+
+        let all = try #require(try meeting.store.readCanonicalTranscript()).utterances
+        let clicked = try #require(all.first { $0.chunkID == "c1" })
+        let printedAfter = try #require(all.first { $0.chunkID == "c2" })
+        #expect(
+            printedAfter.start < 6, "the later line really does begin before the boundary"
+        )
+        _ = try await pipeline.applySpeakerRange(
+            "Dana", meetingID: meeting.id, track: .remote,
+            parts: [
+                SpeakerRangePart(
+                    utteranceID: clicked.id, startSeconds: 6, endSeconds: clicked.end
+                ),
+                SpeakerRangePart(
+                    utteranceID: printedAfter.id,
+                    startSeconds: printedAfter.start, endSeconds: printedAfter.end
+                ),
+            ]
+        )
+
+        let map = try meeting.store.readSpeakerMap()
+        let lines = try #require(
+            try meeting.store.readCanonicalTranscript()
+        ).utterances
+        let head = try #require(lines.first { $0.chunkID == "c1" && $0.start < 6 })
+        let tail = try #require(lines.first { $0.chunkID == "c1" && $0.start >= 6 })
+        let after = try #require(lines.first { $0.chunkID == "c2" })
+        #expect(map.resolvedName(for: head) == "Priya", "before the boundary")
+        #expect(map.resolvedName(for: tail) == "Dana", "after it")
+        #expect(
+            map.resolvedName(for: after) == "Dana",
+            "and the line printed after it, whose clock says otherwise"
+        )
+    }
+
+    @Test("a boundary is kept when the transcript is assembled again")
+    func aBoundaryIsKeptWhenTheTranscriptIsAssembledAgain() async throws {
+        // A cut is a claim about the audio, so it outlives re-assembly
+        // and re-analysis the way a line correction does.
+        let root = try TestPaths.makeTemporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let meeting = try Self.makeTranscribedMeeting(root: root)
+        let pipeline = PipelineFixtures.makePipeline(
+            repository: meeting.repository, backend: FakeAIBackend()
+        )
+        _ = try await pipeline.applySpeakerRange(
+            "Dana", meetingID: meeting.id, track: .remote,
+            parts: try Self.windows(of: meeting.store, from: 5, to: 11)
+        )
+        // Whatever else re-assembly does, the boundary and the name it
+        // carries are still there to apply.
+        let map = try meeting.store.readSpeakerMap()
+        #expect(map.lineCuts.count == 1)
+        #expect(map.utteranceOverrides.count == 1)
+        #expect(map.utteranceOverrides.first?.assignment.displayName == "Dana")
+    }
+
+    /// Every line the panel would be showing, each windowed to the same
+    /// stretch, which is what the panel sends for a selection inside one turn.
+    private static func windows(
+        of store: MeetingStore, from start: Double, to end: Double
+    ) throws -> [SpeakerRangePart] {
+        ((try store.readCanonicalTranscript())?.utterances ?? []).map {
+            SpeakerRangePart(utteranceID: $0.id, startSeconds: start, endSeconds: end)
+        }
+    }
+
+    /// A meeting with one transcript line: a question and its answer run
+    /// together on one speaker, with word timings a second apart.
+    /// - Parameter padded: the line starts a second before its first word and
+    ///   ends a second after its last, which is what a decoder reports.
+    private static func makeTranscribedMeeting(
+        root: URL, withOverlappingTwin: Bool = false, padded: Bool = false
+    ) throws -> (id: String, store: MeetingStore, repository: MeetingRepository) {
+        let repository = MeetingRepository(root: root)
+        let started = Date(timeIntervalSince1970: 1_787_070_000)
+        let created = try repository.createMeeting(
+            source: .googleMeet, provider: .googleMeet, startedAt: started,
+            titles: TitleCandidates(provider: "Weekly sync", timestampFallback: "f"), now: started
+        )
+        _ = try created.store.updateMetadata { $0.durationSeconds = 30 }
+        let texts = ["so", "what", "do", "you", "think", "i", "think", "we", "ship", "on", "friday"]
+        // A padded line begins a second before its first word and ends a
+        // second after its last, which is what a decoder reports.
+        let lead = padded ? 1.0 : 0.0
+        let words = texts.enumerated().map {
+            RawTranscriptWord(
+                start: lead + Double($0.offset), end: lead + Double($0.offset) + 0.7,
+                text: " \($0.element)"
+            )
+        }
+        let lineStart = 0.0
+        let lineEnd = padded ? 12.7 : 11.0
+        var utterances = [Utterance(
+            id: Utterance.identifier(
+                chunkID: "c1", track: .remote, start: lineStart, end: lineEnd
+            ),
+            start: lineStart, end: lineEnd, track: .remote,
+            rawSpeakerLabel: "remote-001_speaker_00",
+            speakerKey: "remote-001_speaker_00", text: texts.joined(separator: " "),
+            chunkID: "c1", model: "m", words: words
+        )]
+        if withOverlappingTwin {
+            // The next chunk's own transcription of the same audio, segmented
+            // differently and kept because it is not similar enough to drop.
+            let twinWords = ["the", "other", "chunk", "heard", "this", "too"].enumerated().map {
+                RawTranscriptWord(
+                    start: 4 + Double($0.offset), end: 4 + Double($0.offset) + 0.7,
+                    text: " \($0.element)"
+                )
+            }
+            utterances.append(Utterance(
+                id: Utterance.identifier(chunkID: "c2", track: .remote, start: 4, end: 10),
+                start: 4, end: 10, track: .remote, rawSpeakerLabel: "remote-001_speaker_00",
+                speakerKey: "remote-001_speaker_00", text: "the other chunk heard this too",
+                chunkID: "c2", model: "m", words: twinWords
+            ))
+        }
+        try created.store.writeCanonicalTranscript(
+            CanonicalTranscript(generatedAt: started, utterances: utterances)
+        )
+        var map = SpeakerMap()
+        map.assign("Priya", to: "remote-001_speaker_00")
+        try created.store.writeSpeakerMap(map)
+        return (created.metadata.id, created.store, repository)
+    }
+}
+
+/// Blocks each diarization request until another one is running alongside it,
+/// which distinguishes concurrent uploads from sequential ones.
+private final class ConcurrencyProbeBackend: AIBackend, @unchecked Sendable {
+    private let lock = NSLock()
+    private var inFlight = 0
+    private(set) var peakInFlight = 0
+    private(set) var requestCount = 0
+
+    func isConfigured() async -> Bool { true }
+
+    func verifyCredentials(model: String) async throws {}
+
+    func transcribe(_ request: TranscriptionRequest) async throws -> TranscriptionResponse {
+        try await diarize(DiarizationRequest(audio: request.audio, model: request.model))
+    }
+
+    func diarize(_ request: DiarizationRequest) async throws -> TranscriptionResponse {
+        lock.withLock {
+            inFlight += 1
+            requestCount += 1
+            peakInFlight = max(peakInFlight, inFlight)
+        }
+        // Wait briefly for a companion request; a sequential caller times out
+        // here with peakInFlight stuck at 1.
+        for _ in 0..<100 {
+            let overlapped = lock.withLock { peakInFlight >= 2 }
+            if overlapped { break }
+            try? await Task.sleep(nanoseconds: 10_000_000)
+        }
+        lock.withLock { inFlight -= 1 }
+        return TranscriptionResponse(
+            segments: [RawTranscriptSegment(start: 0, end: 1, text: "Chunk.", speaker: "A")],
+            text: "Chunk.",
+            durationSeconds: nil,
+            rawBody: Data("{}".utf8)
+        )
+    }
+
+    func resolveSpeakers(
+        _ request: SpeakerResolutionRequest, model: String
+    ) async throws -> [SpeakerSuggestion] { [] }
+
+    func enrich(_ request: EnrichmentRequest, model: String) async throws -> MeetingEnrichment {
+        MeetingEnrichment()
+    }
+}

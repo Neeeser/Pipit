@@ -5,14 +5,7 @@ import TestKit
 // this length exceeds the type checker's budget on the toolchain CI runs.
 var suites: [Suite] = []
 suites += MeetingsWindowTests.all
-suites += BackendSelectionTests.all
-suites.append(CloudModelTests.suite)
-suites += ProcessingTests.all
-suites.append(PipelineTests.suite)
-suites.append(ReprocessingTests.suite)
 suites.append(LocalPipelineTests.suite)
-suites.append(LocalModelTests.suite)
-suites.append(BenchScorerTests.suite)
 suites.append(LiveSlackHuddleTests.suite)
 suites.append(LiveOpenAITests.suite)
 suites.append(LiveEndToEndTests.suite)
