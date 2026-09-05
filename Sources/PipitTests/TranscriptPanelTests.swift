@@ -3,6 +3,7 @@ import Foundation
 import PipitCore
 import PipitServices
 import PipitUI
+import PipitTestSupport
 import SwiftUI
 import TestKit
 
@@ -63,7 +64,7 @@ enum TranscriptPanelTests {
     static var suite: Suite {
         Suite("TranscriptPanel", [
             test("one speaker's eight lines lay out as one readable paragraph") { expect in
-                let root = try ManifestTests.makeTemporaryDirectory()
+                let root = try TestPaths.makeTemporaryDirectory()
                 defer { try? FileManager.default.removeItem(at: root) }
                 let meetingID = try makeMeeting(root: root)
 
@@ -113,7 +114,7 @@ enum TranscriptPanelTests {
                 // The header is the only menu the lines have now. Naming just
                 // the first would rename thirty seconds of a four-minute
                 // answer and tear the paragraph in two on the next reload.
-                let root = try ManifestTests.makeTemporaryDirectory()
+                let root = try TestPaths.makeTemporaryDirectory()
                 defer { try? FileManager.default.removeItem(at: root) }
                 let meetingID = try makeMeeting(root: root)
 

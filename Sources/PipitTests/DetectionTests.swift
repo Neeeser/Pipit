@@ -1,14 +1,9 @@
 import Foundation
 import PipitCore
+import PipitTestSupport
 import TestKit
 
 enum DetectionTests {
-    static func joined(mute: Bool? = nil, title: String? = nil) -> SlackAccessibilityObservation {
-        SlackAccessibilityObservation(
-            hasLeaveHuddleControl: true, subtreeWasEmpty: false, isMuted: mute, windowTitle: title
-        )
-    }
-
     static func previewing() -> SlackAccessibilityObservation {
         SlackAccessibilityObservation(hasLeaveHuddleControl: false, subtreeWasEmpty: false)
     }
@@ -38,7 +33,7 @@ enum DetectionTests {
 
                 now += 0.4
                 let joinedEvent = detector.update(
-                    observation: joined(), helperHoldsMicrophone: true,
+                    observation: DetectionFixtures.joined(), helperHoldsMicrophone: true,
                     helperProducingOutput: true, at: now
                 )
                 expect.equal(joinedEvent, .joined)
@@ -48,7 +43,7 @@ enum DetectionTests {
                 var detector = SlackHuddleDetector()
                 var now = 100.0
                 _ = detector.update(
-                    observation: joined(), helperHoldsMicrophone: true,
+                    observation: DetectionFixtures.joined(), helperHoldsMicrophone: true,
                     helperProducingOutput: true, at: now
                 )
                 expect.equal(detector.state, .joined)
@@ -64,7 +59,7 @@ enum DetectionTests {
                     expect.notEqual(empty, .left(reason: "audio_stopped"))
                     now += 0.4
                     _ = detector.update(
-                        observation: joined(), helperHoldsMicrophone: true,
+                        observation: DetectionFixtures.joined(), helperHoldsMicrophone: true,
                         helperProducingOutput: true, at: now
                     )
                     expect.equal(detector.state, .joined)
@@ -75,7 +70,7 @@ enum DetectionTests {
                 var detector = SlackHuddleDetector()
                 var now = 100.0
                 _ = detector.update(
-                    observation: joined(), helperHoldsMicrophone: true,
+                    observation: DetectionFixtures.joined(), helperHoldsMicrophone: true,
                     helperProducingOutput: true, at: now
                 )
 
@@ -100,12 +95,12 @@ enum DetectionTests {
                 var detector = SlackHuddleDetector()
                 var now = 100.0
                 _ = detector.update(
-                    observation: joined(mute: false), helperHoldsMicrophone: true,
+                    observation: DetectionFixtures.joined(mute: false), helperHoldsMicrophone: true,
                     helperProducingOutput: true, at: now
                 )
                 now += 0.4
                 let muted = detector.update(
-                    observation: joined(mute: true), helperHoldsMicrophone: true,
+                    observation: DetectionFixtures.joined(mute: true), helperHoldsMicrophone: true,
                     helperProducingOutput: true, at: now
                 )
                 expect.equal(muted, .muteChanged(true))

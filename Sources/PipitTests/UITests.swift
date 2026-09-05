@@ -7,6 +7,7 @@ import PipitCore
 import PipitIntegrations
 import PipitServices
 import PipitUI
+import PipitTestSupport
 import SwiftUI
 import TestKit
 
@@ -27,7 +28,7 @@ enum UITests {
     static var suite: Suite {
         Suite("UI", [
             test("every panel builds and lays out") { expect in
-                let root = try ManifestTests.makeTemporaryDirectory()
+                let root = try TestPaths.makeTemporaryDirectory()
                 await MainActor.run {
                     NSApplication.shared.setActivationPolicy(.prohibited)
 
@@ -206,7 +207,7 @@ enum UITests {
                 // that dialog appeared over the wizard on every open, for every
                 // user, including everyone who stays on the local default and has
                 // no key at all.
-                let root = try ManifestTests.makeTemporaryDirectory()
+                let root = try TestPaths.makeTemporaryDirectory()
                 defer { try? FileManager.default.removeItem(at: root) }
 
                 let lookups = Counter()
@@ -237,7 +238,7 @@ enum UITests {
             },
 
             test("the meetings window handles a meeting with nothing processed yet") { expect in
-                let root = try ManifestTests.makeTemporaryDirectory()
+                let root = try TestPaths.makeTemporaryDirectory()
                 defer { try? FileManager.default.removeItem(at: root) }
                 let repository = MeetingRepository(root: root.appendingPathComponent("Meetings"))
                 let started = Date(timeIntervalSince1970: 1_787_070_000)
@@ -290,7 +291,7 @@ enum UITests {
                 // A cloud-diarized meeting listed eleven speakers, six of them
                 // showing 0s: labels the diarizer emitted that own no words.
                 // There is nothing a user can do with those rows.
-                let root = try ManifestTests.makeTemporaryDirectory()
+                let root = try TestPaths.makeTemporaryDirectory()
                 defer { try? FileManager.default.removeItem(at: root) }
                 let archive = root.appendingPathComponent("Meetings")
                 let repository = MeetingRepository(root: archive)
@@ -339,7 +340,7 @@ enum UITests {
                 // panel holds whatever it read when it opened, and writes the
                 // whole file on close, so an unconditional write threw the
                 // appended note away.
-                let root = try ManifestTests.makeTemporaryDirectory()
+                let root = try TestPaths.makeTemporaryDirectory()
                 defer { try? FileManager.default.removeItem(at: root) }
                 let archive = root.appendingPathComponent("Meetings")
                 let repository = MeetingRepository(root: archive)
@@ -378,7 +379,7 @@ enum UITests {
                 // when Return was pressed. onDisappear does not run on
                 // termination, so quitting with the panel open lost everything
                 // typed into it.
-                let root = try ManifestTests.makeTemporaryDirectory()
+                let root = try TestPaths.makeTemporaryDirectory()
                 defer { try? FileManager.default.removeItem(at: root) }
                 let archive = root.appendingPathComponent("Meetings")
                 let repository = MeetingRepository(root: archive)
@@ -419,7 +420,7 @@ enum UITests {
                 // seconds, and `findMeeting` walks the archive root, every year
                 // and month directory below it, and decodes a metadata.json,
                 // all on the actor that arms the next recording.
-                let root = try ManifestTests.makeTemporaryDirectory()
+                let root = try TestPaths.makeTemporaryDirectory()
                 defer { try? FileManager.default.removeItem(at: root) }
                 let archive = root.appendingPathComponent("Meetings")
                 let repository = MeetingRepository(root: archive)
@@ -635,7 +636,7 @@ enum UITests {
             },
 
             test("settings survive a round trip through disk") { expect in
-                let root = try ManifestTests.makeTemporaryDirectory()
+                let root = try TestPaths.makeTemporaryDirectory()
                 defer { try? FileManager.default.removeItem(at: root) }
                 let store = SettingsStore(directory: root)
                 expect.equal(store.load().localUserName, "Me", "defaults apply to a fresh install")
@@ -677,7 +678,7 @@ enum UITests {
                 // Synthesized Codable throws on a missing key, and load() falls
                 // back to defaults, so adding one field silently reset every
                 // setting a user had chosen.
-                let root = try ManifestTests.makeTemporaryDirectory()
+                let root = try TestPaths.makeTemporaryDirectory()
                 defer { try? FileManager.default.removeItem(at: root) }
                 let store = SettingsStore(directory: root)
 
@@ -705,7 +706,7 @@ enum UITests {
                 // the microphone ran. Every settings file written before that
                 // carries the key, on either value, and a file that stopped
                 // loading would reset everything the user had chosen.
-                let root = try ManifestTests.makeTemporaryDirectory()
+                let root = try TestPaths.makeTemporaryDirectory()
                 defer { try? FileManager.default.removeItem(at: root) }
                 let store = SettingsStore(directory: root)
 
@@ -797,13 +798,13 @@ enum UITests {
     /// no meetings all reach it.
     @MainActor
     static func peopleWindowBuilds(_ expect: Expect) async throws {
-        let root = try ManifestTests.makeTemporaryDirectory()
+        let root = try TestPaths.makeTemporaryDirectory()
         defer { try? FileManager.default.removeItem(at: root) }
-        let runtime = MeetingsWindowTests.makeRuntime(root: root)
+        let runtime = RuntimeFixtures.makeRuntime(root: root)
         let store = try expect.unwrap(runtime.speakerStore)
         await runtime.ensureLocalUserIdentity()
         let me = try expect.unwrap(try await store.localUser())
-        _ = try await PeopleDirectoryTests.makeAppearance(
+        _ = try await PeopleFixtures.makeAppearance(
             store: store, identityID: me.id, root: root, title: "Weekly sync",
             at: Date(timeIntervalSince1970: 1_787_900_000), turns: [(0, 30)]
         )

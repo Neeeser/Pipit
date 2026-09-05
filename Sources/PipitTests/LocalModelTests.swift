@@ -3,6 +3,7 @@ import PipitAudio
 import PipitCore
 import PipitLocalAI
 import PipitSpeakers
+import PipitTestSupport
 import TestKit
 
 /// Opt-in tests that load the real on-device models.
@@ -215,7 +216,7 @@ enum LocalModelTests {
                 // worst impostor scored 0.957 against the true speaker's own
                 // 0.951), so the archive representation must keep each voice
                 // where the PCM put it.
-                let tmp = try ManifestTests.makeTemporaryDirectory()
+                let tmp = try TestPaths.makeTemporaryDirectory()
                 defer { try? FileManager.default.removeItem(at: tmp) }
                 let info = try AudioFileInspector().inspect(url: audio)
                 let location = TrackAudioLocation.archived(

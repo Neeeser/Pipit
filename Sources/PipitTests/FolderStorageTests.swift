@@ -1,5 +1,6 @@
 import Foundation
 import PipitCore
+import PipitTestSupport
 import TestKit
 
 /// Filing a meeting moves its directory. These pin what has to survive that:
@@ -7,7 +8,7 @@ import TestKit
 /// and what its metadata says about where it sits.
 enum FolderStorageTests {
     static func archive() throws -> (root: URL, repository: MeetingRepository, folders: MeetingFolderStore) {
-        let root = try ManifestTests.makeTemporaryDirectory()
+        let root = try TestPaths.makeTemporaryDirectory()
         return (root, MeetingRepository(root: root), MeetingFolderStore(root: root))
     }
 

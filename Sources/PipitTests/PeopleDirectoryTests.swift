@@ -4,6 +4,7 @@ import PipitCore
 import PipitServices
 import PipitSpeakers
 import PipitUI
+import PipitTestSupport
 import SQLite3
 import TestKit
 
@@ -19,7 +20,7 @@ enum PeopleDirectoryTests {
     // MARK: helpers
 
     static func makeStore() throws -> (SpeakerStore, URL) {
-        let root = try ManifestTests.makeTemporaryDirectory()
+        let root = try TestPaths.makeTemporaryDirectory()
         let store = try SpeakerStore(url: root.appendingPathComponent("voices.sqlite"))
         return (store, root)
     }
@@ -52,14 +53,6 @@ enum PeopleDirectoryTests {
             ),
             profile: profile,
             meetingCount: meetings
-        )
-    }
-
-    static func utterance(_ speaker: String, _ text: String, at start: Double) -> Utterance {
-        Utterance(
-            id: "u-\(start)", start: start, end: start + 2, track: .remote,
-            rawSpeakerLabel: speaker, speakerKey: speaker, text: text,
-            chunkID: "c0", model: "test"
         )
     }
 
@@ -304,7 +297,7 @@ enum PeopleDirectoryTests {
             },
 
             test("a version 1 database gains the new fields and keeps its people") { expect in
-                let root = try ManifestTests.makeTemporaryDirectory()
+                let root = try TestPaths.makeTemporaryDirectory()
                 defer { try? FileManager.default.removeItem(at: root) }
                 let url = root.appendingPathComponent("voices.sqlite")
                 try writeVersionOneDatabase(at: url, name: "Chris")
@@ -463,7 +456,7 @@ enum PeopleDirectoryTests {
             test("the participant block carries organization and notes above the dialogue") { expect in
                 let transcript = CanonicalTranscript(
                     generatedAt: Date(timeIntervalSince1970: 1_700_000_000),
-                    utterances: [utterance("s1", "We ship Friday.", at: 0)]
+                    utterances: [PeopleFixtures.utterance("s1", "We ship Friday.", at: 0)]
                 )
                 var speakers = SpeakerMap()
                 speakers.assign("Priya Raman", to: "s1")
@@ -493,7 +486,7 @@ enum PeopleDirectoryTests {
             test("nobody with notes means no participant section at all") { expect in
                 let transcript = CanonicalTranscript(
                     generatedAt: Date(timeIntervalSince1970: 1_700_000_000),
-                    utterances: [utterance("s1", "We ship Friday.", at: 0)]
+                    utterances: [PeopleFixtures.utterance("s1", "We ship Friday.", at: 0)]
                 )
                 var speakers = SpeakerMap()
                 speakers.assign("Priya Raman", to: "s1")
@@ -519,7 +512,7 @@ enum PeopleDirectoryTests {
     static var exportSuite: Suite {
         Suite("ParticipantBlockRefresh", [
             test("rebuilding a transcript keeps the participant block") { expect in
-                let root = try ManifestTests.makeTemporaryDirectory()
+                let root = try TestPaths.makeTemporaryDirectory()
                 defer { try? FileManager.default.removeItem(at: root) }
                 let (store, storeRoot) = try makeStore()
                 defer { try? FileManager.default.removeItem(at: storeRoot) }
@@ -543,7 +536,7 @@ enum PeopleDirectoryTests {
             },
 
             test("deleting a person clears their notes from transcripts already rendered") { expect in
-                let root = try ManifestTests.makeTemporaryDirectory()
+                let root = try TestPaths.makeTemporaryDirectory()
                 defer { try? FileManager.default.removeItem(at: root) }
                 let (store, storeRoot) = try makeStore()
                 defer { try? FileManager.default.removeItem(at: storeRoot) }
@@ -576,7 +569,7 @@ enum PeopleDirectoryTests {
     static func makeRenderedMeeting(
         root: URL, store: SpeakerStore, notes: String
     ) async throws -> (ProcessingPipeline, MeetingStore, Identity) {
-        let meeting = try PipelineTests.makeRecordedMeeting(root: root)
+        let meeting = try PipelineFixtures.makeRecordedMeeting(root: root)
         // Raw words and diarization on disk, so a rebuild has something to
         // re-assemble from and the test is not passing on an early return.
         var raw = try meeting.store.readRawTranscript()
@@ -613,7 +606,7 @@ enum PeopleDirectoryTests {
 
         try meeting.store.writeCanonicalTranscript(CanonicalTranscript(
             generatedAt: Date(timeIntervalSince1970: 1_700_000_000),
-            utterances: [utterance("remote-001_speaker_00", "We ship Friday.", at: 0)]
+            utterances: [PeopleFixtures.utterance("remote-001_speaker_00", "We ship Friday.", at: 0)]
         ))
         var map = SpeakerMap()
         map.assign("Chris", to: "remote-001_speaker_00", identityID: chris.id)
@@ -655,58 +648,21 @@ enum PeopleDirectoryTests {
         ])
     }
 
-    /// A meeting on disk with one named speaker, and a stand-in for the
-    /// mixdown. Nothing here decodes the audio, so a file that exists is
-    /// everything the sample needs from it.
-    @MainActor
-    static func makeAppearance(
-        store: SpeakerStore, identityID: IdentityID,
-        root: URL, title: String, at started: Date, turns: [(Double, Double)],
-        writingAudio: Bool = true
-    ) async throws -> String {
-        let meeting = try MeetingsWindowTests.makeMeeting(
-            root: root, clusters: ["remote-001_speaker_00"], title: title, startedAt: started
-        )
-        var map = SpeakerMap()
-        map.assign("Ben", to: "remote-001_speaker_00", identityID: identityID)
-        try meeting.store.writeSpeakerMap(map)
-        try meeting.store.writeCanonicalTranscript(CanonicalTranscript(
-            generatedAt: started,
-            utterances: turns.enumerated().map { index, turn in
-                Utterance(
-                    id: "u\(index)", start: turn.0, end: turn.1, track: .remote,
-                    rawSpeakerLabel: "remote-001_speaker_00",
-                    speakerKey: "remote-001_speaker_00",
-                    text: "the northwind renewal", chunkID: "c1", model: "m"
-                )
-            }
-        ))
-        if writingAudio {
-            try Data([0x00]).write(to: meeting.store.layout.recordingAudio)
-        }
-        try await store.recordOccurrence(
-            meetingID: meeting.id, clusterID: "remote-001_speaker_00", track: .remote,
-            speechSeconds: turns.reduce(0) { $0 + ($1.1 - $1.0) }, embedding: nil, model: nil,
-            resolution: nil, identityID: identityID, source: .human,
-            humanVerified: true, wasExpectedParticipant: false
-        )
-        return meeting.id
-    }
 
     @MainActor
     static func appearancesListEveryMeeting(_ expect: Expect) async throws {
-        let root = try ManifestTests.makeTemporaryDirectory()
+        let root = try TestPaths.makeTemporaryDirectory()
         defer { try? FileManager.default.removeItem(at: root) }
-        let runtime = MeetingsWindowTests.makeRuntime(root: root)
+        let runtime = RuntimeFixtures.makeRuntime(root: root)
         let store = try expect.unwrap(runtime.speakerStore)
         let ben = try await store.createPerson(name: "Ben")
 
-        let older = try await makeAppearance(
+        let older = try await PeopleFixtures.makeAppearance(
             store: store, identityID: ben.id, root: root,
             title: "Design review", at: Date(timeIntervalSince1970: 1_787_000_000),
             turns: [(0, 12)]
         )
-        let newer = try await makeAppearance(
+        let newer = try await PeopleFixtures.makeAppearance(
             store: store, identityID: ben.id, root: root,
             title: "Weekly sync", at: Date(timeIntervalSince1970: 1_787_900_000),
             turns: [(0, 4), (10, 15)]
@@ -728,12 +684,12 @@ enum PeopleDirectoryTests {
 
     @MainActor
     static func theSampleIsTheLongestTurn(_ expect: Expect) async throws {
-        let root = try ManifestTests.makeTemporaryDirectory()
+        let root = try TestPaths.makeTemporaryDirectory()
         defer { try? FileManager.default.removeItem(at: root) }
-        let runtime = MeetingsWindowTests.makeRuntime(root: root)
+        let runtime = RuntimeFixtures.makeRuntime(root: root)
         let store = try expect.unwrap(runtime.speakerStore)
         let ben = try await store.createPerson(name: "Ben")
-        let meetingID = try await makeAppearance(
+        let meetingID = try await PeopleFixtures.makeAppearance(
             store: store, identityID: ben.id, root: root,
             title: "Weekly sync", at: Date(timeIntervalSince1970: 1_787_900_000),
             turns: [(0, 3), (30, 60)]
@@ -753,12 +709,12 @@ enum PeopleDirectoryTests {
 
     @MainActor
     static func noAudioMeansNoSample(_ expect: Expect) async throws {
-        let root = try ManifestTests.makeTemporaryDirectory()
+        let root = try TestPaths.makeTemporaryDirectory()
         defer { try? FileManager.default.removeItem(at: root) }
-        let runtime = MeetingsWindowTests.makeRuntime(root: root)
+        let runtime = RuntimeFixtures.makeRuntime(root: root)
         let store = try expect.unwrap(runtime.speakerStore)
         let ben = try await store.createPerson(name: "Ben")
-        let meetingID = try await makeAppearance(
+        let meetingID = try await PeopleFixtures.makeAppearance(
             store: store, identityID: ben.id, root: root,
             title: "Weekly sync", at: Date(timeIntervalSince1970: 1_787_900_000),
             turns: [(0, 20)], writingAudio: false
@@ -794,9 +750,9 @@ enum PeopleDirectoryTests {
     /// on one profile.
     @MainActor
     static func tellingARowItIsAlsoYou(_ expect: Expect) async throws {
-        let root = try ManifestTests.makeTemporaryDirectory()
+        let root = try TestPaths.makeTemporaryDirectory()
         defer { try? FileManager.default.removeItem(at: root) }
-        let runtime = MeetingsWindowTests.makeRuntime(root: root)
+        let runtime = RuntimeFixtures.makeRuntime(root: root)
         let store = try expect.unwrap(runtime.speakerStore)
 
         await runtime.ensureLocalUserIdentity()
@@ -825,9 +781,9 @@ enum PeopleDirectoryTests {
     /// a named person and the launch sync creates a second "Me".
     @MainActor
     static func mergingYouCarriesTheFlag(_ expect: Expect) async throws {
-        let root = try ManifestTests.makeTemporaryDirectory()
+        let root = try TestPaths.makeTemporaryDirectory()
         defer { try? FileManager.default.removeItem(at: root) }
-        let runtime = MeetingsWindowTests.makeRuntime(root: root)
+        let runtime = RuntimeFixtures.makeRuntime(root: root)
         let store = try expect.unwrap(runtime.speakerStore)
 
         await runtime.ensureLocalUserIdentity()
@@ -846,9 +802,9 @@ enum PeopleDirectoryTests {
     /// under one that has since been merged away is still audio of them.
     @MainActor
     static func forgettingAVoiceTakesTheReadings(_ expect: Expect) async throws {
-        let root = try ManifestTests.makeTemporaryDirectory()
+        let root = try TestPaths.makeTemporaryDirectory()
         defer { try? FileManager.default.removeItem(at: root) }
-        let runtime = MeetingsWindowTests.makeRuntime(root: root)
+        let runtime = RuntimeFixtures.makeRuntime(root: root)
         let store = try expect.unwrap(runtime.speakerStore)
         let old = try await store.createPerson(name: "Andrew")
         let current = try await store.createPerson(name: "Andrew Neeser")
@@ -1029,9 +985,9 @@ enum PeopleDirectoryTests {
     /// the selection instead would delete somebody the pointer was never over.
     @MainActor
     static func aRightClickActsOnTheRowUnderIt(_ expect: Expect) async throws {
-        let root = try ManifestTests.makeTemporaryDirectory()
+        let root = try TestPaths.makeTemporaryDirectory()
         defer { try? FileManager.default.removeItem(at: root) }
-        let model = PeopleDirectoryModel(runtime: MeetingsWindowTests.makeRuntime(root: root))
+        let model = PeopleDirectoryModel(runtime: RuntimeFixtures.makeRuntime(root: root))
         model.entries = [
             entry(1, name: "Chris Fowler"),
             entry(2, name: "Dana Kwon"),

@@ -1,19 +1,13 @@
 import Foundation
 import PipitCore
+import PipitTestSupport
 import TestKit
 
 enum ManifestTests {
-    static func makeTemporaryDirectory() throws -> URL {
-        let url = FileManager.default.temporaryDirectory
-            .appendingPathComponent("pipit-tests-\(UUID().uuidString)", isDirectory: true)
-        try FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
-        return url
-    }
-
     static var suite: Suite {
         Suite("Manifest", [
             test("every event round-trips through JSONL") { expect in
-                let directory = try makeTemporaryDirectory()
+                let directory = try TestPaths.makeTemporaryDirectory()
                 defer { try? FileManager.default.removeItem(at: directory) }
                 let url = directory.appendingPathComponent("manifest.jsonl")
                 let writer = try ManifestWriter(url: url)
@@ -93,7 +87,7 @@ enum ManifestTests {
             },
 
             test("a remote_bind written before stream indexing still decodes") { expect in
-                let directory = try makeTemporaryDirectory()
+                let directory = try TestPaths.makeTemporaryDirectory()
                 defer { try? FileManager.default.removeItem(at: directory) }
                 let url = directory.appendingPathComponent("manifest.jsonl")
                 // A line as manifests carried it before the tap was selected by
@@ -118,7 +112,7 @@ enum ManifestTests {
             },
 
             test("a mic_bind from a build that opened its device still decodes") { expect in
-                let directory = try makeTemporaryDirectory()
+                let directory = try TestPaths.makeTemporaryDirectory()
                 defer { try? FileManager.default.removeItem(at: directory) }
                 let url = directory.appendingPathComponent("manifest.jsonl")
                 // The ordinary line. A build that got the device it asked for
@@ -246,7 +240,7 @@ enum ManifestTests {
             },
 
             test("a truncated last line is a crash tail, not a corrupt manifest") { expect in
-                let directory = try makeTemporaryDirectory()
+                let directory = try TestPaths.makeTemporaryDirectory()
                 defer { try? FileManager.default.removeItem(at: directory) }
                 let url = directory.appendingPathComponent("manifest.jsonl")
                 let writer = try ManifestWriter(url: url)
@@ -278,7 +272,7 @@ enum ManifestTests {
                 // Startup recovery reopens the manifest of a killed recording and
                 // appends what it adopted. Writing straight onto the partial line
                 // glues the two together, and both records are then unreadable.
-                let directory = try makeTemporaryDirectory()
+                let directory = try TestPaths.makeTemporaryDirectory()
                 defer { try? FileManager.default.removeItem(at: directory) }
                 let url = directory.appendingPathComponent("manifest.jsonl")
                 let writer = try ManifestWriter(url: url)

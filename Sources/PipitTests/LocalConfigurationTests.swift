@@ -3,6 +3,7 @@ import FluidAudio
 import PipitCore
 import PipitLocalAI
 import PipitSpeakers
+import PipitTestSupport
 import TestKit
 
 /// Pins the settings the local stack was measured with.
@@ -268,7 +269,7 @@ enum LocalConfigurationTests {
             },
 
             test("a fresh directory reports the models as missing rather than usable") { expect in
-                let root = try ManifestTests.makeTemporaryDirectory()
+                let root = try TestPaths.makeTemporaryDirectory()
                 defer { try? FileManager.default.removeItem(at: root) }
                 let manager = LocalModelManager(applicationSupport: root)
                 let state = await manager.currentState
@@ -284,7 +285,7 @@ enum LocalConfigurationTests {
                 // reached the embedding extractor and threw from inside the
                 // speaker stage, which is not retryable, so the meeting never
                 // reached the stage that writes the markdown and the mixdown.
-                let root = try ManifestTests.makeTemporaryDirectory()
+                let root = try TestPaths.makeTemporaryDirectory()
                 defer { try? FileManager.default.removeItem(at: root) }
                 var settings = AppSettings()
                 settings.processing.transcription = .openAI
@@ -306,7 +307,7 @@ enum LocalConfigurationTests {
                 // check throws, and `localModelsAvailable` reads that as "no
                 // models" for work the new unit has nothing to do with. Voice
                 // memory embeds with the diarizer and asks for it by name.
-                let root = try ManifestTests.makeTemporaryDirectory()
+                let root = try TestPaths.makeTemporaryDirectory()
                 defer { try? FileManager.default.removeItem(at: root) }
                 let locations = LocalModelLocations(applicationSupport: root)
                 try FileManager.default.createDirectory(
@@ -354,7 +355,7 @@ enum LocalConfigurationTests {
                 // The old installed.json described whisper plus the diarizer;
                 // an upgrade must keep reporting them as installed rather than
                 // offering the same 650 MB again.
-                let root = try ManifestTests.makeTemporaryDirectory()
+                let root = try TestPaths.makeTemporaryDirectory()
                 defer { try? FileManager.default.removeItem(at: root) }
                 let locations = LocalModelLocations(applicationSupport: root)
                 try FileManager.default.createDirectory(

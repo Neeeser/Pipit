@@ -3,6 +3,7 @@ import Foundation
 import PipitAudio
 import PipitCore
 import PipitServices
+import PipitTestSupport
 import TestKit
 
 /// The cleaned microphone track: what comes out of it, what it is called, and
@@ -191,7 +192,7 @@ enum MicrophoneCleanerTests {
 
     static let suite = Suite("MicrophoneCleaner", [
         test("the cleaned microphone loses the far end and keeps the user") { expect in
-            let root = try ManifestTests.makeTemporaryDirectory()
+            let root = try TestPaths.makeTemporaryDirectory()
             defer { try? FileManager.default.removeItem(at: root) }
             let meeting = try makeCallOnSpeakers(root: root)
             let store = meeting.store
@@ -252,7 +253,7 @@ enum MicrophoneCleanerTests {
         },
 
         test("a cleaned meeting reads the cleaned track and still reaches the raw one") { expect in
-            let root = try ManifestTests.makeTemporaryDirectory()
+            let root = try TestPaths.makeTemporaryDirectory()
             defer { try? FileManager.default.removeItem(at: root) }
             let meeting = try makeCallOnSpeakers(root: root)
             let store = meeting.store
@@ -309,7 +310,7 @@ enum MicrophoneCleanerTests {
         },
 
         test("cleaning twice subtracts from the recording both times") { expect in
-            let root = try ManifestTests.makeTemporaryDirectory()
+            let root = try TestPaths.makeTemporaryDirectory()
             defer { try? FileManager.default.removeItem(at: root) }
             let meeting = try makeCallOnSpeakers(root: root)
             let store = meeting.store
@@ -340,7 +341,7 @@ enum MicrophoneCleanerTests {
         },
 
         test("a run that decides against cleaning clears what an earlier run left") { expect in
-            let root = try ManifestTests.makeTemporaryDirectory()
+            let root = try TestPaths.makeTemporaryDirectory()
             defer { try? FileManager.default.removeItem(at: root) }
             // A meeting that was cleaned once, whose far end now reads as
             // nothing. The record and the file from the first run both have
@@ -401,7 +402,7 @@ enum MicrophoneCleanerTests {
             // self-announcing, and no outcome value separates it from a good
             // run. That is why the check at the end of this test reads the
             // far-end energy left in the cleaned track rather than the outcome.
-            let root = try ManifestTests.makeTemporaryDirectory()
+            let root = try TestPaths.makeTemporaryDirectory()
             defer { try? FileManager.default.removeItem(at: root) }
             let count = Int(30 * rate)
             let offset = -2.0
@@ -468,7 +469,7 @@ enum MicrophoneCleanerTests {
             // itself, and it would be promoted as the microphone every reader
             // takes with fifty minutes of the meeting gone. The manifest is
             // what says how much audio there was.
-            let root = try ManifestTests.makeTemporaryDirectory()
+            let root = try TestPaths.makeTemporaryDirectory()
             defer { try? FileManager.default.removeItem(at: root) }
             let meeting = try makeCallOnSpeakers(root: root)
             let store = meeting.store
@@ -518,7 +519,7 @@ enum MicrophoneCleanerTests {
             // records `.failed` and never runs the cleaner on this meeting
             // again. A record an earlier run left would keep every reader on
             // that run's file for good.
-            let root = try ManifestTests.makeTemporaryDirectory()
+            let root = try TestPaths.makeTemporaryDirectory()
             defer { try? FileManager.default.removeItem(at: root) }
             let meeting = try makeCallOnSpeakers(root: root)
             let store = meeting.store
@@ -572,7 +573,7 @@ enum MicrophoneCleanerTests {
         },
 
         test("a meeting whose far end never played is left alone") { expect in
-            let root = try ManifestTests.makeTemporaryDirectory()
+            let root = try TestPaths.makeTemporaryDirectory()
             defer { try? FileManager.default.removeItem(at: root) }
             let count = Int(15 * rate)
             let meeting = try makeMeeting(
@@ -602,7 +603,7 @@ enum MicrophoneCleanerTests {
         },
 
         test("a recording holding everyone on one track has no far end to subtract") { expect in
-            let root = try ManifestTests.makeTemporaryDirectory()
+            let root = try TestPaths.makeTemporaryDirectory()
             defer { try? FileManager.default.removeItem(at: root) }
             let count = Int(2 * rate)
             let meeting = try makeMeeting(

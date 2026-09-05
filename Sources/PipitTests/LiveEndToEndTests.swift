@@ -4,6 +4,7 @@ import PipitAudio
 import PipitCore
 import PipitIntegrations
 import PipitServices
+import PipitTestSupport
 import TestKit
 
 /// End-to-end runs against the real API: import a recording, process it, and
@@ -16,7 +17,7 @@ enum LiveEndToEndTests {
         Suite("LiveEndToEnd", [
             test("an imported recording completes and leaves a readable archive") { expect in
                 let (_, fixtures) = try LiveOpenAITests.requireLive()
-                let root = try ManifestTests.makeTemporaryDirectory()
+                let root = try TestPaths.makeTemporaryDirectory()
                 defer { try? FileManager.default.removeItem(at: root) }
 
                 let repository = MeetingRepository(root: root)
@@ -99,7 +100,7 @@ enum LiveEndToEndTests {
                     throw TestSkip("run scripts/make-long-fixture.sh first")
                 }
 
-                let root = try ManifestTests.makeTemporaryDirectory()
+                let root = try TestPaths.makeTemporaryDirectory()
                 defer { try? FileManager.default.removeItem(at: root) }
                 let repository = MeetingRepository(root: root)
                 let started = Date(timeIntervalSince1970: 1_787_070_000)

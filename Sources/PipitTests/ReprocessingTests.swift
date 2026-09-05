@@ -1,14 +1,15 @@
 import Foundation
 import PipitCore
 import PipitServices
+import PipitTestSupport
 import TestKit
 
 enum ReprocessingTests {
     static let suite = Suite("Reprocessing", [
         test("a reset removes what was derived and keeps the recording and the names") { expect in
-            let root = try ManifestTests.makeTemporaryDirectory()
+            let root = try TestPaths.makeTemporaryDirectory()
             defer { try? FileManager.default.removeItem(at: root) }
-            let made = try PipelineTests.makeRecordedMeeting(root: root, seconds: 4)
+            let made = try PipelineFixtures.makeRecordedMeeting(root: root, seconds: 4)
             let store = made.store
             let layout = store.layout
             try Data("{}".utf8).write(to: layout.rawTranscript)

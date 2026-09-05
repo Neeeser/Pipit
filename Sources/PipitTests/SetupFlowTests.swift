@@ -3,6 +3,7 @@ import PipitCore
 import PipitLocalAI
 import PipitServices
 import PipitUI
+import PipitTestSupport
 import TestKit
 
 /// What first-run setup refuses to finish without.
@@ -310,7 +311,7 @@ enum SetupFlowTests {
                 // The step showed whatever the settings default happened to be
                 // and no way to change it, so a fresh install committed to an
                 // engine nobody had been shown.
-                let root = try ManifestTests.makeTemporaryDirectory()
+                let root = try TestPaths.makeTemporaryDirectory()
                 defer { try? FileManager.default.removeItem(at: root) }
 
                 let model = await MainActor.run { makeSetupModel(root: root, requested: nil) }
@@ -364,7 +365,7 @@ enum SetupFlowTests {
                 // wrote the setting and started the install as two unordered
                 // tasks, so the install could fetch the engine the user had
                 // just moved away from.
-                let root = try ManifestTests.makeTemporaryDirectory()
+                let root = try TestPaths.makeTemporaryDirectory()
                 defer { try? FileManager.default.removeItem(at: root) }
 
                 let requested = RequestedUnits()
@@ -390,7 +391,7 @@ enum SetupFlowTests {
                 // Nothing in setup may reach for the 2.1 GB engine on its own.
                 // On macOS 26 the default is Apple and the download is the
                 // shared 22 MB; before it, Parakeet's 460 MB.
-                let root = try ManifestTests.makeTemporaryDirectory()
+                let root = try TestPaths.makeTemporaryDirectory()
                 defer { try? FileManager.default.removeItem(at: root) }
 
                 let requested = RequestedUnits()

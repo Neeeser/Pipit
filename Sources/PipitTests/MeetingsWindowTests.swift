@@ -2,6 +2,7 @@ import AppKit
 import Foundation
 import PipitCore
 import PipitServices
+import PipitTestSupport
 import PipitUI
 import SwiftUI
 import TestKit
@@ -14,73 +15,6 @@ enum MeetingsWindowTests {
     static var all: [Suite] { [recordedDateSuite, directorySuite, sourceSuite, windowSuite] }
 
     // MARK: helpers
-
-    /// A calendar pinned to one zone, so a date in a test means the same thing
-    /// on every machine that runs it.
-    static var calendar: Calendar {
-        var calendar = Calendar(identifier: .gregorian)
-        calendar.timeZone = TimeZone(identifier: "UTC") ?? .gmt
-        return calendar
-    }
-
-    /// A meeting on disk whose transcript holds the clusters named, plus the
-    /// bucket for words no diarization interval claimed.
-    static func makeMeeting(
-        root: URL, clusters: [String], words: String = "the northwind renewal",
-        source: MeetingSource = .googleMeet, title: String = "Design review",
-        startedAt: Date = Date(timeIntervalSince1970: 1_787_070_000)
-    ) throws -> (id: String, store: MeetingStore) {
-        let repository = MeetingRepository(root: root.appendingPathComponent("Meetings"))
-        let started = startedAt
-        let created = try repository.createMeeting(
-            source: source, provider: .unknown, startedAt: started,
-            titles: TitleCandidates(provider: title, timestampFallback: "f"), now: started
-        )
-        _ = try created.store.updateMetadata {
-            $0.durationSeconds = 600
-            $0.processing = ProcessingStatus(state: .complete, updatedAt: started)
-        }
-        let keys = clusters + [SpeakerLabel.unattributed(track: .remote)]
-        let utterances = keys.enumerated().map { index, key in
-            Utterance(
-                id: "u\(index)", start: Double(index) * 10, end: Double(index) * 10 + 8,
-                track: .remote, rawSpeakerLabel: key, speakerKey: key,
-                text: words, chunkID: "c1", model: "m"
-            )
-        }
-        try created.store.writeCanonicalTranscript(
-            CanonicalTranscript(generatedAt: started, utterances: utterances)
-        )
-        return (created.metadata.id, created.store)
-    }
-
-    /// Where a runtime built here puts the meetings it trashes.
-    static func trashDirectory(under root: URL) -> URL {
-        root.appendingPathComponent("Trash")
-    }
-
-    /// A runtime pointed at one temporary archive, with a Trash of its own.
-    ///
-    /// The Finder's own Trash would fill with the archives these tests build,
-    /// so a trashed folder is moved here instead. It is also what lets a test
-    /// see that a meeting was moved rather than unlinked.
-    @MainActor
-    static func makeRuntime(root: URL) -> PipitRuntime {
-        NSApplication.shared.setActivationPolicy(.prohibited)
-        let trash = trashDirectory(under: root)
-        let runtime = PipitRuntime(settingsDirectory: root, trash: { folder in
-            try FileManager.default.createDirectory(
-                at: trash, withIntermediateDirectories: true
-            )
-            try FileManager.default.moveItem(
-                at: folder, to: trash.appendingPathComponent(folder.lastPathComponent)
-            )
-        })
-        var settings = runtime.settings
-        settings.storageRootPath = root.appendingPathComponent("Meetings").path
-        runtime.update(settings: settings)
-        return runtime
-    }
 
     /// Waits for work the window model started in the background, for up to ten
     /// seconds. A test that fails says more than one that hangs.
@@ -213,7 +147,7 @@ enum MeetingsWindowTests {
             },
 
             test("the shapes recorders actually write are read out of a filename") { expect in
-                let calendar = MeetingsWindowTests.calendar
+                let calendar = RuntimeFixtures.calendar
                 func parsed(_ name: String) -> Date? {
                     RecordedDatePolicy.dateInFilename(name, calendar: calendar)
                 }
@@ -237,7 +171,7 @@ enum MeetingsWindowTests {
             },
 
             test("a run of digits that is not a date is left alone") { expect in
-                let calendar = MeetingsWindowTests.calendar
+                let calendar = RuntimeFixtures.calendar
                 expect.isNil(
                     RecordedDatePolicy.dateInFilename("recording 1234567890.m4a", calendar: calendar),
                     "a unix timestamp is not the year 1234"
@@ -344,7 +278,7 @@ enum MeetingsWindowTests {
                     row("c", title: "Acme onboarding", at: now, source: .zoom),
                 ]
                 let visible = MeetingsDirectoryFilter.sections(
-                    rows, source: .slackHuddle, now: now, calendar: calendar
+                    rows, source: .slackHuddle, now: now, calendar: RuntimeFixtures.calendar
                 ).flatMap(\.rows)
                 expect.equal(visible.map(\.id), ["a"])
             },
@@ -357,7 +291,8 @@ enum MeetingsWindowTests {
                     row("c", title: "Chris Latimer", at: now, source: .slackHuddle),
                 ]
                 let visible = MeetingsDirectoryFilter.sections(
-                    rows, source: .slackHuddle, query: "release", now: now, calendar: calendar
+                    rows, source: .slackHuddle, query: "release", now: now,
+                    calendar: RuntimeFixtures.calendar
                 ).flatMap(\.rows)
                 expect.equal(visible.map(\.id), ["a"])
             },
@@ -373,7 +308,8 @@ enum MeetingsWindowTests {
                     row("c", title: "One left", at: now, speakers: [(nil, nil)], source: .zoom),
                 ]
                 let visible = MeetingsDirectoryFilter.sections(
-                    rows, filter: .unnamed, source: .slackHuddle, now: now, calendar: calendar
+                    rows, filter: .unnamed, source: .slackHuddle, now: now,
+                    calendar: RuntimeFixtures.calendar
                 ).flatMap(\.rows)
                 expect.equal(visible.map(\.id), ["b"])
             },
@@ -470,7 +406,7 @@ enum MeetingsWindowTests {
                 let now = date("2026-08-24 15:00:00")
                 let rows = [row("a", title: "Standup", at: now, source: .inPerson)]
                 let visible = MeetingsDirectoryFilter.sections(
-                    rows, query: "in person", now: now, calendar: calendar
+                    rows, query: "in person", now: now, calendar: RuntimeFixtures.calendar
                 ).flatMap(\.rows)
                 expect.equal(visible.map(\.id), ["a"], "the row reads \"In person\"")
                 expect.equal(MeetingsDirectoryFilter.suggestedSource(for: "in person"), .inPerson)
@@ -578,7 +514,7 @@ enum MeetingsWindowTests {
         Suite("MeetingsDirectory", [
             test("meetings are grouped by when, newest first") { expect in
                 let now = date("2026-08-24 15:00:00")
-                let calendar = MeetingsWindowTests.calendar
+                let calendar = RuntimeFixtures.calendar
                 let rows = [
                     row("a", title: "Design review", at: date("2026-08-24 14:15:00")),
                     row("b", title: "Standup", at: date("2026-08-23 09:32:00")),
@@ -604,7 +540,7 @@ enum MeetingsWindowTests {
                 let now = date("2026-08-24 15:00:00")
                 let rows = [row("a", title: "Voice memo", at: date("2026-08-24 23:30:00"))]
                 let sections = MeetingsDirectoryFilter.sections(
-                    rows, now: now, calendar: calendar
+                    rows, now: now, calendar: RuntimeFixtures.calendar
                 )
                 expect.equal(sections.map(\.title), ["Today"])
             },
@@ -619,7 +555,7 @@ enum MeetingsWindowTests {
                     row("c", title: "Nobody named", at: now, speakers: [(nil, nil), (nil, nil)]),
                 ]
                 let visible = MeetingsDirectoryFilter.sections(
-                    rows, filter: .unnamed, now: now, calendar: calendar
+                    rows, filter: .unnamed, now: now, calendar: RuntimeFixtures.calendar
                 ).flatMap(\.rows)
                 expect.equal(visible.map(\.id), ["b", "c"])
                 expect.equal(visible.map(\.unnamedCount), [1, 2])
@@ -639,7 +575,7 @@ enum MeetingsWindowTests {
                     row("e", title: "Still working", at: now, state: .transcribing),
                 ]
                 let visible = MeetingsDirectoryFilter.sections(
-                    rows, filter: .needsAttention, now: now, calendar: calendar
+                    rows, filter: .needsAttention, now: now, calendar: RuntimeFixtures.calendar
                 ).flatMap(\.rows)
                 expect.equal(Set(visible.map(\.id)), ["b", "c"])
             },
@@ -657,7 +593,7 @@ enum MeetingsWindowTests {
                 ]
                 func visible(_ filter: MeetingsFilter) -> [String] {
                     MeetingsDirectoryFilter.sections(
-                        rows, filter: filter, now: now, calendar: calendar
+                        rows, filter: filter, now: now, calendar: RuntimeFixtures.calendar
                     ).flatMap(\.rows).map(\.id)
                 }
                 expect.equal(visible(.all), ["a"])
@@ -688,7 +624,7 @@ enum MeetingsWindowTests {
                     let started = Date()
                     for _ in 0..<5 {
                         _ = MeetingsDirectoryFilter.sections(
-                            rows, now: now, calendar: MeetingsWindowTests.calendar
+                            rows, now: now, calendar: RuntimeFixtures.calendar
                         )
                     }
                     return Date().timeIntervalSince(started)
@@ -712,7 +648,8 @@ enum MeetingsWindowTests {
                 ]
                 func found(_ query: String, transcripts: [String: String] = [:]) -> [String] {
                     MeetingsDirectoryFilter.sections(
-                        rows, query: query, transcripts: transcripts, now: now, calendar: calendar
+                        rows, query: query, transcripts: transcripts, now: now,
+                        calendar: RuntimeFixtures.calendar
                     ).flatMap(\.rows).map(\.id)
                 }
                 expect.equal(found("design"), ["a"], "the title")
@@ -779,9 +716,9 @@ enum MeetingsWindowTests {
     /// has to know which is which.
     @MainActor
     static func acceptingASuggestionNamesLikeAPerson(_ expect: Expect) async throws {
-        let root = try ManifestTests.makeTemporaryDirectory()
+        let root = try TestPaths.makeTemporaryDirectory()
         defer { try? FileManager.default.removeItem(at: root) }
-        let meeting = try makeMeeting(root: root, clusters: ["remote-001_speaker_00"])
+        let meeting = try RuntimeFixtures.makeMeeting(root: root, clusters: ["remote-001_speaker_00"])
         try meeting.store.writeSpeakerSuggestions(SpeakerSuggestionSet(suggestions: [
             SpeakerNameSuggestion(
                 label: "remote-001_speaker_00", name: "Priya Raman", confidence: 0.91,
@@ -789,7 +726,7 @@ enum MeetingsWindowTests {
             ),
         ]))
 
-        let runtime = makeRuntime(root: root)
+        let runtime = RuntimeFixtures.makeRuntime(root: root)
         let model = MeetingsWindowModel(runtime: runtime)
         await model.reload()
         model.show(meetingID: meeting.id)
@@ -828,9 +765,9 @@ enum MeetingsWindowTests {
     /// comes back every time the meeting is reprocessed.
     @MainActor
     static func aDismissedSuggestionStaysDismissed(_ expect: Expect) async throws {
-        let root = try ManifestTests.makeTemporaryDirectory()
+        let root = try TestPaths.makeTemporaryDirectory()
         defer { try? FileManager.default.removeItem(at: root) }
-        let meeting = try makeMeeting(root: root, clusters: ["remote-001_speaker_00"])
+        let meeting = try RuntimeFixtures.makeMeeting(root: root, clusters: ["remote-001_speaker_00"])
         try meeting.store.writeSpeakerSuggestions(SpeakerSuggestionSet(suggestions: [
             SpeakerNameSuggestion(
                 label: "remote-001_speaker_00", name: "Priya Raman", confidence: 0.91,
@@ -838,7 +775,7 @@ enum MeetingsWindowTests {
             ),
         ]))
 
-        let runtime = makeRuntime(root: root)
+        let runtime = RuntimeFixtures.makeRuntime(root: root)
         let model = MeetingsWindowModel(runtime: runtime)
         await model.reload()
         model.show(meetingID: meeting.id)
@@ -872,13 +809,13 @@ enum MeetingsWindowTests {
     /// straight back on the next read.
     @MainActor
     static func aDismissalOnTheSecondHalfReachesDisk(_ expect: Expect) async throws {
-        let root = try ManifestTests.makeTemporaryDirectory()
+        let root = try TestPaths.makeTemporaryDirectory()
         defer { try? FileManager.default.removeItem(at: root) }
-        let first = try makeMeeting(
+        let first = try RuntimeFixtures.makeMeeting(
             root: root, clusters: ["remote-001_speaker_00"], title: "Design review",
             startedAt: Date(timeIntervalSince1970: 1_787_066_400)
         )
-        let second = try makeMeeting(
+        let second = try RuntimeFixtures.makeMeeting(
             root: root, clusters: ["remote-001_speaker_00"], title: "Design review, rejoined"
         )
         // Only the second half has anything to propose, so the pill under test
@@ -890,7 +827,7 @@ enum MeetingsWindowTests {
             ),
         ]))
 
-        let runtime = makeRuntime(root: root)
+        let runtime = RuntimeFixtures.makeRuntime(root: root)
         runtime.combine(meetingID: second.id, into: first.id, reason: "a test")
         let model = MeetingsWindowModel(runtime: runtime)
         await model.reload()
@@ -923,9 +860,9 @@ enum MeetingsWindowTests {
     /// naming one step further along.
     @MainActor
     static func aClearedNameIsNotProposedAgain(_ expect: Expect) async throws {
-        let root = try ManifestTests.makeTemporaryDirectory()
+        let root = try TestPaths.makeTemporaryDirectory()
         defer { try? FileManager.default.removeItem(at: root) }
-        let meeting = try makeMeeting(root: root, clusters: ["remote-001_speaker_00"])
+        let meeting = try RuntimeFixtures.makeMeeting(root: root, clusters: ["remote-001_speaker_00"])
         try meeting.store.writeSpeakerSuggestions(SpeakerSuggestionSet(suggestions: [
             SpeakerNameSuggestion(
                 label: "remote-001_speaker_00", name: "Priya Raman", confidence: 0.91,
@@ -933,7 +870,7 @@ enum MeetingsWindowTests {
             ),
         ]))
 
-        let runtime = makeRuntime(root: root)
+        let runtime = RuntimeFixtures.makeRuntime(root: root)
         let model = MeetingsWindowModel(runtime: runtime)
         await model.reload()
         model.show(meetingID: meeting.id)
@@ -976,15 +913,15 @@ enum MeetingsWindowTests {
     /// made no request and never went away.
     @MainActor
     static func theCountMatchesWhatWouldBeAsked(_ expect: Expect) async throws {
-        let root = try ManifestTests.makeTemporaryDirectory()
+        let root = try TestPaths.makeTemporaryDirectory()
         defer { try? FileManager.default.removeItem(at: root) }
-        let meeting = try makeMeeting(
+        let meeting = try RuntimeFixtures.makeMeeting(
             root: root,
             clusters: [
                 SpeakerLabel.localUser, "remote-001_speaker_00", "remote-001_speaker_01",
             ]
         )
-        let runtime = makeRuntime(root: root)
+        let runtime = RuntimeFixtures.makeRuntime(root: root)
 
         // The microphone track is never sent, and neither is the bucket for
         // words no interval claimed.
@@ -1017,14 +954,14 @@ enum MeetingsWindowTests {
     /// a summary there would throw the notes away with nothing asked.
     @MainActor
     static func theSummaryButtonIsHiddenWhereItWouldEatNotes(_ expect: Expect) async throws {
-        let root = try ManifestTests.makeTemporaryDirectory()
+        let root = try TestPaths.makeTemporaryDirectory()
         defer { try? FileManager.default.removeItem(at: root) }
-        let meeting = try makeMeeting(root: root, clusters: ["remote-001_speaker_00"])
+        let meeting = try RuntimeFixtures.makeMeeting(root: root, clusters: ["remote-001_speaker_00"])
         try meeting.store.writeSummary(
             SummaryDocument(generatedNotes: "- Chris sends the connector list.").markdown
         )
 
-        let runtime = makeRuntime(root: root)
+        let runtime = RuntimeFixtures.makeRuntime(root: root)
         let model = MeetingsWindowModel(runtime: runtime)
         await model.reload()
         model.show(meetingID: meeting.id)
@@ -1047,16 +984,16 @@ enum MeetingsWindowTests {
     /// disagree with the file the same meeting's folder holds.
     @MainActor
     static func copyingTakesTheTranscriptFromDisk(_ expect: Expect) async throws {
-        let root = try ManifestTests.makeTemporaryDirectory()
+        let root = try TestPaths.makeTemporaryDirectory()
         defer { try? FileManager.default.removeItem(at: root) }
-        let first = try makeMeeting(
+        let first = try RuntimeFixtures.makeMeeting(
             root: root, clusters: ["remote-001_speaker_00"], title: "Design review",
             startedAt: Date(timeIntervalSince1970: 1_787_066_400)
         )
-        let second = try makeMeeting(
+        let second = try RuntimeFixtures.makeMeeting(
             root: root, clusters: ["remote-001_speaker_00"], title: "Design review, rejoined"
         )
-        let runtime = makeRuntime(root: root)
+        let runtime = RuntimeFixtures.makeRuntime(root: root)
         runtime.combine(meetingID: second.id, into: first.id, reason: "a test")
 
         let detail = MeetingReviewModel(runtime: runtime, meetingID: first.id)
@@ -1311,7 +1248,7 @@ enum MeetingsWindowTests {
                 // clock time alone left no way to tell which day a meeting was
                 // without opening it.
                 let now = date("2026-08-24 15:00:00")
-                let calendar = MeetingsWindowTests.calendar
+                let calendar = RuntimeFixtures.calendar
                 for (moment, why) in [
                     (date("2026-08-24 14:15:00"), "today"),
                     (date("2026-08-23 09:32:00"), "yesterday"),
@@ -1345,7 +1282,7 @@ enum MeetingsWindowTests {
     /// decides nothing about what can be read.
     @MainActor
     static func aFilteredOutMeetingStillOpens(_ expect: Expect) async throws {
-        let root = try ManifestTests.makeTemporaryDirectory()
+        let root = try TestPaths.makeTemporaryDirectory()
         defer { try? FileManager.default.removeItem(at: root) }
         let repository = MeetingRepository(root: root.appendingPathComponent("Meetings"))
         let started = Date(timeIntervalSince1970: 1_787_070_000)
@@ -1354,7 +1291,7 @@ enum MeetingsWindowTests {
             titles: TitleCandidates(window: "Voice memo", timestampFallback: "f"), now: started
         )
 
-        let model = MeetingsWindowModel(runtime: makeRuntime(root: root))
+        let model = MeetingsWindowModel(runtime: RuntimeFixtures.makeRuntime(root: root))
         await model.reload()
         model.filter = .needsAttention
         expect.equal(model.rows.map(\.id), [created.metadata.id], "the archive holds it")
@@ -1377,9 +1314,9 @@ enum MeetingsWindowTests {
     /// reported nothing to do in exactly the meetings holding the most of it.
     @MainActor
     static func unnamedVoicesReachTheList(_ expect: Expect) async throws {
-        let root = try ManifestTests.makeTemporaryDirectory()
+        let root = try TestPaths.makeTemporaryDirectory()
         defer { try? FileManager.default.removeItem(at: root) }
-        let meeting = try makeMeeting(
+        let meeting = try RuntimeFixtures.makeMeeting(
             root: root, clusters: ["remote-001_speaker_00", "remote-001_speaker_01", "local"]
         )
         var map = SpeakerMap()
@@ -1387,7 +1324,7 @@ enum MeetingsWindowTests {
         try meeting.store.writeSpeakerMap(map)
         try meeting.store.writeNotes("Northwind renewal")
 
-        let rows = await makeRuntime(root: root).meetingRows()
+        let rows = await RuntimeFixtures.makeRuntime(root: root).meetingRows()
 
         expect.equal(rows.count, 1)
         guard let row = rows.first else { return }
@@ -1413,12 +1350,12 @@ enum MeetingsWindowTests {
     /// the meeting a notification had just opened.
     @MainActor
     static func selectionSurvivesAReload(_ expect: Expect) async throws {
-        let root = try ManifestTests.makeTemporaryDirectory()
+        let root = try TestPaths.makeTemporaryDirectory()
         defer { try? FileManager.default.removeItem(at: root) }
-        _ = try makeMeeting(root: root, clusters: ["local"], title: "Standup")
-        let opened = try makeMeeting(root: root, clusters: ["local"], title: "Design review")
+        _ = try RuntimeFixtures.makeMeeting(root: root, clusters: ["local"], title: "Standup")
+        let opened = try RuntimeFixtures.makeMeeting(root: root, clusters: ["local"], title: "Design review")
 
-        let model = MeetingsWindowModel(runtime: makeRuntime(root: root))
+        let model = MeetingsWindowModel(runtime: RuntimeFixtures.makeRuntime(root: root))
         model.show(meetingID: opened.id)
         // The folder goes away between the click and the read, which is what a
         // meeting recorded after the read began looks like from here.
@@ -1434,11 +1371,11 @@ enum MeetingsWindowTests {
     /// stage changed left the row showing a name the meeting no longer has.
     @MainActor
     static func aNewNameReachesTheList(_ expect: Expect) async throws {
-        let root = try ManifestTests.makeTemporaryDirectory()
+        let root = try TestPaths.makeTemporaryDirectory()
         defer { try? FileManager.default.removeItem(at: root) }
-        let meeting = try makeMeeting(root: root, clusters: ["remote-001_speaker_00"])
+        let meeting = try RuntimeFixtures.makeMeeting(root: root, clusters: ["remote-001_speaker_00"])
 
-        let model = MeetingsWindowModel(runtime: makeRuntime(root: root))
+        let model = MeetingsWindowModel(runtime: RuntimeFixtures.makeRuntime(root: root))
         await model.reload()
         expect.equal(model.rows.first?.namedSpeakers.count, 0, "nobody named yet")
 
@@ -1453,11 +1390,11 @@ enum MeetingsWindowTests {
 
     @MainActor
     static func aNewTitleReachesTheList(_ expect: Expect) async throws {
-        let root = try ManifestTests.makeTemporaryDirectory()
+        let root = try TestPaths.makeTemporaryDirectory()
         defer { try? FileManager.default.removeItem(at: root) }
-        let meeting = try makeMeeting(root: root, clusters: ["local"], title: "Design review")
+        let meeting = try RuntimeFixtures.makeMeeting(root: root, clusters: ["local"], title: "Design review")
 
-        let model = MeetingsWindowModel(runtime: makeRuntime(root: root))
+        let model = MeetingsWindowModel(runtime: RuntimeFixtures.makeRuntime(root: root))
         await model.reload()
         model.show(meetingID: meeting.id)
         model.detail?.title = "Northwind renewal"
@@ -1474,11 +1411,11 @@ enum MeetingsWindowTests {
     /// case where the user is watching for the change.
     @MainActor
     static func aCommittedTitleReachesTheList(_ expect: Expect) async throws {
-        let root = try ManifestTests.makeTemporaryDirectory()
+        let root = try TestPaths.makeTemporaryDirectory()
         defer { try? FileManager.default.removeItem(at: root) }
-        let meeting = try makeMeeting(root: root, clusters: ["local"], title: "Design review")
+        let meeting = try RuntimeFixtures.makeMeeting(root: root, clusters: ["local"], title: "Design review")
 
-        let model = MeetingsWindowModel(runtime: makeRuntime(root: root))
+        let model = MeetingsWindowModel(runtime: RuntimeFixtures.makeRuntime(root: root))
         await model.reload()
         model.show(meetingID: meeting.id)
         model.detail?.title = "Northwind renewal"
@@ -1494,7 +1431,7 @@ enum MeetingsWindowTests {
     /// on the transcript that did not exist yet.
     @MainActor
     static func theOpenPaneCatchesUp(_ expect: Expect) async throws {
-        let root = try ManifestTests.makeTemporaryDirectory()
+        let root = try TestPaths.makeTemporaryDirectory()
         defer { try? FileManager.default.removeItem(at: root) }
         let repository = MeetingRepository(root: root.appendingPathComponent("Meetings"))
         let started = Date(timeIntervalSince1970: 1_787_070_000)
@@ -1503,7 +1440,7 @@ enum MeetingsWindowTests {
             titles: TitleCandidates(provider: "Design review", timestampFallback: "f"), now: started
         )
 
-        let model = MeetingsWindowModel(runtime: makeRuntime(root: root))
+        let model = MeetingsWindowModel(runtime: RuntimeFixtures.makeRuntime(root: root))
         await model.reload()
         model.show(meetingID: created.metadata.id)
         // Opening the pane starts a read of its own. It has to finish before
@@ -1530,12 +1467,12 @@ enum MeetingsWindowTests {
     /// the index is read again when the change reports back.
     @MainActor
     static func searchFollowsARewrittenTranscript(_ expect: Expect) async throws {
-        let root = try ManifestTests.makeTemporaryDirectory()
+        let root = try TestPaths.makeTemporaryDirectory()
         defer { try? FileManager.default.removeItem(at: root) }
-        let meeting = try makeMeeting(root: root, clusters: ["remote-001_speaker_00"])
+        let meeting = try RuntimeFixtures.makeMeeting(root: root, clusters: ["remote-001_speaker_00"])
         try meeting.store.writeTranscriptMarkdown("Speaker 1: the northwind renewal")
 
-        let model = MeetingsWindowModel(runtime: makeRuntime(root: root))
+        let model = MeetingsWindowModel(runtime: RuntimeFixtures.makeRuntime(root: root))
         await model.reload()
         model.show(meetingID: meeting.id)
         await waitFor(expect, "the transcripts to be read") { model.searchesTranscripts }
@@ -1554,11 +1491,11 @@ enum MeetingsWindowTests {
     /// the window.
     @MainActor
     static func aLaterTranscriptJoinsTheSearchIndex(_ expect: Expect) async throws {
-        let root = try ManifestTests.makeTemporaryDirectory()
+        let root = try TestPaths.makeTemporaryDirectory()
         defer { try? FileManager.default.removeItem(at: root) }
-        let meeting = try makeMeeting(root: root, clusters: ["local"], title: "Design review")
+        let meeting = try RuntimeFixtures.makeMeeting(root: root, clusters: ["local"], title: "Design review")
 
-        let model = MeetingsWindowModel(runtime: makeRuntime(root: root))
+        let model = MeetingsWindowModel(runtime: RuntimeFixtures.makeRuntime(root: root))
         await model.reload()
         await waitFor(expect, "the first pass over the archive") { model.searchesTranscripts }
 
@@ -1576,12 +1513,12 @@ enum MeetingsWindowTests {
     /// from the transcript the meeting used to have.
     @MainActor
     static func searchFollowsARebuild(_ expect: Expect) async throws {
-        let root = try ManifestTests.makeTemporaryDirectory()
+        let root = try TestPaths.makeTemporaryDirectory()
         defer { try? FileManager.default.removeItem(at: root) }
-        let meeting = try makeMeeting(root: root, clusters: ["local"], title: "Design review")
+        let meeting = try RuntimeFixtures.makeMeeting(root: root, clusters: ["local"], title: "Design review")
         try meeting.store.writeTranscriptMarkdown("Andrew: the northwind renewal")
 
-        let model = MeetingsWindowModel(runtime: makeRuntime(root: root))
+        let model = MeetingsWindowModel(runtime: RuntimeFixtures.makeRuntime(root: root))
         await model.reload()
         await waitFor(expect, "the transcripts to be read") { model.searchesTranscripts }
         expect.equal(model.selection.count, 1, "the first row is selected")
@@ -1605,16 +1542,16 @@ enum MeetingsWindowTests {
     /// the list.
     @MainActor
     static func aFoldedHalfReachesTheConversationsRow(_ expect: Expect) async throws {
-        let root = try ManifestTests.makeTemporaryDirectory()
+        let root = try TestPaths.makeTemporaryDirectory()
         defer { try? FileManager.default.removeItem(at: root) }
-        let first = try makeMeeting(
+        let first = try RuntimeFixtures.makeMeeting(
             root: root, clusters: ["remote-001_speaker_00"], title: "Design review"
         )
-        let second = try makeMeeting(
+        let second = try RuntimeFixtures.makeMeeting(
             root: root, clusters: ["remote-001_speaker_00"], title: "Design review, rejoined"
         )
 
-        let runtime = makeRuntime(root: root)
+        let runtime = RuntimeFixtures.makeRuntime(root: root)
         let model = MeetingsWindowModel(runtime: runtime)
         await model.reload()
         model.show(meetingID: second.id)
@@ -1642,17 +1579,17 @@ enum MeetingsWindowTests {
     /// the change had reached lines in the other half that it had not.
     @MainActor
     static func aReceiptCountsOneRecordingsLines(_ expect: Expect) async throws {
-        let root = try ManifestTests.makeTemporaryDirectory()
+        let root = try TestPaths.makeTemporaryDirectory()
         defer { try? FileManager.default.removeItem(at: root) }
-        let first = try makeMeeting(
+        let first = try RuntimeFixtures.makeMeeting(
             root: root, clusters: ["remote-001_speaker_00"], title: "Design review",
             startedAt: Date(timeIntervalSince1970: 1_787_066_400)
         )
-        let second = try makeMeeting(
+        let second = try RuntimeFixtures.makeMeeting(
             root: root, clusters: ["remote-001_speaker_00"], title: "Design review, rejoined"
         )
 
-        let runtime = makeRuntime(root: root)
+        let runtime = RuntimeFixtures.makeRuntime(root: root)
         runtime.combine(meetingID: second.id, into: first.id, reason: "a test")
         let model = MeetingsWindowModel(runtime: runtime)
         await model.reload()
@@ -1680,7 +1617,7 @@ enum MeetingsWindowTests {
     /// it made the receipt claim a line nothing had changed.
     @MainActor
     static func aReceiptLeavesOutLinesAPersonSet(_ expect: Expect) async throws {
-        let root = try ManifestTests.makeTemporaryDirectory()
+        let root = try TestPaths.makeTemporaryDirectory()
         defer { try? FileManager.default.removeItem(at: root) }
         let repository = MeetingRepository(root: root.appendingPathComponent("Meetings"))
         let started = Date(timeIntervalSince1970: 1_787_070_000)
@@ -1713,7 +1650,7 @@ enum MeetingsWindowTests {
         )
         try created.store.writeSpeakerMap(map)
 
-        let model = MeetingsWindowModel(runtime: makeRuntime(root: root))
+        let model = MeetingsWindowModel(runtime: RuntimeFixtures.makeRuntime(root: root))
         await model.reload()
         model.show(meetingID: created.metadata.id)
         await waitFor(expect, "the pane to read the meeting") {
@@ -1739,7 +1676,7 @@ enum MeetingsWindowTests {
     /// names.
     @MainActor
     static func aReceiptLeavesOutAFreshCorrection(_ expect: Expect) async throws {
-        let root = try ManifestTests.makeTemporaryDirectory()
+        let root = try TestPaths.makeTemporaryDirectory()
         defer { try? FileManager.default.removeItem(at: root) }
         let repository = MeetingRepository(root: root.appendingPathComponent("Meetings"))
         let started = Date(timeIntervalSince1970: 1_787_070_000)
@@ -1768,7 +1705,7 @@ enum MeetingsWindowTests {
             ]
         ))
 
-        let model = MeetingsWindowModel(runtime: makeRuntime(root: root))
+        let model = MeetingsWindowModel(runtime: RuntimeFixtures.makeRuntime(root: root))
         await model.reload()
         model.show(meetingID: created.metadata.id)
         await waitFor(expect, "the pane to read the meeting") {
@@ -1800,16 +1737,16 @@ enum MeetingsWindowTests {
     /// anything said after the call dropped.
     @MainActor
     static func searchReachesBothHalvesOfACall(_ expect: Expect) async throws {
-        let root = try ManifestTests.makeTemporaryDirectory()
+        let root = try TestPaths.makeTemporaryDirectory()
         defer { try? FileManager.default.removeItem(at: root) }
-        let first = try makeMeeting(root: root, clusters: ["local"], title: "Design review")
-        let second = try makeMeeting(
+        let first = try RuntimeFixtures.makeMeeting(root: root, clusters: ["local"], title: "Design review")
+        let second = try RuntimeFixtures.makeMeeting(
             root: root, clusters: ["local"], title: "Design review, rejoined"
         )
         try first.store.writeTranscriptMarkdown("Andrew: the northwind renewal")
         try second.store.writeTranscriptMarkdown("Andrew: the audio sdk call")
 
-        let runtime = makeRuntime(root: root)
+        let runtime = RuntimeFixtures.makeRuntime(root: root)
         runtime.combine(meetingID: second.id, into: first.id, reason: "a test")
 
         let model = MeetingsWindowModel(runtime: runtime)
@@ -1829,16 +1766,16 @@ enum MeetingsWindowTests {
     /// listing altogether.
     @MainActor
     static func aCorruptTranscriptKeepsItsRow(_ expect: Expect) async throws {
-        let root = try ManifestTests.makeTemporaryDirectory()
+        let root = try TestPaths.makeTemporaryDirectory()
         defer { try? FileManager.default.removeItem(at: root) }
-        let meeting = try makeMeeting(root: root, clusters: ["remote-001_speaker_00"])
+        let meeting = try RuntimeFixtures.makeMeeting(root: root, clusters: ["remote-001_speaker_00"])
         var map = SpeakerMap()
         map.assign("Chris Vaughn", to: "remote-001_speaker_00", identityID: IdentityID(7))
         try meeting.store.writeSpeakerMap(map)
         try Data(#"{"utterances": [{"speakerK"#.utf8)
             .write(to: meeting.store.layout.canonicalTranscript)
 
-        let rows = await makeRuntime(root: root).meetingRows()
+        let rows = await RuntimeFixtures.makeRuntime(root: root).meetingRows()
 
         expect.equal(rows.count, 1, "the meeting is still listed")
         expect.equal(rows.first?.namedSpeakers.map(\.displayName), ["Chris Vaughn"])
@@ -1852,15 +1789,15 @@ enum MeetingsWindowTests {
     /// opened, including the state badge on a recording that had finished.
     @MainActor
     static func anotherMeetingsRowKeepsUp(_ expect: Expect) async throws {
-        let root = try ManifestTests.makeTemporaryDirectory()
+        let root = try TestPaths.makeTemporaryDirectory()
         defer { try? FileManager.default.removeItem(at: root) }
-        let earlier = try makeMeeting(
+        let earlier = try RuntimeFixtures.makeMeeting(
             root: root, clusters: ["remote-001_speaker_00"], title: "Standup",
             startedAt: Date(timeIntervalSince1970: 1_787_066_400)
         )
-        _ = try makeMeeting(root: root, clusters: ["remote-001_speaker_00"], title: "Design review")
+        _ = try RuntimeFixtures.makeMeeting(root: root, clusters: ["remote-001_speaker_00"], title: "Design review")
 
-        let model = MeetingsWindowModel(runtime: makeRuntime(root: root))
+        let model = MeetingsWindowModel(runtime: RuntimeFixtures.makeRuntime(root: root))
         await model.reload()
         expect.equal(model.detail?.title, "Design review", "the newest meeting is the one open")
 
@@ -1881,13 +1818,13 @@ enum MeetingsWindowTests {
     /// rows and one of them opened a meeting the listing no longer holds.
     @MainActor
     static func combiningTakesTheFoldedRowOutOfTheList(_ expect: Expect) async throws {
-        let root = try ManifestTests.makeTemporaryDirectory()
+        let root = try TestPaths.makeTemporaryDirectory()
         defer { try? FileManager.default.removeItem(at: root) }
-        let first = try makeMeeting(
+        let first = try RuntimeFixtures.makeMeeting(
             root: root, clusters: ["local"], title: "Design review",
             startedAt: Date(timeIntervalSince1970: 1_787_066_400)
         )
-        let second = try makeMeeting(
+        let second = try RuntimeFixtures.makeMeeting(
             root: root, clusters: ["local"], title: "Design review, rejoined"
         )
         _ = try second.store.updateMetadata {
@@ -1895,7 +1832,7 @@ enum MeetingsWindowTests {
             $0.possibleContinuationReason = "the call dropped and was rejoined"
         }
 
-        let model = MeetingsWindowModel(runtime: makeRuntime(root: root))
+        let model = MeetingsWindowModel(runtime: RuntimeFixtures.makeRuntime(root: root))
         await model.reload()
         model.show(meetingID: second.id)
         model.combineWithEarlier()
@@ -1917,19 +1854,19 @@ enum MeetingsWindowTests {
     /// said went on matching the first.
     @MainActor
     static func separatingRestoresTheRowAndTheIndex(_ expect: Expect) async throws {
-        let root = try ManifestTests.makeTemporaryDirectory()
+        let root = try TestPaths.makeTemporaryDirectory()
         defer { try? FileManager.default.removeItem(at: root) }
-        let first = try makeMeeting(
+        let first = try RuntimeFixtures.makeMeeting(
             root: root, clusters: ["local"], title: "Design review",
             startedAt: Date(timeIntervalSince1970: 1_787_066_400)
         )
-        let second = try makeMeeting(
+        let second = try RuntimeFixtures.makeMeeting(
             root: root, clusters: ["local"], title: "Design review, rejoined"
         )
         try first.store.writeTranscriptMarkdown("Andrew: the northwind renewal")
         try second.store.writeTranscriptMarkdown("Andrew: the audio sdk call")
 
-        let runtime = makeRuntime(root: root)
+        let runtime = RuntimeFixtures.makeRuntime(root: root)
         runtime.combine(meetingID: second.id, into: first.id, reason: "a test")
 
         let model = MeetingsWindowModel(runtime: runtime)
@@ -1954,7 +1891,7 @@ enum MeetingsWindowTests {
     /// nothing ever leaves.
     @MainActor
     static func aSilentClusterIsNotWorkToDo(_ expect: Expect) async throws {
-        let root = try ManifestTests.makeTemporaryDirectory()
+        let root = try TestPaths.makeTemporaryDirectory()
         defer { try? FileManager.default.removeItem(at: root) }
         let repository = MeetingRepository(root: root.appendingPathComponent("Meetings"))
         let started = Date(timeIntervalSince1970: 1_787_070_000)
@@ -1983,7 +1920,7 @@ enum MeetingsWindowTests {
         map.assign("Chris Vaughn", to: "remote-001_speaker_00", identityID: IdentityID(7))
         try created.store.writeSpeakerMap(map)
 
-        let runtime = makeRuntime(root: root)
+        let runtime = RuntimeFixtures.makeRuntime(root: root)
         let strip = await runtime.speakers(inMeeting: created.metadata.id)
             .filter(\.hasSpeechToShow)
         expect.equal(
@@ -2006,16 +1943,16 @@ enum MeetingsWindowTests {
 
     @MainActor
     static func aLaterMeetingJoinsTheSearchIndex(_ expect: Expect) async throws {
-        let root = try ManifestTests.makeTemporaryDirectory()
+        let root = try TestPaths.makeTemporaryDirectory()
         defer { try? FileManager.default.removeItem(at: root) }
-        let first = try makeMeeting(root: root, clusters: ["local"])
+        let first = try RuntimeFixtures.makeMeeting(root: root, clusters: ["local"])
         try first.store.writeTranscriptMarkdown("Andrew: the northwind renewal")
 
-        let model = MeetingsWindowModel(runtime: makeRuntime(root: root))
+        let model = MeetingsWindowModel(runtime: RuntimeFixtures.makeRuntime(root: root))
         await model.reload()
         await waitFor(expect, "the first transcript to be read") { model.searchesTranscripts }
 
-        let second = try makeMeeting(root: root, clusters: ["local"], title: "Weekly sync")
+        let second = try RuntimeFixtures.makeMeeting(root: root, clusters: ["local"], title: "Weekly sync")
         try second.store.writeTranscriptMarkdown("Andrew: the audio sdk call")
         await model.reload()
         model.query = "audio sdk"
@@ -2031,9 +1968,9 @@ enum MeetingsWindowTests {
     /// drew the user's own voice as a voice asking for a name.
     @MainActor
     static func theMicrophoneTrackIsNotUnnamed(_ expect: Expect) async throws {
-        let root = try ManifestTests.makeTemporaryDirectory()
+        let root = try TestPaths.makeTemporaryDirectory()
         defer { try? FileManager.default.removeItem(at: root) }
-        let meeting = try makeMeeting(
+        let meeting = try RuntimeFixtures.makeMeeting(
             root: root, clusters: [SpeakerLabel.localUser, "remote-001_speaker_00"]
         )
         // What the assembling stage writes for a meeting recorded from this
@@ -2044,7 +1981,7 @@ enum MeetingsWindowTests {
         )
         try meeting.store.writeSpeakerMap(map)
 
-        let rows = await makeRuntime(root: root).speakers(inMeeting: meeting.id)
+        let rows = await RuntimeFixtures.makeRuntime(root: root).speakers(inMeeting: meeting.id)
         guard let mine = rows.first(where: { $0.clusterID == SpeakerLabel.localUser }) else {
             expect.fail("the microphone track is not in the speaker strip")
             return
@@ -2064,19 +2001,19 @@ enum MeetingsWindowTests {
     /// back and search answered from it for the life of the window.
     @MainActor
     static func namingOnAFoldedHalfDropsTheConversationsWords(_ expect: Expect) async throws {
-        let root = try ManifestTests.makeTemporaryDirectory()
+        let root = try TestPaths.makeTemporaryDirectory()
         defer { try? FileManager.default.removeItem(at: root) }
-        let first = try makeMeeting(
+        let first = try RuntimeFixtures.makeMeeting(
             root: root, clusters: ["remote-001_speaker_00"], title: "Design review",
             startedAt: Date(timeIntervalSince1970: 1_787_066_400)
         )
-        let second = try makeMeeting(
+        let second = try RuntimeFixtures.makeMeeting(
             root: root, clusters: ["remote-001_speaker_00"], title: "Design review, rejoined"
         )
         try first.store.writeTranscriptMarkdown("Speaker 1: the northwind renewal")
         try second.store.writeTranscriptMarkdown("Speaker 1: the audio sdk call")
 
-        let runtime = makeRuntime(root: root)
+        let runtime = RuntimeFixtures.makeRuntime(root: root)
         let model = MeetingsWindowModel(runtime: runtime)
         await model.reload()
         model.show(meetingID: second.id)
@@ -2115,7 +2052,7 @@ enum MeetingsWindowTests {
     /// in no row at all.
     @MainActor
     static func bothHalvesReachTheRow(_ expect: Expect) async throws {
-        let root = try ManifestTests.makeTemporaryDirectory()
+        let root = try TestPaths.makeTemporaryDirectory()
         defer { try? FileManager.default.removeItem(at: root) }
         let (_, conversation) = try makeRejoinedCall(root: root)
 
@@ -2144,9 +2081,9 @@ enum MeetingsWindowTests {
     /// The strip drew a chip per key, so one person appeared four times.
     @MainActor
     static func oneAccountIsOneChip(_ expect: Expect) async throws {
-        let root = try ManifestTests.makeTemporaryDirectory()
+        let root = try TestPaths.makeTemporaryDirectory()
         defer { try? FileManager.default.removeItem(at: root) }
-        let meeting = try makeMeeting(
+        let meeting = try RuntimeFixtures.makeMeeting(
             root: root,
             clusters: [
                 "remote-001_speaker_00", "remote-001_speaker_01", "remote-001_speaker_02",
@@ -2157,7 +2094,7 @@ enum MeetingsWindowTests {
             as: "Chris Latimer", account: "U06"
         ))
 
-        let model = MeetingsWindowModel(runtime: makeRuntime(root: root))
+        let model = MeetingsWindowModel(runtime: RuntimeFixtures.makeRuntime(root: root))
         await model.reload()
         model.show(meetingID: meeting.id)
         await waitFor(expect, "the strip to read the speakers") {
@@ -2181,9 +2118,9 @@ enum MeetingsWindowTests {
     /// reading the old name and the chip split back into several on reload.
     @MainActor
     static func namingOneChipWritesEveryClusterBehindIt(_ expect: Expect) async throws {
-        let root = try ManifestTests.makeTemporaryDirectory()
+        let root = try TestPaths.makeTemporaryDirectory()
         defer { try? FileManager.default.removeItem(at: root) }
-        let meeting = try makeMeeting(
+        let meeting = try RuntimeFixtures.makeMeeting(
             root: root, clusters: ["remote-001_speaker_00", "remote-001_speaker_01"]
         )
         try meeting.store.writeSpeakerMap(sensorNamedMap(
@@ -2191,7 +2128,7 @@ enum MeetingsWindowTests {
             as: "Chris Latimer", account: "U06"
         ))
 
-        let model = MeetingsWindowModel(runtime: makeRuntime(root: root))
+        let model = MeetingsWindowModel(runtime: RuntimeFixtures.makeRuntime(root: root))
         await model.reload()
         model.show(meetingID: meeting.id)
         await waitFor(expect, "the strip to read the speakers") {
@@ -2231,9 +2168,9 @@ enum MeetingsWindowTests {
     /// recognised.
     @MainActor
     static func theChipKeepsTheIdentityOffAShorterCluster(_ expect: Expect) async throws {
-        let root = try ManifestTests.makeTemporaryDirectory()
+        let root = try TestPaths.makeTemporaryDirectory()
         defer { try? FileManager.default.removeItem(at: root) }
-        let meeting = try makeMeeting(
+        let meeting = try RuntimeFixtures.makeMeeting(
             root: root, clusters: ["remote-001_speaker_00", "remote-001_speaker_01"]
         )
         // The linked cluster speaks for two seconds and the roster-named one for
@@ -2258,7 +2195,7 @@ enum MeetingsWindowTests {
             as: "Chris Latimer", account: "U06"
         ))
 
-        let runtime = makeRuntime(root: root)
+        let runtime = RuntimeFixtures.makeRuntime(root: root)
         let model = MeetingsWindowModel(runtime: runtime)
         await model.reload()
         model.show(meetingID: meeting.id)
@@ -2309,11 +2246,11 @@ enum MeetingsWindowTests {
     /// speaker map and leave the first half's alone.
     @MainActor
     static func namingTheSecondHalfWritesItsOwnMap(_ expect: Expect) async throws {
-        let root = try ManifestTests.makeTemporaryDirectory()
+        let root = try TestPaths.makeTemporaryDirectory()
         defer { try? FileManager.default.removeItem(at: root) }
         let (repository, conversation) = try makeRejoinedCall(root: root)
 
-        let model = MeetingsWindowModel(runtime: makeRuntime(root: root))
+        let model = MeetingsWindowModel(runtime: RuntimeFixtures.makeRuntime(root: root))
         await model.reload()
         model.show(meetingID: conversation)
         await waitFor(expect, "the pane to read both halves") {
@@ -2354,7 +2291,7 @@ enum MeetingsWindowTests {
     /// opened showed one chip that was already named.
     @MainActor
     static func theStripCoversWhatTheListCounts(_ expect: Expect) async throws {
-        let root = try ManifestTests.makeTemporaryDirectory()
+        let root = try TestPaths.makeTemporaryDirectory()
         defer { try? FileManager.default.removeItem(at: root) }
         let (_, conversation) = try makeRejoinedCall(root: root)
 
@@ -2396,14 +2333,14 @@ enum MeetingsWindowTests {
     /// in the archive that no row can reach.
     @MainActor
     static func trashingMovesEveryFolder(_ expect: Expect) async throws {
-        let root = try ManifestTests.makeTemporaryDirectory()
+        let root = try TestPaths.makeTemporaryDirectory()
         defer { try? FileManager.default.removeItem(at: root) }
         let (repository, meetingID) = try makeRejoinedCall(root: root)
         let folders = (repository.logicalMeeting(id: meetingID)?.recordings ?? [])
             .map(\.store.layout.root)
         expect.equal(folders.count, 2, "a call recorded in two halves")
 
-        let model = MeetingsWindowModel(runtime: makeRuntime(root: root))
+        let model = MeetingsWindowModel(runtime: RuntimeFixtures.makeRuntime(root: root))
         await model.reload()
         expect.equal(model.rows.map(\.id), [meetingID])
         guard let target = model.rows.first else { return expect.fail("no row to move") }
@@ -2424,7 +2361,7 @@ enum MeetingsWindowTests {
         )
         await model.performTrash(pending)
 
-        let trash = trashDirectory(under: root)
+        let trash = RuntimeFixtures.trashDirectory(under: root)
         for folder in folders {
             expect.isFalse(
                 FileManager.default.fileExists(atPath: folder.path),
@@ -2452,12 +2389,12 @@ enum MeetingsWindowTests {
     /// the Archived filter is where the meeting is put back from.
     @MainActor
     static func archivingKeepsTheFiles(_ expect: Expect) async throws {
-        let root = try ManifestTests.makeTemporaryDirectory()
+        let root = try TestPaths.makeTemporaryDirectory()
         defer { try? FileManager.default.removeItem(at: root) }
-        let meeting = try makeMeeting(root: root, clusters: ["remote-001_speaker_00"])
+        let meeting = try RuntimeFixtures.makeMeeting(root: root, clusters: ["remote-001_speaker_00"])
         let folder = meeting.store.layout.root
 
-        let model = MeetingsWindowModel(runtime: makeRuntime(root: root))
+        let model = MeetingsWindowModel(runtime: RuntimeFixtures.makeRuntime(root: root))
         await model.reload()
         guard let target = model.rows.first else { return expect.fail("nothing recorded") }
 
@@ -2494,19 +2431,19 @@ enum MeetingsWindowTests {
     /// the selection instead would delete meetings the pointer was never over.
     @MainActor
     static func aRightClickActsOnTheRowUnderIt(_ expect: Expect) async throws {
-        let root = try ManifestTests.makeTemporaryDirectory()
+        let root = try TestPaths.makeTemporaryDirectory()
         defer { try? FileManager.default.removeItem(at: root) }
         let started = Date(timeIntervalSince1970: 1_787_070_000)
-        let first = try makeMeeting(
+        let first = try RuntimeFixtures.makeMeeting(
             root: root, clusters: ["remote-001_speaker_00"], title: "Design review",
             startedAt: started
         )
-        let second = try makeMeeting(
+        let second = try RuntimeFixtures.makeMeeting(
             root: root, clusters: ["remote-001_speaker_00"], title: "Standup",
             startedAt: started.addingTimeInterval(3_600)
         )
 
-        let model = MeetingsWindowModel(runtime: makeRuntime(root: root))
+        let model = MeetingsWindowModel(runtime: RuntimeFixtures.makeRuntime(root: root))
         await model.reload()
         model.select(first.id, extending: false)
         guard let other = model.rows.first(where: { $0.id == second.id }) else {
@@ -2525,10 +2462,10 @@ enum MeetingsWindowTests {
     /// it a trashed meeting kept counting towards "heard in 3 meetings".
     @MainActor
     static func trashingDropsTheOccurrences(_ expect: Expect) async throws {
-        let root = try ManifestTests.makeTemporaryDirectory()
+        let root = try TestPaths.makeTemporaryDirectory()
         defer { try? FileManager.default.removeItem(at: root) }
-        let meeting = try makeMeeting(root: root, clusters: ["remote-001_speaker_00"])
-        let runtime = makeRuntime(root: root)
+        let meeting = try RuntimeFixtures.makeMeeting(root: root, clusters: ["remote-001_speaker_00"])
+        let runtime = RuntimeFixtures.makeRuntime(root: root)
         let store = try expect.unwrap(runtime.speakerStore)
         let chris = try await store.createPerson(name: "Chris")
         try await store.recordOccurrence(
@@ -2551,10 +2488,10 @@ enum MeetingsWindowTests {
     /// whole document, so a field it does not know about has to survive that.
     @MainActor
     static func archivingSurvivesAMetadataWrite(_ expect: Expect) async throws {
-        let root = try ManifestTests.makeTemporaryDirectory()
+        let root = try TestPaths.makeTemporaryDirectory()
         defer { try? FileManager.default.removeItem(at: root) }
-        let meeting = try makeMeeting(root: root, clusters: ["remote-001_speaker_00"])
-        let runtime = makeRuntime(root: root)
+        let meeting = try RuntimeFixtures.makeMeeting(root: root, clusters: ["remote-001_speaker_00"])
+        let runtime = RuntimeFixtures.makeRuntime(root: root)
 
         runtime.setArchived(true, meetingIDs: [meeting.id])
         _ = try meeting.store.updateMetadata { $0.durationSeconds = 900 }
@@ -2571,11 +2508,11 @@ enum MeetingsWindowTests {
     /// row was archived still belongs to a meeting.
     @MainActor
     static func archivingSavesTheEdit(_ expect: Expect) async throws {
-        let root = try ManifestTests.makeTemporaryDirectory()
+        let root = try TestPaths.makeTemporaryDirectory()
         defer { try? FileManager.default.removeItem(at: root) }
-        let meeting = try makeMeeting(root: root, clusters: ["remote-001_speaker_00"])
+        let meeting = try RuntimeFixtures.makeMeeting(root: root, clusters: ["remote-001_speaker_00"])
 
-        let model = MeetingsWindowModel(runtime: makeRuntime(root: root))
+        let model = MeetingsWindowModel(runtime: RuntimeFixtures.makeRuntime(root: root))
         await model.reload()
         await waitFor(expect, "the pane to open") { model.detail?.title.isEmpty == false }
         model.detail?.title = "Renamed while archiving"
@@ -2593,19 +2530,19 @@ enum MeetingsWindowTests {
     /// read "1 of 2" under All with nothing typed in the search field.
     @MainActor
     static func theFooterCountsWhatTheFilterHolds(_ expect: Expect) async throws {
-        let root = try ManifestTests.makeTemporaryDirectory()
+        let root = try TestPaths.makeTemporaryDirectory()
         defer { try? FileManager.default.removeItem(at: root) }
         let started = Date(timeIntervalSince1970: 1_787_070_000)
-        _ = try makeMeeting(
+        _ = try RuntimeFixtures.makeMeeting(
             root: root, clusters: ["remote-001_speaker_00"], title: "Design review",
             startedAt: started
         )
-        _ = try makeMeeting(
+        _ = try RuntimeFixtures.makeMeeting(
             root: root, clusters: ["remote-001_speaker_00"], title: "Standup",
             startedAt: started.addingTimeInterval(3_600)
         )
 
-        let model = MeetingsWindowModel(runtime: makeRuntime(root: root))
+        let model = MeetingsWindowModel(runtime: RuntimeFixtures.makeRuntime(root: root))
         await model.reload()
         expect.equal(model.filteredRows.count, 2)
         let both = model.totalDuration
@@ -2633,7 +2570,7 @@ enum MeetingsWindowTests {
     /// still there.
     @MainActor
     static func aFolderThatWillNotMoveKeepsItsRow(_ expect: Expect) async throws {
-        let root = try ManifestTests.makeTemporaryDirectory()
+        let root = try TestPaths.makeTemporaryDirectory()
         let (repository, meetingID) = try makeRejoinedCall(root: root)
         guard let logical = repository.logicalMeeting(id: meetingID),
               let continuation = logical.continuations.first
@@ -2648,7 +2585,7 @@ enum MeetingsWindowTests {
         defer { unlock() }
         try FileManager.default.setAttributes([.immutable: true], ofItemAtPath: locked.path)
 
-        let runtime = makeRuntime(root: root)
+        let runtime = RuntimeFixtures.makeRuntime(root: root)
         let store = try expect.unwrap(runtime.speakerStore)
         let chris = try await store.createPerson(name: "Chris")
         try await store.recordOccurrence(

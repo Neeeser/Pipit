@@ -4,6 +4,7 @@ import PipitAudio
 import PipitCore
 import PipitDetection
 import PipitServices
+import PipitTestSupport
 import TestKit
 
 /// Regressions for defects found by adversarial review. Each one failed against
@@ -40,7 +41,7 @@ enum HardeningTests {
             lock.lock()
             let handler = sinkHandler
             lock.unlock()
-            let buffer = AudioTests.makeTone(seconds: seconds, sampleRate: format.sampleRate)
+            let buffer = AudioFixtures.makeTone(seconds: seconds, sampleRate: format.sampleRate)
             handler?(AudioBufferPacket(buffer: buffer, hostTime: hostTime))
         }
     }
@@ -92,7 +93,7 @@ enum HardeningTests {
         func emit(
             seconds: Double, hostTime: Double, amplitude: Float = 0.5, toneChannel: Int? = nil
         ) {
-            let buffer = AudioTests.makeTone(
+            let buffer = AudioFixtures.makeTone(
                 seconds: seconds, sampleRate: format.sampleRate,
                 channels: AVAudioChannelCount(format.channelCount),
                 amplitude: amplitude, toneChannel: toneChannel
@@ -147,7 +148,7 @@ enum HardeningTests {
     private static func recordTapAudio(
         amplitude: Float, channels: Int = 1, toneChannel: Int? = nil
     ) async throws -> (delegate: SilentDelegate, lines: [ManifestLine]) {
-        let root = try ManifestTests.makeTemporaryDirectory()
+        let root = try TestPaths.makeTemporaryDirectory()
         defer { try? FileManager.default.removeItem(at: root) }
         let layout = MeetingLayout(root: root)
         try FileManager.default.createDirectory(at: layout.segments, withIntermediateDirectories: true)
@@ -200,7 +201,7 @@ enum HardeningTests {
                 // backoff until it ended. The build keeps the device the unit
                 // holds, and the manifest carries the status so the record does
                 // not claim a device the audio is not from.
-                let root = try ManifestTests.makeTemporaryDirectory()
+                let root = try TestPaths.makeTemporaryDirectory()
                 defer { try? FileManager.default.removeItem(at: root) }
                 let layout = MeetingLayout(root: root)
                 try FileManager.default.createDirectory(at: layout.segments, withIntermediateDirectories: true)
@@ -243,7 +244,7 @@ enum HardeningTests {
             },
 
             test("remote audio that starts after commit is still written") { expect in
-                let root = try ManifestTests.makeTemporaryDirectory()
+                let root = try TestPaths.makeTemporaryDirectory()
                 defer { try? FileManager.default.removeItem(at: root) }
                 let layout = MeetingLayout(root: root)
                 try FileManager.default.createDirectory(at: layout.segments, withIntermediateDirectories: true)
@@ -289,7 +290,7 @@ enum HardeningTests {
                 // disk: the writer's open fails and reports it, and that report
                 // needs the engine's own lock. Building the writer while holding
                 // that lock deadlocked the audio thread and froze the recording.
-                let root = try ManifestTests.makeTemporaryDirectory()
+                let root = try TestPaths.makeTemporaryDirectory()
                 defer {
                     try? FileManager.default.setAttributes(
                         [.posixPermissions: 0o755], ofItemAtPath: root.appendingPathComponent("segments").path
@@ -397,7 +398,7 @@ enum HardeningTests {
             },
 
             test("the pre-roll reaches disk before the audio that follows it") { expect in
-                let root = try ManifestTests.makeTemporaryDirectory()
+                let root = try TestPaths.makeTemporaryDirectory()
                 defer { try? FileManager.default.removeItem(at: root) }
                 let layout = MeetingLayout(root: root)
                 try FileManager.default.createDirectory(at: layout.segments, withIntermediateDirectories: true)
@@ -452,7 +453,7 @@ enum HardeningTests {
             },
 
             test("a segment that cannot be opened is retried, not abandoned") { expect in
-                let root = try ManifestTests.makeTemporaryDirectory()
+                let root = try TestPaths.makeTemporaryDirectory()
                 defer { try? FileManager.default.removeItem(at: root) }
                 let layout = MeetingLayout(root: root)
                 try FileManager.default.createDirectory(at: layout.segments, withIntermediateDirectories: true)
@@ -467,7 +468,7 @@ enum HardeningTests {
                     segmentSeconds: 60, clock: clock
                 )
                 writer.enqueueSynchronously(AudioBufferPacket(
-                    buffer: AudioTests.makeTone(seconds: 1, sampleRate: 48_000), hostTime: 0
+                    buffer: AudioFixtures.makeTone(seconds: 1, sampleRate: 48_000), hostTime: 0
                 ))
                 expect.isTrue(writer.stats.writeFailures > 0, "the failure should be recorded")
 
@@ -476,7 +477,7 @@ enum HardeningTests {
                 try FileManager.default.createDirectory(at: layout.segments, withIntermediateDirectories: true)
                 clock.advance(2)
                 writer.enqueueSynchronously(AudioBufferPacket(
-                    buffer: AudioTests.makeTone(seconds: 1, sampleRate: 48_000), hostTime: 1
+                    buffer: AudioFixtures.makeTone(seconds: 1, sampleRate: 48_000), hostTime: 1
                 ))
                 writer.finish(reason: "test")
                 manifest.close()
@@ -493,7 +494,7 @@ enum HardeningTests {
                 // user's desk audio. A pause closes the segments; a resume after
                 // a rejoin opens new ones and flushes the ring, so the moments
                 // before the rejoin was confirmed still land on disk.
-                let root = try ManifestTests.makeTemporaryDirectory()
+                let root = try TestPaths.makeTemporaryDirectory()
                 defer { try? FileManager.default.removeItem(at: root) }
                 let layout = MeetingLayout(root: root)
                 try FileManager.default.createDirectory(at: layout.segments, withIntermediateDirectories: true)
@@ -543,7 +544,7 @@ enum HardeningTests {
                 var detector = SlackHuddleDetector()
                 var now = 100.0
                 _ = detector.update(
-                    observation: DetectionTests.joined(), helperHoldsMicrophone: true,
+                    observation: DetectionFixtures.joined(), helperHoldsMicrophone: true,
                     helperProducingOutput: true, at: now
                 )
                 expect.equal(detector.state, .joined)
@@ -566,7 +567,7 @@ enum HardeningTests {
                 // The control comes back and the huddle is unaffected.
                 now += 0.4
                 _ = detector.update(
-                    observation: DetectionTests.joined(), helperHoldsMicrophone: true,
+                    observation: DetectionFixtures.joined(), helperHoldsMicrophone: true,
                     helperProducingOutput: true, at: now
                 )
                 expect.equal(detector.state, .joined)
@@ -803,7 +804,7 @@ enum HardeningTests {
                 // The prompt names the process CoreAudio reported, which for an
                 // Electron application is a helper. Stored verbatim, the ban was
                 // one entry per helper and covered none of the others.
-                let root = try ManifestTests.makeTemporaryDirectory()
+                let root = try TestPaths.makeTemporaryDirectory()
                 defer { try? FileManager.default.removeItem(at: root) }
                 await MainActor.run {
                     let runtime = PipitRuntime(settingsDirectory: root)
@@ -862,7 +863,7 @@ enum HardeningTests {
                     provider: .zoom, confidence: .confirmed, source: .browserSensor,
                     meetingID: "81771591841", audioBundlePrefixes: ["org.mozilla.firefox"]
                 )
-                let meet = SessionTests.meetEvidence(confidence: .confirmed)
+                let meet = DetectionFixtures.meetEvidence(confidence: .confirmed)
                 let actions = controller.update(
                     evidence: [zoom, meet], now: 100, wallClock: wall
                 )
@@ -874,13 +875,13 @@ enum HardeningTests {
                 var controller = SessionController()
                 let wall = Date(timeIntervalSince1970: 1_787_070_000)
                 _ = controller.update(
-                    evidence: [SessionTests.meetEvidence(confidence: .confirmed)],
+                    evidence: [DetectionFixtures.meetEvidence(confidence: .confirmed)],
                     now: 100, wallClock: wall
                 )
                 expect.equal(controller.snapshot.providerMeetingID, "abc-defg-hij")
 
                 let actions = controller.update(
-                    evidence: [SessionTests.meetEvidence(confidence: .confirmed, meetingID: "zzz-zzzz-zzz")],
+                    evidence: [DetectionFixtures.meetEvidence(confidence: .confirmed, meetingID: "zzz-zzzz-zzz")],
                     now: 101, wallClock: wall
                 )
                 expect.isTrue(
@@ -895,14 +896,14 @@ enum HardeningTests {
                 var controller = SessionController()
                 let wall = Date(timeIntervalSince1970: 1_787_070_000)
                 _ = controller.update(
-                    evidence: [SessionTests.meetEvidence(confidence: .confirmed)],
+                    evidence: [DetectionFixtures.meetEvidence(confidence: .confirmed)],
                     now: 100, wallClock: wall
                 )
                 var now = 100.0
                 for _ in 0..<400 {
                     now += 0.5
                     let actions = controller.update(
-                        evidence: [SessionTests.meetEvidence(confidence: .candidate)],
+                        evidence: [DetectionFixtures.meetEvidence(confidence: .candidate)],
                         now: now, wallClock: wall
                     )
                     expect.isFalse(
@@ -917,7 +918,7 @@ enum HardeningTests {
                 var controller = SessionController()
                 let wall = Date(timeIntervalSince1970: 1_787_070_000)
                 _ = controller.update(
-                    evidence: [SessionTests.meetEvidence(confidence: .candidate)],
+                    evidence: [DetectionFixtures.meetEvidence(confidence: .candidate)],
                     now: 100, wallClock: wall
                 )
                 // A CoreAudio process-list flap: evidence vanishes for two polls.
@@ -928,7 +929,7 @@ enum HardeningTests {
                 expect.equal(controller.snapshot.state, .candidate)
 
                 let resumed = controller.update(
-                    evidence: [SessionTests.meetEvidence(confidence: .confirmed)],
+                    evidence: [DetectionFixtures.meetEvidence(confidence: .confirmed)],
                     now: 101.5, wallClock: wall
                 )
                 expect.isTrue(resumed.contains { if case .commitRecording = $0 { true } else { false } })
@@ -938,7 +939,7 @@ enum HardeningTests {
                 var controller = SessionController()
                 let wall = Date(timeIntervalSince1970: 1_787_070_000)
                 _ = controller.update(
-                    evidence: [SessionTests.meetEvidence(confidence: .confirmed)],
+                    evidence: [DetectionFixtures.meetEvidence(confidence: .confirmed)],
                     now: 100, wallClock: wall
                 )
                 expect.equal(controller.snapshot.state, .recording)
@@ -961,7 +962,7 @@ extension HardeningTests {
     static var sensorTrustSuite: Suite {
         Suite("SensorTrust", [
             test("an add-on in a Firefox profile is found without it saying anything") { expect in
-                let root = try ManifestTests.makeTemporaryDirectory()
+                let root = try TestPaths.makeTemporaryDirectory()
                 defer { try? FileManager.default.removeItem(at: root) }
                 let profile = root.appendingPathComponent("abc123.default-release/extensions")
                 try FileManager.default.createDirectory(
@@ -1065,7 +1066,7 @@ extension HardeningTests {
                 guard ProcessInfo.processInfo.environment["PIPIT_LIVE_CAPTURE"] == "1" else {
                     throw TestSkip("set PIPIT_LIVE_CAPTURE=1 to record from real hardware")
                 }
-                let root = try ManifestTests.makeTemporaryDirectory()
+                let root = try TestPaths.makeTemporaryDirectory()
                 defer { try? FileManager.default.removeItem(at: root) }
                 let layout = MeetingLayout(root: root)
                 try FileManager.default.createDirectory(
@@ -1138,7 +1139,7 @@ extension HardeningTests {
                 guard ProcessInfo.processInfo.environment["PIPIT_LIVE_CAPTURE"] == "1" else {
                     throw TestSkip("set PIPIT_LIVE_CAPTURE=1 to record from real hardware")
                 }
-                let root = try ManifestTests.makeTemporaryDirectory()
+                let root = try TestPaths.makeTemporaryDirectory()
                 defer { try? FileManager.default.removeItem(at: root) }
                 let archive = root.appendingPathComponent("Meetings")
 
@@ -1217,7 +1218,7 @@ extension HardeningTests {
                 else {
                     throw TestSkip("set PIPIT_SOAK_MINUTES=30 to run a capture soak")
                 }
-                let root = try ManifestTests.makeTemporaryDirectory()
+                let root = try TestPaths.makeTemporaryDirectory()
                 defer { try? FileManager.default.removeItem(at: root) }
                 let layout = MeetingLayout(root: root)
                 try FileManager.default.createDirectory(

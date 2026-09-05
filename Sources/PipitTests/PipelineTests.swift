@@ -5,77 +5,10 @@ import PipitAudio
 import PipitCore
 import PipitIntegrations
 import PipitServices
+import PipitTestSupport
 import TestKit
 
 enum PipelineTests {
-    /// Builds a finished two-track recording on disk, ready for processing.
-    static func makeRecordedMeeting(
-        root: URL, source: MeetingSource = .googleMeet, seconds: Double = 6,
-        remoteStartOffset: Double = 0, amplitude: Float = 0.5
-    ) throws -> (metadata: MeetingMetadata, store: MeetingStore, repository: MeetingRepository) {
-        let repository = MeetingRepository(root: root)
-        let started = Date(timeIntervalSince1970: 1_787_070_000)
-        let created = try repository.createMeeting(
-            source: source, provider: source.provider, startedAt: started,
-            titles: TitleCandidates(provider: "Weekly sync", timestampFallback: "fallback"),
-            now: started
-        )
-
-        let manifest = try ManifestWriter(url: created.store.layout.manifest)
-        manifest.append(.sessionStart(.init(
-            meetingID: created.metadata.id, source: source, segmentSeconds: 30,
-            appVersion: "test", processID: 1
-        )))
-        let format = AVAudioFormat(standardFormatWithSampleRate: 48_000, channels: 1)!
-        let micWriter = SegmentWriter(
-            track: .mic, layout: created.store.layout, manifest: manifest,
-            format: format, segmentSeconds: 30
-        )
-        micWriter.enqueueSynchronously(AudioBufferPacket(
-            buffer: AudioTests.makeTone(seconds: seconds, sampleRate: 48_000, amplitude: amplitude),
-            hostTime: 100
-        ))
-        micWriter.finish(reason: "test")
-
-        if source.capturesRemoteAudio {
-            let remoteWriter = SegmentWriter(
-                track: .remote, layout: created.store.layout, manifest: manifest,
-                format: format, segmentSeconds: 30
-            )
-            remoteWriter.enqueueSynchronously(AudioBufferPacket(
-                buffer: AudioTests.makeTone(
-                    seconds: seconds, sampleRate: 48_000, frequency: 220, amplitude: amplitude
-                ),
-                hostTime: 100 + remoteStartOffset
-            ))
-            remoteWriter.finish(reason: "test")
-        }
-        manifest.append(.sessionEnd(.init(reason: "test", micSeconds: seconds, remoteSeconds: seconds)))
-        manifest.close()
-
-        var metadata = created.metadata
-        metadata.endedAt = started.addingTimeInterval(seconds)
-        metadata.durationSeconds = seconds
-        metadata.runs = [RecordingRun(
-            id: "run-001", startedAt: started, endedAt: metadata.endedAt, durationSeconds: seconds
-        )]
-        metadata.processing = ProcessingStatus(state: .audioSafe, updatedAt: started)
-        try created.store.writeMetadata(metadata)
-        return (metadata, created.store, repository)
-    }
-
-    static func makePipeline(
-        repository: MeetingRepository, backend: FakeAIBackend, settings: AppSettings = AppSettings()
-    ) -> ProcessingPipeline {
-        ProcessingPipeline(
-            repository: repository,
-            backend: backend,
-            clock: ManualClock(),
-            settingsProvider: { settings },
-            wait: { _ in }
-        )
-    }
-
     /// A transcriber that runs one piece of work before it answers, so a test
     /// can make something happen while a stage is in flight.
     final class InterferingTranscriber: TranscriptionBackend, @unchecked Sendable {
@@ -101,9 +34,9 @@ enum PipelineTests {
                 // directories it needs. A job that carried on after the folder
                 // left the archive put the meeting back as a row holding no
                 // audio and no transcript, and nothing said where it came from.
-                let root = try ManifestTests.makeTemporaryDirectory()
+                let root = try TestPaths.makeTemporaryDirectory()
                 defer { try? FileManager.default.removeItem(at: root) }
-                let meeting = try makeRecordedMeeting(root: root, seconds: 6)
+                let meeting = try PipelineFixtures.makeRecordedMeeting(root: root, seconds: 6)
                 let folder = meeting.store.layout.root
 
                 var settings = AppSettings()
@@ -114,7 +47,7 @@ enum PipelineTests {
                 )
                 let resolved = settings
                 let transcriber = InterferingTranscriber()
-                let pipeline = LocalPipelineTests.makePipeline(
+                let pipeline = PipelineFixtures.makePipeline(
                     repository: meeting.repository,
                     backend: FakeAIBackend(),
                     transcriber: transcriber,
@@ -154,9 +87,9 @@ enum PipelineTests {
                 // The confirmation says the folder is recoverable. A job that
                 // removed the restored folder at its next stage boundary would
                 // take the meeting with it, permanently and without a word.
-                let root = try ManifestTests.makeTemporaryDirectory()
+                let root = try TestPaths.makeTemporaryDirectory()
                 defer { try? FileManager.default.removeItem(at: root) }
-                let meeting = try makeRecordedMeeting(root: root, seconds: 6)
+                let meeting = try PipelineFixtures.makeRecordedMeeting(root: root, seconds: 6)
                 let folder = meeting.store.layout.root
                 // A meeting folder is made when the recording starts, so it is
                 // always older than the moment somebody trashes it, and Put
@@ -175,7 +108,7 @@ enum PipelineTests {
                 )
                 let resolved = settings
                 let transcriber = InterferingTranscriber()
-                let pipeline = LocalPipelineTests.makePipeline(
+                let pipeline = PipelineFixtures.makePipeline(
                     repository: meeting.repository,
                     backend: FakeAIBackend(),
                     transcriber: transcriber,
@@ -217,15 +150,15 @@ enum PipelineTests {
                 // else. The launch sweep was left out of the marks entirely, so
                 // a meeting trashed while it transcoded came back holding audio
                 // and no metadata.
-                let root = try ManifestTests.makeTemporaryDirectory()
+                let root = try TestPaths.makeTemporaryDirectory()
                 defer { try? FileManager.default.removeItem(at: root) }
-                let meeting = try makeRecordedMeeting(root: root, seconds: 6)
+                let meeting = try PipelineFixtures.makeRecordedMeeting(root: root, seconds: 6)
                 _ = try meeting.store.updateMetadata {
                     $0.processing = ProcessingStatus(state: .complete, updatedAt: Date())
                 }
                 let folder = meeting.store.layout.root
                 let trashed = root.appendingPathComponent("Trash", isDirectory: true)
-                let pipeline = LocalPipelineTests.makePipeline(
+                let pipeline = PipelineFixtures.makePipeline(
                     repository: meeting.repository,
                     backend: FakeAIBackend(),
                     transcriber: StubTextTranscriber(text: "unused"),
@@ -458,9 +391,9 @@ enum PipelineTests {
                 // application, which here is 12 s after the microphone started. A
                 // chunk offset is a position inside one track, so without the
                 // track's lead-in every remote utterance lands 12 s early.
-                let root = try ManifestTests.makeTemporaryDirectory()
+                let root = try TestPaths.makeTemporaryDirectory()
                 defer { try? FileManager.default.removeItem(at: root) }
-                let meeting = try makeRecordedMeeting(root: root, seconds: 6, remoteStartOffset: 12)
+                let meeting = try PipelineFixtures.makeRecordedMeeting(root: root, seconds: 6, remoteStartOffset: 12)
 
                 let backend = FakeAIBackend()
                 backend.transcriptionSegments = [
@@ -469,7 +402,7 @@ enum PipelineTests {
                 backend.diarizationSegments = [
                     RawTranscriptSegment(start: 0, end: 2, text: "Theirs.", speaker: "A"),
                 ]
-                let pipeline = makePipeline(repository: meeting.repository, backend: backend)
+                let pipeline = PipelineFixtures.makePipeline(repository: meeting.repository, backend: backend)
                 await pipeline.process(meetingID: meeting.metadata.id)
 
                 let transcript = try meeting.store.readCanonicalTranscript()
@@ -483,9 +416,9 @@ enum PipelineTests {
             },
 
             test("a recorded meeting runs through to complete") { expect in
-                let root = try ManifestTests.makeTemporaryDirectory()
+                let root = try TestPaths.makeTemporaryDirectory()
                 defer { try? FileManager.default.removeItem(at: root) }
-                let meeting = try makeRecordedMeeting(root: root)
+                let meeting = try PipelineFixtures.makeRecordedMeeting(root: root)
 
                 let backend = FakeAIBackend()
                 backend.transcriptionSegments = [
@@ -501,7 +434,7 @@ enum PipelineTests {
                     ),
                 ]
 
-                let pipeline = makePipeline(repository: meeting.repository, backend: backend)
+                let pipeline = PipelineFixtures.makePipeline(repository: meeting.repository, backend: backend)
                 await pipeline.process(meetingID: meeting.metadata.id)
 
                 let final = try meeting.store.readMetadata()
@@ -542,9 +475,9 @@ enum PipelineTests {
                 // writes the whole document back, while the user renames the
                 // meeting from the meetings window. Without serialisation the slower
                 // writer restores the copy it read and the rename disappears.
-                let root = try ManifestTests.makeTemporaryDirectory()
+                let root = try TestPaths.makeTemporaryDirectory()
                 defer { try? FileManager.default.removeItem(at: root) }
-                let meeting = try makeRecordedMeeting(root: root)
+                let meeting = try PipelineFixtures.makeRecordedMeeting(root: root)
                 let store = meeting.store
 
                 let renames = Task.detached {
@@ -573,9 +506,9 @@ enum PipelineTests {
             },
 
             test("a rate limit is retried on its own and the meeting completes") { expect in
-                let root = try ManifestTests.makeTemporaryDirectory()
+                let root = try TestPaths.makeTemporaryDirectory()
                 defer { try? FileManager.default.removeItem(at: root) }
-                let meeting = try makeRecordedMeeting(root: root)
+                let meeting = try PipelineFixtures.makeRecordedMeeting(root: root)
 
                 let backend = FakeAIBackend()
                 backend.failNextTranscription = .rateLimited(retryAfter: 30)
@@ -585,7 +518,7 @@ enum PipelineTests {
                 backend.diarizationSegments = [
                     RawTranscriptSegment(start: 0, end: 2, text: "Welcome back.", speaker: "A"),
                 ]
-                let pipeline = makePipeline(repository: meeting.repository, backend: backend)
+                let pipeline = PipelineFixtures.makePipeline(repository: meeting.repository, backend: backend)
                 await pipeline.process(meetingID: meeting.metadata.id)
 
                 let recovered = try meeting.store.readMetadata()
@@ -594,16 +527,16 @@ enum PipelineTests {
             },
 
             test("a failure that keeps happening stops asking and keeps the audio") { expect in
-                let root = try ManifestTests.makeTemporaryDirectory()
+                let root = try TestPaths.makeTemporaryDirectory()
                 defer { try? FileManager.default.removeItem(at: root) }
-                let meeting = try makeRecordedMeeting(root: root)
+                let meeting = try PipelineFixtures.makeRecordedMeeting(root: root)
                 let segmentsBefore = try FileManager.default.contentsOfDirectory(
                     atPath: meeting.store.layout.segments.path
                 ).sorted()
 
                 let backend = FakeAIBackend()
                 backend.alwaysFailTranscription = .serverError(status: 503)
-                let pipeline = makePipeline(repository: meeting.repository, backend: backend)
+                let pipeline = PipelineFixtures.makePipeline(repository: meeting.repository, backend: backend)
                 await pipeline.process(meetingID: meeting.metadata.id)
 
                 let failed = try meeting.store.readMetadata()
@@ -632,13 +565,13 @@ enum PipelineTests {
             },
 
             test("an authentication failure is not retried in a loop") { expect in
-                let root = try ManifestTests.makeTemporaryDirectory()
+                let root = try TestPaths.makeTemporaryDirectory()
                 defer { try? FileManager.default.removeItem(at: root) }
-                let meeting = try makeRecordedMeeting(root: root)
+                let meeting = try PipelineFixtures.makeRecordedMeeting(root: root)
 
                 let backend = FakeAIBackend()
                 backend.failNextTranscription = .authenticationFailed
-                let pipeline = makePipeline(repository: meeting.repository, backend: backend)
+                let pipeline = PipelineFixtures.makePipeline(repository: meeting.repository, backend: backend)
                 await pipeline.process(meetingID: meeting.metadata.id)
 
                 let failed = try meeting.store.readMetadata()
@@ -651,9 +584,9 @@ enum PipelineTests {
             },
 
             test("work already done is not repeated on resume") { expect in
-                let root = try ManifestTests.makeTemporaryDirectory()
+                let root = try TestPaths.makeTemporaryDirectory()
                 defer { try? FileManager.default.removeItem(at: root) }
-                let meeting = try makeRecordedMeeting(root: root)
+                let meeting = try PipelineFixtures.makeRecordedMeeting(root: root)
 
                 let backend = FakeAIBackend()
                 backend.transcriptionSegments = [
@@ -663,7 +596,7 @@ enum PipelineTests {
                 backend.diarizationSegments = [
                     RawTranscriptSegment(start: 0, end: 2, text: "Second half.", speaker: "A"),
                 ]
-                let pipeline = makePipeline(repository: meeting.repository, backend: backend)
+                let pipeline = PipelineFixtures.makePipeline(repository: meeting.repository, backend: backend)
                 await pipeline.process(meetingID: meeting.metadata.id)
                 expect.equal(try meeting.store.readMetadata().processing.state, .complete)
                 let transcribeCalls = backend.calls.filter { $0.kind == "transcribe" }.count
@@ -679,16 +612,16 @@ enum PipelineTests {
             },
 
             test("an in-person recording diarizes its only track") { expect in
-                let root = try ManifestTests.makeTemporaryDirectory()
+                let root = try TestPaths.makeTemporaryDirectory()
                 defer { try? FileManager.default.removeItem(at: root) }
-                let meeting = try makeRecordedMeeting(root: root, source: .inPerson)
+                let meeting = try PipelineFixtures.makeRecordedMeeting(root: root, source: .inPerson)
 
                 let backend = FakeAIBackend()
                 backend.diarizationSegments = [
                     RawTranscriptSegment(start: 0, end: 2, text: "Morning.", speaker: "A"),
                     RawTranscriptSegment(start: 3, end: 5, text: "Morning to you.", speaker: "B"),
                 ]
-                let pipeline = makePipeline(repository: meeting.repository, backend: backend)
+                let pipeline = PipelineFixtures.makePipeline(repository: meeting.repository, backend: backend)
                 await pipeline.process(meetingID: meeting.metadata.id)
 
                 expect.equal(try meeting.store.readMetadata().processing.state, .complete)
@@ -701,9 +634,9 @@ enum PipelineTests {
             },
 
             test("enrichment can be switched off entirely") { expect in
-                let root = try ManifestTests.makeTemporaryDirectory()
+                let root = try TestPaths.makeTemporaryDirectory()
                 defer { try? FileManager.default.removeItem(at: root) }
-                let meeting = try makeRecordedMeeting(root: root)
+                let meeting = try PipelineFixtures.makeRecordedMeeting(root: root)
 
                 var settings = AppSettings()
                 settings.enrichment = EnrichmentSettings(
@@ -717,7 +650,7 @@ enum PipelineTests {
                 backend.diarizationSegments = [
                     RawTranscriptSegment(start: 0, end: 2, text: "Understood.", speaker: "A"),
                 ]
-                let pipeline = makePipeline(
+                let pipeline = PipelineFixtures.makePipeline(
                     repository: meeting.repository, backend: backend, settings: settings
                 )
                 await pipeline.process(meetingID: meeting.metadata.id)
@@ -730,9 +663,9 @@ enum PipelineTests {
             },
 
             test("a speaker rename re-renders without touching the API") { expect in
-                let root = try ManifestTests.makeTemporaryDirectory()
+                let root = try TestPaths.makeTemporaryDirectory()
                 defer { try? FileManager.default.removeItem(at: root) }
-                let meeting = try makeRecordedMeeting(root: root)
+                let meeting = try PipelineFixtures.makeRecordedMeeting(root: root)
 
                 let backend = FakeAIBackend()
                 backend.transcriptionSegments = [
@@ -741,7 +674,7 @@ enum PipelineTests {
                 backend.diarizationSegments = [
                     RawTranscriptSegment(start: 0, end: 2, text: "Theirs.", speaker: "A"),
                 ]
-                let pipeline = makePipeline(repository: meeting.repository, backend: backend)
+                let pipeline = PipelineFixtures.makePipeline(repository: meeting.repository, backend: backend)
                 await pipeline.process(meetingID: meeting.metadata.id)
                 let callsAfterProcessing = backend.calls.count
 
@@ -766,9 +699,9 @@ enum PipelineTests {
                 // were sent one at a time. Each request here blocks until it has
                 // seen a second request in flight, so a sequential pipeline
                 // never reaches 2 and the assertion fails.
-                let root = try ManifestTests.makeTemporaryDirectory()
+                let root = try TestPaths.makeTemporaryDirectory()
                 defer { try? FileManager.default.removeItem(at: root) }
-                let meeting = try makeRecordedMeeting(root: root, source: .inPerson, seconds: 12)
+                let meeting = try PipelineFixtures.makeRecordedMeeting(root: root, source: .inPerson, seconds: 12)
 
                 let backend = ConcurrencyProbeBackend()
                 let pipeline = ProcessingPipeline(
@@ -798,16 +731,16 @@ enum PipelineTests {
                 // finished chunk: the meeting reported complete with 47% of its
                 // words missing. An empty answer for audio that carries signal
                 // is a failure, not a result.
-                let root = try ManifestTests.makeTemporaryDirectory()
+                let root = try TestPaths.makeTemporaryDirectory()
                 defer { try? FileManager.default.removeItem(at: root) }
-                let meeting = try makeRecordedMeeting(root: root)
+                let meeting = try PipelineFixtures.makeRecordedMeeting(root: root)
 
                 let backend = FakeAIBackend()
                 backend.transcriptionSegments = []
                 backend.diarizationSegments = [
                     RawTranscriptSegment(start: 0, end: 2, text: "Theirs.", speaker: "A"),
                 ]
-                let pipeline = makePipeline(repository: meeting.repository, backend: backend)
+                let pipeline = PipelineFixtures.makePipeline(repository: meeting.repository, backend: backend)
                 await pipeline.process(meetingID: meeting.metadata.id)
 
                 let status = try meeting.store.readMetadata().processing
@@ -824,16 +757,16 @@ enum PipelineTests {
             test("an empty transcript for silent audio is accepted") { expect in
                 // A muted microphone transcribes to nothing legitimately, and
                 // must not leave a meeting failing forever.
-                let root = try ManifestTests.makeTemporaryDirectory()
+                let root = try TestPaths.makeTemporaryDirectory()
                 defer { try? FileManager.default.removeItem(at: root) }
-                let meeting = try makeRecordedMeeting(root: root, amplitude: 0)
+                let meeting = try PipelineFixtures.makeRecordedMeeting(root: root, amplitude: 0)
 
                 let backend = FakeAIBackend()
                 backend.transcriptionSegments = []
                 backend.diarizationSegments = [
                     RawTranscriptSegment(start: 0, end: 2, text: "Theirs.", speaker: "A"),
                 ]
-                let pipeline = makePipeline(repository: meeting.repository, backend: backend)
+                let pipeline = PipelineFixtures.makePipeline(repository: meeting.repository, backend: backend)
                 await pipeline.process(meetingID: meeting.metadata.id)
 
                 expect.equal(try meeting.store.readMetadata().processing.state, .complete)
@@ -850,10 +783,10 @@ enum PipelineTests {
             },
 
             test("splitting a turn names the words after the boundary only") { expect in
-                let root = try ManifestTests.makeTemporaryDirectory()
+                let root = try TestPaths.makeTemporaryDirectory()
                 defer { try? FileManager.default.removeItem(at: root) }
                 let meeting = try makeTranscribedMeeting(root: root)
-                let pipeline = makePipeline(
+                let pipeline = PipelineFixtures.makePipeline(
                     repository: meeting.repository, backend: FakeAIBackend()
                 )
 
@@ -892,10 +825,10 @@ enum PipelineTests {
                 // What an interjection needs: the diarizer missed someone
                 // chiming in, and correcting the whole turn would move the
                 // speaker's own words with it.
-                let root = try ManifestTests.makeTemporaryDirectory()
+                let root = try TestPaths.makeTemporaryDirectory()
                 defer { try? FileManager.default.removeItem(at: root) }
                 let meeting = try makeTranscribedMeeting(root: root)
-                let pipeline = makePipeline(
+                let pipeline = PipelineFixtures.makePipeline(
                     repository: meeting.repository, backend: FakeAIBackend()
                 )
 
@@ -917,10 +850,10 @@ enum PipelineTests {
                 // Both pieces sit inside the correction's span, so a correction
                 // on one of them would take the wide override off the other and
                 // the first half would silently revert to the cluster.
-                let root = try ManifestTests.makeTemporaryDirectory()
+                let root = try TestPaths.makeTemporaryDirectory()
                 defer { try? FileManager.default.removeItem(at: root) }
                 let meeting = try makeTranscribedMeeting(root: root)
-                let pipeline = makePipeline(
+                let pipeline = PipelineFixtures.makePipeline(
                     repository: meeting.repository, backend: FakeAIBackend()
                 )
 
@@ -948,10 +881,10 @@ enum PipelineTests {
                 // correction to the piece it lands in would confirm the whole
                 // piece, and the words before the interjection are somebody
                 // else's voice going into that person's profile.
-                let root = try ManifestTests.makeTemporaryDirectory()
+                let root = try TestPaths.makeTemporaryDirectory()
                 defer { try? FileManager.default.removeItem(at: root) }
                 let meeting = try makeTranscribedMeeting(root: root)
-                let pipeline = makePipeline(
+                let pipeline = PipelineFixtures.makePipeline(
                     repository: meeting.repository, backend: FakeAIBackend()
                 )
 
@@ -999,10 +932,10 @@ enum PipelineTests {
                 // routinely hold the same second. Placed by time alone the
                 // boundary went into whichever sorted first, and the other
                 // speaker's words were handed to the person being named.
-                let root = try ManifestTests.makeTemporaryDirectory()
+                let root = try TestPaths.makeTemporaryDirectory()
                 defer { try? FileManager.default.removeItem(at: root) }
                 let meeting = try makeTranscribedMeeting(root: root, withOverlappingTwin: true)
-                let pipeline = makePipeline(
+                let pipeline = PipelineFixtures.makePipeline(
                     repository: meeting.repository, backend: FakeAIBackend()
                 )
 
@@ -1045,10 +978,10 @@ enum PipelineTests {
                 // the span rather than the words, the first phrase of a turn
                 // matched no piece: the boundary was written, the name was not,
                 // and the paragraph split in two with one name on both halves.
-                let root = try ManifestTests.makeTemporaryDirectory()
+                let root = try TestPaths.makeTemporaryDirectory()
                 defer { try? FileManager.default.removeItem(at: root) }
                 let meeting = try makeTranscribedMeeting(root: root, padded: true)
-                let pipeline = makePipeline(
+                let pipeline = PipelineFixtures.makePipeline(
                     repository: meeting.repository, backend: FakeAIBackend()
                 )
 
@@ -1070,10 +1003,10 @@ enum PipelineTests {
             },
 
             test("pulling out the last words of a turn names them") { expect in
-                let root = try ManifestTests.makeTemporaryDirectory()
+                let root = try TestPaths.makeTemporaryDirectory()
                 defer { try? FileManager.default.removeItem(at: root) }
                 let meeting = try makeTranscribedMeeting(root: root, padded: true)
-                let pipeline = makePipeline(
+                let pipeline = PipelineFixtures.makePipeline(
                     repository: meeting.repository, backend: FakeAIBackend()
                 )
 
@@ -1099,10 +1032,10 @@ enum PipelineTests {
                 // chunk's, which began earlier. Everything after the boundary
                 // on screen belongs to the person named, including the line
                 // whose clock says it started before the boundary.
-                let root = try ManifestTests.makeTemporaryDirectory()
+                let root = try TestPaths.makeTemporaryDirectory()
                 defer { try? FileManager.default.removeItem(at: root) }
                 let meeting = try makeTranscribedMeeting(root: root, withOverlappingTwin: true)
-                let pipeline = makePipeline(
+                let pipeline = PipelineFixtures.makePipeline(
                     repository: meeting.repository, backend: FakeAIBackend()
                 )
 
@@ -1143,10 +1076,10 @@ enum PipelineTests {
             test("a boundary is kept when the transcript is assembled again") { expect in
                 // A cut is a claim about the audio, so it outlives re-assembly
                 // and re-analysis the way a line correction does.
-                let root = try ManifestTests.makeTemporaryDirectory()
+                let root = try TestPaths.makeTemporaryDirectory()
                 defer { try? FileManager.default.removeItem(at: root) }
                 let meeting = try makeTranscribedMeeting(root: root)
-                let pipeline = makePipeline(
+                let pipeline = PipelineFixtures.makePipeline(
                     repository: meeting.repository, backend: FakeAIBackend()
                 )
                 _ = try await pipeline.applySpeakerRange(

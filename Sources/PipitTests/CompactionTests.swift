@@ -3,6 +3,7 @@ import Foundation
 import PipitAudio
 import PipitCore
 import PipitServices
+import PipitTestSupport
 import TestKit
 
 /// Storage compaction: PCM segments become verified archive files, and the
@@ -12,7 +13,7 @@ enum CompactionTests {
     private static func makeCompleteMeeting(
         root: URL, seconds: Double = 6, remoteStartOffset: Double = 0
     ) throws -> (metadata: MeetingMetadata, store: MeetingStore) {
-        let made = try PipelineTests.makeRecordedMeeting(
+        let made = try PipelineFixtures.makeRecordedMeeting(
             root: root, seconds: seconds, remoteStartOffset: remoteStartOffset
         )
         let metadata = try made.store.updateMetadata {
@@ -23,7 +24,7 @@ enum CompactionTests {
 
     static let suite = Suite("Compaction", [
         test("compaction archives both tracks, records them and deletes the segments") { expect in
-            let root = try ManifestTests.makeTemporaryDirectory()
+            let root = try TestPaths.makeTemporaryDirectory()
             defer { try? FileManager.default.removeItem(at: root) }
             let meeting = try makeCompleteMeeting(root: root)
             let store = meeting.store
@@ -57,7 +58,7 @@ enum CompactionTests {
         },
 
         test("a compacted track reads back through its location at the recorded duration") { expect in
-            let root = try ManifestTests.makeTemporaryDirectory()
+            let root = try TestPaths.makeTemporaryDirectory()
             defer { try? FileManager.default.removeItem(at: root) }
             let meeting = try makeCompleteMeeting(root: root)
             let store = meeting.store
@@ -93,7 +94,7 @@ enum CompactionTests {
         },
 
         test("a failed export keeps the segments and records no archive") { expect in
-            let root = try ManifestTests.makeTemporaryDirectory()
+            let root = try TestPaths.makeTemporaryDirectory()
             defer { try? FileManager.default.removeItem(at: root) }
             let meeting = try makeCompleteMeeting(root: root)
             let store = meeting.store
@@ -127,7 +128,7 @@ enum CompactionTests {
         },
 
         test("compaction archives the recording, not the cleaned microphone") { expect in
-            let root = try ManifestTests.makeTemporaryDirectory()
+            let root = try TestPaths.makeTemporaryDirectory()
             defer { try? FileManager.default.removeItem(at: root) }
             // The one line in the branch that stands between a user and losing
             // their own recording. `writeArchives` transcodes what it is given
@@ -201,7 +202,7 @@ enum CompactionTests {
         },
 
         test("an interrupted deletion resumes once the archive is recorded") { expect in
-            let root = try ManifestTests.makeTemporaryDirectory()
+            let root = try TestPaths.makeTemporaryDirectory()
             defer { try? FileManager.default.removeItem(at: root) }
             let meeting = try makeCompleteMeeting(root: root)
             let store = meeting.store
@@ -226,7 +227,7 @@ enum CompactionTests {
         },
 
         test("the mixdown regenerates from the archives after the segments are gone") { expect in
-            let root = try ManifestTests.makeTemporaryDirectory()
+            let root = try TestPaths.makeTemporaryDirectory()
             defer { try? FileManager.default.removeItem(at: root) }
             // The remote source starts a second late, as it does when the tap
             // comes up before the microphone. Alignment must survive the
@@ -249,7 +250,7 @@ enum CompactionTests {
         },
 
         test("a complete meeting with no audio compacts to nothing and leaves the sweep") { expect in
-            let root = try ManifestTests.makeTemporaryDirectory()
+            let root = try TestPaths.makeTemporaryDirectory()
             defer { try? FileManager.default.removeItem(at: root) }
             let repository = MeetingRepository(root: root)
             let started = Date(timeIntervalSince1970: 1_787_070_000)
@@ -272,7 +273,7 @@ enum CompactionTests {
         },
 
         test("the archive is recorded before anything is deleted") { expect in
-            let root = try ManifestTests.makeTemporaryDirectory()
+            let root = try TestPaths.makeTemporaryDirectory()
             defer { try? FileManager.default.removeItem(at: root) }
             let meeting = try makeCompleteMeeting(root: root)
             let store = meeting.store
@@ -309,7 +310,7 @@ enum CompactionTests {
         },
 
         test("a failure on the second track records no archive and keeps every segment") { expect in
-            let root = try ManifestTests.makeTemporaryDirectory()
+            let root = try TestPaths.makeTemporaryDirectory()
             defer { try? FileManager.default.removeItem(at: root) }
             let meeting = try makeCompleteMeeting(root: root)
             let store = meeting.store
@@ -335,7 +336,7 @@ enum CompactionTests {
         },
 
         test("a file the manifest does not account for survives compaction") { expect in
-            let root = try ManifestTests.makeTemporaryDirectory()
+            let root = try TestPaths.makeTemporaryDirectory()
             defer { try? FileManager.default.removeItem(at: root) }
             let meeting = try makeCompleteMeeting(root: root)
             let store = meeting.store
@@ -363,7 +364,7 @@ enum CompactionTests {
         },
 
         test("a missing archive file stops deletion cold") { expect in
-            let root = try ManifestTests.makeTemporaryDirectory()
+            let root = try TestPaths.makeTemporaryDirectory()
             defer { try? FileManager.default.removeItem(at: root) }
             let meeting = try makeCompleteMeeting(root: root)
             let store = meeting.store
@@ -389,7 +390,7 @@ enum CompactionTests {
         },
 
         test("the archive starts where the PCM started") { expect in
-            let root = try ManifestTests.makeTemporaryDirectory()
+            let root = try TestPaths.makeTemporaryDirectory()
             defer { try? FileManager.default.removeItem(at: root) }
             let repository = MeetingRepository(root: root)
             let started = Date(timeIntervalSince1970: 1_787_070_000)
@@ -411,10 +412,10 @@ enum CompactionTests {
             // leaked into the timeline would shift the onset by ~0.13 s, which
             // every word timing and diarization boundary would inherit.
             writer.enqueueSynchronously(AudioBufferPacket(
-                buffer: AudioTests.makeTone(seconds: 1, sampleRate: 48_000, amplitude: 0), hostTime: 100
+                buffer: AudioFixtures.makeTone(seconds: 1, sampleRate: 48_000, amplitude: 0), hostTime: 100
             ))
             writer.enqueueSynchronously(AudioBufferPacket(
-                buffer: AudioTests.makeTone(seconds: 2, sampleRate: 48_000), hostTime: 101
+                buffer: AudioFixtures.makeTone(seconds: 2, sampleRate: 48_000), hostTime: 101
             ))
             writer.finish(reason: "test")
             manifest.append(.sessionEnd(.init(reason: "test", micSeconds: 3, remoteSeconds: 0)))
@@ -452,14 +453,14 @@ enum CompactionTests {
         },
 
         test("the startup sweep compacts a folded continuation") { expect in
-            let root = try ManifestTests.makeTemporaryDirectory()
+            let root = try TestPaths.makeTemporaryDirectory()
             defer { try? FileManager.default.removeItem(at: root) }
             let primary = try makeCompleteMeeting(root: root)
             let folded = try makeCompleteMeeting(root: root)
             _ = try folded.store.updateMetadata { $0.mergedIntoMeetingID = primary.metadata.id }
             _ = try primary.store.updateMetadata { $0.absorbedMeetingIDs = [folded.metadata.id] }
 
-            let pipeline = PipelineTests.makePipeline(
+            let pipeline = PipelineFixtures.makePipeline(
                 repository: MeetingRepository(root: root), backend: FakeAIBackend()
             )
             await pipeline.compactPending()
@@ -474,7 +475,7 @@ enum CompactionTests {
         },
 
         test("compaction after complete waits for the recording gate") { expect in
-            let root = try ManifestTests.makeTemporaryDirectory()
+            let root = try TestPaths.makeTemporaryDirectory()
             defer { try? FileManager.default.removeItem(at: root) }
             let meeting = try makeCompleteMeeting(root: root)
             let store = meeting.store
@@ -505,9 +506,9 @@ enum CompactionTests {
         },
 
         test("recovery waits for a folder whose migration has not run") { expect in
-            let root = try ManifestTests.makeTemporaryDirectory()
+            let root = try TestPaths.makeTemporaryDirectory()
             defer { try? FileManager.default.removeItem(at: root) }
-            let made = try PipelineTests.makeRecordedMeeting(root: root)
+            let made = try PipelineFixtures.makeRecordedMeeting(root: root)
             let store = made.store
             let layout = store.layout
             _ = try store.updateMetadata {
@@ -546,9 +547,9 @@ enum CompactionTests {
         },
 
         test("an old-layout folder migrates to raw/ and reads the same") { expect in
-            let root = try ManifestTests.makeTemporaryDirectory()
+            let root = try TestPaths.makeTemporaryDirectory()
             defer { try? FileManager.default.removeItem(at: root) }
-            let made = try PipelineTests.makeRecordedMeeting(root: root)
+            let made = try PipelineFixtures.makeRecordedMeeting(root: root)
             let store = made.store
             let layout = store.layout
             let originalID = made.metadata.id

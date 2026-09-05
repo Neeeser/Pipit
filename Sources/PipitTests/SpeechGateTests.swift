@@ -1,6 +1,7 @@
 import Foundation
 import PipitCore
 import PipitServices
+import PipitTestSupport
 import TestKit
 
 /// Pins the guard against words the local user never said.
@@ -327,9 +328,9 @@ enum SpeechGateTests {
                 // own zero would put the microphone and the far end twelve
                 // seconds out of step, and every level comparison would then be
                 // between two different moments.
-                let root = try ManifestTests.makeTemporaryDirectory()
+                let root = try TestPaths.makeTemporaryDirectory()
                 defer { try? FileManager.default.removeItem(at: root) }
-                let meeting = try PipelineTests.makeRecordedMeeting(
+                let meeting = try PipelineFixtures.makeRecordedMeeting(
                     root: root, seconds: 6, remoteStartOffset: 12
                 )
                 let evidence = try await SpeechEvidenceBuilder.build(
@@ -363,9 +364,9 @@ enum SpeechGateTests {
 
             test("a recording with no far end carries no far-end series") { expect in
                 // An import and an in-person session have one track.
-                let root = try ManifestTests.makeTemporaryDirectory()
+                let root = try TestPaths.makeTemporaryDirectory()
                 defer { try? FileManager.default.removeItem(at: root) }
-                let meeting = try PipelineTests.makeRecordedMeeting(root: root, source: .inPerson)
+                let meeting = try PipelineFixtures.makeRecordedMeeting(root: root, source: .inPerson)
                 let evidence = try await SpeechEvidenceBuilder.build(
                     store: meeting.store, metadata: meeting.metadata,
                     timeline: try meeting.store.readTimeline(), detector: nil
@@ -400,9 +401,9 @@ enum SpeechGateTests {
                 // transcript or the speaker map after the measurement brings it
                 // round again. Without this the second attempt decodes both
                 // tracks from the top for a file it already has.
-                let root = try ManifestTests.makeTemporaryDirectory()
+                let root = try TestPaths.makeTemporaryDirectory()
                 defer { try? FileManager.default.removeItem(at: root) }
-                let meeting = try PipelineTests.makeRecordedMeeting(root: root)
+                let meeting = try PipelineFixtures.makeRecordedMeeting(root: root)
                 let sentinel = SpeechEvidence(
                     levelWindowSeconds: 0.25, speechWindowSeconds: 0.256,
                     micLevels: [-11, -12, -13], detector: "measured-earlier"
@@ -416,7 +417,7 @@ enum SpeechGateTests {
                 backend.diarizationSegments = [
                     RawTranscriptSegment(start: 0, end: 2, text: "Chris here, agreed.", speaker: "A"),
                 ]
-                let pipeline = PipelineTests.makePipeline(
+                let pipeline = PipelineFixtures.makePipeline(
                     repository: meeting.repository, backend: backend
                 )
                 await pipeline.process(meetingID: meeting.metadata.id)
@@ -432,9 +433,9 @@ enum SpeechGateTests {
                 // and on a machine whose detector has since been deleted it
                 // would put the fabricated lines back. An imported recording's
                 // microphone holds everybody, so it never reaches the gate.
-                let root = try ManifestTests.makeTemporaryDirectory()
+                let root = try TestPaths.makeTemporaryDirectory()
                 defer { try? FileManager.default.removeItem(at: root) }
-                let meeting = try PipelineTests.makeRecordedMeeting(root: root)
+                let meeting = try PipelineFixtures.makeRecordedMeeting(root: root)
                 let backend = FakeAIBackend()
                 backend.transcriptionSegments = [
                     RawTranscriptSegment(start: 0, end: 2, text: "I think we change retrieval.", speaker: nil),
@@ -442,7 +443,7 @@ enum SpeechGateTests {
                 backend.diarizationSegments = [
                     RawTranscriptSegment(start: 0, end: 2, text: "Chris here, agreed.", speaker: "A"),
                 ]
-                let pipeline = PipelineTests.makePipeline(
+                let pipeline = PipelineFixtures.makePipeline(
                     repository: meeting.repository, backend: backend
                 )
                 await pipeline.process(meetingID: meeting.metadata.id)
@@ -460,12 +461,12 @@ enum SpeechGateTests {
                 )[.modificationDate] as? Date
                 expect.equal(after, stamp, "the rebuild rewrote nothing")
 
-                let importedRoot = try ManifestTests.makeTemporaryDirectory()
+                let importedRoot = try TestPaths.makeTemporaryDirectory()
                 defer { try? FileManager.default.removeItem(at: importedRoot) }
-                let imported = try PipelineTests.makeRecordedMeeting(
+                let imported = try PipelineFixtures.makeRecordedMeeting(
                     root: importedRoot, source: .imported
                 )
-                let importedPipeline = PipelineTests.makePipeline(
+                let importedPipeline = PipelineFixtures.makePipeline(
                     repository: imported.repository, backend: backend
                 )
                 await importedPipeline.process(meetingID: imported.metadata.id)

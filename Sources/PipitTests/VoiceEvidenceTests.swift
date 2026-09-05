@@ -1,6 +1,7 @@
 import Foundation
 import PipitCore
 import PipitSpeakers
+import PipitTestSupport
 import SQLite3
 import TestKit
 
@@ -12,9 +13,9 @@ import TestKit
 /// found. Answering from cluster labels got each of these wrong in a different
 /// way.
 enum VoiceEvidenceTests {
-    static func vector(seed: Int) -> [Float] { SpeakerIdentityTests.vector(seed: seed) }
+    static func vector(seed: Int) -> [Float] { SpeakerFixtures.vector(seed: seed) }
 
-    static func makeStore() throws -> (SpeakerStore, URL) { try SpeakerIdentityTests.makeStore() }
+    static func makeStore() throws -> (SpeakerStore, URL) { try SpeakerFixtures.makeStore() }
 
     private static func samples(
         _ store: SpeakerStore, _ id: IdentityID
@@ -462,7 +463,7 @@ enum VoiceEvidenceTests {
                 // state of this branch. Its identities are worth keeping. Its
                 // vectors are not, because nothing records what audio they came
                 // from and nothing could ever take them back.
-                let root = try ManifestTests.makeTemporaryDirectory()
+                let root = try TestPaths.makeTemporaryDirectory()
                 defer { try? FileManager.default.removeItem(at: root) }
                 let url = root.appendingPathComponent("voices.sqlite")
                 try writePreEvidenceStore(at: url)

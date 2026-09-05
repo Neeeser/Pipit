@@ -8,9 +8,9 @@ import PipitCore
 /// two people, so each key gets its own lane on the timeline: without that,
 /// enrolling a second cluster would overlap the first and retract it, and the
 /// test would be measuring the fixture rather than the code.
-enum VoiceEvidenceFixture {
+public enum VoiceEvidenceFixture {
     /// One contiguous span of `seconds`, in a lane of its own.
-    static func evidence(
+    public static func evidence(
         meeting: String,
         cluster: String? = nil,
         seconds: Double,
@@ -31,7 +31,7 @@ enum VoiceEvidenceFixture {
 
     /// A stable hour-wide lane per key. Deterministic across runs, which
     /// `hashValue` is not.
-    static func lane(_ key: String) -> Double {
+    public static func lane(_ key: String) -> Double {
         var hash: UInt64 = 5_381
         for byte in key.utf8 { hash = hash &* 33 &+ UInt64(byte) }
         return Double(hash % 997) * 3_600

@@ -3,6 +3,7 @@ import PipitCore
 import PipitServices
 import PipitSpeakers
 import PipitUI
+import PipitTestSupport
 import TestKit
 
 /// A call that dropped and was rejoined is two recordings and one meeting.
@@ -74,7 +75,7 @@ enum ReconnectTests {
     static var suite: Suite {
         Suite("Reconnect", [
             test("both halves are one meeting, in the order they happened") { expect in
-                let root = try ManifestTests.makeTemporaryDirectory()
+                let root = try TestPaths.makeTemporaryDirectory()
                 defer { try? FileManager.default.removeItem(at: root) }
                 let (repository, first, second) = try makeSplitMeeting(root: root)
 
@@ -107,7 +108,7 @@ enum ReconnectTests {
                 // A notification posted before the two were linked still carries
                 // it, and Reveal in Finder is built from it. Resolving to nothing
                 // was how the second half of a dropped call became unreachable.
-                let root = try ManifestTests.makeTemporaryDirectory()
+                let root = try TestPaths.makeTemporaryDirectory()
                 defer { try? FileManager.default.removeItem(at: root) }
                 let (repository, first, second) = try makeSplitMeeting(root: root)
 
@@ -122,7 +123,7 @@ enum ReconnectTests {
             },
 
             test("recent meetings shows one row for the whole conversation") { expect in
-                let root = try ManifestTests.makeTemporaryDirectory()
+                let root = try TestPaths.makeTemporaryDirectory()
                 defer { try? FileManager.default.removeItem(at: root) }
                 let (repository, first, _) = try makeSplitMeeting(root: root)
 
@@ -137,7 +138,7 @@ enum ReconnectTests {
             },
 
             test("separating a continuation gives back two meetings and loses nothing") { expect in
-                let root = try ManifestTests.makeTemporaryDirectory()
+                let root = try TestPaths.makeTemporaryDirectory()
                 defer { try? FileManager.default.removeItem(at: root) }
                 let (repository, first, second) = try makeSplitMeeting(root: root)
                 let secondDirectory = try expect.unwrap(
@@ -180,10 +181,10 @@ enum ReconnectTests {
                 // on a line from the continuation is routed to that recording.
                 // Every lookup by identifier hid folded recordings, so the write
                 // threw and the panel showed a change nothing had stored.
-                let root = try ManifestTests.makeTemporaryDirectory()
+                let root = try TestPaths.makeTemporaryDirectory()
                 defer { try? FileManager.default.removeItem(at: root) }
                 let (repository, first, second) = try makeSplitMeeting(root: root)
-                let (store, storeRoot) = try SpeakerIdentityTests.makeStore()
+                let (store, storeRoot) = try SpeakerFixtures.makeStore()
                 defer { try? FileManager.default.removeItem(at: storeRoot) }
 
                 let pipeline = ProcessingPipeline(
@@ -231,7 +232,7 @@ enum ReconnectTests {
                 // Adding the second half into the first recording's stored total
                 // made undoing the link a subtraction, and a subtraction that goes
                 // wrong reports a duration no file supports.
-                let root = try ManifestTests.makeTemporaryDirectory()
+                let root = try TestPaths.makeTemporaryDirectory()
                 defer { try? FileManager.default.removeItem(at: root) }
                 let (repository, first, second) = try makeSplitMeeting(root: root, link: false)
 

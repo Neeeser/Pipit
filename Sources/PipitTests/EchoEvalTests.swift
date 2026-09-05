@@ -1,6 +1,7 @@
 import Foundation
 import PipitCore
 import PipitServices
+import PipitTestSupport
 import TestKit
 
 /// What `pipit-eval echo` measures, on fixtures whose echo path is known.
@@ -95,7 +96,7 @@ enum EchoEvalTests {
 
     static let suite = Suite("EchoEval", [
         test("a call on speakers reports the user surviving and the far end leaving") { expect in
-            let root = try ManifestTests.makeTemporaryDirectory()
+            let root = try TestPaths.makeTemporaryDirectory()
             defer { try? FileManager.default.removeItem(at: root) }
             let meeting = try makeBurstyCall(root: root)
             let measurement = try EchoMeasurement.measure(
@@ -180,7 +181,7 @@ enum EchoEvalTests {
         },
 
         test("a call on headphones is kept cleaned when the user is left alone") { expect in
-            let root = try ManifestTests.makeTemporaryDirectory()
+            let root = try TestPaths.makeTemporaryDirectory()
             defer { try? FileManager.default.removeItem(at: root) }
             let meeting = try makeBurstyCall(root: root, micHoldsEcho: false)
             let measurement = try EchoMeasurement.measure(
@@ -242,7 +243,7 @@ enum EchoEvalTests {
             // empty on every meeting, `userOnly` would stop meaning "the user
             // spoke", and the comfort noise above would never appear in a
             // table. Room tone here is -44.9 dBFS, which is that regime.
-            let root = try ManifestTests.makeTemporaryDirectory()
+            let root = try TestPaths.makeTemporaryDirectory()
             defer { try? FileManager.default.removeItem(at: root) }
             let meeting = try makeBurstyCall(root: root, micHoldsEcho: false, roomNoise: 0.008)
             let measurement = try EchoMeasurement.measure(
@@ -286,7 +287,7 @@ enum EchoEvalTests {
         },
 
         test("a far end that holds nothing reports no reference, not zero removal") { expect in
-            let root = try ManifestTests.makeTemporaryDirectory()
+            let root = try TestPaths.makeTemporaryDirectory()
             defer { try? FileManager.default.removeItem(at: root) }
             let count = Int(15 * rate)
             let meeting = try MicrophoneCleanerTests.makeMeeting(
@@ -307,7 +308,7 @@ enum EchoEvalTests {
         },
 
         test("a recording holding everyone on one track reports no reference") { expect in
-            let root = try ManifestTests.makeTemporaryDirectory()
+            let root = try TestPaths.makeTemporaryDirectory()
             defer { try? FileManager.default.removeItem(at: root) }
             let count = Int(2 * rate)
             let meeting = try MicrophoneCleanerTests.makeMeeting(
@@ -325,7 +326,7 @@ enum EchoEvalTests {
         },
 
         test("measuring leaves the meeting folder exactly as it found it") { expect in
-            let root = try ManifestTests.makeTemporaryDirectory()
+            let root = try TestPaths.makeTemporaryDirectory()
             defer { try? FileManager.default.removeItem(at: root) }
             let meeting = try makeBurstyCall(root: root)
             let folder = meeting.store.layout.root
@@ -353,7 +354,7 @@ enum EchoEvalTests {
             // moves the echo away from where the filter is told to look for
             // it. A far end that never stops is the same far end after any
             // shift and would hide this.
-            let root = try ManifestTests.makeTemporaryDirectory()
+            let root = try TestPaths.makeTemporaryDirectory()
             defer { try? FileManager.default.removeItem(at: root) }
             let meeting = try makeBurstyCall(root: root)
             let timeline = try meeting.store.readTimeline()

@@ -1,5 +1,6 @@
 import Foundation
 import PipitCore
+import PipitTestSupport
 import TestKit
 
 /// Reports whatever a test says a CAF file contains, so crash recovery can be
@@ -25,7 +26,7 @@ enum StorageTests {
                 // trashes a meeting puts a folder back at that path. The date
                 // is what tells that scrap apart from the meeting itself, put
                 // back from the Trash.
-                let root = try ManifestTests.makeTemporaryDirectory()
+                let root = try TestPaths.makeTemporaryDirectory()
                 defer { try? FileManager.default.removeItem(at: root) }
                 let movedAt = Date()
 
@@ -87,7 +88,7 @@ enum StorageTests {
                 expect.isFalse(id.contains("/"))
                 expect.isFalse(id.contains(" "))
 
-                let root = try ManifestTests.makeTemporaryDirectory()
+                let root = try TestPaths.makeTemporaryDirectory()
                 defer { try? FileManager.default.removeItem(at: root) }
                 let archive = MeetingArchiveLayout(root: root)
                 let directory = archive.directory(named: id, startedAt: started)
@@ -97,7 +98,7 @@ enum StorageTests {
             },
 
             test("metadata, notes and speaker map survive a round trip") { expect in
-                let root = try ManifestTests.makeTemporaryDirectory()
+                let root = try TestPaths.makeTemporaryDirectory()
                 defer { try? FileManager.default.removeItem(at: root) }
                 let repository = MeetingRepository(root: root)
                 let now = Date(timeIntervalSince1970: 1_787_070_000)
@@ -124,7 +125,7 @@ enum StorageTests {
             },
 
             test("listing finds meetings and skips ones folded into another") { expect in
-                let root = try ManifestTests.makeTemporaryDirectory()
+                let root = try TestPaths.makeTemporaryDirectory()
                 defer { try? FileManager.default.removeItem(at: root) }
                 let repository = MeetingRepository(root: root)
                 let first = Date(timeIntervalSince1970: 1_787_070_000)
@@ -146,7 +147,7 @@ enum StorageTests {
             },
 
             test("an atomic write leaves the previous file intact on failure") { expect in
-                let root = try ManifestTests.makeTemporaryDirectory()
+                let root = try TestPaths.makeTemporaryDirectory()
                 defer { try? FileManager.default.removeItem(at: root) }
                 let target = root.appendingPathComponent("metadata.json")
                 try AtomicFile.writeText("first", to: target)
@@ -159,7 +160,7 @@ enum StorageTests {
             },
 
             test("a killed recording recovers into a usable interrupted meeting") { expect in
-                let root = try ManifestTests.makeTemporaryDirectory()
+                let root = try TestPaths.makeTemporaryDirectory()
                 defer { try? FileManager.default.removeItem(at: root) }
                 let repository = MeetingRepository(root: root)
                 let started = Date(timeIntervalSince1970: 1_787_070_000)
@@ -236,7 +237,7 @@ enum StorageTests {
             },
 
             test("a recording with no readable audio fails instead of pretending") { expect in
-                let root = try ManifestTests.makeTemporaryDirectory()
+                let root = try TestPaths.makeTemporaryDirectory()
                 defer { try? FileManager.default.removeItem(at: root) }
                 let repository = MeetingRepository(root: root)
                 let started = Date(timeIntervalSince1970: 1_787_070_000)

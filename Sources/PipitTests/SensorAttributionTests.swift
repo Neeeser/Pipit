@@ -1,5 +1,6 @@
 import Foundation
 import PipitCore
+import PipitTestSupport
 import TestKit
 
 /// What the meeting client's own account of the call is allowed to decide.
@@ -1583,7 +1584,7 @@ extension SensorAttributionTests {
     static var roundTripSuite: Suite {
         Suite("SensorRoundTrip", [
             test("a sensor record on disk names the clusters it explains") { expect in
-                let root = try ManifestTests.makeTemporaryDirectory()
+                let root = try TestPaths.makeTemporaryDirectory()
                 defer { try? FileManager.default.removeItem(at: root) }
                 let repository = MeetingRepository(root: root)
                 let created = try repository.createMeeting(

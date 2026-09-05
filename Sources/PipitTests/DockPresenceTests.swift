@@ -3,6 +3,7 @@ import Foundation
 import PipitCore
 import PipitServices
 import PipitUI
+import PipitTestSupport
 import TestKit
 
 /// Whether Pipit takes a Dock slot, and what it costs when it does not.
@@ -62,7 +63,7 @@ enum DockPresenceTests {
 
     @MainActor
     private static func theWindowDrivesThePolicy(_ expect: Expect) async throws {
-        let root = try ManifestTests.makeTemporaryDirectory()
+        let root = try TestPaths.makeTemporaryDirectory()
         let recorder = Recorder()
         let windows = makeWindows(root: root, into: recorder)
 
@@ -79,7 +80,7 @@ enum DockPresenceTests {
 
     @MainActor
     private static func theProvisionalPromptLeavesThePolicyAlone(_ expect: Expect) async throws {
-        let root = try ManifestTests.makeTemporaryDirectory()
+        let root = try TestPaths.makeTemporaryDirectory()
         let recorder = Recorder()
         let windows = makeWindows(root: root, into: recorder)
 

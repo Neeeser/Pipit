@@ -2,36 +2,12 @@ import AVFoundation
 import Foundation
 import PipitAudio
 import PipitCore
+import PipitTestSupport
 import TestKit
 
 /// Real audio through the real writers and readers. These use AVFoundation but no
 /// audio hardware, so they run anywhere.
 enum AudioTests {
-    /// A deinterleaved tone, which is the shape a process tap delivers. Its
-    /// format is always `standardFormatWithSampleRate:channels:`, so every
-    /// channel has its own pointer.
-    ///
-    /// `toneChannel` puts the tone on one channel and leaves the others at
-    /// zero, which is what a far end talking on one side of a stereo mixdown
-    /// sounds like.
-    static func makeTone(
-        seconds: Double, sampleRate: Double, channels: AVAudioChannelCount = 1,
-        frequency: Double = 440, amplitude: Float = 0.5, toneChannel: Int? = nil
-    ) -> AVAudioPCMBuffer {
-        let format = AVAudioFormat(standardFormatWithSampleRate: sampleRate, channels: channels)!
-        let frames = AVAudioFrameCount(seconds * sampleRate)
-        let buffer = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: frames)!
-        buffer.frameLength = frames
-        let data = buffer.floatChannelData!
-        for frame in 0..<Int(frames) {
-            let value = amplitude * Float(sin(2 * Double.pi * frequency * Double(frame) / sampleRate))
-            for channel in 0..<Int(channels) {
-                data[channel][frame] = toneChannel == nil || toneChannel == channel ? value : 0
-            }
-        }
-        return buffer
-    }
-
     /// A buffer in the shape a multi-channel built-in microphone delivers: more
     /// than two channels, discrete, with no surround layout to mix down from.
     ///
@@ -78,19 +54,6 @@ enum AudioTests {
         return buffer
     }
 
-    /// A tone in a flat run of samples, which is the shape the echo canceller
-    /// takes. `from` leaves everything before it silent.
-    static func makeToneSamples(
-        count: Int, sampleRate: Double, frequency: Double, amplitude: Float, from: Int = 0
-    ) -> [Float] {
-        var samples = [Float](repeating: 0, count: count)
-        for index in from..<count {
-            let phase = 2 * Double.pi * frequency * Double(index) / sampleRate
-            samples[index] = amplitude * Float(sin(phase))
-        }
-        return samples
-    }
-
     /// Energy summed across the whole band.
     ///
     /// Use this where the microphone holds no copy of the far end. There is
@@ -126,7 +89,7 @@ enum AudioTests {
                 // pause in the middle, and what judges it has to see them that
                 // way or the second take is measured on its own and is short
                 // too.
-                let root = try ManifestTests.makeTemporaryDirectory()
+                let root = try TestPaths.makeTemporaryDirectory()
                 defer { try? FileManager.default.removeItem(at: root) }
                 let format = AVAudioFormat(standardFormatWithSampleRate: 48_000, channels: 1)!
 
@@ -136,7 +99,7 @@ enum AudioTests {
                         forWriting: url, settings: format.settings,
                         commonFormat: .pcmFormatFloat32, interleaved: false
                     )
-                    try file.write(from: makeTone(seconds: seconds, sampleRate: 48_000))
+                    try file.write(from: AudioFixtures.makeTone(seconds: seconds, sampleRate: 48_000))
                     return url
                 }
 
@@ -155,7 +118,7 @@ enum AudioTests {
             },
 
             test("takes recorded at different rates are refused rather than resampled") { expect in
-                let root = try ManifestTests.makeTemporaryDirectory()
+                let root = try TestPaths.makeTemporaryDirectory()
                 defer { try? FileManager.default.removeItem(at: root) }
 
                 func write(_ rate: Double, to name: String) throws -> URL {
@@ -165,7 +128,7 @@ enum AudioTests {
                         forWriting: url, settings: format.settings,
                         commonFormat: .pcmFormatFloat32, interleaved: false
                     )
-                    try file.write(from: makeTone(seconds: 1, sampleRate: rate))
+                    try file.write(from: AudioFixtures.makeTone(seconds: 1, sampleRate: rate))
                     return url
                 }
 
@@ -189,13 +152,13 @@ enum AudioTests {
                 // they had done enough when they had not, so it counts audio
                 // loud enough to be somebody talking instead.
                 let speech = VoiceEnrollmentRecorder.speechSeconds(
-                    in: makeTone(seconds: 0.5, sampleRate: 48_000, amplitude: 0.4)
+                    in: AudioFixtures.makeTone(seconds: 0.5, sampleRate: 48_000, amplitude: 0.4)
                 )
                 expect.isTrue(abs(speech - 0.5) < 0.001, "half a second of speech, got \(speech)")
 
                 expect.equal(
                     VoiceEnrollmentRecorder.speechSeconds(
-                        in: makeTone(seconds: 0.5, sampleRate: 48_000, amplitude: 0.001)
+                        in: AudioFixtures.makeTone(seconds: 0.5, sampleRate: 48_000, amplitude: 0.001)
                     ),
                     0,
                     "a room nobody is talking in fills no bar"
@@ -203,7 +166,7 @@ enum AudioTests {
             },
 
             test("segments rotate, close cleanly and report per-segment duration") { expect in
-                let root = try ManifestTests.makeTemporaryDirectory()
+                let root = try TestPaths.makeTemporaryDirectory()
                 defer { try? FileManager.default.removeItem(at: root) }
                 let layout = MeetingLayout(root: root)
                 try FileManager.default.createDirectory(at: layout.segments, withIntermediateDirectories: true)
@@ -215,7 +178,7 @@ enum AudioTests {
 
                 for index in 0..<5 {
                     let packet = AudioBufferPacket(
-                        buffer: makeTone(seconds: 0.5, sampleRate: 48_000), hostTime: Double(index) * 0.5
+                        buffer: AudioFixtures.makeTone(seconds: 0.5, sampleRate: 48_000), hostTime: Double(index) * 0.5
                     )
                     writer.enqueueSynchronously(packet)
                 }
@@ -302,13 +265,13 @@ enum AudioTests {
                 let rate = 16_000.0
                 let total = block * blocks
                 let delay = 48  // 3 ms across the desk
-                let far = makeToneSamples(
+                let far = AudioFixtures.makeToneSamples(
                     count: total, sampleRate: rate, frequency: 440, amplitude: 0.5
                 )
                 // The user starts talking halfway through, which leaves the
                 // first half for the canceller to learn the room and the second
                 // to show it subtracts the far end and nothing else.
-                let near = makeToneSamples(
+                let near = AudioFixtures.makeToneSamples(
                     count: total, sampleRate: rate, frequency: 1300, amplitude: 0.3,
                     from: total / 2
                 )
@@ -361,10 +324,10 @@ enum AudioTests {
                 let blocks = 800
                 let rate = 16_000.0
                 let total = block * blocks
-                let far = makeToneSamples(
+                let far = AudioFixtures.makeToneSamples(
                     count: total, sampleRate: rate, frequency: 440, amplitude: 0.5
                 )
-                let heard = makeToneSamples(
+                let heard = AudioFixtures.makeToneSamples(
                     count: total, sampleRate: rate, frequency: 700, amplitude: 0.3
                 )
 
@@ -407,7 +370,7 @@ enum AudioTests {
                 // reads a track's audio as one contiguous run: without this the
                 // microphone ran 0.74 s ahead of the far end for a whole
                 // meeting, and every time downstream was measured against it.
-                let root = try ManifestTests.makeTemporaryDirectory()
+                let root = try TestPaths.makeTemporaryDirectory()
                 defer { try? FileManager.default.removeItem(at: root) }
                 let layout = MeetingLayout(root: root)
                 try FileManager.default.createDirectory(
@@ -421,12 +384,12 @@ enum AudioTests {
                 )
 
                 writer.enqueueSynchronously(AudioBufferPacket(
-                    buffer: makeTone(seconds: 0.5, sampleRate: 48_000), hostTime: 100
+                    buffer: AudioFixtures.makeTone(seconds: 0.5, sampleRate: 48_000), hostTime: 100
                 ))
                 // The engine tears down and rebuilds. Nothing arrives for
                 // 1.13 s, then capture resumes.
                 writer.enqueueSynchronously(AudioBufferPacket(
-                    buffer: makeTone(seconds: 0.5, sampleRate: 48_000), hostTime: 101.6317
+                    buffer: AudioFixtures.makeTone(seconds: 0.5, sampleRate: 48_000), hostTime: 101.6317
                 ))
                 writer.finish(reason: "test")
                 manifest.close()
@@ -446,7 +409,7 @@ enum AudioTests {
                 // The fill has to stay off the path it does not belong on.
                 // A rotation boundary costs microseconds, and padding those
                 // would stretch every meeting a little.
-                let root = try ManifestTests.makeTemporaryDirectory()
+                let root = try TestPaths.makeTemporaryDirectory()
                 defer { try? FileManager.default.removeItem(at: root) }
                 let layout = MeetingLayout(root: root)
                 try FileManager.default.createDirectory(
@@ -460,7 +423,7 @@ enum AudioTests {
                 )
                 for index in 0..<5 {
                     writer.enqueueSynchronously(AudioBufferPacket(
-                        buffer: makeTone(seconds: 0.5, sampleRate: 48_000),
+                        buffer: AudioFixtures.makeTone(seconds: 0.5, sampleRate: 48_000),
                         // A hair late every time, as a real clock is.
                         hostTime: Double(index) * 0.5 + Double(index) * 0.000_02
                     ))
@@ -473,7 +436,7 @@ enum AudioTests {
             },
 
             test("a mid-recording format change opens a new segment and is recorded") { expect in
-                let root = try ManifestTests.makeTemporaryDirectory()
+                let root = try TestPaths.makeTemporaryDirectory()
                 defer { try? FileManager.default.removeItem(at: root) }
                 let layout = MeetingLayout(root: root)
                 try FileManager.default.createDirectory(at: layout.segments, withIntermediateDirectories: true)
@@ -485,12 +448,12 @@ enum AudioTests {
                 )
 
                 writer.enqueueSynchronously(AudioBufferPacket(
-                    buffer: makeTone(seconds: 2, sampleRate: 48_000), hostTime: 0
+                    buffer: AudioFixtures.makeTone(seconds: 2, sampleRate: 48_000), hostTime: 0
                 ))
                 // Bluetooth switches to the hands-free profile.
                 writer.changeFormat(narrowband, reason: "config_change")
                 writer.enqueueSynchronously(AudioBufferPacket(
-                    buffer: makeTone(seconds: 3, sampleRate: 16_000), hostTime: 2
+                    buffer: AudioFixtures.makeTone(seconds: 3, sampleRate: 16_000), hostTime: 2
                 ))
                 writer.finish(reason: "test")
                 manifest.close()
@@ -509,7 +472,7 @@ enum AudioTests {
                 let ring = PreRollBuffer(capacitySeconds: 2)
                 for index in 0..<40 {
                     ring.append(AudioBufferPacket(
-                        buffer: makeTone(seconds: 0.1, sampleRate: 48_000), hostTime: Double(index) * 0.1
+                        buffer: AudioFixtures.makeTone(seconds: 0.1, sampleRate: 48_000), hostTime: Double(index) * 0.1
                     ))
                 }
                 expect.isTrue(ring.bufferedSeconds <= 2.05, "buffered \(ring.bufferedSeconds)s")
@@ -521,7 +484,7 @@ enum AudioTests {
             },
 
             test("a track reads back across a sample-rate change at the right length") { expect in
-                let root = try ManifestTests.makeTemporaryDirectory()
+                let root = try TestPaths.makeTemporaryDirectory()
                 defer { try? FileManager.default.removeItem(at: root) }
                 let layout = MeetingLayout(root: root)
                 try FileManager.default.createDirectory(at: layout.segments, withIntermediateDirectories: true)
@@ -532,13 +495,13 @@ enum AudioTests {
                     segmentSeconds: 60
                 )
                 writer.enqueueSynchronously(AudioBufferPacket(
-                    buffer: makeTone(seconds: 2, sampleRate: 48_000), hostTime: 0
+                    buffer: AudioFixtures.makeTone(seconds: 2, sampleRate: 48_000), hostTime: 0
                 ))
                 writer.changeFormat(
                     AVAudioFormat(standardFormatWithSampleRate: 16_000, channels: 1)!, reason: "bluetooth"
                 )
                 writer.enqueueSynchronously(AudioBufferPacket(
-                    buffer: makeTone(seconds: 2, sampleRate: 16_000), hostTime: 2
+                    buffer: AudioFixtures.makeTone(seconds: 2, sampleRate: 16_000), hostTime: 2
                 ))
                 writer.finish(reason: "test")
                 manifest.close()
@@ -745,7 +708,7 @@ enum AudioTests {
                 // A file with that many channels and no surround layout has no
                 // mixdown matrix, and a converter left to itself returns silence,
                 // so the recording exists at full duration and contains nothing.
-                let root = try ManifestTests.makeTemporaryDirectory()
+                let root = try TestPaths.makeTemporaryDirectory()
                 defer { try? FileManager.default.removeItem(at: root) }
                 let layout = MeetingLayout(root: root)
                 try FileManager.default.createDirectory(at: layout.segments, withIntermediateDirectories: true)
@@ -787,7 +750,7 @@ enum AudioTests {
                 // -47.8 dBFS at p99 against the usual -17 to -18 dBFS, about
                 // 30 dB down, and that meeting transcribed badly end to end.
                 for (channels, toneChannel) in [(UInt32(3), 2), (UInt32(9), 4)] {
-                    let root = try ManifestTests.makeTemporaryDirectory()
+                    let root = try TestPaths.makeTemporaryDirectory()
                     defer { try? FileManager.default.removeItem(at: root) }
                     let layout = MeetingLayout(root: root)
                     try FileManager.default.createDirectory(
@@ -843,7 +806,7 @@ enum AudioTests {
                 // reads back silent even though a later segment has audio.
                 // Pinned rather than fixed: reaching past the first file means
                 // opening segments the reader has not got to yet.
-                let root = try ManifestTests.makeTemporaryDirectory()
+                let root = try TestPaths.makeTemporaryDirectory()
                 defer { try? FileManager.default.removeItem(at: root) }
                 let layout = MeetingLayout(root: root)
                 try FileManager.default.createDirectory(
@@ -883,7 +846,7 @@ enum AudioTests {
             },
 
             test("a chunk exports to an m4a small enough for the request limit") { expect in
-                let root = try ManifestTests.makeTemporaryDirectory()
+                let root = try TestPaths.makeTemporaryDirectory()
                 defer { try? FileManager.default.removeItem(at: root) }
                 let layout = MeetingLayout(root: root)
                 try FileManager.default.createDirectory(at: layout.segments, withIntermediateDirectories: true)
@@ -895,7 +858,7 @@ enum AudioTests {
                 )
                 for index in 0..<6 {
                     writer.enqueueSynchronously(AudioBufferPacket(
-                        buffer: makeTone(seconds: 2, sampleRate: 48_000), hostTime: Double(index) * 2
+                        buffer: AudioFixtures.makeTone(seconds: 2, sampleRate: 48_000), hostTime: Double(index) * 2
                     ))
                 }
                 writer.finish(reason: "test")
@@ -923,7 +886,7 @@ enum AudioTests {
             },
 
             test("mixing aligns the two tracks by their first-frame host times") { expect in
-                let root = try ManifestTests.makeTemporaryDirectory()
+                let root = try TestPaths.makeTemporaryDirectory()
                 defer { try? FileManager.default.removeItem(at: root) }
                 let layout = MeetingLayout(root: root)
                 try FileManager.default.createDirectory(at: layout.segments, withIntermediateDirectories: true)
@@ -934,7 +897,7 @@ enum AudioTests {
                     track: .remote, layout: layout, manifest: manifest, format: format, segmentSeconds: 60
                 )
                 remoteWriter.enqueueSynchronously(AudioBufferPacket(
-                    buffer: makeTone(seconds: 4, sampleRate: 48_000, frequency: 220), hostTime: 100.0
+                    buffer: AudioFixtures.makeTone(seconds: 4, sampleRate: 48_000, frequency: 220), hostTime: 100.0
                 ))
                 remoteWriter.finish(reason: "test")
 
@@ -944,7 +907,7 @@ enum AudioTests {
                     track: .mic, layout: layout, manifest: manifest, format: format, segmentSeconds: 60
                 )
                 micWriter.enqueueSynchronously(AudioBufferPacket(
-                    buffer: makeTone(seconds: 3, sampleRate: 48_000, frequency: 440), hostTime: 101.0
+                    buffer: AudioFixtures.makeTone(seconds: 3, sampleRate: 48_000, frequency: 440), hostTime: 101.0
                 ))
                 micWriter.finish(reason: "test")
                 manifest.close()
@@ -977,7 +940,7 @@ enum AudioTests {
             },
 
             test("a mix that cannot finish leaves no file to be mistaken for one") { expect in
-                let root = try ManifestTests.makeTemporaryDirectory()
+                let root = try TestPaths.makeTemporaryDirectory()
                 defer { try? FileManager.default.removeItem(at: root) }
                 let layout = MeetingLayout(root: root)
                 try FileManager.default.createDirectory(
@@ -990,7 +953,7 @@ enum AudioTests {
                     format: format, segmentSeconds: 60
                 )
                 writer.enqueueSynchronously(AudioBufferPacket(
-                    buffer: makeTone(seconds: 4, sampleRate: 48_000, frequency: 220),
+                    buffer: AudioFixtures.makeTone(seconds: 4, sampleRate: 48_000, frequency: 220),
                     hostTime: 100.0
                 ))
                 writer.finish(reason: "test")
@@ -1020,7 +983,7 @@ enum AudioTests {
             },
 
             test("importing preserves the original and produces normal segments") { expect in
-                let root = try ManifestTests.makeTemporaryDirectory()
+                let root = try TestPaths.makeTemporaryDirectory()
                 defer { try? FileManager.default.removeItem(at: root) }
                 let sourceURL = root.appendingPathComponent("voice-memo.caf")
                 let sourceFormat = AVAudioFormat(standardFormatWithSampleRate: 44_100, channels: 2)!
@@ -1036,7 +999,7 @@ enum AudioTests {
                     ]
                 )
                 _ = sourceFormat
-                try sourceFile.write(from: makeTone(seconds: 6, sampleRate: 44_100, channels: 2))
+                try sourceFile.write(from: AudioFixtures.makeTone(seconds: 6, sampleRate: 44_100, channels: 2))
                 let originalBytes = try Data(contentsOf: sourceURL)
 
                 let archive = root.appendingPathComponent("archive", isDirectory: true)

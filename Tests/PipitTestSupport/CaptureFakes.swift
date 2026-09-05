@@ -5,9 +5,15 @@ import Synchronization
 /// Stands in for AVAudioEngine. Records every teardown and build so a rebuild
 /// storm is countable, and lets a test script the exact device readings macOS
 /// produced during Bluetooth negotiation, including the transient 0ch/0Hz one.
-final class FakeMicrophoneEngine: MicrophoneEngineController, Sendable {
-    struct Build: Sendable, Equatable {
-        let format: AudioFormatDescriptor
+public final class FakeMicrophoneEngine: MicrophoneEngineController, Sendable {
+    public init() {}
+
+    public struct Build: Sendable, Equatable {
+        public let format: AudioFormatDescriptor
+
+        public init(format: AudioFormatDescriptor) {
+            self.format = format
+        }
     }
 
     private struct State {
@@ -40,42 +46,42 @@ final class FakeMicrophoneEngine: MicrophoneEngineController, Sendable {
 
     private let state = Mutex(State())
 
-    var builds: [Build] { state.withLock { $0.builds } }
-    var buildCount: Int { state.withLock { $0.builds.count } }
-    var teardownCount: Int { state.withLock { $0.teardowns } }
-    var isRunning: Bool { state.withLock { $0.running } }
-    var formatReads: Int { state.withLock { $0.formatReads } }
+    public var builds: [Build] { state.withLock { $0.builds } }
+    public var buildCount: Int { state.withLock { $0.builds.count } }
+    public var teardownCount: Int { state.withLock { $0.teardowns } }
+    public var isRunning: Bool { state.withLock { $0.running } }
+    public var formatReads: Int { state.withLock { $0.formatReads } }
 
     /// Sets the device reading returned once capture settles.
-    func setSteadyFormat(_ format: AudioFormatDescriptor?) {
+    public func setSteadyFormat(_ format: AudioFormatDescriptor?) {
         state.withLock { $0.steadyFormat = format }
     }
 
     /// The identity of the device behind the readings. Changing it is a
     /// different device; changing only the format is the same device
     /// renegotiating.
-    func setDeviceUID(_ uid: String?) {
+    public func setDeviceUID(_ uid: String?) {
         state.withLock { $0.deviceUID = uid }
     }
 
     /// Makes every build report that it could not open the device it asked for.
-    func setDeviceSelectionStatus(_ status: Int32?) {
+    public func setDeviceSelectionStatus(_ status: Int32?) {
         state.withLock { $0.deviceSelectionStatus = status }
     }
 
-    func setDuringBuild(_ hook: (@Sendable () -> Void)?) {
+    public func setDuringBuild(_ hook: (@Sendable () -> Void)?) {
         state.withLock { $0.duringBuild = hook }
     }
 
-    func setDuringTeardown(_ hook: (@Sendable () -> Void)?) {
+    public func setDuringTeardown(_ hook: (@Sendable () -> Void)?) {
         state.withLock { $0.duringTeardown = hook }
     }
 
-    func currentInputDeviceUID() -> String? {
+    public func currentInputDeviceUID() -> String? {
         state.withLock { $0.deviceUID }
     }
 
-    func currentInputDevice() -> MicrophoneDeviceDescription? {
+    public func currentInputDevice() -> MicrophoneDeviceDescription? {
         state.withLock { state in
             guard let uid = state.deviceUID else { return nil }
             let format = state.installedFormat ?? state.steadyFormat
@@ -87,28 +93,28 @@ final class FakeMicrophoneEngine: MicrophoneEngineController, Sendable {
     }
 
     /// Queues one-shot device readings, consumed in order before the steady value.
-    func queueFormatReadings(_ formats: [AudioFormatDescriptor?]) {
+    public func queueFormatReadings(_ formats: [AudioFormatDescriptor?]) {
         state.withLock { $0.formatQueue.append(contentsOf: formats) }
     }
 
-    func failNextBuild(with error: CaptureError) {
+    public func failNextBuild(with error: CaptureError) {
         state.withLock { $0.failNextBuild = error }
     }
 
     /// Every build fails until `stopFailing`, which is a device that is gone
     /// rather than one that is momentarily busy.
-    func failEveryBuild(with error: CaptureError) {
+    public func failEveryBuild(with error: CaptureError) {
         state.withLock { $0.failEveryBuild = error }
     }
 
-    func stopFailing() {
+    public func stopFailing() {
         state.withLock { state in
             state.failEveryBuild = nil
             state.failNextBuild = nil
         }
     }
 
-    func currentInputFormat() -> AudioFormatDescriptor? {
+    public func currentInputFormat() -> AudioFormatDescriptor? {
         state.withLock { state in
             state.formatReads += 1
             if !state.formatQueue.isEmpty { return state.formatQueue.removeFirst() }
@@ -116,7 +122,7 @@ final class FakeMicrophoneEngine: MicrophoneEngineController, Sendable {
         }
     }
 
-    func teardown() {
+    public func teardown() {
         let hook: (@Sendable () -> Void)? = state.withLock { state in
             state.teardowns += 1
             let wasRunning = state.running
@@ -128,12 +134,12 @@ final class FakeMicrophoneEngine: MicrophoneEngineController, Sendable {
 
     /// The format the hardware settles on, which may differ from what the
     /// coordinator asked for.
-    func setInstalledFormat(_ format: AudioFormatDescriptor?) {
+    public func setInstalledFormat(_ format: AudioFormatDescriptor?) {
         state.withLock { $0.installedFormat = format }
     }
 
     @discardableResult
-    func buildAndStart(preferred: AudioFormatDescriptor) throws -> MicrophoneBuild {
+    public func buildAndStart(preferred: AudioFormatDescriptor) throws -> MicrophoneBuild {
         state.withLock { $0.duringBuild }?()
         let failure: CaptureError? = state.withLock { state in
             if let always = state.failEveryBuild {
@@ -156,7 +162,9 @@ final class FakeMicrophoneEngine: MicrophoneEngineController, Sendable {
 }
 
 /// Stands in for the CoreAudio process tap.
-final class FakeProcessTap: ProcessTapController, Sendable {
+public final class FakeProcessTap: ProcessTapController, Sendable {
+    public init() {}
+
     private struct State {
         var targets: [RemoteAudioTarget] = []
         var binds: [[Int32]] = []
@@ -171,23 +179,23 @@ final class FakeProcessTap: ProcessTapController, Sendable {
 
     private let state = Mutex(State())
 
-    var bindCount: Int { state.withLock { $0.binds.count } }
-    var bindHistory: [[Int32]] { state.withLock { $0.binds } }
-    var teardownCount: Int { state.withLock { $0.teardowns } }
+    public var bindCount: Int { state.withLock { $0.binds.count } }
+    public var bindHistory: [[Int32]] { state.withLock { $0.binds } }
+    public var teardownCount: Int { state.withLock { $0.teardowns } }
 
-    func setTargets(_ targets: [RemoteAudioTarget]) {
+    public func setTargets(_ targets: [RemoteAudioTarget]) {
         state.withLock { $0.targets = targets }
     }
 
-    func setFormat(_ format: AudioFormatDescriptor) {
+    public func setFormat(_ format: AudioFormatDescriptor) {
         state.withLock { $0.format = format }
     }
 
-    func failNextBind(with error: CaptureError) {
+    public func failNextBind(with error: CaptureError) {
         state.withLock { $0.failNextBind = error }
     }
 
-    func resolveTargets(bundlePrefixes: [String]) -> [RemoteAudioTarget] {
+    public func resolveTargets(bundlePrefixes: [String]) -> [RemoteAudioTarget] {
         state.withLock { state in
             state.targets.filter { target in
                 bundlePrefixes.contains { target.bundleIdentifier.hasPrefix($0) }
@@ -195,16 +203,16 @@ final class FakeProcessTap: ProcessTapController, Sendable {
         }
     }
 
-    func teardown() {
+    public func teardown() {
         state.withLock { $0.teardowns += 1 }
     }
 
     /// The tap's first IOProc callback of the current bind arriving.
-    func deliverFirstCallback(_ reading: TapCallbackReading) {
+    public func deliverFirstCallback(_ reading: TapCallbackReading) {
         state.withLock { $0.firstCallback = reading }
     }
 
-    func bind(to targets: [RemoteAudioTarget]) throws -> RemoteTapBinding {
+    public func bind(to targets: [RemoteAudioTarget]) throws -> RemoteTapBinding {
         let failure: CaptureError? = state.withLock { state in
             defer { state.failNextBind = nil }
             return state.failNextBind
@@ -217,51 +225,91 @@ final class FakeProcessTap: ProcessTapController, Sendable {
         }
     }
 
-    func firstCallback() -> TapCallbackReading? {
+    public func firstCallback() -> TapCallbackReading? {
         state.withLock { $0.firstCallback }
     }
 }
 
 /// Captures coordinator callbacks so a test can assert on the manifest-visible
 /// consequences of recovery.
-final class RecordingCaptureDelegate: CaptureCoordinatorDelegate, Sendable {
-    struct FormatChange: Sendable, Equatable {
-        let track: CaptureTrack
-        let from: AudioFormatDescriptor?
-        let to: AudioFormatDescriptor
-        let reason: String
+public final class RecordingCaptureDelegate: CaptureCoordinatorDelegate, Sendable {
+    public init() {}
+
+    public struct FormatChange: Sendable, Equatable {
+        public let track: CaptureTrack
+        public let from: AudioFormatDescriptor?
+        public let to: AudioFormatDescriptor
+        public let reason: String
+
+        public init(track: CaptureTrack, from: AudioFormatDescriptor?, to: AudioFormatDescriptor, reason: String) {
+            self.track = track
+            self.from = from
+            self.to = to
+            self.reason = reason
+        }
     }
 
-    struct Restart: Sendable, Equatable {
-        let track: CaptureTrack
-        let reason: String
-        let count: Int
+    public struct Restart: Sendable, Equatable {
+        public let track: CaptureTrack
+        public let reason: String
+        public let count: Int
+
+        public init(track: CaptureTrack, reason: String, count: Int) {
+            self.track = track
+            self.reason = reason
+            self.count = count
+        }
     }
 
-    struct HealthChange: Sendable, Equatable {
-        let track: CaptureTrack
-        let state: CaptureHealthState
+    public struct HealthChange: Sendable, Equatable {
+        public let track: CaptureTrack
+        public let state: CaptureHealthState
         /// The reason written beside the state in the manifest.
-        let detail: String?
+        public let detail: String?
+
+        public init(track: CaptureTrack, state: CaptureHealthState, detail: String?) {
+            self.track = track
+            self.state = state
+            self.detail = detail
+        }
     }
 
-    struct RemoteBind: Sendable, Equatable {
-        let reason: String
-        let processIDs: [Int32]
-        let producing: [Bool]
-        let count: Int
-        let binding: RemoteTapBinding
+    public struct RemoteBind: Sendable, Equatable {
+        public let reason: String
+        public let processIDs: [Int32]
+        public let producing: [Bool]
+        public let count: Int
+        public let binding: RemoteTapBinding
+
+        public init(reason: String, processIDs: [Int32], producing: [Bool], count: Int, binding: RemoteTapBinding) {
+            self.reason = reason
+            self.processIDs = processIDs
+            self.producing = producing
+            self.count = count
+            self.binding = binding
+        }
     }
 
-    struct RemoteStream: Sendable, Equatable {
-        let reading: TapCallbackReading
-        let bindCount: Int
+    public struct RemoteStream: Sendable, Equatable {
+        public let reading: TapCallbackReading
+        public let bindCount: Int
+
+        public init(reading: TapCallbackReading, bindCount: Int) {
+            self.reading = reading
+            self.bindCount = bindCount
+        }
     }
 
-    struct MicBind: Sendable, Equatable {
-        let device: MicrophoneDeviceDescription
-        let build: MicrophoneBuild
-        let reason: String
+    public struct MicBind: Sendable, Equatable {
+        public let device: MicrophoneDeviceDescription
+        public let build: MicrophoneBuild
+        public let reason: String
+
+        public init(device: MicrophoneDeviceDescription, build: MicrophoneBuild, reason: String) {
+            self.device = device
+            self.build = build
+            self.reason = reason
+        }
     }
 
     private struct State {
@@ -276,31 +324,31 @@ final class RecordingCaptureDelegate: CaptureCoordinatorDelegate, Sendable {
 
     private let state = Mutex(State())
 
-    var formatChanges: [FormatChange] { state.withLock { $0.formatChanges } }
-    var restarts: [Restart] { state.withLock { $0.restarts } }
-    var healthChanges: [HealthChange] { state.withLock { $0.healthChanges } }
-    var remoteBinds: [RemoteBind] { state.withLock { $0.remoteBinds } }
-    var remoteStreams: [RemoteStream] { state.withLock { $0.remoteStreams } }
-    var micBinds: [MicBind] { state.withLock { $0.micBinds } }
-    var failures: [CaptureError] { state.withLock { $0.failures } }
+    public var formatChanges: [FormatChange] { state.withLock { $0.formatChanges } }
+    public var restarts: [Restart] { state.withLock { $0.restarts } }
+    public var healthChanges: [HealthChange] { state.withLock { $0.healthChanges } }
+    public var remoteBinds: [RemoteBind] { state.withLock { $0.remoteBinds } }
+    public var remoteStreams: [RemoteStream] { state.withLock { $0.remoteStreams } }
+    public var micBinds: [MicBind] { state.withLock { $0.micBinds } }
+    public var failures: [CaptureError] { state.withLock { $0.failures } }
 
-    func captureWillChangeFormat(
+    public func captureWillChangeFormat(
         track: CaptureTrack, from: AudioFormatDescriptor?, to: AudioFormatDescriptor, reason: String
     ) {
         state.withLock { $0.formatChanges.append(FormatChange(track: track, from: from, to: to, reason: reason)) }
     }
 
-    func captureDidRestart(track: CaptureTrack, reason: RebuildReason, restartCount: Int) {
+    public func captureDidRestart(track: CaptureTrack, reason: RebuildReason, restartCount: Int) {
         state.withLock { $0.restarts.append(Restart(track: track, reason: reason.label, count: restartCount)) }
     }
 
-    func captureHealthChanged(track: CaptureTrack, state newState: CaptureHealthState, detail: String?) {
+    public func captureHealthChanged(track: CaptureTrack, state newState: CaptureHealthState, detail: String?) {
         state.withLock {
             $0.healthChanges.append(HealthChange(track: track, state: newState, detail: detail))
         }
     }
 
-    func captureDidBindRemote(
+    public func captureDidBindRemote(
         targets: [RemoteAudioTarget], reason: RebuildReason, bindCount: Int, binding: RemoteTapBinding
     ) {
         state.withLock {
@@ -314,13 +362,13 @@ final class RecordingCaptureDelegate: CaptureCoordinatorDelegate, Sendable {
         }
     }
 
-    func captureDidReadRemoteStream(reading: TapCallbackReading, bindCount: Int) {
+    public func captureDidReadRemoteStream(reading: TapCallbackReading, bindCount: Int) {
         state.withLock {
             $0.remoteStreams.append(RemoteStream(reading: reading, bindCount: bindCount))
         }
     }
 
-    func captureDidBindMicrophone(
+    public func captureDidBindMicrophone(
         device: MicrophoneDeviceDescription, build: MicrophoneBuild, reason: RebuildReason
     ) {
         state.withLock {
@@ -328,12 +376,12 @@ final class RecordingCaptureDelegate: CaptureCoordinatorDelegate, Sendable {
         }
     }
 
-    func captureDidFail(track: CaptureTrack, error: CaptureError) {
+    public func captureDidFail(track: CaptureTrack, error: CaptureError) {
         state.withLock { $0.failures.append(error) }
     }
 }
 
-func makeTarget(
+public func makeTarget(
     pid: Int32, bundle: String = "org.mozilla.firefox", producing: Bool = false, objectID: UInt32? = nil
 ) -> RemoteAudioTarget {
     RemoteAudioTarget(

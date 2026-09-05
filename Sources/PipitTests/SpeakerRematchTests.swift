@@ -2,6 +2,7 @@ import Foundation
 import PipitCore
 import PipitServices
 import PipitSpeakers
+import PipitTestSupport
 import TestKit
 
 /// Scoring unnamed voices against the gallery long after their meetings were
@@ -16,10 +17,10 @@ enum SpeakerRematchTests {
 
     // MARK: helpers
 
-    static func vector(seed: Int) -> [Float] { SpeakerIdentityTests.vector(seed: seed) }
+    static func vector(seed: Int) -> [Float] { SpeakerFixtures.vector(seed: seed) }
 
     static func makeStore() throws -> (SpeakerStore, URL) {
-        try SpeakerIdentityTests.makeStore()
+        try SpeakerFixtures.makeStore()
     }
 
     /// An unnamed voice remembered from one meeting, the way `resolve` seeds
@@ -165,7 +166,7 @@ enum SpeakerRematchTests {
                 )
                 _ = try await seedVoice(
                     store, meeting: "m1", cluster: "run-1_speaker_01",
-                    vector: SpeakerIdentityTests.blended(base, with: vector(seed: 432), towards: 0.05)
+                    vector: SpeakerFixtures.blended(base, with: vector(seed: 432), towards: 0.05)
                 )
                 expect.isTrue(try await service.rematchUnnamedVoices().isEmpty)
             },
@@ -223,7 +224,7 @@ enum SpeakerRematchTests {
                 defer { try? FileManager.default.removeItem(at: root) }
                 let service = SpeakerRecognitionService(store: store)
                 let andrew = vector(seed: 461)
-                let nearly = SpeakerIdentityTests.blended(
+                let nearly = SpeakerFixtures.blended(
                     vector(seed: 462), with: andrew, towards: 0.45
                 )
                 // Pinned, so a fixture that drifts out of the band says so here
@@ -254,17 +255,17 @@ enum SpeakerRematchTests {
                 // renames nothing a reader can see, because `refreshCachedNames`
                 // rewrites entries that already carry an identity and there is
                 // no entry to rewrite.
-                let root = try ManifestTests.makeTemporaryDirectory()
+                let root = try TestPaths.makeTemporaryDirectory()
                 defer { try? FileManager.default.removeItem(at: root) }
                 let store = try SpeakerStore(
                     url: root.appendingPathComponent("voices.sqlite")
                 )
-                let meeting = try PipelineTests.makeRecordedMeeting(root: root)
+                let meeting = try PipelineFixtures.makeRecordedMeeting(root: root)
                 let key = "remote-001_speaker_00"
 
                 try meeting.store.writeCanonicalTranscript(CanonicalTranscript(
                     generatedAt: Date(timeIntervalSince1970: 1_700_000_000),
-                    utterances: [PeopleDirectoryTests.utterance(key, "We ship Friday.", at: 0)]
+                    utterances: [PeopleFixtures.utterance(key, "We ship Friday.", at: 0)]
                 ))
                 // No speaker map entry, which is the state a seeded voice leaves
                 // behind.

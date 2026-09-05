@@ -1,5 +1,6 @@
 import Foundation
 import PipitCore
+import PipitTestSupport
 import TestKit
 
 /// The folder a meeting lives in is named for the meeting, and the identifier
@@ -12,7 +13,7 @@ enum MeetingFolderRenameTests {
     static var suite: Suite {
         Suite("Meeting folder renaming", [
             test("a new meeting is filed under a readable name, not its identifier") { expect in
-                let root = try ManifestTests.makeTemporaryDirectory()
+                let root = try TestPaths.makeTemporaryDirectory()
                 defer { try? FileManager.default.removeItem(at: root) }
                 let repository = MeetingRepository(root: root)
                 let started = MeetingFolderNameTests.date(
@@ -34,7 +35,7 @@ enum MeetingFolderRenameTests {
             },
 
             test("a meeting is found after its folder no longer matches its identifier") { expect in
-                let root = try ManifestTests.makeTemporaryDirectory()
+                let root = try TestPaths.makeTemporaryDirectory()
                 defer { try? FileManager.default.removeItem(at: root) }
                 let repository = MeetingRepository(root: root)
                 let started = MeetingFolderNameTests.date(
@@ -56,7 +57,7 @@ enum MeetingFolderRenameTests {
             },
 
             test("a completed meeting takes the title enrichment gave it") { expect in
-                let root = try ManifestTests.makeTemporaryDirectory()
+                let root = try TestPaths.makeTemporaryDirectory()
                 defer { try? FileManager.default.removeItem(at: root) }
                 let repository = MeetingRepository(root: root)
                 let started = MeetingFolderNameTests.date(
@@ -89,7 +90,7 @@ enum MeetingFolderRenameTests {
             },
 
             test("settling twice moves the folder once") { expect in
-                let root = try ManifestTests.makeTemporaryDirectory()
+                let root = try TestPaths.makeTemporaryDirectory()
                 defer { try? FileManager.default.removeItem(at: root) }
                 let repository = MeetingRepository(root: root)
                 let started = MeetingFolderNameTests.date(
@@ -119,7 +120,7 @@ enum MeetingFolderRenameTests {
                 // `fileExists` on a case-insensitive volume matches the folder's
                 // own name, so the folder collided with itself and every settle
                 // appended another number.
-                let root = try ManifestTests.makeTemporaryDirectory()
+                let root = try TestPaths.makeTemporaryDirectory()
                 defer { try? FileManager.default.removeItem(at: root) }
                 let repository = MeetingRepository(root: root)
                 let started = MeetingFolderNameTests.date(
@@ -138,7 +139,7 @@ enum MeetingFolderRenameTests {
             },
 
             test("a folder renamed by hand is left alone") { expect in
-                let root = try ManifestTests.makeTemporaryDirectory()
+                let root = try TestPaths.makeTemporaryDirectory()
                 defer { try? FileManager.default.removeItem(at: root) }
                 let repository = MeetingRepository(root: root)
                 let started = MeetingFolderNameTests.date(
@@ -165,7 +166,7 @@ enum MeetingFolderRenameTests {
             },
 
             test("a meeting recorded before this change keeps its folder") { expect in
-                let root = try ManifestTests.makeTemporaryDirectory()
+                let root = try TestPaths.makeTemporaryDirectory()
                 defer { try? FileManager.default.removeItem(at: root) }
                 let repository = MeetingRepository(root: root)
                 let started = MeetingFolderNameTests.date(
@@ -192,7 +193,7 @@ enum MeetingFolderRenameTests {
             },
 
             test("two meetings sharing a title and a minute get separate folders") { expect in
-                let root = try ManifestTests.makeTemporaryDirectory()
+                let root = try TestPaths.makeTemporaryDirectory()
                 defer { try? FileManager.default.removeItem(at: root) }
                 let repository = MeetingRepository(root: root)
                 let started = MeetingFolderNameTests.date(
@@ -227,7 +228,7 @@ enum MeetingFolderRenameTests {
             },
 
             test("the startup sweep settles a meeting the pipeline never revisits") { expect in
-                let root = try ManifestTests.makeTemporaryDirectory()
+                let root = try TestPaths.makeTemporaryDirectory()
                 defer { try? FileManager.default.removeItem(at: root) }
                 let repository = MeetingRepository(root: root)
                 let started = MeetingFolderNameTests.date(
@@ -250,7 +251,7 @@ enum MeetingFolderRenameTests {
             test("a recording folded into another one stays where it is") { expect in
                 // It is folded in after its own pipeline run, so renaming it
                 // would strand the path held by whatever folded it.
-                let root = try ManifestTests.makeTemporaryDirectory()
+                let root = try TestPaths.makeTemporaryDirectory()
                 defer { try? FileManager.default.removeItem(at: root) }
                 let repository = MeetingRepository(root: root)
                 let started = MeetingFolderNameTests.date(
@@ -277,7 +278,7 @@ enum MeetingFolderRenameTests {
             },
 
             test("archive usage counts the bytes and the meetings a person can see") { expect in
-                let root = try ManifestTests.makeTemporaryDirectory()
+                let root = try TestPaths.makeTemporaryDirectory()
                 defer { try? FileManager.default.removeItem(at: root) }
                 let repository = MeetingRepository(root: root)
                 let started = MeetingFolderNameTests.date(
@@ -320,7 +321,7 @@ enum MeetingFolderRenameTests {
             },
 
             test("a meeting still recording is not renamed by the sweep") { expect in
-                let root = try ManifestTests.makeTemporaryDirectory()
+                let root = try TestPaths.makeTemporaryDirectory()
                 defer { try? FileManager.default.removeItem(at: root) }
                 let repository = MeetingRepository(root: root)
                 let started = MeetingFolderNameTests.date(

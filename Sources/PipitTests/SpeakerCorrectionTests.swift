@@ -1,5 +1,6 @@
 import Foundation
 import PipitCore
+import PipitTestSupport
 import TestKit
 
 /// Attribution, the layers above it, and the rule that a person's correction is
@@ -566,7 +567,7 @@ enum SpeakerCorrectionTests {
             },
 
             test("renaming a person reaches the meetings that saw the merged one") { expect in
-                let (store, storeRoot) = try SpeakerIdentityTests.makeStore()
+                let (store, storeRoot) = try SpeakerFixtures.makeStore()
                 defer { try? FileManager.default.removeItem(at: storeRoot) }
                 let ann = try await store.createPerson(name: "Ann")
                 let bob = try await store.createPerson(name: "Bob")

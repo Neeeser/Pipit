@@ -2,6 +2,7 @@ import Foundation
 import PipitCore
 import PipitIntegrations
 import PipitServices
+import PipitTestSupport
 import TestKit
 
 /// Where a finished meeting ends up, run through the pipeline that decides it.
@@ -13,12 +14,12 @@ enum FolderPlacementTests {
     static func processed(
         root: URL, backend: FakeAIBackend, settings: AppSettings
     ) async throws -> (metadata: MeetingMetadata, repository: MeetingRepository) {
-        let meeting = try PipelineTests.makeRecordedMeeting(root: root, seconds: 6)
+        let meeting = try PipelineFixtures.makeRecordedMeeting(root: root, seconds: 6)
         backend.transcriptionSegments = [
             RawTranscriptSegment(start: 0, end: 5, text: "The security review is still open.", speaker: "speaker_0")
         ]
         backend.diarizationSegments = backend.transcriptionSegments
-        let pipeline = PipelineTests.makePipeline(
+        let pipeline = PipelineFixtures.makePipeline(
             repository: meeting.repository, backend: backend, settings: settings
         )
         await pipeline.process(meetingID: meeting.metadata.id)
@@ -28,7 +29,7 @@ enum FolderPlacementTests {
     static var suite: Suite {
         Suite("Folder placement", [
             test("a folder rule files a matching meeting on its own") { expect in
-                let root = try ManifestTests.makeTemporaryDirectory()
+                let root = try TestPaths.makeTemporaryDirectory()
                 defer { try? FileManager.default.removeItem(at: root) }
                 let folders = MeetingFolderStore(root: root)
                 var folder = try folders.create(name: "Weekly")
@@ -52,7 +53,7 @@ enum FolderPlacementTests {
             },
 
             test("a folder with its switch off is offered, never taken") { expect in
-                let root = try ManifestTests.makeTemporaryDirectory()
+                let root = try TestPaths.makeTemporaryDirectory()
                 defer { try? FileManager.default.removeItem(at: root) }
                 let folders = MeetingFolderStore(root: root)
                 var folder = try folders.create(name: "Weekly")
@@ -70,7 +71,7 @@ enum FolderPlacementTests {
             },
 
             test("what a model answers is written down and never acted on") { expect in
-                let root = try ManifestTests.makeTemporaryDirectory()
+                let root = try TestPaths.makeTemporaryDirectory()
                 defer { try? FileManager.default.removeItem(at: root) }
                 let folders = MeetingFolderStore(root: root)
                 var folder = try folders.create(name: "Capital One", about: "Client work")
@@ -101,7 +102,7 @@ enum FolderPlacementTests {
             },
 
             test("the folders are shown to the model, with what they are for") { expect in
-                let root = try ManifestTests.makeTemporaryDirectory()
+                let root = try TestPaths.makeTemporaryDirectory()
                 defer { try? FileManager.default.removeItem(at: root) }
                 let folders = MeetingFolderStore(root: root)
                 try folders.create(name: "Capital One", about: "Client work with Capital One")
@@ -117,7 +118,7 @@ enum FolderPlacementTests {
             },
 
             test("recurring meetings only asks the model nothing about folders") { expect in
-                let root = try ManifestTests.makeTemporaryDirectory()
+                let root = try TestPaths.makeTemporaryDirectory()
                 defer { try? FileManager.default.removeItem(at: root) }
                 let folders = MeetingFolderStore(root: root)
                 try folders.create(name: "Capital One", about: "Client work")

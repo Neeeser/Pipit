@@ -4,6 +4,7 @@ import PipitCore
 import PipitIntegrations
 import PipitServices
 import PipitUI
+import PipitTestSupport
 import TestKit
 
 /// Which backend runs where, how that survives an upgrade, and the rule that
@@ -153,7 +154,7 @@ enum BackendSelectionTests {
             },
 
             test("a fresh installation with no file at all starts local") { expect in
-                let root = try ManifestTests.makeTemporaryDirectory()
+                let root = try TestPaths.makeTemporaryDirectory()
                 defer { try? FileManager.default.removeItem(at: root) }
                 let settings = SettingsStore(directory: root).load()
                 expect.isTrue(settings.processing.isFullyLocal)
@@ -269,7 +270,7 @@ enum BackendSelectionTests {
             },
 
             test("settings survive a full round trip through disk") { expect in
-                let root = try ManifestTests.makeTemporaryDirectory()
+                let root = try TestPaths.makeTemporaryDirectory()
                 defer { try? FileManager.default.removeItem(at: root) }
                 var settings = AppSettings()
                 settings.processing.transcription = .openAI
@@ -452,9 +453,9 @@ enum BackendSelectionTests {
                 // reimplementing its loop: the defect this pins is the gate
                 // being consulted once per iteration, and only the pipeline has
                 // that loop.
-                let root = try ManifestTests.makeTemporaryDirectory()
+                let root = try TestPaths.makeTemporaryDirectory()
                 defer { try? FileManager.default.removeItem(at: root) }
-                let meeting = try PipelineTests.makeRecordedMeeting(root: root, seconds: 6)
+                let meeting = try PipelineFixtures.makeRecordedMeeting(root: root, seconds: 6)
 
                 let capture = LockedBox(RecordingAwareGate.CaptureState.recording)
                 let gate = RecordingAwareGate(pollSeconds: 0.01) { capture.withLock { $0 } }
@@ -521,7 +522,7 @@ enum BackendSelectionTests {
             test("a typed speaker count has to be one a clusterer can use") { expect in
                 // Zero and negatives went straight into the clusterer, and the
                 // run that came back replaced the good one with no undo.
-                let root = try ManifestTests.makeTemporaryDirectory()
+                let root = try TestPaths.makeTemporaryDirectory()
                 defer { try? FileManager.default.removeItem(at: root) }
                 await MainActor.run {
                     let model = MeetingReviewModel(

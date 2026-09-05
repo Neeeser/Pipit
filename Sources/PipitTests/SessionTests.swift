@@ -1,20 +1,9 @@
 import Foundation
 import PipitCore
+import PipitTestSupport
 import TestKit
 
 enum SessionTests {
-    static func meetEvidence(
-        confidence: MeetingConfidence, source: EvidenceSource = .browserSensor,
-        meetingID: String? = "abc-defg-hij"
-    ) -> ProviderEvidence {
-        ProviderEvidence(
-            provider: .googleMeet, confidence: confidence, source: source,
-            meetingID: meetingID, url: meetingID.map { "https://meet.google.com/\($0)" },
-            title: nil, browser: .firefox, applicationBundleID: "org.mozilla.firefox",
-            audioBundlePrefixes: ["org.mozilla.firefox"]
-        )
-    }
-
     static func slackEvidence(confidence: MeetingConfidence) -> ProviderEvidence {
         ProviderEvidence(
             provider: .slack, confidence: confidence, source: .accessibility,
@@ -42,7 +31,7 @@ enum SessionTests {
         let wall = Date(timeIntervalSince1970: 1_787_070_000)
         let start = 100.0
         _ = controller.update(
-            evidence: [meetEvidence(confidence: .confirmed)], now: start, wallClock: wall
+            evidence: [DetectionFixtures.meetEvidence(confidence: .confirmed)], now: start, wallClock: wall
         )
         var now = start
         while now - start < limit {
@@ -61,7 +50,7 @@ enum SessionTests {
                 var controller = SessionController()
                 let wall = Date(timeIntervalSince1970: 1_787_070_000)
                 let actions = controller.update(
-                    evidence: [meetEvidence(confidence: .candidate)], now: 100, wallClock: wall
+                    evidence: [DetectionFixtures.meetEvidence(confidence: .candidate)], now: 100, wallClock: wall
                 )
                 expect.equal(controller.snapshot.state, .candidate)
                 guard case .armCapture(let prefixes, let capturesRemote) = actions.first else {
@@ -92,7 +81,7 @@ enum SessionTests {
                 expect.equal(controller.snapshot.state, .candidate)
 
                 let actions = controller.update(
-                    evidence: [meetEvidence(confidence: .confirmed)], now: 104, wallClock: wall
+                    evidence: [DetectionFixtures.meetEvidence(confidence: .confirmed)], now: 104, wallClock: wall
                 )
                 let retargetIndex = actions.firstIndex { action in
                     if case .retargetCapture(let prefixes) = action {
@@ -120,7 +109,7 @@ enum SessionTests {
                 var controller = SessionController()
                 let wall = Date(timeIntervalSince1970: 1_787_070_000)
                 _ = controller.update(
-                    evidence: [meetEvidence(confidence: .candidate)], now: 100, wallClock: wall
+                    evidence: [DetectionFixtures.meetEvidence(confidence: .candidate)], now: 100, wallClock: wall
                 )
                 expect.equal(controller.snapshot.state, .candidate)
 
@@ -145,10 +134,10 @@ enum SessionTests {
                 var controller = SessionController()
                 let wall = Date(timeIntervalSince1970: 1_787_070_000)
                 _ = controller.update(
-                    evidence: [meetEvidence(confidence: .candidate)], now: 100, wallClock: wall
+                    evidence: [DetectionFixtures.meetEvidence(confidence: .candidate)], now: 100, wallClock: wall
                 )
                 let actions = controller.update(
-                    evidence: [meetEvidence(confidence: .confirmed)], now: 101.5,
+                    evidence: [DetectionFixtures.meetEvidence(confidence: .confirmed)], now: 101.5,
                     wallClock: wall.addingTimeInterval(1.5)
                 )
                 expect.equal(controller.snapshot.state, .recording)
@@ -168,7 +157,7 @@ enum SessionTests {
                 var controller = SessionController()
                 let wall = Date(timeIntervalSince1970: 1_787_070_000)
                 _ = controller.update(
-                    evidence: [meetEvidence(confidence: .candidate)], now: 100, wallClock: wall
+                    evidence: [DetectionFixtures.meetEvidence(confidence: .candidate)], now: 100, wallClock: wall
                 )
                 var actions: [SessionAction] = []
                 var now = 100.0
@@ -188,7 +177,7 @@ enum SessionTests {
                 var controller = SessionController()
                 let wall = Date(timeIntervalSince1970: 1_787_070_000)
                 _ = controller.update(
-                    evidence: [meetEvidence(confidence: .confirmed)], now: 100, wallClock: wall
+                    evidence: [DetectionFixtures.meetEvidence(confidence: .confirmed)], now: 100, wallClock: wall
                 )
                 expect.equal(controller.snapshot.state, .recording)
 
@@ -198,7 +187,7 @@ enum SessionTests {
                 for _ in 0..<60 {
                     now += 0.5
                     let actions = controller.update(
-                        evidence: [meetEvidence(confidence: .confirmed, source: .native)],
+                        evidence: [DetectionFixtures.meetEvidence(confidence: .confirmed, source: .native)],
                         now: now, wallClock: wall
                     )
                     expect.isFalse(
@@ -213,7 +202,7 @@ enum SessionTests {
                 var controller = SessionController()
                 let wall = Date(timeIntervalSince1970: 1_787_070_000)
                 _ = controller.update(
-                    evidence: [meetEvidence(confidence: .confirmed)], now: 100, wallClock: wall
+                    evidence: [DetectionFixtures.meetEvidence(confidence: .confirmed)], now: 100, wallClock: wall
                 )
 
                 // Firefox quits. Evidence disappears entirely.
@@ -244,7 +233,7 @@ enum SessionTests {
                 // Firefox comes back and rejoins the same meeting.
                 now += 1
                 let resumed = controller.update(
-                    evidence: [meetEvidence(confidence: .confirmed)], now: now, wallClock: wall
+                    evidence: [DetectionFixtures.meetEvidence(confidence: .confirmed)], now: now, wallClock: wall
                 )
                 expect.equal(controller.snapshot.state, .recording)
                 expect.equal(controller.snapshot.runCount, 2)
@@ -265,7 +254,7 @@ enum SessionTests {
                 var controller = SessionController()
                 let wall = Date(timeIntervalSince1970: 1_787_070_000)
                 _ = controller.update(
-                    evidence: [meetEvidence(confidence: .confirmed)], now: 100, wallClock: wall
+                    evidence: [DetectionFixtures.meetEvidence(confidence: .confirmed)], now: 100, wallClock: wall
                 )
                 expect.equal(controller.snapshot.state, .recording)
 
@@ -402,7 +391,7 @@ enum SessionTests {
                 let wall = Date(timeIntervalSince1970: 1_787_070_000)
                 expect.equal(
                     controller.update(
-                        evidence: [meetEvidence(confidence: .confirmed)], now: 100, wallClock: wall
+                        evidence: [DetectionFixtures.meetEvidence(confidence: .confirmed)], now: 100, wallClock: wall
                     ),
                     []
                 )
@@ -528,7 +517,7 @@ enum SessionTests {
                 _ = controller.resolveProvisional(keep: false, reason: "user_discarded", now: 101)
 
                 let meet = controller.update(
-                    evidence: [meetEvidence(confidence: .confirmed)], now: 102, wallClock: wall
+                    evidence: [DetectionFixtures.meetEvidence(confidence: .confirmed)], now: 102, wallClock: wall
                 )
                 expect.isTrue(
                     meet.contains { if case .commitRecording = $0 { true } else { false } },
@@ -624,12 +613,12 @@ enum SessionTests {
                 var controller = SessionController()
                 let wall = Date(timeIntervalSince1970: 1_787_070_000)
                 _ = controller.update(
-                    evidence: [meetEvidence(confidence: .confirmed)], now: 100, wallClock: wall
+                    evidence: [DetectionFixtures.meetEvidence(confidence: .confirmed)], now: 100, wallClock: wall
                 )
                 _ = controller.stop(reason: "user_stopped", now: 200)
 
                 let next = controller.update(
-                    evidence: [meetEvidence(confidence: .confirmed, meetingID: "zzz-yyyy-xxx")],
+                    evidence: [DetectionFixtures.meetEvidence(confidence: .confirmed, meetingID: "zzz-yyyy-xxx")],
                     now: 201, wallClock: wall
                 )
                 expect.isTrue(
@@ -645,7 +634,7 @@ enum SessionTests {
                 let wall = Date(timeIntervalSince1970: 1_787_070_000)
                 expect.equal(
                     controller.update(
-                        evidence: [meetEvidence(confidence: .confirmed)], now: 100, wallClock: wall
+                        evidence: [DetectionFixtures.meetEvidence(confidence: .confirmed)], now: 100, wallClock: wall
                     ),
                     []
                 )
@@ -729,7 +718,7 @@ extension SessionTests {
     static var continuationSuite: Suite {
         Suite("MeetingContinuation", [
             test("a rejoined meeting links to the earlier one without moving audio") { expect in
-                let root = try ManifestTests.makeTemporaryDirectory()
+                let root = try TestPaths.makeTemporaryDirectory()
                 defer { try? FileManager.default.removeItem(at: root) }
                 let repository = MeetingRepository(root: root)
                 let start = Date(timeIntervalSince1970: 1_787_070_000)

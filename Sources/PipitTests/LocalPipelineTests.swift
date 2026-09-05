@@ -5,132 +5,9 @@ import PipitIntegrations
 import PipitLocalAI
 import PipitServices
 import PipitSpeakers
+import PipitTestSupport
 import Synchronization
 import TestKit
-
-/// A transcription backend with no model behind it, so the local path can be
-/// exercised end to end without 650 MB of CoreML.
-final class StubLocalTranscriber: TranscriptionBackend, @unchecked Sendable {
-    var segments: [RawTranscriptSegment]
-    /// What the microphone track says, where a test needs the two tracks to say
-    /// different things. Identical words on both tracks are read as the far end
-    /// reaching the microphone, and the local lines are dropped.
-    var micSegments: [RawTranscriptSegment]?
-    var identifier = "stub-whisper"
-    var isLocal = true
-    var limits = BackendAudioLimits.none
-    var timing = TranscriptTiming.words
-    /// The audio handed to this backend, so a test can say which one read it.
-    private let state = Mutex<[String]>([])
-    var received: [String] { state.withLock { $0 } }
-    /// Where to keep a copy of every file handed over, for a test that has to
-    /// measure the samples rather than read the name. The pipeline deletes its
-    /// working copies when the meeting finishes, so they have to be taken as
-    /// they are read.
-    var copyAudioTo: URL?
-    private let copies = Mutex<[URL]>([])
-    var copiedAudio: [URL] { copies.withLock { $0 } }
-
-    init(segments: [RawTranscriptSegment]) { self.segments = segments }
-
-    func transcribe(
-        audio: URL, progress: @escaping @Sendable (Double) -> Void
-    ) async throws -> TranscriptionOutput {
-        state.withLock { $0.append(audio.lastPathComponent) }
-        if let copyAudioTo {
-            copies.withLock { made in
-                let destination = copyAudioTo.appendingPathComponent(
-                    "\(made.count).\(audio.lastPathComponent)"
-                )
-                try? FileManager.default.createDirectory(
-                    at: copyAudioTo, withIntermediateDirectories: true
-                )
-                try? FileManager.default.copyItem(at: audio, to: destination)
-                made.append(destination)
-            }
-        }
-        progress(1)
-        let spoken = audio.lastPathComponent.hasPrefix(CaptureTrack.mic.rawValue)
-            ? (micSegments ?? segments) : segments
-        return TranscriptionOutput(
-            segments: spoken, text: spoken.map(\.text).joined(separator: " "),
-            language: "en", durationSeconds: 6
-        )
-    }
-}
-
-struct StubLocalDiarizer: DiarizationBackend, @unchecked Sendable {
-    var intervals: [DiarizationInterval]
-    var chunkEmbeddings: [DiarizationChunkEmbedding]
-    var identifier = "stub-fluidaudio"
-    var isLocal = true
-    var limits = BackendAudioLimits.none
-    var producesEmbeddings = true
-    var producesTranscript = false
-
-    func diarize(
-        audio: URL, progress: @escaping @Sendable (Double) -> Void
-    ) async throws -> DiarizationOutput {
-        progress(1)
-        var speech: [String: Double] = [:]
-        for interval in intervals { speech[interval.clusterID, default: 0] += interval.duration }
-        return DiarizationOutput(
-            intervals: intervals,
-            clusters: speech.keys.sorted().map {
-                DiarizationCluster(id: $0, speechSeconds: speech[$0] ?? 0)
-            },
-            chunkEmbeddings: chunkEmbeddings,
-            configuration: ["warmStartFa": "0.2"]
-        )
-    }
-}
-
-/// A transcription backend that returns the best words and no timings, the
-/// shape gpt-transcribe and local Cohere produce.
-final class StubTextTranscriber: TranscriptionBackend, @unchecked Sendable {
-    var text: String
-    var identifier = "stub-cohere"
-    var isLocal = true
-    var limits: BackendAudioLimits
-    var timing = TranscriptTiming.text
-    private let state = Mutex<[String]>([])
-    /// The audio handed to this backend, so a test can count its chunks.
-    var received: [String] { state.withLock { $0 } }
-
-    init(text: String, limits: BackendAudioLimits = .none) {
-        self.text = text
-        self.limits = limits
-    }
-
-    func transcribe(
-        audio: URL, progress: @escaping @Sendable (Double) -> Void
-    ) async throws -> TranscriptionOutput {
-        state.withLock { $0.append(audio.lastPathComponent) }
-        progress(1)
-        return TranscriptionOutput(segments: [], text: text, durationSeconds: 6)
-    }
-}
-
-/// An aligner with a fixed answer, or a refusal.
-struct StubAligner: TranscriptAligner, @unchecked Sendable {
-    var identifier = "stub-aligner"
-    var segments: [RawTranscriptSegment]
-    var refuses = false
-
-    func align(audio: URL, text: String) async throws -> [RawTranscriptSegment] {
-        if refuses { throw TranscriptAlignmentRefused(reason: "stub refusal") }
-        return segments
-    }
-}
-
-/// Stands in for the embedding extractor on a machine with no models installed.
-struct RefusingEmbeddingExtractor: SpeakerEmbeddingExtractor {
-    var model: EmbeddingModelIdentifier { .fluidAudioOffline }
-
-    func embed(audio: URL, intervals: [DiarizationInterval]) async throws -> [DiarizationChunkEmbedding] {
-        throw LocalModelError.notInstalled
-    }
-}
 
 /// The whole local path, with the models replaced and everything else real.
 enum LocalPipelineTests {
@@ -139,7 +16,7 @@ enum LocalPipelineTests {
         spans.map {
             DiarizationChunkEmbedding(
                 clusterID: cluster, start: $0.0, end: $0.1,
-                vector: SpeakerIdentityTests.vector(seed: seed)
+                vector: SpeakerFixtures.vector(seed: seed)
             )
         }
     }
@@ -186,38 +63,6 @@ enum LocalPipelineTests {
         )
     }
 
-    static func makePipeline(
-        repository: MeetingRepository,
-        backend: FakeAIBackend,
-        transcriber: any TranscriptionBackend,
-        diarizer: StubLocalDiarizer,
-        speakers: SpeakerRecognitionService?,
-        aligner: (any TranscriptAligner)? = nil,
-        prepareAligner: (@Sendable () async throws -> Void)? = nil,
-        singleSpeakerEmbedding: (@Sendable (URL) async throws -> SingleSpeakerSample?)? = nil,
-        settings: AppSettings,
-        scratchRoot: URL,
-        onProgress: @escaping @Sendable (ProcessingPipeline.Progress) -> Void = { _ in }
-    ) -> ProcessingPipeline {
-        ProcessingPipeline(
-            repository: repository,
-            backend: backend,
-            backends: ProcessingBackends(
-                transcription: { _, _ in transcriber },
-                diarization: { _, _ in diarizer },
-                speakers: speakers,
-                aligner: aligner,
-                prepareAligner: prepareAligner,
-                singleSpeakerEmbedding: singleSpeakerEmbedding
-            ),
-            scratch: ProcessingScratch(root: scratchRoot),
-            clock: ManualClock(),
-            settingsProvider: { settings },
-            onProgress: onProgress,
-            wait: { _ in }
-        )
-    }
-
     /// Lets a test wait for one progress line and then act while the pipeline
     /// is still inside the stage that reported it.
     final class ProgressGate: Sendable {
@@ -246,9 +91,9 @@ enum LocalPipelineTests {
     static var suite: Suite {
         Suite("LocalPipeline", [
             test("a local run transcribes, diarizes and attributes every word") { expect in
-                let root = try ManifestTests.makeTemporaryDirectory()
+                let root = try TestPaths.makeTemporaryDirectory()
                 defer { try? FileManager.default.removeItem(at: root) }
-                let meeting = try PipelineTests.makeRecordedMeeting(root: root, seconds: 6)
+                let meeting = try PipelineFixtures.makeRecordedMeeting(root: root, seconds: 6)
 
                 let transcriber = StubLocalTranscriber(segments: [
                     RawTranscriptSegment(
@@ -278,7 +123,7 @@ enum LocalPipelineTests {
                     generateTitle: false, generateDescription: false, generateNotes: false,
                     generateSummary: false, suggestSpeakers: false
                 )
-                let pipeline = makePipeline(
+                let pipeline = PipelineFixtures.makePipeline(
                     repository: meeting.repository, backend: FakeAIBackend(),
                     transcriber: transcriber, diarizer: diarizer, speakers: nil,
                     settings: settings, scratchRoot: root.appendingPathComponent("scratch")
@@ -318,9 +163,9 @@ enum LocalPipelineTests {
                 // chose the silent one, which returned no clusters, so every
                 // word stayed on the microphone under the key that means the
                 // local user and six people read as one.
-                let root = try ManifestTests.makeTemporaryDirectory()
+                let root = try TestPaths.makeTemporaryDirectory()
                 defer { try? FileManager.default.removeItem(at: root) }
-                let meeting = try PipelineTests.makeRecordedMeeting(root: root, seconds: 6)
+                let meeting = try PipelineFixtures.makeRecordedMeeting(root: root, seconds: 6)
 
                 // A tap bound to an application that emits nothing still writes
                 // a full-length track, because the aggregate device is clocked
@@ -361,7 +206,7 @@ enum LocalPipelineTests {
                     generateTitle: false, generateDescription: false, generateNotes: false,
                     generateSummary: false, suggestSpeakers: false
                 )
-                let pipeline = makePipeline(
+                let pipeline = PipelineFixtures.makePipeline(
                     repository: meeting.repository, backend: FakeAIBackend(),
                     transcriber: transcriber, diarizer: diarizer, speakers: nil,
                     settings: settings, scratchRoot: root.appendingPathComponent("scratch")
@@ -398,7 +243,7 @@ enum LocalPipelineTests {
                 // participant, because the local user's own tile is refused
                 // and the client had lit somebody else's. They were not in
                 // their own meeting.
-                let root = try ManifestTests.makeTemporaryDirectory()
+                let root = try TestPaths.makeTemporaryDirectory()
                 defer { try? FileManager.default.removeItem(at: root) }
                 // The far end's track is digital zero, as the tap wrote it, so
                 // the cleaner has no reference and the evidence reads no far
@@ -409,7 +254,7 @@ enum LocalPipelineTests {
                     mic: MicrophoneCleanerTests.tone(count: frames, frequency: 700, amplitude: 0.3),
                     remote: [Float](repeating: 0, count: frames)
                 )
-                let (store, storeRoot) = try SpeakerIdentityTests.makeStore()
+                let (store, storeRoot) = try SpeakerFixtures.makeStore()
                 defer { try? FileManager.default.removeItem(at: storeRoot) }
                 let me = try await store.createPerson(name: "Andrew", isLocalUser: true)
                 // A second person in the bank, because a match is only high
@@ -419,7 +264,7 @@ enum LocalPipelineTests {
                 for (person, seed) in [(me, 41), (bob, 92)] {
                     _ = try await store.enrol(VoiceEnrollmentCandidate(
                         identityID: person.id,
-                        vector: SpeakerIdentityTests.vector(seed: seed),
+                        vector: SpeakerFixtures.vector(seed: seed),
                         model: .fluidAudioOffline, speechSeconds: 60, qualityScore: 1,
                         source: .humanConfirmedUtterances,
                         evidence: VoiceEvidenceFixture.evidence(
@@ -467,7 +312,7 @@ enum LocalPipelineTests {
                     generateSummary: false, suggestSpeakers: false
                 )
                 settings.processing.localUserIdentityID = me.id
-                let pipeline = makePipeline(
+                let pipeline = PipelineFixtures.makePipeline(
                     repository: meeting.repository, backend: FakeAIBackend(),
                     transcriber: transcriber, diarizer: diarizer,
                     speakers: SpeakerRecognitionService(store: store),
@@ -489,9 +334,9 @@ enum LocalPipelineTests {
                 // problem measured 97% attribution against 84% for diarizing a
                 // mixdown, so a recording whose tap worked keeps that, and its
                 // microphone track stays one known person.
-                let root = try ManifestTests.makeTemporaryDirectory()
+                let root = try TestPaths.makeTemporaryDirectory()
                 defer { try? FileManager.default.removeItem(at: root) }
-                let meeting = try PipelineTests.makeRecordedMeeting(root: root, seconds: 6)
+                let meeting = try PipelineFixtures.makeRecordedMeeting(root: root, seconds: 6)
                 try meeting.store.writeSpeechEvidence(SpeechEvidence(
                     levelWindowSeconds: 0.25, speechWindowSeconds: 0.25,
                     micLevels: [Int8](repeating: -20, count: 24),
@@ -514,7 +359,7 @@ enum LocalPipelineTests {
                     generateTitle: false, generateDescription: false, generateNotes: false,
                     generateSummary: false, suggestSpeakers: false
                 )
-                let pipeline = makePipeline(
+                let pipeline = PipelineFixtures.makePipeline(
                     repository: meeting.repository, backend: FakeAIBackend(),
                     transcriber: transcriber, diarizer: diarizer, speakers: nil,
                     settings: settings, scratchRoot: root.appendingPathComponent("scratch")
@@ -533,9 +378,9 @@ enum LocalPipelineTests {
             },
 
             test("a text-only backend's words reach the timeline through the aligner") { expect in
-                let root = try ManifestTests.makeTemporaryDirectory()
+                let root = try TestPaths.makeTemporaryDirectory()
                 defer { try? FileManager.default.removeItem(at: root) }
-                let meeting = try PipelineTests.makeRecordedMeeting(root: root, seconds: 6)
+                let meeting = try PipelineFixtures.makeRecordedMeeting(root: root, seconds: 6)
 
                 let transcriber = StubTextTranscriber(text: "we ship friday no we do not")
                 let aligner = StubAligner(segments: [
@@ -566,7 +411,7 @@ enum LocalPipelineTests {
                     generateTitle: false, generateDescription: false, generateNotes: false,
                     generateSummary: false, suggestSpeakers: false
                 )
-                let pipeline = makePipeline(
+                let pipeline = PipelineFixtures.makePipeline(
                     repository: meeting.repository, backend: FakeAIBackend(),
                     transcriber: transcriber, diarizer: diarizer, speakers: nil,
                     aligner: aligner,
@@ -603,9 +448,9 @@ enum LocalPipelineTests {
                 // was diarized, no run was written, and the far end came back
                 // as one unattributed speaker with the meeting reporting
                 // success.
-                let root = try ManifestTests.makeTemporaryDirectory()
+                let root = try TestPaths.makeTemporaryDirectory()
                 defer { try? FileManager.default.removeItem(at: root) }
-                let meeting = try PipelineTests.makeRecordedMeeting(root: root, seconds: 6)
+                let meeting = try PipelineFixtures.makeRecordedMeeting(root: root, seconds: 6)
 
                 let backend = FakeAIBackend()
                 backend.diarizationSegments = [
@@ -685,9 +530,9 @@ enum LocalPipelineTests {
                 // already on disk and own the track — so it must ask for
                 // labels alone rather than claiming the same purpose and the
                 // same chunk names.
-                let root = try ManifestTests.makeTemporaryDirectory()
+                let root = try TestPaths.makeTemporaryDirectory()
                 defer { try? FileManager.default.removeItem(at: root) }
-                let meeting = try PipelineTests.makeRecordedMeeting(root: root, seconds: 6)
+                let meeting = try PipelineFixtures.makeRecordedMeeting(root: root, seconds: 6)
 
                 // What the interrupted local pass left behind.
                 var raw = try meeting.store.readRawTranscript()
@@ -764,9 +609,9 @@ enum LocalPipelineTests {
                 // whole track therefore fails however many attempts it has
                 // used, which leaves the meeting retryable with its audio
                 // untouched.
-                let root = try ManifestTests.makeTemporaryDirectory()
+                let root = try TestPaths.makeTemporaryDirectory()
                 defer { try? FileManager.default.removeItem(at: root) }
-                let meeting = try PipelineTests.makeRecordedMeeting(root: root, seconds: 6)
+                let meeting = try PipelineFixtures.makeRecordedMeeting(root: root, seconds: 6)
 
                 // What five of ES2003a's sixteen chunks returned, verbatim.
                 let loop = "The world is a very important part of the world. And I think "
@@ -786,7 +631,7 @@ enum LocalPipelineTests {
                     generateTitle: false, generateDescription: false, generateNotes: false,
                     generateSummary: false, suggestSpeakers: false
                 )
-                let pipeline = makePipeline(
+                let pipeline = PipelineFixtures.makePipeline(
                     repository: meeting.repository, backend: FakeAIBackend(),
                     transcriber: transcriber, diarizer: diarizer, speakers: nil,
                     settings: settings, scratchRoot: root.appendingPathComponent("scratch")
@@ -822,9 +667,9 @@ enum LocalPipelineTests {
                 // not download is transient, and completing the meeting on
                 // five-minute utterances would be permanent, because nothing
                 // revisits a finished meeting's alignment.
-                let root = try ManifestTests.makeTemporaryDirectory()
+                let root = try TestPaths.makeTemporaryDirectory()
                 defer { try? FileManager.default.removeItem(at: root) }
-                let meeting = try PipelineTests.makeRecordedMeeting(root: root, seconds: 6)
+                let meeting = try PipelineFixtures.makeRecordedMeeting(root: root, seconds: 6)
 
                 let transcriber = StubTextTranscriber(text: "we ship friday")
                 let diarizer = StubLocalDiarizer(
@@ -836,7 +681,7 @@ enum LocalPipelineTests {
                     generateTitle: false, generateDescription: false, generateNotes: false,
                     generateSummary: false, suggestSpeakers: false
                 )
-                let pipeline = makePipeline(
+                let pipeline = PipelineFixtures.makePipeline(
                     repository: meeting.repository, backend: FakeAIBackend(),
                     transcriber: transcriber, diarizer: diarizer, speakers: nil,
                     aligner: StubAligner(segments: []),
@@ -866,9 +711,9 @@ enum LocalPipelineTests {
             },
 
             test("an aligner refusal keeps the words at chunk precision") { expect in
-                let root = try ManifestTests.makeTemporaryDirectory()
+                let root = try TestPaths.makeTemporaryDirectory()
                 defer { try? FileManager.default.removeItem(at: root) }
-                let meeting = try PipelineTests.makeRecordedMeeting(root: root, seconds: 6)
+                let meeting = try PipelineFixtures.makeRecordedMeeting(root: root, seconds: 6)
 
                 let transcriber = StubTextTranscriber(text: "nothing aligned here")
                 let diarizer = StubLocalDiarizer(
@@ -880,7 +725,7 @@ enum LocalPipelineTests {
                     generateTitle: false, generateDescription: false, generateNotes: false,
                     generateSummary: false, suggestSpeakers: false
                 )
-                let pipeline = makePipeline(
+                let pipeline = PipelineFixtures.makePipeline(
                     repository: meeting.repository, backend: FakeAIBackend(),
                     transcriber: transcriber, diarizer: diarizer, speakers: nil,
                     aligner: StubAligner(segments: [], refuses: true),
@@ -909,16 +754,16 @@ enum LocalPipelineTests {
                 // the speakers live in a separate file from the words, and
                 // leaving it out collapsed every speaker into one cluster and
                 // orphaned every name the user had typed.
-                let root = try ManifestTests.makeTemporaryDirectory()
+                let root = try TestPaths.makeTemporaryDirectory()
                 defer { try? FileManager.default.removeItem(at: root) }
-                let meeting = try PipelineTests.makeRecordedMeeting(root: root, seconds: 6)
+                let meeting = try PipelineFixtures.makeRecordedMeeting(root: root, seconds: 6)
 
                 var settings = AppSettings()
                 settings.enrichment = EnrichmentSettings(
                     generateTitle: false, generateDescription: false, generateNotes: false,
                     generateSummary: false, suggestSpeakers: false
                 )
-                let pipeline = makePipeline(
+                let pipeline = PipelineFixtures.makePipeline(
                     repository: meeting.repository, backend: FakeAIBackend(),
                     transcriber: StubLocalTranscriber(segments: [
                         RawTranscriptSegment(
@@ -973,15 +818,15 @@ enum LocalPipelineTests {
                 // recording for minutes to do it. Rebuild is the cheap button
                 // next to it, and a name read off a web page needs neither the
                 // audio nor the diarizer to be taken back.
-                let root = try ManifestTests.makeTemporaryDirectory()
+                let root = try TestPaths.makeTemporaryDirectory()
                 defer { try? FileManager.default.removeItem(at: root) }
-                let meeting = try PipelineTests.makeRecordedMeeting(root: root, seconds: 6)
+                let meeting = try PipelineFixtures.makeRecordedMeeting(root: root, seconds: 6)
                 var settings = AppSettings()
                 settings.enrichment = EnrichmentSettings(
                     generateTitle: false, generateDescription: false, generateNotes: false,
                     generateSummary: false, suggestSpeakers: false
                 )
-                let pipeline = makePipeline(
+                let pipeline = PipelineFixtures.makePipeline(
                     repository: meeting.repository, backend: FakeAIBackend(),
                     transcriber: StubLocalTranscriber(segments: [
                         RawTranscriptSegment(
@@ -1030,9 +875,9 @@ enum LocalPipelineTests {
             },
 
             test("a local run leaves no voice vectors in the meeting folder") { expect in
-                let root = try ManifestTests.makeTemporaryDirectory()
+                let root = try TestPaths.makeTemporaryDirectory()
                 defer { try? FileManager.default.removeItem(at: root) }
-                let meeting = try PipelineTests.makeRecordedMeeting(root: root, seconds: 6)
+                let meeting = try PipelineFixtures.makeRecordedMeeting(root: root, seconds: 6)
 
                 let store = try SpeakerStore(url: root.appendingPathComponent("voices.sqlite"))
                 var settings = AppSettings()
@@ -1040,7 +885,7 @@ enum LocalPipelineTests {
                     generateTitle: false, generateDescription: false, generateNotes: false,
                     generateSummary: false, suggestSpeakers: false
                 )
-                let pipeline = makePipeline(
+                let pipeline = PipelineFixtures.makePipeline(
                     repository: meeting.repository, backend: FakeAIBackend(),
                     transcriber: StubLocalTranscriber(segments: [
                         RawTranscriptSegment(
@@ -1096,9 +941,9 @@ enum LocalPipelineTests {
             },
 
             test("a cloud diarization still records the speakers for voice memory") { expect in
-                let root = try ManifestTests.makeTemporaryDirectory()
+                let root = try TestPaths.makeTemporaryDirectory()
                 defer { try? FileManager.default.removeItem(at: root) }
-                let meeting = try PipelineTests.makeRecordedMeeting(root: root, seconds: 6)
+                let meeting = try PipelineFixtures.makeRecordedMeeting(root: root, seconds: 6)
 
                 let backend = FakeAIBackend()
                 backend.transcriptionSegments = [
@@ -1146,9 +991,9 @@ enum LocalPipelineTests {
                 // Recognizing voices is on by default. On a machine that chose
                 // OpenAI for both stages and never pressed Download, wanting
                 // vectors must not fetch 650 MB from inside a processing stage.
-                let root = try ManifestTests.makeTemporaryDirectory()
+                let root = try TestPaths.makeTemporaryDirectory()
                 defer { try? FileManager.default.removeItem(at: root) }
-                let meeting = try PipelineTests.makeRecordedMeeting(root: root, seconds: 6)
+                let meeting = try PipelineFixtures.makeRecordedMeeting(root: root, seconds: 6)
                 let store = try SpeakerStore(url: root.appendingPathComponent("voices.sqlite"))
 
                 let backend = FakeAIBackend()
@@ -1201,9 +1046,9 @@ enum LocalPipelineTests {
             },
 
             test("a summary can be written after a key arrives") { expect in
-                let root = try ManifestTests.makeTemporaryDirectory()
+                let root = try TestPaths.makeTemporaryDirectory()
                 defer { try? FileManager.default.removeItem(at: root) }
-                let meeting = try PipelineTests.makeRecordedMeeting(root: root, seconds: 6)
+                let meeting = try PipelineFixtures.makeRecordedMeeting(root: root, seconds: 6)
 
                 let settings = AppSettings()
                 let backend = FakeAIBackend()
@@ -1211,7 +1056,7 @@ enum LocalPipelineTests {
                 // this entry point exists.
                 backend.configured = false
 
-                let pipeline = makePipeline(
+                let pipeline = PipelineFixtures.makePipeline(
                     repository: meeting.repository, backend: backend,
                     transcriber: StubLocalTranscriber(segments: [
                         RawTranscriptSegment(
@@ -1256,9 +1101,9 @@ enum LocalPipelineTests {
                 // folder, and the metadata written back is enough for the
                 // folder rename at the tail to find it and move it somewhere
                 // the deferred check no longer looks.
-                let root = try ManifestTests.makeTemporaryDirectory()
+                let root = try TestPaths.makeTemporaryDirectory()
                 defer { try? FileManager.default.removeItem(at: root) }
-                let meeting = try PipelineTests.makeRecordedMeeting(root: root, seconds: 6)
+                let meeting = try PipelineFixtures.makeRecordedMeeting(root: root, seconds: 6)
                 let folder = meeting.store.layout.root
                 let meetingID = meeting.metadata.id
 
@@ -1271,7 +1116,7 @@ enum LocalPipelineTests {
                 // title and set the folder rename in motion, which is the part
                 // that carries a recreated folder out of reach.
                 backend.configured = false
-                let pipeline = makePipeline(
+                let pipeline = PipelineFixtures.makePipeline(
                     repository: meeting.repository, backend: backend,
                     transcriber: StubLocalTranscriber(segments: [
                         RawTranscriptSegment(
@@ -1323,9 +1168,9 @@ enum LocalPipelineTests {
                 // and the title is the one field enrichment overwrites rather
                 // than fills. A meeting with titling on and summaries off is
                 // named by that title, so replacing it renames the meeting.
-                let root = try ManifestTests.makeTemporaryDirectory()
+                let root = try TestPaths.makeTemporaryDirectory()
                 defer { try? FileManager.default.removeItem(at: root) }
-                let meeting = try PipelineTests.makeRecordedMeeting(root: root, seconds: 6)
+                let meeting = try PipelineFixtures.makeRecordedMeeting(root: root, seconds: 6)
 
                 var settings = AppSettings()
                 settings.enrichment = EnrichmentSettings(
@@ -1335,7 +1180,7 @@ enum LocalPipelineTests {
                 let backend = FakeAIBackend()
                 backend.enrichment = MeetingEnrichment(title: "Retrieval sync")
 
-                let pipeline = makePipeline(
+                let pipeline = PipelineFixtures.makePipeline(
                     repository: meeting.repository, backend: backend,
                     transcriber: StubLocalTranscriber(segments: [
                         RawTranscriptSegment(
@@ -1372,9 +1217,9 @@ enum LocalPipelineTests {
             },
 
             test("the generated notes survive the round trip through the file") { expect in
-                let root = try ManifestTests.makeTemporaryDirectory()
+                let root = try TestPaths.makeTemporaryDirectory()
                 defer { try? FileManager.default.removeItem(at: root) }
-                let meeting = try PipelineTests.makeRecordedMeeting(root: root, seconds: 6)
+                let meeting = try PipelineFixtures.makeRecordedMeeting(root: root, seconds: 6)
 
                 let backend = FakeAIBackend()
                 backend.enrichment = MeetingEnrichment(
@@ -1383,7 +1228,7 @@ enum LocalPipelineTests {
                     notes: "- Chris sends the connector list."
                 )
 
-                let pipeline = makePipeline(
+                let pipeline = PipelineFixtures.makePipeline(
                     repository: meeting.repository, backend: backend,
                     transcriber: StubLocalTranscriber(segments: [
                         RawTranscriptSegment(
@@ -1411,12 +1256,12 @@ enum LocalPipelineTests {
             test("asking by hand still refuses a name the user cleared") { expect in
                 // The stage guard, reached through the on-demand entry point
                 // rather than through the pipeline.
-                let root = try ManifestTests.makeTemporaryDirectory()
+                let root = try TestPaths.makeTemporaryDirectory()
                 defer { try? FileManager.default.removeItem(at: root) }
-                let meeting = try PipelineTests.makeRecordedMeeting(root: root, seconds: 6)
+                let meeting = try PipelineFixtures.makeRecordedMeeting(root: root, seconds: 6)
 
                 let backend = FakeAIBackend()
-                let pipeline = makePipeline(
+                let pipeline = PipelineFixtures.makePipeline(
                     repository: meeting.repository, backend: backend,
                     transcriber: StubLocalTranscriber(segments: [
                         RawTranscriptSegment(
@@ -1465,9 +1310,9 @@ enum LocalPipelineTests {
             },
 
             test("speaker names can be asked for after a key arrives") { expect in
-                let root = try ManifestTests.makeTemporaryDirectory()
+                let root = try TestPaths.makeTemporaryDirectory()
                 defer { try? FileManager.default.removeItem(at: root) }
-                let meeting = try PipelineTests.makeRecordedMeeting(root: root, seconds: 6)
+                let meeting = try PipelineFixtures.makeRecordedMeeting(root: root, seconds: 6)
 
                 let settings = AppSettings()
                 let backend = FakeAIBackend()
@@ -1479,7 +1324,7 @@ enum LocalPipelineTests {
                     ),
                 ]
 
-                let pipeline = makePipeline(
+                let pipeline = PipelineFixtures.makePipeline(
                     repository: meeting.repository, backend: backend,
                     transcriber: StubLocalTranscriber(segments: [
                         RawTranscriptSegment(
@@ -1513,9 +1358,9 @@ enum LocalPipelineTests {
             },
 
             test("the missing-key notice is recorded when only suggestions want the cloud") { expect in
-                let root = try ManifestTests.makeTemporaryDirectory()
+                let root = try TestPaths.makeTemporaryDirectory()
                 defer { try? FileManager.default.removeItem(at: root) }
-                let meeting = try PipelineTests.makeRecordedMeeting(root: root, seconds: 6)
+                let meeting = try PipelineFixtures.makeRecordedMeeting(root: root, seconds: 6)
 
                 // Every title and summary switch off, speaker suggestions on.
                 // The flag used to be written only inside enrichment, which
@@ -1531,7 +1376,7 @@ enum LocalPipelineTests {
                 let backend = FakeAIBackend()
                 backend.configured = false
 
-                let pipeline = makePipeline(
+                let pipeline = PipelineFixtures.makePipeline(
                     repository: meeting.repository, backend: backend,
                     transcriber: StubLocalTranscriber(segments: [
                         RawTranscriptSegment(
@@ -1557,9 +1402,9 @@ enum LocalPipelineTests {
             },
 
             test("turning the cloud toggles off clears the missing-key notice") { expect in
-                let root = try ManifestTests.makeTemporaryDirectory()
+                let root = try TestPaths.makeTemporaryDirectory()
                 defer { try? FileManager.default.removeItem(at: root) }
-                let meeting = try PipelineTests.makeRecordedMeeting(root: root, seconds: 6)
+                let meeting = try PipelineFixtures.makeRecordedMeeting(root: root, seconds: 6)
                 // The state a meeting processed without a key is left in.
                 _ = try meeting.store.updateMetadata {
                     $0.processing.skippedForMissingKey = true
@@ -1575,7 +1420,7 @@ enum LocalPipelineTests {
                 let backend = FakeAIBackend()
                 backend.configured = false
 
-                let pipeline = makePipeline(
+                let pipeline = PipelineFixtures.makePipeline(
                     repository: meeting.repository, backend: backend,
                     transcriber: StubLocalTranscriber(segments: [
                         RawTranscriptSegment(
@@ -1599,9 +1444,9 @@ enum LocalPipelineTests {
             },
 
             test("storing a key clears the missing-key notice on the next run") { expect in
-                let root = try ManifestTests.makeTemporaryDirectory()
+                let root = try TestPaths.makeTemporaryDirectory()
                 defer { try? FileManager.default.removeItem(at: root) }
-                let meeting = try PipelineTests.makeRecordedMeeting(root: root, seconds: 6)
+                let meeting = try PipelineFixtures.makeRecordedMeeting(root: root, seconds: 6)
                 // The state a meeting processed without a key is left in.
                 _ = try meeting.store.updateMetadata {
                     $0.processing.skippedForMissingKey = true
@@ -1617,7 +1462,7 @@ enum LocalPipelineTests {
                 let backend = FakeAIBackend()
                 backend.configured = true
 
-                let pipeline = makePipeline(
+                let pipeline = PipelineFixtures.makePipeline(
                     repository: meeting.repository, backend: backend,
                     transcriber: StubLocalTranscriber(segments: [
                         RawTranscriptSegment(
@@ -1641,9 +1486,9 @@ enum LocalPipelineTests {
             },
 
             test("the default configuration finishes a meeting with no API key") { expect in
-                let root = try ManifestTests.makeTemporaryDirectory()
+                let root = try TestPaths.makeTemporaryDirectory()
                 defer { try? FileManager.default.removeItem(at: root) }
-                let meeting = try PipelineTests.makeRecordedMeeting(root: root, seconds: 6)
+                let meeting = try PipelineFixtures.makeRecordedMeeting(root: root, seconds: 6)
 
                 // Stock settings: both speech backends local, and every
                 // enrichment switch on, which is what a fresh install has.
@@ -1654,7 +1499,7 @@ enum LocalPipelineTests {
                 let backend = FakeAIBackend()
                 backend.configured = false
 
-                let pipeline = makePipeline(
+                let pipeline = PipelineFixtures.makePipeline(
                     repository: meeting.repository, backend: backend,
                     transcriber: StubLocalTranscriber(segments: [
                         RawTranscriptSegment(
@@ -1701,9 +1546,9 @@ enum LocalPipelineTests {
             },
 
             test("local transcription keeps the words local when the cloud diarizes") { expect in
-                let root = try ManifestTests.makeTemporaryDirectory()
+                let root = try TestPaths.makeTemporaryDirectory()
                 defer { try? FileManager.default.removeItem(at: root) }
-                let meeting = try PipelineTests.makeRecordedMeeting(root: root, seconds: 6)
+                let meeting = try PipelineFixtures.makeRecordedMeeting(root: root, seconds: 6)
 
                 let settings: AppSettings = {
                     var value = AppSettings()
@@ -1784,10 +1629,10 @@ enum LocalPipelineTests {
                 // renamed with no error shown, the person who lost them still
                 // holding a vector built from their audio, and nothing left to
                 // say a rebuild was owed.
-                let root = try ManifestTests.makeTemporaryDirectory()
+                let root = try TestPaths.makeTemporaryDirectory()
                 defer { try? FileManager.default.removeItem(at: root) }
-                let meeting = try PipelineTests.makeRecordedMeeting(root: root, seconds: 6)
-                let (store, storeRoot) = try SpeakerIdentityTests.makeStore()
+                let meeting = try PipelineFixtures.makeRecordedMeeting(root: root, seconds: 6)
+                let (store, storeRoot) = try SpeakerFixtures.makeStore()
                 defer { try? FileManager.default.removeItem(at: storeRoot) }
 
                 let key = "remote-001_speaker_00"
@@ -1802,7 +1647,7 @@ enum LocalPipelineTests {
                     CanonicalTranscript(generatedAt: Date(), utterances: lines)
                 )
 
-                let pipeline = makePipeline(
+                let pipeline = PipelineFixtures.makePipeline(
                     repository: meeting.repository, backend: FakeAIBackend(),
                     transcriber: StubLocalTranscriber(segments: []),
                     diarizer: StubLocalDiarizer(intervals: [], chunkEmbeddings: []),
@@ -1836,10 +1681,10 @@ enum LocalPipelineTests {
                 // SpeakerMap.refreshName are covered elsewhere; what is only in
                 // this function is that it applies the second to the whole of
                 // the first, which is what a rename after a merge needs.
-                let root = try ManifestTests.makeTemporaryDirectory()
+                let root = try TestPaths.makeTemporaryDirectory()
                 defer { try? FileManager.default.removeItem(at: root) }
-                let meeting = try PipelineTests.makeRecordedMeeting(root: root, seconds: 6)
-                let (store, storeRoot) = try SpeakerIdentityTests.makeStore()
+                let meeting = try PipelineFixtures.makeRecordedMeeting(root: root, seconds: 6)
+                let (store, storeRoot) = try SpeakerFixtures.makeStore()
                 defer { try? FileManager.default.removeItem(at: storeRoot) }
 
                 let ann = try await store.createPerson(name: "Ann")
@@ -1858,7 +1703,7 @@ enum LocalPipelineTests {
                 try await store.merge(ann.id, into: bob.id)
                 _ = try await store.rename(bob.id, to: "Bob Tran")
 
-                let pipeline = makePipeline(
+                let pipeline = PipelineFixtures.makePipeline(
                     repository: meeting.repository, backend: FakeAIBackend(),
                     transcriber: StubLocalTranscriber(segments: []),
                     diarizer: StubLocalDiarizer(intervals: [], chunkEmbeddings: []),
@@ -1881,9 +1726,9 @@ enum LocalPipelineTests {
             },
 
             test("losing the network at the end still leaves a readable meeting") { expect in
-                let root = try ManifestTests.makeTemporaryDirectory()
+                let root = try TestPaths.makeTemporaryDirectory()
                 defer { try? FileManager.default.removeItem(at: root) }
-                let meeting = try PipelineTests.makeRecordedMeeting(root: root, seconds: 6)
+                let meeting = try PipelineFixtures.makeRecordedMeeting(root: root, seconds: 6)
 
                 // A key is configured, so enrichment is attempted, and the
                 // request fails the way a closed lid or lost wifi fails.
@@ -1898,7 +1743,7 @@ enum LocalPipelineTests {
                     )
                     return value
                 }()
-                let pipeline = makePipeline(
+                let pipeline = PipelineFixtures.makePipeline(
                     repository: meeting.repository, backend: backend,
                     transcriber: StubLocalTranscriber(segments: [
                         RawTranscriptSegment(
@@ -1932,10 +1777,10 @@ enum LocalPipelineTests {
                 // combine links the metadata and moves no audio, so the second
                 // half of a dropped call lives only in its own folder. Hiding it
                 // from the archive listing must not hide it from processing.
-                let root = try ManifestTests.makeTemporaryDirectory()
+                let root = try TestPaths.makeTemporaryDirectory()
                 defer { try? FileManager.default.removeItem(at: root) }
-                let earlier = try PipelineTests.makeRecordedMeeting(root: root, seconds: 6)
-                let later = try PipelineTests.makeRecordedMeeting(root: root, seconds: 6)
+                let earlier = try PipelineFixtures.makeRecordedMeeting(root: root, seconds: 6)
+                let later = try PipelineFixtures.makeRecordedMeeting(root: root, seconds: 6)
 
                 _ = try later.store.updateMetadata { $0.mergedIntoMeetingID = earlier.metadata.id }
                 expect.isNil(
@@ -1951,7 +1796,7 @@ enum LocalPipelineTests {
                     )
                     return value
                 }()
-                let pipeline = makePipeline(
+                let pipeline = PipelineFixtures.makePipeline(
                     repository: later.repository, backend: FakeAIBackend(),
                     transcriber: StubLocalTranscriber(segments: [
                         RawTranscriptSegment(
@@ -1986,10 +1831,10 @@ enum LocalPipelineTests {
                 // Driven by the control the user actually has: an empty name
                 // through applySpeakerName. Calling the store directly missed
                 // that the clear path had no retraction at all.
-                let root = try ManifestTests.makeTemporaryDirectory()
+                let root = try TestPaths.makeTemporaryDirectory()
                 defer { try? FileManager.default.removeItem(at: root) }
-                let meeting = try PipelineTests.makeRecordedMeeting(root: root, seconds: 6)
-                let (store, storeRoot) = try SpeakerIdentityTests.makeStore()
+                let meeting = try PipelineFixtures.makeRecordedMeeting(root: root, seconds: 6)
+                let (store, storeRoot) = try SpeakerFixtures.makeStore()
                 defer { try? FileManager.default.removeItem(at: storeRoot) }
 
                 let key = "remote-001_speaker_00"
@@ -2006,12 +1851,12 @@ enum LocalPipelineTests {
                 ]))
                 try await store.recordOccurrence(
                     meetingID: meeting.metadata.id, clusterID: key, track: .remote,
-                    speechSeconds: 200, embedding: SpeakerIdentityTests.vector(seed: 84),
+                    speechSeconds: 200, embedding: SpeakerFixtures.vector(seed: 84),
                     model: .fluidAudioOffline, resolution: nil, identityID: nil,
                     source: .ai, humanVerified: false, wasExpectedParticipant: false
                 )
 
-                let pipeline = makePipeline(
+                let pipeline = PipelineFixtures.makePipeline(
                     repository: meeting.repository, backend: FakeAIBackend(),
                     transcriber: StubLocalTranscriber(segments: []),
                     diarizer: StubLocalDiarizer(intervals: [], chunkEmbeddings: []),
@@ -2048,17 +1893,17 @@ enum LocalPipelineTests {
                 // mechanism the confirmation armed: re-analysis writes the
                 // cleared name back here, and every later huddle writes it on
                 // arrival.
-                let root = try ManifestTests.makeTemporaryDirectory()
+                let root = try TestPaths.makeTemporaryDirectory()
                 defer { try? FileManager.default.removeItem(at: root) }
-                let meeting = try PipelineTests.makeRecordedMeeting(root: root, seconds: 6)
-                let (store, storeRoot) = try SpeakerIdentityTests.makeStore()
+                let meeting = try PipelineFixtures.makeRecordedMeeting(root: root, seconds: 6)
+                let (store, storeRoot) = try SpeakerFixtures.makeStore()
                 defer { try? FileManager.default.removeItem(at: storeRoot) }
                 try meeting.store.writeRawSensors(RawSensors(
                     source: "slack-huddle-ax",
                     participants: [SensorParticipant(id: "U123", displayName: "Chris")],
                     turns: [SensorTurn(start: 0, end: 30, participantID: "U123")]
                 ))
-                let pipeline = makePipeline(
+                let pipeline = PipelineFixtures.makePipeline(
                     repository: meeting.repository, backend: FakeAIBackend(),
                     transcriber: StubLocalTranscriber(segments: []),
                     diarizer: StubLocalDiarizer(intervals: [], chunkEmbeddings: []),
@@ -2087,9 +1932,9 @@ enum LocalPipelineTests {
                 // Two people can each hold a legitimate enrolment from one
                 // meeting. Removing everyone else's on each correction meant a
                 // meeting could only ever keep the last-corrected person's.
-                let root = try ManifestTests.makeTemporaryDirectory()
+                let root = try TestPaths.makeTemporaryDirectory()
                 defer { try? FileManager.default.removeItem(at: root) }
-                let (store, storeRoot) = try SpeakerIdentityTests.makeStore()
+                let (store, storeRoot) = try SpeakerFixtures.makeStore()
                 defer { try? FileManager.default.removeItem(at: storeRoot) }
 
                 let alice = try await store.createPerson(name: "Alice")
@@ -2100,7 +1945,7 @@ enum LocalPipelineTests {
                 for (person, offset) in halves {
                     _ = try await store.enrol(VoiceEnrollmentCandidate(
                         identityID: person.id,
-                        vector: SpeakerIdentityTests.vector(seed: offset == 0 ? 91 : 92),
+                        vector: SpeakerFixtures.vector(seed: offset == 0 ? 91 : 92),
                         model: .fluidAudioOffline, speechSeconds: 60, qualityScore: 1,
                         source: .humanConfirmedUtterances,
                         evidence: VoiceEvidenceFixture.evidence(
@@ -2143,15 +1988,15 @@ enum LocalPipelineTests {
                 // line with no correction it is a no-op, and reading the
                 // rendered assignment reported the cluster's owner as having
                 // lost the line, which deleted their voice for the meeting.
-                let root = try ManifestTests.makeTemporaryDirectory()
+                let root = try TestPaths.makeTemporaryDirectory()
                 defer { try? FileManager.default.removeItem(at: root) }
-                let meeting = try PipelineTests.makeRecordedMeeting(root: root, seconds: 6)
-                let (store, storeRoot) = try SpeakerIdentityTests.makeStore()
+                let meeting = try PipelineFixtures.makeRecordedMeeting(root: root, seconds: 6)
+                let (store, storeRoot) = try SpeakerFixtures.makeStore()
                 defer { try? FileManager.default.removeItem(at: storeRoot) }
 
                 let alice = try await store.createPerson(name: "Alice")
                 _ = try await store.enrol(VoiceEnrollmentCandidate(
-                    identityID: alice.id, vector: SpeakerIdentityTests.vector(seed: 95),
+                    identityID: alice.id, vector: SpeakerFixtures.vector(seed: 95),
                     model: .fluidAudioOffline, speechSeconds: 90, qualityScore: 1,
                     source: .humanConfirmedUtterances,
                     evidence: VoiceEvidenceFixture.evidence(meeting: meeting.metadata.id, seconds: 90, source: .humanConfirmedUtterances)
@@ -2170,7 +2015,7 @@ enum LocalPipelineTests {
                     CanonicalTranscript(generatedAt: Date(), utterances: [line])
                 )
 
-                let pipeline = makePipeline(
+                let pipeline = PipelineFixtures.makePipeline(
                     repository: meeting.repository, backend: FakeAIBackend(),
                     transcriber: StubLocalTranscriber(segments: []),
                     diarizer: StubLocalDiarizer(intervals: [], chunkEmbeddings: []),
@@ -2196,10 +2041,10 @@ enum LocalPipelineTests {
                 // track and link it to no row at all. The track is the local
                 // user by construction and the entry says the pipeline wrote
                 // it, so the backfill gives it the link a fresh run would.
-                let root = try ManifestTests.makeTemporaryDirectory()
+                let root = try TestPaths.makeTemporaryDirectory()
                 defer { try? FileManager.default.removeItem(at: root) }
-                let meeting = try PipelineTests.makeRecordedMeeting(root: root, seconds: 6)
-                let (store, storeRoot) = try SpeakerIdentityTests.makeStore()
+                let meeting = try PipelineFixtures.makeRecordedMeeting(root: root, seconds: 6)
+                let (store, storeRoot) = try SpeakerFixtures.makeStore()
                 defer { try? FileManager.default.removeItem(at: storeRoot) }
                 let me = try await store.createPerson(name: "Andrew", isLocalUser: true)
 
@@ -2219,7 +2064,7 @@ enum LocalPipelineTests {
 
                 var settings = AppSettings()
                 settings.processing.localUserIdentityID = me.id
-                let pipeline = makePipeline(
+                let pipeline = PipelineFixtures.makePipeline(
                     repository: meeting.repository, backend: FakeAIBackend(),
                     transcriber: StubLocalTranscriber(segments: []),
                     diarizer: StubLocalDiarizer(intervals: [], chunkEmbeddings: []),
@@ -2237,10 +2082,10 @@ enum LocalPipelineTests {
             },
 
             test("a microphone track a person gave to somebody else is left alone") { expect in
-                let root = try ManifestTests.makeTemporaryDirectory()
+                let root = try TestPaths.makeTemporaryDirectory()
                 defer { try? FileManager.default.removeItem(at: root) }
-                let meeting = try PipelineTests.makeRecordedMeeting(root: root, seconds: 6)
-                let (store, storeRoot) = try SpeakerIdentityTests.makeStore()
+                let meeting = try PipelineFixtures.makeRecordedMeeting(root: root, seconds: 6)
+                let (store, storeRoot) = try SpeakerFixtures.makeStore()
                 defer { try? FileManager.default.removeItem(at: storeRoot) }
                 let me = try await store.createPerson(name: "Andrew", isLocalUser: true)
 
@@ -2262,7 +2107,7 @@ enum LocalPipelineTests {
 
                 var settings = AppSettings()
                 settings.processing.localUserIdentityID = me.id
-                let pipeline = makePipeline(
+                let pipeline = PipelineFixtures.makePipeline(
                     repository: meeting.repository, backend: FakeAIBackend(),
                     transcriber: StubLocalTranscriber(segments: []),
                     diarizer: StubLocalDiarizer(intervals: [], chunkEmbeddings: []),
@@ -2282,10 +2127,10 @@ enum LocalPipelineTests {
                 // leaves every meeting already in the archive counting for
                 // nobody. A person who has been using Pipit for months would
                 // have read their own profile as "heard in 0 meetings" forever.
-                let root = try ManifestTests.makeTemporaryDirectory()
+                let root = try TestPaths.makeTemporaryDirectory()
                 defer { try? FileManager.default.removeItem(at: root) }
-                let meeting = try PipelineTests.makeRecordedMeeting(root: root, seconds: 6)
-                let (store, storeRoot) = try SpeakerIdentityTests.makeStore()
+                let meeting = try PipelineFixtures.makeRecordedMeeting(root: root, seconds: 6)
+                let (store, storeRoot) = try SpeakerFixtures.makeStore()
                 defer { try? FileManager.default.removeItem(at: storeRoot) }
                 let me = try await store.createPerson(name: "Andrew", isLocalUser: true)
 
@@ -2306,7 +2151,7 @@ enum LocalPipelineTests {
                 ))
                 expect.equal(try await store.meetingCount(for: me.id), 0)
 
-                let pipeline = makePipeline(
+                let pipeline = PipelineFixtures.makePipeline(
                     repository: meeting.repository, backend: FakeAIBackend(),
                     transcriber: StubLocalTranscriber(segments: []),
                     diarizer: StubLocalDiarizer(intervals: [], chunkEmbeddings: []),
@@ -2324,10 +2169,10 @@ enum LocalPipelineTests {
             },
 
             test("taking your name off the microphone track drops the meeting") { expect in
-                let root = try ManifestTests.makeTemporaryDirectory()
+                let root = try TestPaths.makeTemporaryDirectory()
                 defer { try? FileManager.default.removeItem(at: root) }
-                let meeting = try PipelineTests.makeRecordedMeeting(root: root, seconds: 6)
-                let (store, storeRoot) = try SpeakerIdentityTests.makeStore()
+                let meeting = try PipelineFixtures.makeRecordedMeeting(root: root, seconds: 6)
+                let (store, storeRoot) = try SpeakerFixtures.makeStore()
                 defer { try? FileManager.default.removeItem(at: storeRoot) }
                 let me = try await store.createPerson(name: "Andrew", isLocalUser: true)
 
@@ -2347,7 +2192,7 @@ enum LocalPipelineTests {
 
                 var settings = AppSettings()
                 settings.processing.localUserIdentityID = me.id
-                let pipeline = makePipeline(
+                let pipeline = PipelineFixtures.makePipeline(
                     repository: meeting.repository, backend: FakeAIBackend(),
                     transcriber: StubLocalTranscriber(segments: []),
                     diarizer: StubLocalDiarizer(intervals: [], chunkEmbeddings: []),
@@ -2373,21 +2218,21 @@ enum LocalPipelineTests {
                 // only ever recorded in-person meetings has nothing to
                 // recognise its own user by: no microphone track of a remote
                 // call, and no cluster anybody has named.
-                let root = try ManifestTests.makeTemporaryDirectory()
+                let root = try TestPaths.makeTemporaryDirectory()
                 defer { try? FileManager.default.removeItem(at: root) }
-                let meeting = try PipelineTests.makeRecordedMeeting(root: root, seconds: 6)
-                let (store, storeRoot) = try SpeakerIdentityTests.makeStore()
+                let meeting = try PipelineFixtures.makeRecordedMeeting(root: root, seconds: 6)
+                let (store, storeRoot) = try SpeakerFixtures.makeStore()
                 defer { try? FileManager.default.removeItem(at: storeRoot) }
                 let me = try await store.createPerson(name: "Andrew", isLocalUser: true)
 
-                let pipeline = makePipeline(
+                let pipeline = PipelineFixtures.makePipeline(
                     repository: meeting.repository, backend: FakeAIBackend(),
                     transcriber: StubLocalTranscriber(segments: []),
                     diarizer: StubLocalDiarizer(intervals: [], chunkEmbeddings: []),
                     speakers: SpeakerRecognitionService(store: store),
                     singleSpeakerEmbedding: { _ in
                         SingleSpeakerSample(
-                            vector: SpeakerIdentityTests.vector(seed: 7), speechSeconds: 60,
+                            vector: SpeakerFixtures.vector(seed: 7), speechSeconds: 60,
                             quality: 0.9, spans: [AudioSpan(start: 0, end: 62)]
                         )
                     },
@@ -2411,14 +2256,14 @@ enum LocalPipelineTests {
                 // than three quarters of the speech. A colleague answering a
                 // question mid-take must not join the profile of the person who
                 // pressed record.
-                let root = try ManifestTests.makeTemporaryDirectory()
+                let root = try TestPaths.makeTemporaryDirectory()
                 defer { try? FileManager.default.removeItem(at: root) }
-                let meeting = try PipelineTests.makeRecordedMeeting(root: root, seconds: 6)
-                let (store, storeRoot) = try SpeakerIdentityTests.makeStore()
+                let meeting = try PipelineFixtures.makeRecordedMeeting(root: root, seconds: 6)
+                let (store, storeRoot) = try SpeakerFixtures.makeStore()
                 defer { try? FileManager.default.removeItem(at: storeRoot) }
                 let me = try await store.createPerson(name: "Andrew", isLocalUser: true)
 
-                let pipeline = makePipeline(
+                let pipeline = PipelineFixtures.makePipeline(
                     repository: meeting.repository, backend: FakeAIBackend(),
                     transcriber: StubLocalTranscriber(segments: []),
                     diarizer: StubLocalDiarizer(intervals: [], chunkEmbeddings: []),
@@ -2443,21 +2288,21 @@ enum LocalPipelineTests {
             },
 
             test("a reading too short to stand behind says how short it was") { expect in
-                let root = try ManifestTests.makeTemporaryDirectory()
+                let root = try TestPaths.makeTemporaryDirectory()
                 defer { try? FileManager.default.removeItem(at: root) }
-                let meeting = try PipelineTests.makeRecordedMeeting(root: root, seconds: 6)
-                let (store, storeRoot) = try SpeakerIdentityTests.makeStore()
+                let meeting = try PipelineFixtures.makeRecordedMeeting(root: root, seconds: 6)
+                let (store, storeRoot) = try SpeakerFixtures.makeStore()
                 defer { try? FileManager.default.removeItem(at: storeRoot) }
                 let me = try await store.createPerson(name: "Andrew", isLocalUser: true)
 
-                let pipeline = makePipeline(
+                let pipeline = PipelineFixtures.makePipeline(
                     repository: meeting.repository, backend: FakeAIBackend(),
                     transcriber: StubLocalTranscriber(segments: []),
                     diarizer: StubLocalDiarizer(intervals: [], chunkEmbeddings: []),
                     speakers: SpeakerRecognitionService(store: store),
                     singleSpeakerEmbedding: { _ in
                         SingleSpeakerSample(
-                            vector: SpeakerIdentityTests.vector(seed: 7), speechSeconds: 12,
+                            vector: SpeakerFixtures.vector(seed: 7), speechSeconds: 12,
                             quality: 0.9, spans: [AudioSpan(start: 0, end: 12)]
                         )
                     },
@@ -2486,10 +2331,10 @@ enum LocalPipelineTests {
                 // the People list said zero beside a profile built from those
                 // very recordings, and the rename that walks the same query
                 // visited none of their transcripts.
-                let root = try ManifestTests.makeTemporaryDirectory()
+                let root = try TestPaths.makeTemporaryDirectory()
                 defer { try? FileManager.default.removeItem(at: root) }
-                let meeting = try PipelineTests.makeRecordedMeeting(root: root, seconds: 6)
-                let (store, storeRoot) = try SpeakerIdentityTests.makeStore()
+                let meeting = try PipelineFixtures.makeRecordedMeeting(root: root, seconds: 6)
+                let (store, storeRoot) = try SpeakerFixtures.makeStore()
                 defer { try? FileManager.default.removeItem(at: storeRoot) }
 
                 let me = try await store.createPerson(name: "Andrew", isLocalUser: true)
@@ -2500,7 +2345,7 @@ enum LocalPipelineTests {
                     generateSummary: false, suggestSpeakers: false
                 )
 
-                let pipeline = makePipeline(
+                let pipeline = PipelineFixtures.makePipeline(
                     repository: meeting.repository, backend: FakeAIBackend(),
                     transcriber: {
                         let stub = StubLocalTranscriber(segments: [
@@ -2555,15 +2400,15 @@ enum LocalPipelineTests {
                 // local user's own voice, which is the one profile no person ever
                 // reviews, and it was learned on a claim the user has just
                 // withdrawn.
-                let root = try ManifestTests.makeTemporaryDirectory()
+                let root = try TestPaths.makeTemporaryDirectory()
                 defer { try? FileManager.default.removeItem(at: root) }
-                let meeting = try PipelineTests.makeRecordedMeeting(root: root, seconds: 6)
-                let (store, storeRoot) = try SpeakerIdentityTests.makeStore()
+                let meeting = try PipelineFixtures.makeRecordedMeeting(root: root, seconds: 6)
+                let (store, storeRoot) = try SpeakerFixtures.makeStore()
                 defer { try? FileManager.default.removeItem(at: storeRoot) }
 
                 let me = try await store.createPerson(name: "Andrew", isLocalUser: true)
                 _ = try await store.enrol(VoiceEnrollmentCandidate(
-                    identityID: me.id, vector: SpeakerIdentityTests.vector(seed: 99),
+                    identityID: me.id, vector: SpeakerFixtures.vector(seed: 99),
                     model: .fluidAudioOffline, speechSeconds: 200, qualityScore: 1,
                     source: .micTrackDeterministic,
                     evidence: [VoiceEvidence(
@@ -2579,7 +2424,7 @@ enum LocalPipelineTests {
 
                 var settings = AppSettings()
                 settings.processing.localUserIdentityID = me.id
-                let pipeline = makePipeline(
+                let pipeline = PipelineFixtures.makePipeline(
                     repository: meeting.repository, backend: FakeAIBackend(),
                     transcriber: StubLocalTranscriber(segments: []),
                     diarizer: StubLocalDiarizer(intervals: [], chunkEmbeddings: []),
@@ -2604,9 +2449,9 @@ enum LocalPipelineTests {
                 // differently, so the resume guards missed each other and both
                 // sets landed on the same track: the meeting was assembled
                 // twice, once in each model's phrasing.
-                let root = try ManifestTests.makeTemporaryDirectory()
+                let root = try TestPaths.makeTemporaryDirectory()
                 defer { try? FileManager.default.removeItem(at: root) }
-                let meeting = try PipelineTests.makeRecordedMeeting(root: root, seconds: 6)
+                let meeting = try PipelineFixtures.makeRecordedMeeting(root: root, seconds: 6)
 
                 try meeting.store.writeRawTranscript(RawTranscript(chunks: [
                     RawTranscriptChunk(
@@ -2634,7 +2479,7 @@ enum LocalPipelineTests {
                     )
                     return value
                 }()
-                let pipeline = makePipeline(
+                let pipeline = PipelineFixtures.makePipeline(
                     repository: meeting.repository, backend: FakeAIBackend(),
                     transcriber: StubLocalTranscriber(segments: [
                         RawTranscriptSegment(
@@ -2672,9 +2517,9 @@ enum LocalPipelineTests {
                 // run a re-analysis produced was never read: pressing Run under
                 // Re-analyze speakers showed the same speakers however many
                 // times it was pressed.
-                let root = try ManifestTests.makeTemporaryDirectory()
+                let root = try TestPaths.makeTemporaryDirectory()
                 defer { try? FileManager.default.removeItem(at: root) }
-                let meeting = try PipelineTests.makeRecordedMeeting(root: root, seconds: 6)
+                let meeting = try PipelineFixtures.makeRecordedMeeting(root: root, seconds: 6)
 
                 // What a cloud pass leaves behind: words carrying their own
                 // labels, and a run derived from them.
@@ -2744,10 +2589,10 @@ enum LocalPipelineTests {
                 // took the corrected line's voice away from the person still
                 // shown as speaking it, so the transcript said one thing and
                 // voice memory the other.
-                let root = try ManifestTests.makeTemporaryDirectory()
+                let root = try TestPaths.makeTemporaryDirectory()
                 defer { try? FileManager.default.removeItem(at: root) }
-                let meeting = try PipelineTests.makeRecordedMeeting(root: root, seconds: 6)
-                let (store, storeRoot) = try SpeakerIdentityTests.makeStore()
+                let meeting = try PipelineFixtures.makeRecordedMeeting(root: root, seconds: 6)
+                let (store, storeRoot) = try SpeakerFixtures.makeStore()
                 defer { try? FileManager.default.removeItem(at: storeRoot) }
 
                 let key = "remote-001_speaker_00"
@@ -2761,7 +2606,7 @@ enum LocalPipelineTests {
                 ]))
                 try await store.recordOccurrence(
                     meetingID: meeting.metadata.id, clusterID: key, track: .remote,
-                    speechSeconds: 300, embedding: SpeakerIdentityTests.vector(seed: 97),
+                    speechSeconds: 300, embedding: SpeakerFixtures.vector(seed: 97),
                     model: .fluidAudioOffline, resolution: nil, identityID: nil,
                     source: .ai, humanVerified: false, wasExpectedParticipant: false
                 )
@@ -2787,7 +2632,7 @@ enum LocalPipelineTests {
                 )
                 try meeting.store.writeSpeakerMap(map)
                 _ = try await store.enrol(VoiceEnrollmentCandidate(
-                    identityID: bob.id, vector: SpeakerIdentityTests.vector(seed: 98),
+                    identityID: bob.id, vector: SpeakerFixtures.vector(seed: 98),
                     model: .fluidAudioOffline, speechSeconds: 80, qualityScore: 1,
                     source: .humanConfirmedUtterances,
                     evidence: [VoiceEvidence(
@@ -2797,7 +2642,7 @@ enum LocalPipelineTests {
                     )]
                 ))
 
-                let pipeline = makePipeline(
+                let pipeline = PipelineFixtures.makePipeline(
                     repository: meeting.repository, backend: FakeAIBackend(),
                     transcriber: StubLocalTranscriber(segments: []),
                     diarizer: StubLocalDiarizer(intervals: [], chunkEmbeddings: []),
@@ -2832,10 +2677,10 @@ enum LocalPipelineTests {
                 // nobody took those seconds off the person it had just gone back
                 // to, so undoing a mistake cost them the profile the mistake had
                 // not.
-                let root = try ManifestTests.makeTemporaryDirectory()
+                let root = try TestPaths.makeTemporaryDirectory()
                 defer { try? FileManager.default.removeItem(at: root) }
-                let meeting = try PipelineTests.makeRecordedMeeting(root: root, seconds: 6)
-                let (store, storeRoot) = try SpeakerIdentityTests.makeStore()
+                let meeting = try PipelineFixtures.makeRecordedMeeting(root: root, seconds: 6)
+                let (store, storeRoot) = try SpeakerFixtures.makeStore()
                 defer { try? FileManager.default.removeItem(at: storeRoot) }
 
                 let key = "remote-001_speaker_00"
@@ -2843,7 +2688,7 @@ enum LocalPipelineTests {
                 // Alice's confirmed cluster covers the whole meeting, including
                 // the line about to be corrected away and back.
                 _ = try await store.enrol(VoiceEnrollmentCandidate(
-                    identityID: alice.id, vector: SpeakerIdentityTests.vector(seed: 96),
+                    identityID: alice.id, vector: SpeakerFixtures.vector(seed: 96),
                     model: .fluidAudioOffline, speechSeconds: 60, qualityScore: 1,
                     source: .humanConfirmedCluster,
                     evidence: [VoiceEvidence(
@@ -2864,7 +2709,7 @@ enum LocalPipelineTests {
                     CanonicalTranscript(generatedAt: Date(), utterances: [line])
                 )
 
-                let pipeline = makePipeline(
+                let pipeline = PipelineFixtures.makePipeline(
                     repository: meeting.repository, backend: FakeAIBackend(),
                     transcriber: StubLocalTranscriber(segments: []),
                     diarizer: StubLocalDiarizer(intervals: [], chunkEmbeddings: []),
@@ -2888,7 +2733,7 @@ enum LocalPipelineTests {
 
                 // Alice is enrolled again, and the correction is undone.
                 _ = try await store.enrol(VoiceEnrollmentCandidate(
-                    identityID: alice.id, vector: SpeakerIdentityTests.vector(seed: 96),
+                    identityID: alice.id, vector: SpeakerFixtures.vector(seed: 96),
                     model: .fluidAudioOffline, speechSeconds: 60, qualityScore: 1,
                     source: .humanConfirmedCluster,
                     evidence: [VoiceEvidence(
@@ -2910,9 +2755,9 @@ enum LocalPipelineTests {
             },
 
             test("re-analysing speakers keeps the previous result and the words") { expect in
-                let root = try ManifestTests.makeTemporaryDirectory()
+                let root = try TestPaths.makeTemporaryDirectory()
                 defer { try? FileManager.default.removeItem(at: root) }
-                let meeting = try PipelineTests.makeRecordedMeeting(root: root, seconds: 6)
+                let meeting = try PipelineFixtures.makeRecordedMeeting(root: root, seconds: 6)
 
                 var diarization = RawDiarization()
                 let first = DiarizationRun(
@@ -3010,7 +2855,7 @@ enum LocalPipelineTests {
                 // its audio through `trackAudioLocation`, so cleaning the
                 // microphone at the top of transcription is what stops the far
                 // end's words being written down under the local user's name.
-                let root = try ManifestTests.makeTemporaryDirectory()
+                let root = try TestPaths.makeTemporaryDirectory()
                 defer { try? FileManager.default.removeItem(at: root) }
                 let meeting = try MicrophoneCleanerTests.makeCallOnSpeakers(root: root)
 
@@ -3030,7 +2875,7 @@ enum LocalPipelineTests {
                     generateTitle: false, generateDescription: false, generateNotes: false,
                     generateSummary: false, suggestSpeakers: false
                 )
-                let pipeline = makePipeline(
+                let pipeline = PipelineFixtures.makePipeline(
                     repository: meeting.repository, backend: FakeAIBackend(),
                     transcriber: transcriber, diarizer: diarizer, speakers: nil,
                     settings: settings, scratchRoot: root.appendingPathComponent("scratch")
@@ -3071,7 +2916,7 @@ enum LocalPipelineTests {
                 // exported the recording and then stopped part-way leaves one.
                 // The next run cleans the microphone and then transcribes that
                 // export instead of the track it just wrote.
-                let root = try ManifestTests.makeTemporaryDirectory()
+                let root = try TestPaths.makeTemporaryDirectory()
                 defer { try? FileManager.default.removeItem(at: root) }
                 let meeting = try MicrophoneCleanerTests.makeCallOnSpeakers(root: root)
                 let scratchRoot = root.appendingPathComponent("scratch")
@@ -3105,7 +2950,7 @@ enum LocalPipelineTests {
                     generateTitle: false, generateDescription: false, generateNotes: false,
                     generateSummary: false, suggestSpeakers: false
                 )
-                let pipeline = makePipeline(
+                let pipeline = PipelineFixtures.makePipeline(
                     repository: meeting.repository, backend: FakeAIBackend(),
                     transcriber: transcriber, diarizer: diarizer, speakers: nil,
                     settings: settings, scratchRoot: scratchRoot
@@ -3145,7 +2990,7 @@ enum LocalPipelineTests {
                 // then applied to words transcribed from the cleaned track, and
                 // a high reading on a double-talk window is what drops a line
                 // the user really spoke.
-                let root = try ManifestTests.makeTemporaryDirectory()
+                let root = try TestPaths.makeTemporaryDirectory()
                 defer { try? FileManager.default.removeItem(at: root) }
                 let meeting = try MicrophoneCleanerTests.makeCallOnSpeakers(root: root)
 
@@ -3176,7 +3021,7 @@ enum LocalPipelineTests {
                     generateTitle: false, generateDescription: false, generateNotes: false,
                     generateSummary: false, suggestSpeakers: false
                 )
-                let pipeline = makePipeline(
+                let pipeline = PipelineFixtures.makePipeline(
                     repository: meeting.repository, backend: FakeAIBackend(),
                     transcriber: transcriber, diarizer: diarizer, speakers: nil,
                     settings: settings, scratchRoot: root.appendingPathComponent("scratch")
@@ -3221,9 +3066,9 @@ enum LocalPipelineTests {
                 // condition of reading it. A disk that will not take the
                 // cleaned file has to leave the user with the same transcript
                 // they would have had before any of this existed.
-                let root = try ManifestTests.makeTemporaryDirectory()
+                let root = try TestPaths.makeTemporaryDirectory()
                 defer { try? FileManager.default.removeItem(at: root) }
-                let meeting = try PipelineTests.makeRecordedMeeting(root: root, seconds: 6)
+                let meeting = try PipelineFixtures.makeRecordedMeeting(root: root, seconds: 6)
 
                 // The cleaned track's own directory, taken away from the writer
                 // after the recording is safely in the segments. Nothing else
@@ -3258,7 +3103,7 @@ enum LocalPipelineTests {
                     generateTitle: false, generateDescription: false, generateNotes: false,
                     generateSummary: false, suggestSpeakers: false
                 )
-                let pipeline = makePipeline(
+                let pipeline = PipelineFixtures.makePipeline(
                     repository: meeting.repository, backend: FakeAIBackend(),
                     transcriber: transcriber, diarizer: diarizer, speakers: nil,
                     settings: settings, scratchRoot: root.appendingPathComponent("scratch")
@@ -3285,7 +3130,7 @@ enum LocalPipelineTests {
                 // line correction all wait. The probe is `forget`, which is
                 // what Move to Trash calls, asked about a meeting the pipeline
                 // holds nothing for so it cannot disturb the run.
-                let root = try ManifestTests.makeTemporaryDirectory()
+                let root = try TestPaths.makeTemporaryDirectory()
                 defer { try? FileManager.default.removeItem(at: root) }
                 let meeting = try MicrophoneCleanerTests.makeCallOnSpeakers(root: root)
                 let cleanedFile = meeting.store.layout.cleanedMicFile
@@ -3306,7 +3151,7 @@ enum LocalPipelineTests {
                     generateSummary: false, suggestSpeakers: false
                 )
                 let started = ProgressGate()
-                let pipeline = makePipeline(
+                let pipeline = PipelineFixtures.makePipeline(
                     repository: meeting.repository, backend: FakeAIBackend(),
                     transcriber: transcriber, diarizer: diarizer, speakers: nil,
                     settings: settings, scratchRoot: root.appendingPathComponent("scratch"),
