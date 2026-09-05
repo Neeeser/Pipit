@@ -55,7 +55,10 @@ public final class SetupModel {
     /// calls, since the defect this guards against is making one at all.
     @ObservationIgnored private let keyPresence: @Sendable () async -> Bool
     @ObservationIgnored private var hasStoredKey = false
-    @ObservationIgnored private var hasCheckedForStoredKey = false
+    /// The one keychain lookup, once something has asked for it. A second
+    /// caller awaits this rather than starting another lookup or returning
+    /// before the answer is in.
+    @ObservationIgnored private var storedKeyLookup: Task<Void, Never>?
     /// Fetches a unit set. Injected so a test can read which units a choice
     /// asked for without a 2.1 GB download standing in the way of the answer.
     @ObservationIgnored
@@ -245,9 +248,14 @@ public final class SetupModel {
     /// for every user, including the ones who never leave the local default and
     /// have no key at all.
     public func lookUpStoredKeyIfNeeded() async {
-        guard !hasCheckedForStoredKey, !runtime.settings.processing.isFullyLocal else { return }
-        hasCheckedForStoredKey = true
-        hasStoredKey = await keyPresence()
+        if let storedKeyLookup {
+            await storedKeyLookup.value
+            return
+        }
+        guard !runtime.settings.processing.isFullyLocal else { return }
+        let lookup = Task { hasStoredKey = await keyPresence() }
+        storedKeyLookup = lookup
+        await lookup.value
     }
 
     /// Whether the cloud step can offer to check a key the user has not typed.
@@ -269,7 +277,8 @@ public final class SetupModel {
             runtime.apiKeys.adopt(typed)
             apiKey = ""
             hasStoredKey = true
-            hasCheckedForStoredKey = true
+            // The key was just written, so there is nothing left to look up.
+            storedKeyLookup = Task {}
         }
         do {
             try await OpenAIClient(keyProvider: runtime.apiKeys)

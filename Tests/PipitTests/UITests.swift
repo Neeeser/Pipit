@@ -227,6 +227,47 @@ struct UITests {
         #expect(await lookups.value == 1, "and it is asked once, not per redraw")
     }
 
+    @Test("a caller that arrives during the keychain lookup waits for its answer")
+    func aCallerThatArrivesDuringTheKeychainLookupWaitsForItsAnswer() async throws {
+        // Choosing the cloud starts the lookup in the background, and the
+        // cloud step asks again when it draws. The second call used to see
+        // the "already asked" flag and return at once, before the first
+        // lookup had an answer, so the step drew as if no key were stored.
+        // On a loaded machine that is the order the two calls run in.
+        let root = try TestPaths.makeTemporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        let lookups = Counter()
+        let gate = Gate()
+        let model = await MainActor.run {
+            SetupModel(
+                runtime: PipitRuntime(settingsDirectory: root),
+                keyPresence: {
+                    await lookups.bump()
+                    await gate.wait()
+                    return true
+                },
+                install: { _, _ in }
+            )
+        }
+
+        await MainActor.run { model.chooseBackend(.openAI) }
+        while await lookups.value == 0 { await Task.yield() }
+
+        let entered = Counter()
+        let second = Task { () -> Bool in
+            await entered.bump()
+            await model.lookUpStoredKeyIfNeeded()
+            return await MainActor.run { model.hasKeyOnDisk }
+        }
+        while await entered.value == 0 { await Task.yield() }
+        for _ in 0..<50 { await Task.yield() }
+        await gate.open()
+
+        #expect(await second.value, "the second caller reads the answer the first lookup produced")
+        #expect(await lookups.value == 1, "one lookup served both callers")
+    }
+
     @Test("the meetings window handles a meeting with nothing processed yet")
     func theMeetingsWindowHandlesAMeetingWithNothingProcessedYet() async throws {
         let root = try TestPaths.makeTemporaryDirectory()
@@ -855,4 +896,22 @@ struct UITests {
 private actor Counter {
     private(set) var value = 0
     func bump() { value += 1 }
+}
+
+/// Holds callers until it is opened, so a test can keep an asynchronous
+/// answer in flight while it makes a second request.
+private actor Gate {
+    private var isOpen = false
+    private var waiting: [CheckedContinuation<Void, Never>] = []
+
+    func wait() async {
+        if isOpen { return }
+        await withCheckedContinuation { waiting.append($0) }
+    }
+
+    func open() {
+        isOpen = true
+        for continuation in waiting { continuation.resume() }
+        waiting = []
+    }
 }
