@@ -1,0 +1,617 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 77;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		3191ABE85D693632A9FDC2CB /* pipit-warning.png in Resources */ = {isa = PBXBuildFile; fileRef = B51AD68CF4CC5EBBC835EFAD /* pipit-warning.png */; };
+		3505EA27696B804EAEA24A66 /* pipit-nativehost in Embed Dependencies */ = {isa = PBXBuildFile; fileRef = CF8423805ED90026CB9FE79F /* pipit-nativehost */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		390DDCF3440FA353514D5CF7 /* pipit-paused@2x.png in Resources */ = {isa = PBXBuildFile; fileRef = AADBBCEAF442F82F50848E19 /* pipit-paused@2x.png */; };
+		4211FD3C68A46BBC1B286956 /* PipitCore in Frameworks */ = {isa = PBXBuildFile; productRef = 1893E43E5457055E6E2D7622 /* PipitCore */; };
+		4236B8609F5D4BE839A53CDC /* PipitCore in Frameworks */ = {isa = PBXBuildFile; productRef = 7D7B1FFD23061DE8918CD861 /* PipitCore */; };
+		43C4B96F81CFD44E3F86A18A /* Pipit.icns in Resources */ = {isa = PBXBuildFile; fileRef = 22EFBC85987D961C7C8CAA85 /* Pipit.icns */; };
+		5274BC7830D9FA9D13000936 /* pipit-idle@2x.png in Resources */ = {isa = PBXBuildFile; fileRef = A40349FB8BC23FA746B2FB67 /* pipit-idle@2x.png */; };
+		737ABAE4AD17ED2DF9714AC0 /* pipit-idle.png in Resources */ = {isa = PBXBuildFile; fileRef = 2D7A38581127B6E94CAC574A /* pipit-idle.png */; };
+		74B9CA3F8283500A96092D69 /* PipitServices in Frameworks */ = {isa = PBXBuildFile; productRef = DAA7CF268EB9FD79CBEB8159 /* PipitServices */; };
+		8CD97EAE847B47C5A3FDD5A5 /* PipitUI in Frameworks */ = {isa = PBXBuildFile; productRef = 4407356974D964D41851FC5A /* PipitUI */; };
+		9E947FF6BD212B31D77080EB /* pipit-recording@2x.png in Resources */ = {isa = PBXBuildFile; fileRef = 80CADB95C82DE44384D66658 /* pipit-recording@2x.png */; };
+		A169A97D3B1D5FC31AB36239 /* main.swift in Sources */ = {isa = PBXBuildFile; fileRef = 957D0D58BA4B90F5ED74BA3D /* main.swift */; };
+		A36EE8A6715815EB4DEA2350 /* pipit-warning@2x.png in Resources */ = {isa = PBXBuildFile; fileRef = BE18F1D24E08FB3C8CFE1B45 /* pipit-warning@2x.png */; };
+		B227C8AC14891EDECAC77937 /* pipit-recording.png in Resources */ = {isa = PBXBuildFile; fileRef = EE665BD0FBCB237C161ED197 /* pipit-recording.png */; };
+		C1E2EFB13A1DD1150F731412 /* pipit-paused.png in Resources */ = {isa = PBXBuildFile; fileRef = 47809F16D1A04B353EA7AD4F /* pipit-paused.png */; };
+		DD6AB7AA5780B5D34B567D34 /* main.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7FA445934522AB5AC18F6DB8 /* main.swift */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		293148CBB101047D87A0BDE8 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 358DC39476DA9CA79E111E6B /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = A7DB8A4EB5E56A0205E2B145;
+			remoteInfo = "pipit-nativehost";
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXCopyFilesBuildPhase section */
+		DA69861DF994E7AE62D80681 /* Embed Dependencies */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 6;
+			files = (
+				3505EA27696B804EAEA24A66 /* pipit-nativehost in Embed Dependencies */,
+			);
+			name = "Embed Dependencies";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
+
+/* Begin PBXFileReference section */
+		1285D5E7B50171265DD11DF8 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
+		1A9FA47A63F5FFB29A6E7F9C /* Pipit */ = {isa = PBXFileReference; lastKnownFileType = folder; name = Pipit; path = .; sourceTree = SOURCE_ROOT; };
+		22EFBC85987D961C7C8CAA85 /* Pipit.icns */ = {isa = PBXFileReference; lastKnownFileType = image.icns; path = Pipit.icns; sourceTree = "<group>"; };
+		2D7A38581127B6E94CAC574A /* pipit-idle.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = "pipit-idle.png"; sourceTree = "<group>"; };
+		37155903C8D9E58F149C8AEE /* Pipit.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = Pipit.entitlements; sourceTree = "<group>"; };
+		47809F16D1A04B353EA7AD4F /* pipit-paused.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = "pipit-paused.png"; sourceTree = "<group>"; };
+		7FA445934522AB5AC18F6DB8 /* main.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = main.swift; sourceTree = "<group>"; };
+		80CADB95C82DE44384D66658 /* pipit-recording@2x.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = "pipit-recording@2x.png"; sourceTree = "<group>"; };
+		957D0D58BA4B90F5ED74BA3D /* main.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = main.swift; sourceTree = "<group>"; };
+		A40349FB8BC23FA746B2FB67 /* pipit-idle@2x.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = "pipit-idle@2x.png"; sourceTree = "<group>"; };
+		AADBBCEAF442F82F50848E19 /* pipit-paused@2x.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = "pipit-paused@2x.png"; sourceTree = "<group>"; };
+		B51AD68CF4CC5EBBC835EFAD /* pipit-warning.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = "pipit-warning.png"; sourceTree = "<group>"; };
+		BE18F1D24E08FB3C8CFE1B45 /* pipit-warning@2x.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = "pipit-warning@2x.png"; sourceTree = "<group>"; };
+		CD6F58DFE74C9079257BC916 /* Pipit.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Pipit.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		CF8423805ED90026CB9FE79F /* pipit-nativehost */ = {isa = PBXFileReference; includeInIndex = 0; path = "pipit-nativehost"; sourceTree = BUILT_PRODUCTS_DIR; };
+		EE665BD0FBCB237C161ED197 /* pipit-recording.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = "pipit-recording.png"; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		A2888C339E70F44221D9289D /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				8CD97EAE847B47C5A3FDD5A5 /* PipitUI in Frameworks */,
+				74B9CA3F8283500A96092D69 /* PipitServices in Frameworks */,
+				4236B8609F5D4BE839A53CDC /* PipitCore in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		EB697F9DA3B4C3980BC382BF /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				4211FD3C68A46BBC1B286956 /* PipitCore in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		0115BA3EB4C80083DCA3F71F /* App */ = {
+			isa = PBXGroup;
+			children = (
+				1285D5E7B50171265DD11DF8 /* Info.plist */,
+				37155903C8D9E58F149C8AEE /* Pipit.entitlements */,
+			);
+			path = App;
+			sourceTree = "<group>";
+		};
+		260881995D78A0D851D20B5B /* Sources */ = {
+			isa = PBXGroup;
+			children = (
+				866B48EBC297957EFE937743 /* PipitApp */,
+				993F0E4ADA270E7AF5FD2BB4 /* PipitNativeHost */,
+			);
+			path = Sources;
+			sourceTree = "<group>";
+		};
+		2ACDBE2DBC3F94034383AC52 /* AppIcons */ = {
+			isa = PBXGroup;
+			children = (
+				22EFBC85987D961C7C8CAA85 /* Pipit.icns */,
+			);
+			path = AppIcons;
+			sourceTree = "<group>";
+		};
+		3407D680CED4971FF8A2BB21 /* Assets */ = {
+			isa = PBXGroup;
+			children = (
+				62DE406810B72997EC806A04 /* Pipit */,
+			);
+			path = Assets;
+			sourceTree = "<group>";
+		};
+		62DE406810B72997EC806A04 /* Pipit */ = {
+			isa = PBXGroup;
+			children = (
+				2ACDBE2DBC3F94034383AC52 /* AppIcons */,
+				9E39072381D2E31F7998AFB4 /* MenuBar */,
+			);
+			path = Pipit;
+			sourceTree = "<group>";
+		};
+		866B48EBC297957EFE937743 /* PipitApp */ = {
+			isa = PBXGroup;
+			children = (
+				7FA445934522AB5AC18F6DB8 /* main.swift */,
+			);
+			path = PipitApp;
+			sourceTree = "<group>";
+		};
+		8A892D099B184C044B9DA5F0 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				CF8423805ED90026CB9FE79F /* pipit-nativehost */,
+				CD6F58DFE74C9079257BC916 /* Pipit.app */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		993F0E4ADA270E7AF5FD2BB4 /* PipitNativeHost */ = {
+			isa = PBXGroup;
+			children = (
+				957D0D58BA4B90F5ED74BA3D /* main.swift */,
+			);
+			path = PipitNativeHost;
+			sourceTree = "<group>";
+		};
+		9E39072381D2E31F7998AFB4 /* MenuBar */ = {
+			isa = PBXGroup;
+			children = (
+				2D7A38581127B6E94CAC574A /* pipit-idle.png */,
+				A40349FB8BC23FA746B2FB67 /* pipit-idle@2x.png */,
+				47809F16D1A04B353EA7AD4F /* pipit-paused.png */,
+				AADBBCEAF442F82F50848E19 /* pipit-paused@2x.png */,
+				EE665BD0FBCB237C161ED197 /* pipit-recording.png */,
+				80CADB95C82DE44384D66658 /* pipit-recording@2x.png */,
+				B51AD68CF4CC5EBBC835EFAD /* pipit-warning.png */,
+				BE18F1D24E08FB3C8CFE1B45 /* pipit-warning@2x.png */,
+			);
+			path = MenuBar;
+			sourceTree = "<group>";
+		};
+		C3F5AEB0AE40EB2D5EE6807D /* Packages */ = {
+			isa = PBXGroup;
+			children = (
+				1A9FA47A63F5FFB29A6E7F9C /* Pipit */,
+			);
+			name = Packages;
+			sourceTree = "<group>";
+		};
+		F66FE571820E047DC497882A = {
+			isa = PBXGroup;
+			children = (
+				0115BA3EB4C80083DCA3F71F /* App */,
+				3407D680CED4971FF8A2BB21 /* Assets */,
+				C3F5AEB0AE40EB2D5EE6807D /* Packages */,
+				260881995D78A0D851D20B5B /* Sources */,
+				8A892D099B184C044B9DA5F0 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		A2ADD0963CC7817D8F16F56A /* Pipit */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 7D924B8A5B85181AF8544369 /* Build configuration list for PBXNativeTarget "Pipit" */;
+			buildPhases = (
+				72365885077B3F19A8EBC41A /* Sources */,
+				0F960E6FDBB6B78308F0B982 /* Resources */,
+				A2888C339E70F44221D9289D /* Frameworks */,
+				DA69861DF994E7AE62D80681 /* Embed Dependencies */,
+				B538C45AA53B2AD4F01D9BD5 /* Build and copy the browser sensor */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				1D74AF2995170B77EF4FEC40 /* PBXTargetDependency */,
+			);
+			name = Pipit;
+			packageProductDependencies = (
+				4407356974D964D41851FC5A /* PipitUI */,
+				DAA7CF268EB9FD79CBEB8159 /* PipitServices */,
+				7D7B1FFD23061DE8918CD861 /* PipitCore */,
+			);
+			productName = Pipit;
+			productReference = CD6F58DFE74C9079257BC916 /* Pipit.app */;
+			productType = "com.apple.product-type.application";
+		};
+		A7DB8A4EB5E56A0205E2B145 /* pipit-nativehost */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = BADBCE15B856A554D902F4A4 /* Build configuration list for PBXNativeTarget "pipit-nativehost" */;
+			buildPhases = (
+				A8ECE226A060DCA1F04D6FF1 /* Sources */,
+				EB697F9DA3B4C3980BC382BF /* Frameworks */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = "pipit-nativehost";
+			packageProductDependencies = (
+				1893E43E5457055E6E2D7622 /* PipitCore */,
+			);
+			productName = "pipit-nativehost";
+			productReference = CF8423805ED90026CB9FE79F /* pipit-nativehost */;
+			productType = "com.apple.product-type.tool";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		358DC39476DA9CA79E111E6B /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = YES;
+				LastUpgradeCheck = 1430;
+				TargetAttributes = {
+					A2ADD0963CC7817D8F16F56A = {
+						DevelopmentTeam = "";
+						ProvisioningStyle = Automatic;
+					};
+					A7DB8A4EB5E56A0205E2B145 = {
+						DevelopmentTeam = "";
+						ProvisioningStyle = Automatic;
+					};
+				};
+			};
+			buildConfigurationList = 842D0B2FD6F794B2FA0A3AFF /* Build configuration list for PBXProject "Pipit" */;
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				Base,
+				en,
+			);
+			mainGroup = F66FE571820E047DC497882A;
+			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				70BB0949691C5B6D8B098DC9 /* XCLocalSwiftPackageReference "." */,
+			);
+			preferredProjectObjectVersion = 77;
+			productRefGroup = 8A892D099B184C044B9DA5F0 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				A2ADD0963CC7817D8F16F56A /* Pipit */,
+				A7DB8A4EB5E56A0205E2B145 /* pipit-nativehost */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		0F960E6FDBB6B78308F0B982 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				43C4B96F81CFD44E3F86A18A /* Pipit.icns in Resources */,
+				737ABAE4AD17ED2DF9714AC0 /* pipit-idle.png in Resources */,
+				5274BC7830D9FA9D13000936 /* pipit-idle@2x.png in Resources */,
+				C1E2EFB13A1DD1150F731412 /* pipit-paused.png in Resources */,
+				390DDCF3440FA353514D5CF7 /* pipit-paused@2x.png in Resources */,
+				B227C8AC14891EDECAC77937 /* pipit-recording.png in Resources */,
+				9E947FF6BD212B31D77080EB /* pipit-recording@2x.png in Resources */,
+				3191ABE85D693632A9FDC2CB /* pipit-warning.png in Resources */,
+				A36EE8A6715815EB4DEA2350 /* pipit-warning@2x.png in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXShellScriptBuildPhase section */
+		B538C45AA53B2AD4F01D9BD5 /* Build and copy the browser sensor */ = {
+			isa = PBXShellScriptBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+				"$(SRCROOT)/extension/build.sh",
+				"$(SRCROOT)/extension/shared/provider.js",
+				"$(SRCROOT)/extension/shared/content.js",
+				"$(SRCROOT)/extension/shared/relay.js",
+				"$(SRCROOT)/extension/shared/background.js",
+				"$(SRCROOT)/extension/firefox/manifest.json",
+				"$(SRCROOT)/extension/chrome/manifest.json",
+			);
+			name = "Build and copy the browser sensor";
+			outputFileListPaths = (
+			);
+			outputPaths = (
+				"$(BUILT_PRODUCTS_DIR)/$(CONTENTS_FOLDER_PATH)/Resources/extension/firefox/manifest.json",
+				"$(BUILT_PRODUCTS_DIR)/$(CONTENTS_FOLDER_PATH)/Resources/extension/chrome/manifest.json",
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "set -euo pipefail\n\"$SRCROOT/extension/build.sh\" >/dev/null\nresources=\"$BUILT_PRODUCTS_DIR/$CONTENTS_FOLDER_PATH/Resources\"\nmkdir -p \"$resources\"\nrm -rf \"$resources/extension\"\ncp -R \"$SRCROOT/extension/dist\" \"$resources/extension\"\n";
+		};
+/* End PBXShellScriptBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		72365885077B3F19A8EBC41A /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				DD6AB7AA5780B5D34B567D34 /* main.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		A8ECE226A060DCA1F04D6FF1 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				A169A97D3B1D5FC31AB36239 /* main.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		1D74AF2995170B77EF4FEC40 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = A7DB8A4EB5E56A0205E2B145 /* pipit-nativehost */;
+			targetProxy = 293148CBB101047D87A0BDE8 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
+
+/* Begin XCBuildConfiguration section */
+		3E8713EC6A6F1E99248A742F /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = App/Pipit.entitlements;
+				COMBINE_HIDPI_IMAGES = NO;
+				CURRENT_PROJECT_VERSION = 1;
+				ENABLE_HARDENED_RUNTIME = YES;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = App/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				MARKETING_VERSION = 1.0.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.pipit.app;
+				PRODUCT_NAME = Pipit;
+				SDKROOT = macosx;
+			};
+			name = Release;
+		};
+		726BE2799BFF220CD7224FCC /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = App/Pipit.entitlements;
+				COMBINE_HIDPI_IMAGES = NO;
+				CURRENT_PROJECT_VERSION = 1;
+				ENABLE_HARDENED_RUNTIME = YES;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = App/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				MARKETING_VERSION = 1.0.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.pipit.app;
+				PRODUCT_NAME = Pipit;
+				SDKROOT = macosx;
+			};
+			name = Debug;
+		};
+		7384D7438C5B29DB2A9A0551 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				COMBINE_HIDPI_IMAGES = YES;
+				ENABLE_HARDENED_RUNTIME = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.pipit.nativehost;
+				PRODUCT_NAME = "pipit-nativehost";
+				SDKROOT = macosx;
+			};
+			name = Release;
+		};
+		9F0D65CD428490862EFDC8DE /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				COMBINE_HIDPI_IMAGES = YES;
+				ENABLE_HARDENED_RUNTIME = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.pipit.nativehost;
+				PRODUCT_NAME = "pipit-nativehost";
+				SDKROOT = macosx;
+			};
+			name = Debug;
+		};
+		9F5B8F47B1FEE670E66CA317 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				CODE_SIGN_STYLE = Automatic;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				DEVELOPMENT_TEAM = "";
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				MACOSX_DEPLOYMENT_TARGET = 15.0;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = macosx;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				SWIFT_STRICT_CONCURRENCY = complete;
+				SWIFT_VERSION = 6.0;
+			};
+			name = Release;
+		};
+		D1AEC481C2143C677D5D14D0 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				CODE_SIGN_STYLE = Automatic;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				DEVELOPMENT_TEAM = "";
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"$(inherited)",
+					"DEBUG=1",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				MACOSX_DEPLOYMENT_TARGET = 15.0;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = macosx;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_STRICT_CONCURRENCY = complete;
+				SWIFT_VERSION = 6.0;
+			};
+			name = Debug;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		7D924B8A5B85181AF8544369 /* Build configuration list for PBXNativeTarget "Pipit" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				726BE2799BFF220CD7224FCC /* Debug */,
+				3E8713EC6A6F1E99248A742F /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		842D0B2FD6F794B2FA0A3AFF /* Build configuration list for PBXProject "Pipit" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				D1AEC481C2143C677D5D14D0 /* Debug */,
+				9F5B8F47B1FEE670E66CA317 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		BADBCE15B856A554D902F4A4 /* Build configuration list for PBXNativeTarget "pipit-nativehost" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				9F0D65CD428490862EFDC8DE /* Debug */,
+				7384D7438C5B29DB2A9A0551 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+/* End XCConfigurationList section */
+
+/* Begin XCLocalSwiftPackageReference section */
+		70BB0949691C5B6D8B098DC9 /* XCLocalSwiftPackageReference "." */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = .;
+		};
+/* End XCLocalSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		1893E43E5457055E6E2D7622 /* PipitCore */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = PipitCore;
+		};
+		4407356974D964D41851FC5A /* PipitUI */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = PipitUI;
+		};
+		7D7B1FFD23061DE8918CD861 /* PipitCore */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = PipitCore;
+		};
+		DAA7CF268EB9FD79CBEB8159 /* PipitServices */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = PipitServices;
+		};
+/* End XCSwiftPackageProductDependency section */
+	};
+	rootObject = 358DC39476DA9CA79E111E6B /* Project object */;
+}

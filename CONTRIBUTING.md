@@ -43,6 +43,25 @@ measures a real timer, and a saturated machine stretches it past the microphone
 watchdog. Run the suite through `scripts/test.sh`. Treat a green Xcode run as a
 bonus.
 
+## Open in Xcode
+
+```sh
+open Pipit.xcodeproj
+```
+
+Run the `Pipit` scheme to launch the menu bar app. The test navigator lists the
+package's `PipitTests` suite, subject to the parallel-run caveat above.
+
+`project.yml` is the source for the project, and `xcodegen generate` rewrites
+`Pipit.xcodeproj` from it. Edit `project.yml` and regenerate rather than
+changing target settings in Xcode, because CI regenerates the project and fails
+on a difference. Modules and tests stay in `Package.swift`, which the project
+references as a local package.
+
+The Xcode build and `scripts/bundle-app.sh` read the same `App/Info.plist` and
+`App/Pipit.entitlements`. A shipped bundle takes its version from `VERSION`,
+which `scripts/bundle-app.sh` stamps into the copied plist.
+
 ## Targeted checks
 
 List or filter application tests with:

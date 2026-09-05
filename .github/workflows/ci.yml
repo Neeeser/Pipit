@@ -17,7 +17,7 @@ jobs:
   build-and-test:
     name: Build and test
     runs-on: macos-15
-    timeout-minutes: 30
+    timeout-minutes: 45
     env:
       # Every swift build and the test run compile with -warnings-as-errors.
       # scripts/spm-env.sh reads this variable. A local build leaves it unset.
@@ -35,8 +35,8 @@ jobs:
           echo "selecting $newest"
           sudo xcode-select -s "$newest"
 
-      - name: Install SwiftLint
-        run: brew install swiftlint
+      - name: Install SwiftLint and XcodeGen
+        run: brew install swiftlint xcodegen
 
       - name: Show toolchain
         # Printed before the first build so a red Lint or Build step can be
@@ -46,14 +46,30 @@ jobs:
           xcodebuild -version || true
           swift format --version
           swiftlint version
+          xcodegen --version
 
       - name: Lint
         # Style and defect rules. It fails on any file that has not been run
         # through scripts/format.sh, and on a SwiftLint error.
         run: ./scripts/lint.sh
 
+      - name: Check the Xcode project matches project.yml
+        # project.yml is the source. A hand edit in Xcode that is not mirrored
+        # there is lost on the next generate, so the job fails on a difference.
+        run: |
+          xcodegen generate
+          git add --intent-to-add Pipit.xcodeproj
+          git diff --exit-code Pipit.xcodeproj
+
       - name: Build (debug)
         run: ./scripts/build.sh debug
+
+      - name: Build the Xcode project
+        # The shell a contributor opens. It compiles Sources/PipitApp against
+        # the package products and assembles the bundle Xcode runs.
+        run: |
+          xcodebuild -project Pipit.xcodeproj -scheme Pipit \
+            -configuration Debug build CODE_SIGNING_ALLOWED=NO
 
       - name: Run the test suite
         # Live OpenAI tests are skipped here: they need a key, and CI must not

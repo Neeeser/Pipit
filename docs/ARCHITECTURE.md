@@ -21,6 +21,10 @@ pipit-nativehost    browser event relay
 pipit-eval          benchmark and diagnostic tool
 ```
 
+`Package.swift` owns those modules and the test suite. `Pipit.xcodeproj` is a
+shell over the same package, generated from `project.yml`. It builds the app
+bundle and the native host, and links the modules as package products.
+
 `PipitCore` imports Foundation and contains decisions that do not require I/O.
 It owns session policy, manifests, storage models, chunk planning, transcript
 assembly, and recovery decisions.

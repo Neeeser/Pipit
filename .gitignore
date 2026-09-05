@@ -18,6 +18,10 @@
 DerivedData/
 *.xcuserdatad/
 xcuserdata/
+# Pipit.xcodeproj is committed. Xcode writes package resolution state into the
+# workspace on first open, and that state is machine-local.
+*.xcworkspace/xcshareddata/swiftpm/
+*.xcodeproj/project.xcworkspace/xcuserdata/
 
 # Packaged app output
 /dist/
