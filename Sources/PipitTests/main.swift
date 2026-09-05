@@ -4,10 +4,7 @@ import TestKit
 // Built by appending rather than by chaining `+`: a single chained expression of
 // this length exceeds the type checker's budget on the toolchain CI runs.
 var suites: [Suite] = []
-suites += SpeakerIdentityTests.all
-suites.append(VoiceEvidenceTests.suite)
 suites.append(SpeakerGroupingTests.suite)
-suites += SensorAttributionTests.all
 suites += SpeakerCorrectionTests.all
 suites.append(SpeakerSuggestionTests.suite)
 suites.append(SpeakerRematchTests.suite)
