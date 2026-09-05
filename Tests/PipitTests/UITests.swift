@@ -730,10 +730,9 @@ struct UITests {
         try store.save(settings)
 
         // Strip a field, as if the file were written before it existed.
-        var object =
-            try JSONSerialization.jsonObject(
-                with: Data(contentsOf: store.url)
-            ) as! [String: Any]
+        var object = try #require(
+            try JSONSerialization.jsonObject(with: Data(contentsOf: store.url)) as? [String: Any]
+        )
         object.removeValue(forKey: "firefoxSensorHasConnected")
         try JSONSerialization.data(withJSONObject: object).write(to: store.url)
 
@@ -759,10 +758,9 @@ struct UITests {
         settings.hasCompletedOnboarding = true
         try store.save(settings)
         for stale in [true, false] {
-            var object =
-                try JSONSerialization.jsonObject(
-                    with: Data(contentsOf: store.url)
-                ) as! [String: Any]
+            var object = try #require(
+                try JSONSerialization.jsonObject(with: Data(contentsOf: store.url)) as? [String: Any]
+            )
             object["echoCancellation"] = stale
             try JSONSerialization.data(withJSONObject: object).write(to: store.url)
 

@@ -7,9 +7,15 @@ import PipitUI
 /// takes a Dock slot is a setting; the menu bar item is there either way.
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
+    // These four are built in `applicationDidFinishLaunching`, which runs
+    // before any other method on this delegate.
+    // swiftlint:disable:next implicitly_unwrapped_optional
     private var runtime: PipitRuntime!
+    // swiftlint:disable:next implicitly_unwrapped_optional
     private var windows: WindowManager!
+    // swiftlint:disable:next implicitly_unwrapped_optional
     private var menuBar: MenuBarController!
+    // swiftlint:disable:next implicitly_unwrapped_optional
     private var notificationRouter: NotificationRouter!
     private var isTerminating = false
 

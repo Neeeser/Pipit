@@ -1,0 +1,159 @@
+# SwiftLint configuration for Pipit.
+#
+# The rule set is tuned to the code that exists. An error marks a defect worth
+# blocking a merge on. A warning marks size or complexity that only a rewrite
+# would fix, so it is reported and counted rather than enforced.
+# Every deviation from the SwiftLint defaults carries its reason below.
+
+excluded:
+  # Vendored WebRTC sources. They are C and are never edited here.
+  - Sources/CWebRTCAEC3
+  - .build
+  - dist
+  - extension
+
+# 120 columns matches `.swift-format`. 62 lines in the tree are a single string
+# literal the formatter cannot break, so the error threshold sits above them.
+line_length:
+  warning: 120
+  error: 200
+  ignores_urls: true
+  ignores_comments: true
+  ignores_function_declarations: true
+  ignores_interpolated_strings: true
+
+identifier_name:
+  # Audio and geometry code uses two-letter names that read fine.
+  min_length:
+    warning: 2
+    error: 1
+  excluded:
+    - id
+    - x
+    - y
+    - z
+    - i
+    - j
+    - k
+    - n
+    - t
+    - dB
+    - to
+    - at
+    - in
+    - of
+    - ok
+    - up
+    - db
+    - hz
+    - ms
+    - lo
+    - hi
+    - a
+    - b
+
+# The size rules describe the largest files and types that exist today. The
+# warning is the target to shrink towards. The error is a ceiling that stops
+# them growing further.
+file_length:
+  warning: 1200
+  error: 4000
+
+type_body_length:
+  warning: 600
+  # `LocalPipelineTests` spans 2798 lines and `ProcessingPipeline` 2441.
+  error: 3000
+
+function_body_length:
+  warning: 120
+  error: 250
+
+cyclomatic_complexity:
+  warning: 15
+  # `ProcessingPipeline.process` scores 31.
+  error: 40
+
+large_tuple:
+  warning: 3
+  # Two row tuples in `SpeakerStore` and `TranscriptAssembler` carry 6 and 7
+  # members. They want to become structs, which is a change of its own.
+  error: 7
+
+function_parameter_count:
+  warning: 7
+  # `SpeakerStore.recordOccurrence` takes 11.
+  error: 12
+
+nesting:
+  # Test suites nest a helper type inside a suite type inside a suite type.
+  type_level: 3
+
+disabled_rules:
+  # `swift format` owns brace placement, and the two tools disagree on
+  # multi-line conditions.
+  - opening_brace
+  # `swift format` adds a trailing comma to multi-element collection literals
+  # and not to argument lists. Requiring one in argument lists puts the two
+  # tools in a loop, so the formatter owns trailing commas.
+  - trailing_comma
+  # `swift format` moves a capture list onto the line after the brace, which
+  # this rule rejects. The formatter owns closure layout.
+  - closure_parameter_position
+  # TODO comments are tracked in the issue tracker, not by the linter.
+  - todo
+  # The public surface is documented where it needs documenting, and the rule
+  # fires on every private helper in a file that starts with a doc comment.
+  - missing_docs
+  # Type names include acronyms such as AEC3 and API that the rule rejects.
+  - type_name
+
+opt_in_rules:
+  # Each of these catches a real defect rather than a style preference.
+  # A crash on nil in shipped code.
+  - force_unwrapping
+  # A crash on a wrong dynamic type.
+  - force_cast
+  # A crash on a thrown error.
+  - force_try
+  # A property that reads as non-optional but traps before it is assigned.
+  - implicitly_unwrapped_optional
+  # `count == 0` on a collection hides the cheaper and clearer `isEmpty`.
+  - empty_count
+  # `filter { }.first` walks the whole collection to use one element.
+  - first_where
+  # `first(where:) != nil` walks further than `contains(where:)`.
+  - contains_over_first_not_nil
+  # A bare `fatalError()` gives the crash report nothing to work with.
+  - fatal_error_message
+  # A missing `super` call in an override drops the base class behaviour.
+  - overridden_super_call
+  # Parentheses around a single closure argument are noise.
+  - unneeded_parentheses_in_closure_argument
+
+# `redundant_nil_coalescing` is deliberately not enabled. Every `?? nil` here
+# flattens a double optional produced by `try?` on a call that already returns
+# an optional, and removing it changes the type.
+
+# A forced cast or a forced `try` fails the build. Both are rare here and both
+# crash on input the code did not expect.
+force_cast:
+  severity: error
+force_try:
+  severity: error
+
+# Reported, not enforced. 63 forced unwraps exist, 53 of them in test fixtures
+# where a nil fails the test rather than reaching a user.
+force_unwrapping:
+  severity: warning
+
+# Reported, not enforced. 43 sites compare `count` to zero, 41 of them inside
+# a test expectation.
+empty_count:
+  severity: warning
+
+# Reported, not enforced. The remaining cases are objects built in
+# `applicationDidFinishLaunching` and are annotated where they occur.
+implicitly_unwrapped_optional:
+  severity: warning
+
+reporter: "xcode"

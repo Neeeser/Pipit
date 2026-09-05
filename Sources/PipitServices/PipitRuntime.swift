@@ -145,10 +145,16 @@ public final class PipitRuntime {
     /// The OpenAI key, read from the keychain once and held for the process.
     /// Exposed so saving a rotated key updates it without a relaunch.
     @ObservationIgnored public let apiKeys: CachingAPIKeyStore
+    // The disable is a pair rather than `disable:next` because a `//` line
+    // between a doc comment and its declaration detaches the doc comment.
+    // swiftlint:disable implicitly_unwrapped_optional
     /// The on-device speech models, and the local voice memory. Both exist
     /// whichever backends are selected: choosing the cloud diarizer costs the
     /// vectors it would have returned, not the ability to remember a voice.
+    /// It is assigned in `init` after the stored properties it reads, so it
+    /// cannot be a plain `let`.
     @ObservationIgnored public private(set) var models: LocalModelManager!
+    // swiftlint:enable implicitly_unwrapped_optional
     @ObservationIgnored public private(set) var speakers: SpeakerRecognitionService?
     @ObservationIgnored public private(set) var speakerStore: SpeakerStore?
 
@@ -171,8 +177,13 @@ public final class PipitRuntime {
     /// archives they build.
     @ObservationIgnored private let trash: @Sendable (URL) throws -> Void
     @ObservationIgnored private var sessionController: SessionController
+    // These three are assigned in `init` after the stored properties they
+    // depend on, so they cannot be plain `let`s.
+    // swiftlint:disable:next implicitly_unwrapped_optional
     @ObservationIgnored private var captureEngine: CaptureEngine!
+    // swiftlint:disable:next implicitly_unwrapped_optional
     @ObservationIgnored private var detectionEngine: DetectionEngine!
+    // swiftlint:disable:next implicitly_unwrapped_optional
     @ObservationIgnored private(set) var pipeline: ProcessingPipeline!
     @ObservationIgnored private var powerObserver: PowerEventObserver?
     @ObservationIgnored private var currentMeeting: (metadata: MeetingMetadata, store: MeetingStore)?

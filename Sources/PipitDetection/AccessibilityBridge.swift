@@ -35,7 +35,7 @@ public enum AccessibilityBridge {
 
     static func string(_ element: AXUIElement, _ name: String) -> String? {
         guard let value = attribute(element, name) else { return nil }
-        if CFGetTypeID(value) == CFStringGetTypeID() { return (value as! CFString) as String }
+        if CFGetTypeID(value) == CFStringGetTypeID(), let text = value as? String { return text }
         if let number = value as? NSNumber { return number.stringValue }
         // AXDOMClassList arrives as an array of class names.
         if let list = value as? [Any] { return list.map { "\($0)" }.joined(separator: ",") }

@@ -36,9 +36,12 @@ jobs:
           swift --version
           xcodebuild -version || true
 
+      - name: Install SwiftLint
+        run: brew install swiftlint
+
       - name: Lint
-        # Style only. It fails on any file that has not been run through
-        # scripts/format.sh.
+        # Style and defect rules. It fails on any file that has not been run
+        # through scripts/format.sh, and on a SwiftLint error.
         run: ./scripts/lint.sh
 
       - name: Build (debug)
