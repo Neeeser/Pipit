@@ -30,13 +30,13 @@ struct FolderStorageTests {
     func aNewFolderIsADirectoryWithAManifestBesideItsMeetings() async throws {
         let (root, _, store) = try Self.archive()
         defer { try? FileManager.default.removeItem(at: root) }
-        let folder = try store.create(name: "Hindsight Daily", about: "The weekday standup")
-        #expect(folder.name == "Hindsight Daily")
-        #expect(store.exists("Hindsight Daily"))
+        let folder = try store.create(name: "Northwind Daily", about: "The weekday standup")
+        #expect(folder.name == "Northwind Daily")
+        #expect(store.exists("Northwind Daily"))
         let manifest = root
-            .appendingPathComponent("Folders/Hindsight Daily/folder.json")
+            .appendingPathComponent("Folders/Northwind Daily/folder.json")
         #expect(FileManager.default.fileExists(atPath: manifest.path))
-        #expect(store.folder(named: "Hindsight Daily")?.about == "The weekday standup")
+        #expect(store.folder(named: "Northwind Daily")?.about == "The weekday standup")
     }
 
     @Test("a folder somebody made in Finder is still a folder")
@@ -71,14 +71,14 @@ struct FolderStorageTests {
     func renamingAFolderMovesTheDirectoryAndKeepsWhatItHolds() async throws {
         let (root, repository, store) = try Self.archive()
         defer { try? FileManager.default.removeItem(at: root) }
-        try store.create(name: "Cap One", about: "Client work")
+        try store.create(name: "Fen Trust", about: "Client work")
         let created = try Self.meeting(repository, title: "Kickoff")
-        try repository.move(meetingID: created.id, toFolder: "Cap One")
-        try store.rename("Cap One", to: "Capital One")
+        try repository.move(meetingID: created.id, toFolder: "Fen Trust")
+        try store.rename("Fen Trust", to: "Fenwick Trust")
 
-        #expect(!store.exists("Cap One"))
-        #expect(store.folder(named: "Capital One")?.about == "Client work")
-        #expect(repository.meetings(inFolder: "Capital One").count == 1)
+        #expect(!store.exists("Fen Trust"))
+        #expect(store.folder(named: "Fenwick Trust")?.about == "Client work")
+        #expect(repository.meetings(inFolder: "Fenwick Trust").count == 1)
         // The directory moved with the folder, and the identifier still
         // reaches it.
         #expect(repository.findMeeting(id: created.id)?.metadata.id == created.id)
@@ -88,17 +88,17 @@ struct FolderStorageTests {
     func filingAMeetingMovesItsDirectoryAndRecordsWhereItWent() async throws {
         let (root, repository, store) = try Self.archive()
         defer { try? FileManager.default.removeItem(at: root) }
-        try store.create(name: "Hindsight Daily")
-        let created = try Self.meeting(repository, title: "Hindsight Daily")
+        try store.create(name: "Northwind Daily")
+        let created = try Self.meeting(repository, title: "Northwind Daily")
         let before = repository.findMeeting(id: created.id)?.store.layout.root
         #expect(before?.path.contains("/2026/08/") == true, "starts under the month")
 
-        let moved = try repository.move(meetingID: created.id, toFolder: "Hindsight Daily")
-        #expect(moved.deletingLastPathComponent().lastPathComponent == "Hindsight Daily")
-        #expect(moved.lastPathComponent == "Hindsight Daily (Aug 18, 11:31 AM)")
+        let moved = try repository.move(meetingID: created.id, toFolder: "Northwind Daily")
+        #expect(moved.deletingLastPathComponent().lastPathComponent == "Northwind Daily")
+        #expect(moved.lastPathComponent == "Northwind Daily (Aug 18, 11:31 AM)")
         let found = repository.findMeeting(id: created.id)
         #expect(found?.store.layout.root == moved)
-        #expect(found?.metadata.folderName == "Hindsight Daily")
+        #expect(found?.metadata.folderName == "Northwind Daily")
         #expect(found?.metadata.id == created.id, "the identifier did not change")
         #expect(repository.listMeetings().count == 1, "still one meeting, once")
     }
@@ -147,15 +147,15 @@ struct FolderStorageTests {
     func aFiledMeetingRenamedByEnrichmentStaysInItsFolder() async throws {
         let (root, repository, store) = try Self.archive()
         defer { try? FileManager.default.removeItem(at: root) }
-        try store.create(name: "Hindsight Daily")
+        try store.create(name: "Northwind Daily")
         let created = try Self.meeting(repository, title: "Huddle in #eng")
-        try repository.move(meetingID: created.id, toFolder: "Hindsight Daily")
+        try repository.move(meetingID: created.id, toFolder: "Northwind Daily")
 
         guard let found = repository.findMeeting(id: created.id) else {
             Issue.record("the meeting went missing")
             return
         }
-        _ = try found.store.updateMetadata { $0.titles.human = "Hindsight Daily" }
+        _ = try found.store.updateMetadata { $0.titles.human = "Northwind Daily" }
         guard let settled = repository.settleFolderName(
             for: repository.findMeeting(id: created.id)!.metadata
         ) else {
@@ -163,12 +163,12 @@ struct FolderStorageTests {
             return
         }
 
-        #expect(settled.lastPathComponent == "Hindsight Daily (Aug 18, 11:31 AM)")
+        #expect(settled.lastPathComponent == "Northwind Daily (Aug 18, 11:31 AM)")
         #expect(
-            settled.deletingLastPathComponent().lastPathComponent == "Hindsight Daily",
+            settled.deletingLastPathComponent().lastPathComponent == "Northwind Daily",
             "renaming must not drag it back to the month"
         )
-        #expect(repository.findMeeting(id: created.id)?.metadata.folderName == "Hindsight Daily")
+        #expect(repository.findMeeting(id: created.id)?.metadata.folderName == "Northwind Daily")
     }
 
 }

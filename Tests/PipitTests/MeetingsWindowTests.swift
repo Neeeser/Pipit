@@ -246,8 +246,8 @@ struct MeetingSourceTests {
     func aSourceFilterHoldsOneKindOfRecording() async throws {
         let now = date("2026-08-24 15:00:00")
         let rows = [
-            row("a", title: "Chris Latimer", at: now, source: .slackHuddle),
-            row("b", title: "Hindsight Daily", at: now, source: .googleMeet),
+            row("a", title: "Bryn Callister", at: now, source: .slackHuddle),
+            row("b", title: "Northwind Daily", at: now, source: .googleMeet),
             row("c", title: "Acme onboarding", at: now, source: .zoom),
         ]
         let visible = MeetingsDirectoryFilter.sections(
@@ -262,7 +262,7 @@ struct MeetingSourceTests {
         let rows = [
             row("a", title: "Release cut", at: now, source: .slackHuddle),
             row("b", title: "Release cut", at: now, source: .googleMeet),
-            row("c", title: "Chris Latimer", at: now, source: .slackHuddle),
+            row("c", title: "Bryn Callister", at: now, source: .slackHuddle),
         ]
         let visible = MeetingsDirectoryFilter.sections(
             rows, source: .slackHuddle, query: "release", now: now,
@@ -278,7 +278,7 @@ struct MeetingSourceTests {
         // other.
         let now = date("2026-08-24 15:00:00")
         let rows = [
-            row("a", title: "Named", at: now, speakers: [("Andrew", 1)], source: .slackHuddle),
+            row("a", title: "Named", at: now, speakers: [("Marlow", 1)], source: .slackHuddle),
             row("b", title: "One left", at: now, speakers: [(nil, nil)], source: .slackHuddle),
             row("c", title: "One left", at: now, speakers: [(nil, nil)], source: .zoom),
         ]
@@ -528,9 +528,9 @@ struct MeetingsDirectoryTests {
         let now = date("2026-08-24 15:00:00")
         let rows = [
             row("a", title: "Named throughout", at: now,
-                speakers: [("Andrew", 1), ("Chris", 2)]),
+                speakers: [("Marlow", 1), ("Bryn", 2)]),
             row("b", title: "One voice left", at: now,
-                speakers: [("Andrew", 1), (nil, nil)]),
+                speakers: [("Marlow", 1), (nil, nil)]),
             row("c", title: "Nobody named", at: now, speakers: [(nil, nil), (nil, nil)]),
         ]
         let visible = MeetingsDirectoryFilter.sections(
@@ -627,7 +627,7 @@ struct MeetingsDirectoryTests {
     func searchCoversTheTitleTheNotesTheSpeakersAndTheTranscript() async throws {
         let now = date("2026-08-24 15:00:00")
         let rows = [
-            row("a", title: "Design review", at: now, speakers: [("Priya Raman", 3)]),
+            row("a", title: "Design review", at: now, speakers: [("Nadia Quist", 3)]),
             row("b", title: "Standup", at: now, notes: "Northwind renewal decided"),
             row("c", title: "Weekly sync", at: now),
         ]
@@ -638,7 +638,7 @@ struct MeetingsDirectoryTests {
             ).flatMap(\.rows).map(\.id)
         }
         #expect(found("design") == ["a"], "the title")
-        #expect(found("priya") == ["a"], "a speaker's name")
+        #expect(found("nadia") == ["a"], "a speaker's name")
         #expect(found("northwind") == ["b"], "the user's own notes")
         #expect(found("alignment") == [], "and nothing else, until the index exists")
         #expect(
@@ -702,7 +702,7 @@ struct MeetingsWindowTests {
         // Both halves number their speakers from zero, and only the first has a
         // name for its own.
         var firstMap = SpeakerMap()
-        firstMap.assign("Chris Vaughn", to: "remote-001_speaker_00", identityID: IdentityID(2))
+        firstMap.assign("Bryn Halloway", to: "remote-001_speaker_00", identityID: IdentityID(2))
         try first.store.writeSpeakerMap(firstMap)
 
         _ = try second.store.updateMetadata { $0.mergedIntoMeetingID = first.metadata.id }
@@ -720,8 +720,8 @@ struct MeetingsWindowTests {
         let meeting = try RuntimeFixtures.makeMeeting(root: root, clusters: ["remote-001_speaker_00"])
         try meeting.store.writeSpeakerSuggestions(SpeakerSuggestionSet(suggestions: [
             SpeakerNameSuggestion(
-                label: "remote-001_speaker_00", name: "Priya Raman", confidence: 0.91,
-                quote: "Priya, what did the renewal come back at?", atSeconds: 12
+                label: "remote-001_speaker_00", name: "Nadia Quist", confidence: 0.91,
+                quote: "Nadia, what did the renewal come back at?", atSeconds: 12
             ),
         ]))
 
@@ -744,7 +744,7 @@ struct MeetingsWindowTests {
             (try? meeting.store.readSpeakerMap())?.entries["remote-001_speaker_00"] != nil
         }
         let entry = try #require(try meeting.store.readSpeakerMap().entries["remote-001_speaker_00"])
-        #expect(entry.displayName == "Priya Raman")
+        #expect(entry.displayName == "Nadia Quist")
         // Not `.ai`. After a person agrees to it, it is their answer, and voice
         // learning must weigh it like any other correction.
         #expect(entry.origin == .human)
@@ -767,8 +767,8 @@ struct MeetingsWindowTests {
         let meeting = try RuntimeFixtures.makeMeeting(root: root, clusters: ["remote-001_speaker_00"])
         try meeting.store.writeSpeakerSuggestions(SpeakerSuggestionSet(suggestions: [
             SpeakerNameSuggestion(
-                label: "remote-001_speaker_00", name: "Priya Raman", confidence: 0.91,
-                quote: "Priya, what did the renewal come back at?", atSeconds: 12
+                label: "remote-001_speaker_00", name: "Nadia Quist", confidence: 0.91,
+                quote: "Nadia, what did the renewal come back at?", atSeconds: 12
             ),
         ]))
 
@@ -819,8 +819,8 @@ struct MeetingsWindowTests {
         // can only have come from the folded recording.
         try second.store.writeSpeakerSuggestions(SpeakerSuggestionSet(suggestions: [
             SpeakerNameSuggestion(
-                label: "remote-001_speaker_00", name: "Priya Raman", confidence: 0.91,
-                quote: "Priya, what did the renewal come back at?", atSeconds: 12
+                label: "remote-001_speaker_00", name: "Nadia Quist", confidence: 0.91,
+                quote: "Nadia, what did the renewal come back at?", atSeconds: 12
             ),
         ]))
 
@@ -862,8 +862,8 @@ struct MeetingsWindowTests {
         let meeting = try RuntimeFixtures.makeMeeting(root: root, clusters: ["remote-001_speaker_00"])
         try meeting.store.writeSpeakerSuggestions(SpeakerSuggestionSet(suggestions: [
             SpeakerNameSuggestion(
-                label: "remote-001_speaker_00", name: "Priya Raman", confidence: 0.91,
-                quote: "Priya, what did the renewal come back at?", atSeconds: 12
+                label: "remote-001_speaker_00", name: "Nadia Quist", confidence: 0.91,
+                quote: "Nadia, what did the renewal come back at?", atSeconds: 12
             ),
         ]))
 
@@ -928,7 +928,7 @@ struct MeetingsWindowTests {
         )
 
         var map = try meeting.store.readSpeakerMap()
-        map.assign("Priya Raman", to: "remote-001_speaker_00")
+        map.assign("Nadia Quist", to: "remote-001_speaker_00")
         try meeting.store.writeSpeakerMap(map)
         #expect(runtime.unnamedSpeakerCount(inMeeting: meeting.id) == 1)
 
@@ -955,7 +955,7 @@ struct MeetingsWindowTests {
         defer { try? FileManager.default.removeItem(at: root) }
         let meeting = try RuntimeFixtures.makeMeeting(root: root, clusters: ["remote-001_speaker_00"])
         try meeting.store.writeSummary(
-            SummaryDocument(generatedNotes: "- Chris sends the connector list.").markdown
+            SummaryDocument(generatedNotes: "- Bryn sends the connector list.").markdown
         )
 
         let runtime = RuntimeFixtures.makeRuntime(root: root)
@@ -999,8 +999,8 @@ struct MeetingsWindowTests {
             "nothing has rendered the document yet, so there is nothing to copy"
         )
 
-        try first.store.writeTranscriptMarkdown("# Design review\n\nPriya: the renewal.")
-        try second.store.writeTranscriptMarkdown("# Design review\n\nPriya: as I was saying.")
+        try first.store.writeTranscriptMarkdown("# Design review\n\nNadia: the renewal.")
+        try second.store.writeTranscriptMarkdown("# Design review\n\nNadia: as I was saying.")
 
         guard let copied = detail.transcriptMarkdown() else {
             Issue.record("the document on disk was not read")
@@ -1061,7 +1061,7 @@ struct MeetingsWindowTests {
             root: root, clusters: ["remote-001_speaker_00", "remote-001_speaker_01", "local"]
         )
         var map = SpeakerMap()
-        map.assign("Chris Vaughn", to: "remote-001_speaker_00", identityID: IdentityID(7))
+        map.assign("Bryn Halloway", to: "remote-001_speaker_00", identityID: IdentityID(7))
         try meeting.store.writeSpeakerMap(map)
         try meeting.store.writeNotes("Northwind renewal")
 
@@ -1070,7 +1070,7 @@ struct MeetingsWindowTests {
         #expect(rows.count == 1)
         guard let row = rows.first else { return }
         #expect(row.id == meeting.id)
-        #expect(row.namedSpeakers.map(\.displayName) == ["Chris Vaughn"])
+        #expect(row.namedSpeakers.map(\.displayName) == ["Bryn Halloway"])
         #expect(
             row.namedSpeakers.first?.identityID == IdentityID(7),
             "the identifier travels, so the colour matches the People window"
@@ -1119,11 +1119,11 @@ struct MeetingsWindowTests {
         #expect(model.rows.first?.namedSpeakers.count == 0, "nobody named yet")
 
         var map = SpeakerMap()
-        map.assign("Priya Raman", to: "remote-001_speaker_00")
+        map.assign("Nadia Quist", to: "remote-001_speaker_00")
         try meeting.store.writeSpeakerMap(map)
         await model.refresh(meetingID: meeting.id)
 
-        #expect(model.rows.first?.namedSpeakers.map(\.displayName) == ["Priya Raman"])
+        #expect(model.rows.first?.namedSpeakers.map(\.displayName) == ["Nadia Quist"])
         #expect(model.rows.first?.unnamedCount == 0)
     }
 
@@ -1215,10 +1215,10 @@ struct MeetingsWindowTests {
         await model.reload()
         model.show(meetingID: meeting.id)
         await waitFor("the transcripts to be read") { model.searchesTranscripts }
-        model.query = "priya"
+        model.query = "nadia"
         #expect(model.sections.flatMap(\.rows).count == 0, "that name is not in it yet")
 
-        try meeting.store.writeTranscriptMarkdown("Priya Raman: the northwind renewal")
+        try meeting.store.writeTranscriptMarkdown("Nadia Quist: the northwind renewal")
         await model.refresh(meetingID: meeting.id)
 
         #expect(model.sections.flatMap(\.rows).map(\.id) == [meeting.id])
@@ -1238,7 +1238,7 @@ struct MeetingsWindowTests {
         await model.reload()
         await waitFor("the first pass over the archive") { model.searchesTranscripts }
 
-        try meeting.store.writeTranscriptMarkdown("Andrew: the northwind renewal")
+        try meeting.store.writeTranscriptMarkdown("Marlow: the northwind renewal")
         await model.reload()
         model.query = "northwind"
 
@@ -1255,7 +1255,7 @@ struct MeetingsWindowTests {
         let root = try TestPaths.makeTemporaryDirectory()
         defer { try? FileManager.default.removeItem(at: root) }
         let meeting = try RuntimeFixtures.makeMeeting(root: root, clusters: ["local"], title: "Design review")
-        try meeting.store.writeTranscriptMarkdown("Andrew: the northwind renewal")
+        try meeting.store.writeTranscriptMarkdown("Marlow: the northwind renewal")
 
         let model = MeetingsWindowModel(runtime: RuntimeFixtures.makeRuntime(root: root))
         await model.reload()
@@ -1264,7 +1264,7 @@ struct MeetingsWindowTests {
 
         // Standing in for the assembler, which has no chunks to work from here.
         // What the window owes is the read back, whatever the rebuild wrote.
-        try meeting.store.writeTranscriptMarkdown("Andrew: the audio sdk call")
+        try meeting.store.writeTranscriptMarkdown("Marlow: the audio sdk call")
         model.rebuildSelection()
         model.query = "audio sdk"
 
@@ -1304,12 +1304,12 @@ struct MeetingsWindowTests {
         )
 
         var map = SpeakerMap()
-        map.assign("Priya Raman", to: "remote-001_speaker_00")
+        map.assign("Nadia Quist", to: "remote-001_speaker_00")
         try first.store.writeSpeakerMap(map)
         await model.refresh(meetingID: second.id)
 
         #expect(model.rows.count == 1, "and not a second row for the same conversation")
-        #expect(model.rows.first?.namedSpeakers.map(\.displayName) == ["Priya Raman"])
+        #expect(model.rows.first?.namedSpeakers.map(\.displayName) == ["Nadia Quist"])
     }
 
     /// A cluster identifier names a speaker inside one recording, and both
@@ -1344,10 +1344,10 @@ struct MeetingsWindowTests {
             return
         }
 
-        model.assignCluster(row, toNewPerson: "Priya Raman")
+        model.assignCluster(row, toNewPerson: "Nadia Quist")
 
         #expect(
-            model.receipt?.text == "Named Priya Raman on 1 line. transcript.md and the speaker map are rewritten."
+            model.receipt?.text == "Named Nadia Quist on 1 line. transcript.md and the speaker map are rewritten."
         )
     }
 
@@ -1384,7 +1384,7 @@ struct MeetingsWindowTests {
         var map = SpeakerMap()
         map.overrideUtterance(
             lines[1],
-            with: SpeakerAssignment(displayName: "Tim Okafor", origin: .human),
+            with: SpeakerAssignment(displayName: "Owen Pellard", origin: .human),
             at: started
         )
         try created.store.writeSpeakerMap(map)
@@ -1400,10 +1400,10 @@ struct MeetingsWindowTests {
             return
         }
 
-        model.assignCluster(row, toNewPerson: "Priya Raman")
+        model.assignCluster(row, toNewPerson: "Nadia Quist")
 
         #expect(
-            model.receipt?.text == "Named Priya Raman on 2 lines. transcript.md and the speaker map are rewritten."
+            model.receipt?.text == "Named Nadia Quist on 2 lines. transcript.md and the speaker map are rewritten."
         )
     }
 
@@ -1460,11 +1460,11 @@ struct MeetingsWindowTests {
         }
         #expect(first.lines.count == 1, "the first turn is the line being corrected")
 
-        model.detail?.assignBlock(first, toNewPerson: "Tim Okafor")
-        model.assignCluster(row, toNewPerson: "Priya Raman")
+        model.detail?.assignBlock(first, toNewPerson: "Owen Pellard")
+        model.assignCluster(row, toNewPerson: "Nadia Quist")
 
         #expect(
-            model.receipt?.text == "Named Priya Raman on 1 line. transcript.md and the speaker map are rewritten."
+            model.receipt?.text == "Named Nadia Quist on 1 line. transcript.md and the speaker map are rewritten."
         )
     }
 
@@ -1480,8 +1480,8 @@ struct MeetingsWindowTests {
         let second = try RuntimeFixtures.makeMeeting(
             root: root, clusters: ["local"], title: "Design review, rejoined"
         )
-        try first.store.writeTranscriptMarkdown("Andrew: the northwind renewal")
-        try second.store.writeTranscriptMarkdown("Andrew: the audio sdk call")
+        try first.store.writeTranscriptMarkdown("Marlow: the northwind renewal")
+        try second.store.writeTranscriptMarkdown("Marlow: the audio sdk call")
 
         let runtime = RuntimeFixtures.makeRuntime(root: root)
         runtime.combine(meetingID: second.id, into: first.id, reason: "a test")
@@ -1507,7 +1507,7 @@ struct MeetingsWindowTests {
         defer { try? FileManager.default.removeItem(at: root) }
         let meeting = try RuntimeFixtures.makeMeeting(root: root, clusters: ["remote-001_speaker_00"])
         var map = SpeakerMap()
-        map.assign("Chris Vaughn", to: "remote-001_speaker_00", identityID: IdentityID(7))
+        map.assign("Bryn Halloway", to: "remote-001_speaker_00", identityID: IdentityID(7))
         try meeting.store.writeSpeakerMap(map)
         try Data(#"{"utterances": [{"speakerK"#.utf8)
             .write(to: meeting.store.layout.canonicalTranscript)
@@ -1515,7 +1515,7 @@ struct MeetingsWindowTests {
         let rows = await RuntimeFixtures.makeRuntime(root: root).meetingRows()
 
         #expect(rows.count == 1, "the meeting is still listed")
-        #expect(rows.first?.namedSpeakers.map(\.displayName) == ["Chris Vaughn"])
+        #expect(rows.first?.namedSpeakers.map(\.displayName) == ["Bryn Halloway"])
         #expect(rows.first?.unnamedCount == 0, "and nothing is invented to ask about")
     }
 
@@ -1539,12 +1539,12 @@ struct MeetingsWindowTests {
         #expect(model.detail?.title == "Design review", "the newest meeting is the one open")
 
         var map = SpeakerMap()
-        map.assign("Priya Raman", to: "remote-001_speaker_00")
+        map.assign("Nadia Quist", to: "remote-001_speaker_00")
         try earlier.store.writeSpeakerMap(map)
         await model.refresh(meetingID: earlier.id)
 
         #expect(
-            model.rows.first { $0.id == earlier.id }?.namedSpeakers.map(\.displayName) == ["Priya Raman"]
+            model.rows.first { $0.id == earlier.id }?.namedSpeakers.map(\.displayName) == ["Nadia Quist"]
         )
     }
 
@@ -1599,8 +1599,8 @@ struct MeetingsWindowTests {
         let second = try RuntimeFixtures.makeMeeting(
             root: root, clusters: ["local"], title: "Design review, rejoined"
         )
-        try first.store.writeTranscriptMarkdown("Andrew: the northwind renewal")
-        try second.store.writeTranscriptMarkdown("Andrew: the audio sdk call")
+        try first.store.writeTranscriptMarkdown("Marlow: the northwind renewal")
+        try second.store.writeTranscriptMarkdown("Marlow: the audio sdk call")
 
         let runtime = RuntimeFixtures.makeRuntime(root: root)
         runtime.combine(meetingID: second.id, into: first.id, reason: "a test")
@@ -1653,7 +1653,7 @@ struct MeetingsWindowTests {
             ]
         ))
         var map = SpeakerMap()
-        map.assign("Chris Vaughn", to: "remote-001_speaker_00", identityID: IdentityID(7))
+        map.assign("Bryn Halloway", to: "remote-001_speaker_00", identityID: IdentityID(7))
         try created.store.writeSpeakerMap(map)
 
         let runtime = RuntimeFixtures.makeRuntime(root: root)
@@ -1682,14 +1682,14 @@ struct MeetingsWindowTests {
         let root = try TestPaths.makeTemporaryDirectory()
         defer { try? FileManager.default.removeItem(at: root) }
         let first = try RuntimeFixtures.makeMeeting(root: root, clusters: ["local"])
-        try first.store.writeTranscriptMarkdown("Andrew: the northwind renewal")
+        try first.store.writeTranscriptMarkdown("Marlow: the northwind renewal")
 
         let model = MeetingsWindowModel(runtime: RuntimeFixtures.makeRuntime(root: root))
         await model.reload()
         await waitFor("the first transcript to be read") { model.searchesTranscripts }
 
         let second = try RuntimeFixtures.makeMeeting(root: root, clusters: ["local"], title: "Weekly sync")
-        try second.store.writeTranscriptMarkdown("Andrew: the audio sdk call")
+        try second.store.writeTranscriptMarkdown("Marlow: the audio sdk call")
         await model.reload()
         model.query = "audio sdk"
 
@@ -1773,7 +1773,7 @@ struct MeetingsWindowTests {
             Issue.record("the cluster is not in the speaker strip")
             return
         }
-        model.assignCluster(row, toNewPerson: "Priya Raman")
+        model.assignCluster(row, toNewPerson: "Nadia Quist")
 
         #expect(
             !model.indexHolds(first.id),
@@ -1800,7 +1800,7 @@ struct MeetingsWindowTests {
         guard let row = rows.first else { return }
         #expect(row.id == conversation)
         #expect(row.speakers.count == 2, "one voice from each half")
-        #expect(row.namedSpeakers.map(\.displayName) == ["Chris Vaughn"])
+        #expect(row.namedSpeakers.map(\.displayName) == ["Bryn Halloway"])
         #expect(row.unnamedCount == 1, "the far end after the rejoin")
         #expect(
             Set(row.speakers.map(\.key)).count == 2,
@@ -1827,7 +1827,7 @@ struct MeetingsWindowTests {
         )
         try meeting.store.writeSpeakerMap(sensorNamedMap(
             ["remote-001_speaker_00", "remote-001_speaker_01", "remote-001_speaker_02"],
-            as: "Chris Latimer", account: "U06"
+            as: "Bryn Callister", account: "U06"
         ))
 
         let model = MeetingsWindowModel(runtime: RuntimeFixtures.makeRuntime(root: root))
@@ -1839,7 +1839,7 @@ struct MeetingsWindowTests {
 
         #expect(model.detail?.speakerRows.count == 1, "one person, one chip")
         guard let row = model.detail?.speakerRows.first else { return }
-        #expect(row.displayName == "Chris Latimer")
+        #expect(row.displayName == "Bryn Callister")
         #expect(
             row.allClusterIDs == ["remote-001_speaker_00", "remote-001_speaker_01", "remote-001_speaker_02"]
         )
@@ -1863,7 +1863,7 @@ struct MeetingsWindowTests {
         )
         try meeting.store.writeSpeakerMap(sensorNamedMap(
             ["remote-001_speaker_00", "remote-001_speaker_01"],
-            as: "Chris Latimer", account: "U06"
+            as: "Bryn Callister", account: "U06"
         ))
 
         let model = MeetingsWindowModel(runtime: RuntimeFixtures.makeRuntime(root: root))
@@ -1877,12 +1877,12 @@ struct MeetingsWindowTests {
             return
         }
 
-        model.assignCluster(row, toNewPerson: "Priya Raman")
+        model.assignCluster(row, toNewPerson: "Nadia Quist")
 
         await waitFor("both clusters to take the new name") {
             let map = try? meeting.store.readSpeakerMap()
-            return map?.displayName(for: "remote-001_speaker_00") == "Priya Raman"
-                && map?.displayName(for: "remote-001_speaker_01") == "Priya Raman"
+            return map?.displayName(for: "remote-001_speaker_00") == "Nadia Quist"
+                && map?.displayName(for: "remote-001_speaker_01") == "Nadia Quist"
         }
         let map = try #require(try? meeting.store.readSpeakerMap())
         // One person, so one profile. Promoting each cluster's own anonymous
@@ -1894,7 +1894,7 @@ struct MeetingsWindowTests {
         )
         #expect(identities.count == 1, "both clusters name the same person")
         #expect(
-            model.receipt?.text == "Named Priya Raman on 2 lines. transcript.md and the speaker map are rewritten."
+            model.receipt?.text == "Named Nadia Quist on 2 lines. transcript.md and the speaker map are rewritten."
         )
     }
 
@@ -1929,7 +1929,7 @@ struct MeetingsWindowTests {
         ))
         try meeting.store.writeSpeakerMap(sensorNamedMap(
             ["remote-001_speaker_00", "remote-001_speaker_01"],
-            as: "Chris Latimer", account: "U06"
+            as: "Bryn Callister", account: "U06"
         ))
 
         let runtime = RuntimeFixtures.makeRuntime(root: root)
@@ -1942,7 +1942,7 @@ struct MeetingsWindowTests {
         // Naming the short cluster on its own is what puts a person behind it
         // and leaves the long one with the roster's name and no identifier.
         runtime.assignSpeaker(
-            name: "Chris Latimer", key: "remote-001_speaker_00", meetingID: meeting.id
+            name: "Bryn Callister", key: "remote-001_speaker_00", meetingID: meeting.id
         )
         await waitFor("the short cluster to gain a person") {
             (try? meeting.store.readSpeakerMap())?
@@ -2001,7 +2001,7 @@ struct MeetingsWindowTests {
         }
         #expect(after.isUnnamed, "and it is the one asking for a name")
 
-        model.assignCluster(after, toNewPerson: "Priya Raman")
+        model.assignCluster(after, toNewPerson: "Nadia Quist")
 
         guard let logical = repository.logicalMeeting(id: conversation),
               let continuation = logical.continuations.first
@@ -2011,11 +2011,11 @@ struct MeetingsWindowTests {
         }
         await waitFor("the name to reach the second half") {
             (try? continuation.store.readSpeakerMap())?
-                .displayName(for: "remote-001_speaker_00") == "Priya Raman"
+                .displayName(for: "remote-001_speaker_00") == "Nadia Quist"
         }
         #expect(
             (try? logical.primary.store.readSpeakerMap())?
-                .displayName(for: "remote-001_speaker_00") == "Chris Vaughn",
+                .displayName(for: "remote-001_speaker_00") == "Bryn Halloway",
             "and the voice heard before the drop keeps the name it already had"
         )
     }
@@ -2206,21 +2206,21 @@ struct MeetingsWindowTests {
         let meeting = try RuntimeFixtures.makeMeeting(root: root, clusters: ["remote-001_speaker_00"])
         let runtime = RuntimeFixtures.makeRuntime(root: root)
         let store = try #require(runtime.speakerStore)
-        let chris = try await store.createPerson(name: "Chris")
+        let bryn = try await store.createPerson(name: "Bryn")
         try await store.recordOccurrence(
             meetingID: meeting.id, clusterID: "remote-001_speaker_00", track: .remote,
             speechSeconds: 120, embedding: nil, model: nil, resolution: nil,
-            identityID: chris.id, source: .human,
+            identityID: bryn.id, source: .human,
             humanVerified: true, wasExpectedParticipant: false
         )
-        #expect(try await store.meetingCount(for: chris.id) == 1)
+        #expect(try await store.meetingCount(for: bryn.id) == 1)
 
         #expect(
             await runtime.trashMeetings([meeting.id])[meeting.id] == .trashed,
             "the folder went"
         )
 
-        #expect(try await store.meetingCount(for: chris.id) == 0)
+        #expect(try await store.meetingCount(for: bryn.id) == 0)
     }
 
     /// The archived flag lives in `metadata.json`, which the pipeline rewrites
@@ -2334,11 +2334,11 @@ struct MeetingsWindowTests {
 
         let runtime = RuntimeFixtures.makeRuntime(root: root)
         let store = try #require(runtime.speakerStore)
-        let chris = try await store.createPerson(name: "Chris")
+        let bryn = try await store.createPerson(name: "Bryn")
         try await store.recordOccurrence(
             meetingID: meetingID, clusterID: "remote-001_speaker_00", track: .remote,
             speechSeconds: 120, embedding: nil, model: nil, resolution: nil,
-            identityID: chris.id, source: .human,
+            identityID: bryn.id, source: .human,
             humanVerified: true, wasExpectedParticipant: false
         )
 
@@ -2350,7 +2350,7 @@ struct MeetingsWindowTests {
             "the recording the conversation started with is still there, so the row still is"
         )
         #expect(
-            try await store.meetingCount(for: chris.id) == 1,
+            try await store.meetingCount(for: bryn.id) == 1,
             "and a meeting still in the archive still counts for the people who spoke in it"
         )
     }

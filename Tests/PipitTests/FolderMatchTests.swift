@@ -15,7 +15,7 @@ struct FolderMatchTests {
         series: String? = nil,
         at minute: Int = 11 * 60 + 31,
         weekday: Int = 2,
-        people: [String] = ["Andrew", "Chris Latimer", "Nate"],
+        people: [String] = ["Marlow", "Bryn Callister", "Nate"],
         excluding: [String] = []
     ) -> MeetingFacts {
         MeetingFacts(
@@ -32,24 +32,24 @@ struct FolderMatchTests {
     ) -> FolderProfile {
         let members = (0..<13).map { index in
             facts(
-                "Hindsight Daily", series: series,
+                "Northwind Daily", series: series,
                 at: 11 * 60 + 28 + (index % 5), weekday: 2 + (index % 5)
             )
         }
         return FolderProfile(
-            name: "Hindsight Daily", about: "The weekday standup",
+            name: "Northwind Daily", about: "The weekday standup",
             filesAutomatically: filesAutomatically, members: members
         )
     }
 
     private static func client() -> FolderProfile {
         FolderProfile(
-            name: "Capital One", about: "Client work with Capital One",
+            name: "Fenwick Trust", about: "Client work with Fenwick Trust",
             members: [
-                facts("Hindsight <> Capital One", provider: .googleMeet, at: 14 * 60, weekday: 3,
-                      people: ["Andrew", "Chris Latimer", "Brian McNamara"]),
-                facts("Brian McNamara, Chris Latimer", provider: .googleMeet, at: 12 * 60 + 34,
-                      weekday: 6, people: ["Chris Latimer", "Brian McNamara"]),
+                facts("Northwind <> Fenwick Trust", provider: .googleMeet, at: 14 * 60, weekday: 3,
+                      people: ["Marlow", "Bryn Callister", "Rowan Ashby"]),
+                facts("Rowan Ashby, Bryn Callister", provider: .googleMeet, at: 12 * 60 + 34,
+                      weekday: 6, people: ["Bryn Callister", "Rowan Ashby"]),
             ]
         )
     }
@@ -57,9 +57,9 @@ struct FolderMatchTests {
     @Test("the same title on the same provider is the folder's next meeting")
     func theSameTitleOnTheSameProviderIsTheFolderSNextMeeting() async throws {
         let match = FolderMatcher.recurrence(
-            of: Self.facts("Hindsight Daily"), in: [Self.standup(), Self.client()]
+            of: Self.facts("Northwind Daily"), in: [Self.standup(), Self.client()]
         )
-        #expect(match?.folderName == "Hindsight Daily")
+        #expect(match?.folderName == "Northwind Daily")
         #expect(match?.reason == .title)
         #expect(match?.confidence == 0.95)
         #expect(match?.reason.mayFileWithoutAsking == true)
@@ -72,7 +72,7 @@ struct FolderMatchTests {
             of: Self.facts("Standup", provider: .googleMeet, series: "series-abc"),
             in: [folder, Self.client()]
         )
-        #expect(match?.folderName == "Hindsight Daily")
+        #expect(match?.folderName == "Northwind Daily")
         #expect(match?.reason == .calendarSeries)
         #expect(match?.confidence == 1.0)
     }
@@ -83,7 +83,7 @@ struct FolderMatchTests {
             of: Self.facts("Morning sync", at: 11 * 60 + 34, weekday: 3),
             in: [Self.standup(), Self.client()]
         )
-        #expect(match?.folderName == "Hindsight Daily")
+        #expect(match?.folderName == "Northwind Daily")
         #expect(match?.reason == .slot)
         #expect(match?.confidence == 0.8)
     }
@@ -105,7 +105,7 @@ struct FolderMatchTests {
     @Test("a title match far outside the folder's slot is offered, not filed")
     func aTitleMatchFarOutsideTheFolderSSlotIsOfferedNotFiled() async throws {
         let match = FolderMatcher.recurrence(
-            of: Self.facts("Hindsight Daily", at: 16 * 60 + 12, weekday: 7, people: ["Andrew", "Chris Latimer"]),
+            of: Self.facts("Northwind Daily", at: 16 * 60 + 12, weekday: 7, people: ["Marlow", "Bryn Callister"]),
             in: [Self.standup()]
         )
         #expect(match?.reason == .title)
@@ -115,11 +115,11 @@ struct FolderMatchTests {
 
     @Test("a folder with two members is not yet a series")
     func aFolderWithTwoMembersIsNotYetASeries() async throws {
-        // Capital One holds two meetings with different titles. Nothing
+        // Fenwick Trust holds two meetings with different titles. Nothing
         // about a third Google Meet makes it the next one.
         let match = FolderMatcher.recurrence(
             of: Self.facts("Quarterly planning", provider: .googleMeet, at: 9 * 60, weekday: 4,
-                      people: ["Andrew"]),
+                      people: ["Marlow"]),
             in: [Self.client()]
         )
         #expect(match == nil)
@@ -128,7 +128,7 @@ struct FolderMatchTests {
     @Test("a folder the meeting was taken out of is never offered again")
     func aFolderTheMeetingWasTakenOutOfIsNeverOfferedAgain() async throws {
         let match = FolderMatcher.recurrence(
-            of: Self.facts("Hindsight Daily", excluding: ["Hindsight Daily"]),
+            of: Self.facts("Northwind Daily", excluding: ["Northwind Daily"]),
             in: [Self.standup()]
         )
         #expect(match == nil)
@@ -138,14 +138,14 @@ struct FolderMatchTests {
     func aModelAnswerBecomesASuggestionThatMayNotFile() async throws {
         let match = FolderMatcher.fromModel(
             [ModelFolderCandidate(
-                folderName: "Capital One", confidence: 0.82,
+                folderName: "Fenwick Trust", confidence: 0.82,
                 why: "twelve minutes on their security review",
                 quote: "their security review is still open", atSeconds: 51.4
             )],
-            meeting: Self.facts("Ray Mauge and Chris Latimer + Brian McNamara"),
+            meeting: Self.facts("Tomas Kilbride and Bryn Callister + Rowan Ashby"),
             profiles: [Self.standup(), Self.client()], reach: .clearTopics
         )
-        #expect(match?.folderName == "Capital One")
+        #expect(match?.folderName == "Fenwick Trust")
         #expect(match?.reason == .model)
         #expect(match?.quote == "their security review is still open")
         #expect(match?.reason.mayFileWithoutAsking != true)
@@ -160,15 +160,15 @@ struct FolderMatchTests {
         let match = FolderMatcher.fromModel(
             [
                 ModelFolderCandidate(
-                    folderName: "Capital One", confidence: 0.84, why: "Chris is in it",
-                    quote: "Chris said", atSeconds: 4
+                    folderName: "Fenwick Trust", confidence: 0.84, why: "Bryn is in it",
+                    quote: "Bryn said", atSeconds: 4
                 ),
                 ModelFolderCandidate(
-                    folderName: "Hindsight Daily", confidence: 0.79, why: "Chris is in it too",
-                    quote: "Chris said", atSeconds: 4
+                    folderName: "Northwind Daily", confidence: 0.79, why: "Bryn is in it too",
+                    quote: "Bryn said", atSeconds: 4
                 ),
             ],
-            meeting: Self.facts("Chris Latimer"),
+            meeting: Self.facts("Bryn Callister"),
             profiles: [Self.standup(), Self.client()], reach: .clearTopics
         )
         #expect(match == nil)
@@ -177,26 +177,26 @@ struct FolderMatchTests {
     @Test("an answer under the reach floor is not shown")
     func anAnswerUnderTheReachFloorIsNotShown() async throws {
         let candidate = ModelFolderCandidate(
-            folderName: "Capital One", confidence: 0.62, why: "they came up once",
-            quote: "Capital One", atSeconds: 12
+            folderName: "Fenwick Trust", confidence: 0.62, why: "they came up once",
+            quote: "Fenwick Trust", atSeconds: 12
         )
         #expect(FolderMatcher.fromModel(
-            [candidate], meeting: Self.facts("Chris Latimer"),
+            [candidate], meeting: Self.facts("Bryn Callister"),
             profiles: [Self.client()], reach: .clearTopics
         ) == nil)
         #expect(FolderMatcher.fromModel(
-                [candidate], meeting: Self.facts("Chris Latimer"),
+                [candidate], meeting: Self.facts("Bryn Callister"),
                 profiles: [Self.client()], reach: .anyLikely
-            )?.folderName == "Capital One")
+            )?.folderName == "Fenwick Trust")
     }
 
     @Test("an answer with no quote behind it is dropped")
     func anAnswerWithNoQuoteBehindItIsDropped() async throws {
         #expect(FolderMatcher.fromModel(
             [ModelFolderCandidate(
-                folderName: "Capital One", confidence: 0.9, why: "it felt like them"
+                folderName: "Fenwick Trust", confidence: 0.9, why: "it felt like them"
             )],
-            meeting: Self.facts("Chris Latimer"),
+            meeting: Self.facts("Bryn Callister"),
             profiles: [Self.client()], reach: .clearTopics
         ) == nil)
     }
@@ -205,10 +205,10 @@ struct FolderMatchTests {
     func noModelAnswerIsTakenWhenTheReachIsRecurringMeetingsOnly() async throws {
         #expect(FolderMatcher.fromModel(
             [ModelFolderCandidate(
-                folderName: "Capital One", confidence: 0.99, why: "named throughout",
-                quote: "Capital One", atSeconds: 3
+                folderName: "Fenwick Trust", confidence: 0.99, why: "named throughout",
+                quote: "Fenwick Trust", atSeconds: 3
             )],
-            meeting: Self.facts("Chris Latimer"),
+            meeting: Self.facts("Bryn Callister"),
             profiles: [Self.client()], reach: .recurringOnly
         ) == nil)
     }

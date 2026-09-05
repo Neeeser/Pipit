@@ -27,10 +27,10 @@ struct SpeakerGroupingTests {
     @Test("clusters the meeting client named for one account are one person")
     func clustersTheMeetingClientNamedForOneAccountAreOnePerson() async throws {
         let groups = SpeakerGrouping.groups([
-            Self.member("remote-001_speaker_00", "Chris Latimer", participant: "U06"),
-            Self.member("remote-001_speaker_01", "Chris Latimer", participant: "U06"),
-            Self.member("remote-001_speaker_02", "Chris Latimer", participant: "U06"),
-            Self.member("sensor_U06", "Chris Latimer", participant: "U06"),
+            Self.member("remote-001_speaker_00", "Bryn Callister", participant: "U06"),
+            Self.member("remote-001_speaker_01", "Bryn Callister", participant: "U06"),
+            Self.member("remote-001_speaker_02", "Bryn Callister", participant: "U06"),
+            Self.member("sensor_U06", "Bryn Callister", participant: "U06"),
         ])
         #expect(Self.keys(groups) == [[
             "remote-001_speaker_00", "remote-001_speaker_01",
@@ -41,10 +41,10 @@ struct SpeakerGroupingTests {
     @Test("two accounts in one meeting stay two people")
     func twoAccountsInOneMeetingStayTwoPeople() async throws {
         let groups = SpeakerGrouping.groups([
-            Self.member("remote-001_speaker_00", "Brian McNamara", participant: "U0B"),
-            Self.member("remote-001_speaker_01", "Chris Latimer", participant: "U06"),
-            Self.member("remote-001_speaker_02", "Chris Latimer", participant: "U06"),
-            Self.member("remote-001_speaker_03", "Brian McNamara", participant: "U0B"),
+            Self.member("remote-001_speaker_00", "Rowan Ashby", participant: "U0B"),
+            Self.member("remote-001_speaker_01", "Bryn Callister", participant: "U06"),
+            Self.member("remote-001_speaker_02", "Bryn Callister", participant: "U06"),
+            Self.member("remote-001_speaker_03", "Rowan Ashby", participant: "U0B"),
         ])
         #expect(Self.keys(groups) == [
             ["remote-001_speaker_00", "remote-001_speaker_03"],
@@ -81,8 +81,8 @@ struct SpeakerGroupingTests {
     @Test("the same name with nothing else behind it is still one person")
     func theSameNameWithNothingElseBehindItIsStillOnePerson() async throws {
         let groups = SpeakerGrouping.groups([
-            Self.member("remote-001_speaker_00", "Chris Latimer"),
-            Self.member("remote-001_speaker_01", "chris latimer"),
+            Self.member("remote-001_speaker_00", "Bryn Callister"),
+            Self.member("remote-001_speaker_01", "bryn callister"),
         ])
         #expect(Self.keys(groups) == [["remote-001_speaker_00", "remote-001_speaker_01"]])
     }
@@ -101,7 +101,7 @@ struct SpeakerGroupingTests {
     @Test("an unnamed sensor key joins the account it names")
     func anUnnamedSensorKeyJoinsTheAccountItNames() async throws {
         let groups = SpeakerGrouping.groups([
-            Self.member("remote-001_speaker_00", "Chris Latimer", participant: "U06"),
+            Self.member("remote-001_speaker_00", "Bryn Callister", participant: "U06"),
             Self.member("sensor_U06"),
         ])
         #expect(Self.keys(groups) == [["remote-001_speaker_00", "sensor_U06"]])
@@ -110,8 +110,8 @@ struct SpeakerGroupingTests {
     @Test("the microphone track is left alone by an unrelated name")
     func theMicrophoneTrackIsLeftAloneByAnUnrelatedName() async throws {
         let groups = SpeakerGrouping.groups([
-            Self.member("local", "Andrew", identity: 1),
-            Self.member("remote-001_speaker_00", "Chris Latimer", participant: "U06"),
+            Self.member("local", "Marlow", identity: 1),
+            Self.member("remote-001_speaker_00", "Bryn Callister", participant: "U06"),
         ])
         #expect(Self.keys(groups) == [["local"], ["remote-001_speaker_00"]])
     }

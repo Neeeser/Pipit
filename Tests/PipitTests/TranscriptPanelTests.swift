@@ -123,9 +123,9 @@ struct TranscriptPanelTests {
                 return
             }
             #expect(block.lines.count == 8)
-            model.assignBlock(block, toNewPerson: "Dana")
+            model.assignBlock(block, toNewPerson: "Dara")
             #expect(
-                Set(model.combinedLines.map(\.speakerName)) == ["Dana"],
+                Set(model.combinedLines.map(\.speakerName)) == ["Dara"],
                 "every line of the turn, not only the first"
             )
             #expect(model.correctedLines.count == 8)

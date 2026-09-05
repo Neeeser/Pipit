@@ -98,19 +98,19 @@ struct StorageTests {
             now: now
         )
 
-        try created.store.writeNotes("Company X call with me, Chris and Tim.\n")
-        var map = SpeakerMap.withLocalUser(named: "Andrew")
-        map.assign("Chris", to: "chunk_001_speaker_00")
+        try created.store.writeNotes("Company X call with me, Bryn and Owen.\n")
+        var map = SpeakerMap.withLocalUser(named: "Marlow")
+        map.assign("Bryn", to: "chunk_001_speaker_00")
         try created.store.writeSpeakerMap(map)
 
         let reread = try created.store.readMetadata()
         #expect(reread.id == created.metadata.id)
         #expect(reread.source == .googleMeet)
         #expect(reread.processing.state == .recording)
-        #expect(created.store.readNotes() == "Company X call with me, Chris and Tim.\n")
+        #expect(created.store.readNotes() == "Company X call with me, Bryn and Owen.\n")
         let rereadMap = try created.store.readSpeakerMap()
-        #expect(rereadMap.resolvedName(for: "chunk_001_speaker_00") == "Chris")
-        #expect(rereadMap.resolvedName(for: "local") == "Andrew")
+        #expect(rereadMap.resolvedName(for: "chunk_001_speaker_00") == "Bryn")
+        #expect(rereadMap.resolvedName(for: "local") == "Marlow")
         #expect(rereadMap.resolvedName(for: "chunk_001_speaker_01") == "Speaker 2")
     }
 

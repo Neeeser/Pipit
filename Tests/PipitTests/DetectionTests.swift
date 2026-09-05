@@ -111,22 +111,22 @@ struct SlackHuddleDetectorTests {
 
     @Test("window titles yield conversation, kind and workspace")
     func windowTitlesYieldConversationKindAndWorkspace() async throws {
-        let dm = try #require(SlackWindowTitle.parse("Brian McNamara (DM) - Vectorize - Slack"))
-        #expect(dm.conversation == "Brian McNamara")
+        let dm = try #require(SlackWindowTitle.parse("Rowan Ashby (DM) - Larkfield - Slack"))
+        #expect(dm.conversation == "Rowan Ashby")
         #expect(dm.kind == .directMessage)
-        #expect(dm.workspace == "Vectorize")
+        #expect(dm.workspace == "Larkfield")
 
         let channel = try #require(
-            SlackWindowTitle.parse("vectorize-booking (Channel) - Hindsight - Slack")
+            SlackWindowTitle.parse("larkfield-booking (Channel) - Northwind - Slack")
         )
-        #expect(channel.conversation == "vectorize-booking")
+        #expect(channel.conversation == "larkfield-booking")
         #expect(channel.kind == .channel)
 
         let decorated = try #require(
-            SlackWindowTitle.parse("andrew.neeser595 (DM) - Hindsight - Slack [Main] 🏠🔊")
+            SlackWindowTitle.parse("marlow.fenn595 (DM) - Northwind - Slack [Main] 🏠🔊")
         )
-        #expect(decorated.conversation == "andrew.neeser595")
-        #expect(decorated.workspace == "Hindsight")
+        #expect(decorated.conversation == "marlow.fenn595")
+        #expect(decorated.workspace == "Northwind")
 
         let preview = try #require(SlackWindowTitle.parse("Slack - Huddle Preview"))
         #expect(preview.isHuddlePreview)
@@ -134,33 +134,33 @@ struct SlackHuddleDetectorTests {
 
     @Test("a title with no conversation in it names nothing")
     func aTitleWithNoConversationInItNamesNothing() async throws {
-        // Slack publishes "- Hindsight - Slack" while a conversation is
+        // Slack publishes "- Northwind - Slack" while a conversation is
         // loading. Read as a name it became the meeting's title, and a
-        // huddle was filed and announced as "- Hindsight".
+        // huddle was filed and announced as "- Northwind".
         #expect(
-            SlackWindowTitle.parse("- Hindsight - Slack") == nil,
+            SlackWindowTitle.parse("- Northwind - Slack") == nil,
             "a leading separator is not a conversation name"
         )
-        #expect(SlackWindowTitle.parse(" (DM) - Hindsight - Slack") == nil)
-        #expect(SlackWindowTitle.parse("Hindsight - Slack")?.conversation == "Hindsight")
+        #expect(SlackWindowTitle.parse(" (DM) - Northwind - Slack") == nil)
+        #expect(SlackWindowTitle.parse("Northwind - Slack")?.conversation == "Northwind")
 
         // And the last real name survives the moment the title is empty.
         var detector = SlackHuddleDetector()
         _ = detector.update(
             observation: SlackAccessibilityObservation(
                 hasLeaveHuddleControl: true, subtreeWasEmpty: false, isMuted: false,
-                windowTitle: "andrew.neeser595 (DM) - Hindsight - Slack"
+                windowTitle: "marlow.fenn595 (DM) - Northwind - Slack"
             ),
             helperHoldsMicrophone: true, helperProducingOutput: false, at: 100
         )
         _ = detector.update(
             observation: SlackAccessibilityObservation(
                 hasLeaveHuddleControl: true, subtreeWasEmpty: false, isMuted: false,
-                windowTitle: "- Hindsight - Slack"
+                windowTitle: "- Northwind - Slack"
             ),
             helperHoldsMicrophone: true, helperProducingOutput: false, at: 101
         )
-        #expect(detector.conversationTitle == "andrew.neeser595")
+        #expect(detector.conversationTitle == "marlow.fenn595")
     }
 }
 
@@ -258,7 +258,7 @@ struct BrowserMeetingDetectorTests {
         // Measured ordering: title at 16:41:26, microphone at 16:41:31.
         let titleOnly = BrowserMeetingDetector.NativeSignals(
             browserHoldsMicrophone: false, browserProducesOutput: false,
-            windowTitles: ["Andrew Neeser's Zoom Meeting"]
+            windowTitles: ["Marlow Fenn's Zoom Meeting"]
         )
         let first = detector.update(native: titleOnly, at: now)
         #expect(first.provider == .zoom)
@@ -267,13 +267,13 @@ struct BrowserMeetingDetectorTests {
         now += 5.3
         let withMic = BrowserMeetingDetector.NativeSignals(
             browserHoldsMicrophone: true, browserProducesOutput: true,
-            windowTitles: ["Andrew Neeser's Zoom Meeting"]
+            windowTitles: ["Marlow Fenn's Zoom Meeting"]
         )
         #expect(detector.update(native: withMic, at: now).confidence == .candidate)
         now += 21
         let confirmed = detector.update(native: withMic, at: now)
         #expect(confirmed.confidence == .confirmed)
-        #expect(confirmed.title == "Andrew Neeser's Zoom Meeting")
+        #expect(confirmed.title == "Marlow Fenn's Zoom Meeting")
     }
 
     @Test("a stale sensor falls back to native without losing the meeting")
@@ -330,7 +330,7 @@ struct BrowserMeetingDetectorTests {
 
     @Test("a provider's own tab title decoration comes off the meeting name")
     func aProviderSOwnTabTitleDecorationComesOffTheMeetingName() async throws {
-        #expect(BrowserWindowTitle.meetingName("Meet - Hindsight Daily") == "Hindsight Daily")
+        #expect(BrowserWindowTitle.meetingName("Meet - Northwind Daily") == "Northwind Daily")
         #expect(
             BrowserWindowTitle.meetingName("Meet - abc-defg-hij") == nil,
             "a meeting code is not a name"
@@ -356,14 +356,14 @@ struct BrowserMeetingDetectorTests {
             BrowserMeetingEvent(
                 browser: .firefox, provider: .googleMeet, state: .inCall,
                 timestamp: now, meetingID: "abc-defg-hij",
-                title: "Meet - Hindsight Daily"
+                title: "Meet - Northwind Daily"
             ),
             at: now
         )
         let native = BrowserMeetingDetector.NativeSignals(
             browserHoldsMicrophone: true, browserProducesOutput: true, windowTitles: []
         )
-        #expect(detector.update(native: native, at: now).title == "Hindsight Daily")
+        #expect(detector.update(native: native, at: now).title == "Northwind Daily")
     }
 
     @Test("meeting identifiers come out of provider URLs")

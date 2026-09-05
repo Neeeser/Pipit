@@ -41,7 +41,7 @@ public struct SummaryDocument: Sendable, Equatable {
         // belongs to the summary in full, and guessing otherwise would move
         // half of it to a tab the reader has no reason to open.
         // The heading has to end there. A legacy summary opening with the words
-        // in a sentence, "## Notes were taken by Chris", is a summary.
+        // in a sentence, "## Notes were taken by Bryn", is a summary.
         let afterNotesHeading = text.dropFirst(Self.notesHeading.count)
         if text.hasPrefix(Self.notesHeading),
            afterNotesHeading.isEmpty || afterNotesHeading.first?.isNewline == true {

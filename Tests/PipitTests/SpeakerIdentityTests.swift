@@ -267,9 +267,9 @@ struct SpeakerStoreTests {
         let (store, root) = try SpeakerFixtures.makeStore()
         defer { try? FileManager.default.removeItem(at: root) }
 
-        let chris = try await store.createPerson(name: "Chris", organization: "Acme")
+        let bryn = try await store.createPerson(name: "Bryn", organization: "Acme")
         let result = try await store.enrol(VoiceEnrollmentCandidate(
-            identityID: chris.id, vector: SpeakerFixtures.vector(seed: 3), model: .fluidAudioOffline,
+            identityID: bryn.id, vector: SpeakerFixtures.vector(seed: 3), model: .fluidAudioOffline,
             speechSeconds: 90, qualityScore: 1, source: .humanConfirmedCluster,
             evidence: VoiceEvidenceFixture.evidence(meeting: "m1", cluster: "c1", seconds: 90, source: .humanConfirmedCluster)
         ))
@@ -279,7 +279,7 @@ struct SpeakerStoreTests {
         }
         let profiles = try await store.searchableProfiles(model: .fluidAudioOffline)
         #expect(profiles.count == 1)
-        #expect(profiles.first?.identity.resolvedName == "Chris")
+        #expect(profiles.first?.identity.resolvedName == "Bryn")
         #expect(profiles.first?.identity.organization == "Acme")
         #expect(profiles.first?.centroid.count == 256)
         #expect(profiles.first?.sampleCount == 1)
@@ -289,9 +289,9 @@ struct SpeakerStoreTests {
     func aProfileIsNeverComparedAcrossEmbeddingModels() async throws {
         let (store, root) = try SpeakerFixtures.makeStore()
         defer { try? FileManager.default.removeItem(at: root) }
-        let chris = try await store.createPerson(name: "Chris")
+        let bryn = try await store.createPerson(name: "Bryn")
         _ = try await store.enrol(VoiceEnrollmentCandidate(
-            identityID: chris.id, vector: SpeakerFixtures.vector(seed: 3), model: .fluidAudioOffline,
+            identityID: bryn.id, vector: SpeakerFixtures.vector(seed: 3), model: .fluidAudioOffline,
             speechSeconds: 90, qualityScore: 1, source: .humanConfirmedCluster,
             evidence: VoiceEvidenceFixture.evidence(meeting: "m1", seconds: 90, source: .humanConfirmedCluster)
         ))
@@ -307,16 +307,16 @@ struct SpeakerStoreTests {
         let (store, root) = try SpeakerFixtures.makeStore()
         defer { try? FileManager.default.removeItem(at: root) }
         let service = SpeakerRecognitionService(store: store)
-        let chris = try await store.createPerson(name: "Chris")
+        let bryn = try await store.createPerson(name: "Bryn")
         _ = try await store.enrol(VoiceEnrollmentCandidate(
-            identityID: chris.id, vector: SpeakerFixtures.vector(seed: 5), model: .fluidAudioOffline,
+            identityID: bryn.id, vector: SpeakerFixtures.vector(seed: 5), model: .fluidAudioOffline,
             speechSeconds: 120, qualityScore: 1, source: .humanConfirmedCluster,
             evidence: VoiceEvidenceFixture.evidence(meeting: "m1", seconds: 120, source: .humanConfirmedCluster)
         ))
         // A gallery of one has no runner-up and so no measurable
         // separation, which the policy answers with a suggestion. Two
         // voices is what a real gallery looks like.
-        let other = try await store.createPerson(name: "Priya")
+        let other = try await store.createPerson(name: "Nadia")
         _ = try await store.enrol(VoiceEnrollmentCandidate(
             identityID: other.id, vector: SpeakerFixtures.vector(seed: 200), model: .fluidAudioOffline,
             speechSeconds: 120, qualityScore: 1, source: .humanConfirmedCluster,
@@ -324,7 +324,7 @@ struct SpeakerStoreTests {
                 meeting: "m0", seconds: 120, source: .humanConfirmedCluster
             )
         ))
-        let before = try await store.profileStatus(of: chris.id, model: .fluidAudioOffline)
+        let before = try await store.profileStatus(of: bryn.id, model: .fluidAudioOffline)
 
         // The same voice again, matched at the highest confidence.
         let resolved = try await service.resolve(
@@ -340,10 +340,10 @@ struct SpeakerStoreTests {
             settings: SpeakerRecognitionSettings(),
             now: Date()
         )
-        #expect(resolved.first?.identity?.id == chris.id, "the match itself should work")
+        #expect(resolved.first?.identity?.id == bryn.id, "the match itself should work")
         #expect(resolved.first?.source == .voiceProfile)
 
-        let after = try await store.profileStatus(of: chris.id, model: .fluidAudioOffline)
+        let after = try await store.profileStatus(of: bryn.id, model: .fluidAudioOffline)
         #expect(
             after.sampleCount == before.sampleCount,
             "a High automatic match must never add a vector"
@@ -354,9 +354,9 @@ struct SpeakerStoreTests {
     func aNamedProfileRefusesAVectorNobodyStoodBehind() async throws {
         let (store, root) = try SpeakerFixtures.makeStore()
         defer { try? FileManager.default.removeItem(at: root) }
-        let chris = try await store.createPerson(name: "Chris")
+        let bryn = try await store.createPerson(name: "Bryn")
         let result = try await store.enrol(VoiceEnrollmentCandidate(
-            identityID: chris.id, vector: SpeakerFixtures.vector(seed: 6), model: .fluidAudioOffline,
+            identityID: bryn.id, vector: SpeakerFixtures.vector(seed: 6), model: .fluidAudioOffline,
             speechSeconds: 300, qualityScore: 1, source: .anonymousSeed,
             evidence: VoiceEvidenceFixture.evidence(meeting: "m1", seconds: 300, source: .anonymousSeed)
         ))
@@ -365,7 +365,7 @@ struct SpeakerStoreTests {
             return
         }
         #expect(
-            try await store.profileStatus(of: chris.id, model: .fluidAudioOffline).sampleCount == 0
+            try await store.profileStatus(of: bryn.id, model: .fluidAudioOffline).sampleCount == 0
         )
     }
 
@@ -373,9 +373,9 @@ struct SpeakerStoreTests {
     func aCorrectionWithTooLittleAudioBehindItIsRefused() async throws {
         let (store, root) = try SpeakerFixtures.makeStore()
         defer { try? FileManager.default.removeItem(at: root) }
-        let chris = try await store.createPerson(name: "Chris")
+        let bryn = try await store.createPerson(name: "Bryn")
         let result = try await store.enrol(VoiceEnrollmentCandidate(
-            identityID: chris.id, vector: SpeakerFixtures.vector(seed: 7), model: .fluidAudioOffline,
+            identityID: bryn.id, vector: SpeakerFixtures.vector(seed: 7), model: .fluidAudioOffline,
             speechSeconds: 12, qualityScore: 1, source: .humanConfirmedCluster,
             evidence: VoiceEvidenceFixture.evidence(meeting: "m1", seconds: 12, source: .humanConfirmedCluster)
         ))
@@ -390,45 +390,45 @@ struct SpeakerStoreTests {
     func correctingMoreLinesInOneMeetingRefinesItAndEnrolsOnce() async throws {
         let (store, root) = try SpeakerFixtures.makeStore()
         defer { try? FileManager.default.removeItem(at: root) }
-        let chris = try await store.createPerson(name: "Chris")
+        let bryn = try await store.createPerson(name: "Bryn")
 
         // Each round re-embeds the whole confirmed set, so a later round
         // supersedes the earlier one rather than counting it again.
         for seconds in [15.0, 30.0] {
             try await store.addPendingEnrollment(VoiceEnrollmentCandidate(
-                identityID: chris.id, vector: SpeakerFixtures.vector(seed: 8), model: .fluidAudioOffline,
+                identityID: bryn.id, vector: SpeakerFixtures.vector(seed: 8), model: .fluidAudioOffline,
                 speechSeconds: seconds, qualityScore: 1,
                 source: .humanConfirmedUtterances,
             evidence: VoiceEvidenceFixture.evidence(meeting: "m1", seconds: seconds, source: .humanConfirmedUtterances)
         ))
         }
-        let pending = try await store.pendingSpeechSeconds(for: chris.id, model: .fluidAudioOffline)
+        let pending = try await store.pendingSpeechSeconds(for: bryn.id, model: .fluidAudioOffline)
         #expect(
             abs(pending - 30) <= 0.001,
             "expected \(30) ± \(0.001), got \(pending) — the second round replaces the first, it does not add to it"
         )
         #expect(
-            !(try await store.flushPendingEnrollment(for: chris.id, model: .fluidAudioOffline)),
+            !(try await store.flushPendingEnrollment(for: bryn.id, model: .fluidAudioOffline)),
             "30 seconds is not enough"
         )
 
         try await store.addPendingEnrollment(VoiceEnrollmentCandidate(
-            identityID: chris.id, vector: SpeakerFixtures.vector(seed: 8), model: .fluidAudioOffline,
+            identityID: bryn.id, vector: SpeakerFixtures.vector(seed: 8), model: .fluidAudioOffline,
             speechSeconds: 50, qualityScore: 1,
             source: .humanConfirmedUtterances,
             evidence: VoiceEvidenceFixture.evidence(meeting: "m1", seconds: 50, source: .humanConfirmedUtterances)
         ))
         #expect(
-            try await store.flushPendingEnrollment(for: chris.id, model: .fluidAudioOffline),
+            try await store.flushPendingEnrollment(for: bryn.id, model: .fluidAudioOffline),
             "50 seconds clears it"
         )
         #expect(
-            try await store.profileStatus(of: chris.id, model: .fluidAudioOffline).sampleCount == 1,
+            try await store.profileStatus(of: bryn.id, model: .fluidAudioOffline).sampleCount == 1,
             "one embedding for the meeting, not one per round"
         )
         #expect(
             try await store.hasEnrolment(
-                identityID: chris.id, meetingID: "m1",
+                identityID: bryn.id, meetingID: "m1",
                 source: .humanConfirmedUtterances, model: .fluidAudioOffline
             ),
             "and the meeting it came from is recorded, so it is not redone"
@@ -614,8 +614,8 @@ struct SpeakerStoreTests {
     func enrollingAMergedIdentityReachesThePersonItReadsAs() async throws {
         let (store, root) = try SpeakerFixtures.makeStore()
         defer { try? FileManager.default.removeItem(at: root) }
-        let duplicate = try await store.createPerson(name: "Andrew")
-        let survivor = try await store.createPerson(name: "Andrew Neeser")
+        let duplicate = try await store.createPerson(name: "Marlow")
+        let survivor = try await store.createPerson(name: "Marlow Fenn")
         try await store.merge(duplicate.id, into: survivor.id)
 
         // A caller holding the old identifier, which is what a stored
@@ -641,29 +641,29 @@ struct SpeakerStoreTests {
     func twoMeetingsBelowTheBarAreNotMergedIntoOneVector() async throws {
         let (store, root) = try SpeakerFixtures.makeStore()
         defer { try? FileManager.default.removeItem(at: root) }
-        let chris = try await store.createPerson(name: "Chris")
+        let bryn = try await store.createPerson(name: "Bryn")
         for meeting in ["m1", "m2"] {
             try await store.addPendingEnrollment(VoiceEnrollmentCandidate(
-                identityID: chris.id, vector: SpeakerFixtures.vector(seed: 8), model: .fluidAudioOffline,
+                identityID: bryn.id, vector: SpeakerFixtures.vector(seed: 8), model: .fluidAudioOffline,
                 speechSeconds: 30, qualityScore: 1,
                 source: .humanConfirmedUtterances,
             evidence: VoiceEvidenceFixture.evidence(meeting: meeting, seconds: 30, source: .humanConfirmedUtterances)
         ))
         }
         #expect(
-            !(try await store.flushPendingEnrollment(for: chris.id, model: .fluidAudioOffline)),
+            !(try await store.flushPendingEnrollment(for: bryn.id, model: .fluidAudioOffline)),
             "60 seconds across two sessions is not 60 seconds of one"
         )
         // Neither meeting is marked, so both keep accumulating.
         for meeting in ["m1", "m2"] {
             #expect(
                 !(try await store.hasEnrolment(
-                    identityID: chris.id, meetingID: meeting,
+                    identityID: bryn.id, meetingID: meeting,
                     source: .humanConfirmedUtterances, model: .fluidAudioOffline
                 ))
             )
         }
-        let pending = try await store.pendingSpeechSeconds(for: chris.id, model: .fluidAudioOffline)
+        let pending = try await store.pendingSpeechSeconds(for: bryn.id, model: .fluidAudioOffline)
         #expect(abs(pending - 60) <= 0.001, "expected \(60) ± \(0.001), got \(pending)")
     }
 
@@ -672,7 +672,7 @@ struct SpeakerStoreTests {
         let (store, root) = try SpeakerFixtures.makeStore()
         defer { try? FileManager.default.removeItem(at: root) }
         let service = SpeakerRecognitionService(store: store)
-        let me = try await store.createPerson(name: "Andrew", isLocalUser: true)
+        let me = try await store.createPerson(name: "Marlow", isLocalUser: true)
         // The far end, on its own track, which is what makes "the
         // microphone track is the local user" mean anything.
         try await store.recordOccurrence(
@@ -701,7 +701,7 @@ struct SpeakerStoreTests {
         let (store, root) = try SpeakerFixtures.makeStore()
         defer { try? FileManager.default.removeItem(at: root) }
         let service = SpeakerRecognitionService(store: store)
-        let me = try await store.createPerson(name: "Andrew", isLocalUser: true)
+        let me = try await store.createPerson(name: "Marlow", isLocalUser: true)
         let declined = try await service.learnLocalUserVoice(
             meetingID: "m1", identityID: me.id, vector: SpeakerFixtures.vector(seed: 11),
             speechSeconds: 240, quality: 1,
@@ -716,7 +716,7 @@ struct SpeakerStoreTests {
         let (store, root) = try SpeakerFixtures.makeStore()
         defer { try? FileManager.default.removeItem(at: root) }
         let service = SpeakerRecognitionService(store: store)
-        let me = try await store.createPerson(name: "Andrew", isLocalUser: true)
+        let me = try await store.createPerson(name: "Marlow", isLocalUser: true)
 
         // The far end, already diarized on the remote track.
         let presenter = SpeakerFixtures.vector(seed: 77)
@@ -767,12 +767,12 @@ struct SpeakerStoreTests {
         )
 
         let promoted = try await store.promoteToPerson(
-            voice.id, name: "Samantha", organization: "Acme"
+            voice.id, name: "Talia", organization: "Acme"
         )
         let named = try #require(promoted)
         #expect(named.id == voice.id, "promotion must not change the identifier")
         #expect(named.kind == .person)
-        #expect(named.resolvedName == "Samantha")
+        #expect(named.resolvedName == "Talia")
         #expect(
             try await store.occurrences(identityID: voice.id).count == 1,
             "every historical occurrence still points at the same identity"
@@ -827,24 +827,24 @@ struct SpeakerStoreTests {
     func forgettingAVoiceRemovesTheBiometricAndKeepsThePerson() async throws {
         let (store, root) = try SpeakerFixtures.makeStore()
         defer { try? FileManager.default.removeItem(at: root) }
-        let chris = try await store.createPerson(name: "Chris")
+        let bryn = try await store.createPerson(name: "Bryn")
         _ = try await store.enrol(VoiceEnrollmentCandidate(
-            identityID: chris.id, vector: SpeakerFixtures.vector(seed: 14), model: .fluidAudioOffline,
+            identityID: bryn.id, vector: SpeakerFixtures.vector(seed: 14), model: .fluidAudioOffline,
             speechSeconds: 120, qualityScore: 1, source: .humanConfirmedCluster,
             evidence: VoiceEvidenceFixture.evidence(meeting: "m1", cluster: "c1", seconds: 120, source: .humanConfirmedCluster)
         ))
         try await store.recordOccurrence(
             meetingID: "m1", clusterID: "c1", track: .remote, speechSeconds: 120,
             embedding: SpeakerFixtures.vector(seed: 14), model: .fluidAudioOffline, resolution: nil,
-            identityID: chris.id, source: .human, humanVerified: true,
+            identityID: bryn.id, source: .human, humanVerified: true,
             wasExpectedParticipant: false
         )
 
-        try await store.forgetVoice(of: chris.id)
+        try await store.forgetVoice(of: bryn.id)
         #expect(try await store.searchableProfiles(model: .fluidAudioOffline).isEmpty)
-        #expect(try await store.current(chris.id)?.resolvedName == "Chris")
+        #expect(try await store.current(bryn.id)?.resolvedName == "Bryn")
         #expect(
-            try await store.occurrences(meetingID: "m1").first?.resolvedIdentityID == chris.id,
+            try await store.occurrences(meetingID: "m1").first?.resolvedIdentityID == bryn.id,
             "past transcripts keep the name"
         )
     }
@@ -853,14 +853,14 @@ struct SpeakerStoreTests {
     func deletingAPersonTakesEveryVectorWithThem() async throws {
         let (store, root) = try SpeakerFixtures.makeStore()
         defer { try? FileManager.default.removeItem(at: root) }
-        let chris = try await store.createPerson(name: "Chris")
+        let bryn = try await store.createPerson(name: "Bryn")
         _ = try await store.enrol(VoiceEnrollmentCandidate(
-            identityID: chris.id, vector: SpeakerFixtures.vector(seed: 15), model: .fluidAudioOffline,
+            identityID: bryn.id, vector: SpeakerFixtures.vector(seed: 15), model: .fluidAudioOffline,
             speechSeconds: 120, qualityScore: 1, source: .humanConfirmedCluster,
             evidence: VoiceEvidenceFixture.evidence(meeting: "m1", seconds: 120, source: .humanConfirmedCluster)
         ))
-        try await store.delete(chris.id)
-        #expect((try await store.current(chris.id)) == nil)
+        try await store.delete(bryn.id)
+        #expect((try await store.current(bryn.id)) == nil)
         #expect(try await store.searchableProfiles(model: .fluidAudioOffline).isEmpty)
         let statistics = try await store.statistics()
         #expect(statistics.embeddings == 0, "ON DELETE CASCADE carried the vectors away")
@@ -870,17 +870,17 @@ struct SpeakerStoreTests {
     func retainedEmbeddingsAreCappedSoTheStoreCannotGrowWithoutBound() async throws {
         let (store, root) = try SpeakerFixtures.makeStore()
         defer { try? FileManager.default.removeItem(at: root) }
-        let chris = try await store.createPerson(name: "Chris")
+        let bryn = try await store.createPerson(name: "Bryn")
         for index in 0..<30 {
             _ = try await store.enrol(VoiceEnrollmentCandidate(
-                identityID: chris.id, vector: SpeakerFixtures.vector(seed: 200 + index),
+                identityID: bryn.id, vector: SpeakerFixtures.vector(seed: 200 + index),
                 model: .fluidAudioOffline, speechSeconds: 60, qualityScore: 1,
                 source: .humanConfirmedCluster,
             evidence: VoiceEvidenceFixture.evidence(meeting: "m\(index)", seconds: 60, source: .humanConfirmedCluster)
         ))
         }
         #expect(
-            try await store.profileStatus(of: chris.id, model: .fluidAudioOffline).sampleCount == policy.maximumEmbeddingsPerIdentity
+            try await store.profileStatus(of: bryn.id, model: .fluidAudioOffline).sampleCount == policy.maximumEmbeddingsPerIdentity
         )
     }
 
@@ -931,12 +931,12 @@ struct SpeakerStoreTests {
     func anAutomaticPassNeverOverwritesASpeakerAPersonConfirmed() async throws {
         let (store, root) = try SpeakerFixtures.makeStore()
         defer { try? FileManager.default.removeItem(at: root) }
-        let chris = try await store.createPerson(name: "Chris")
+        let bryn = try await store.createPerson(name: "Bryn")
 
         try await store.recordOccurrence(
             meetingID: "m1", clusterID: "run-001_speaker_02", track: .remote,
             speechSeconds: 120, embedding: SpeakerFixtures.vector(seed: 63), model: .fluidAudioOffline,
-            resolution: nil, identityID: chris.id, source: .human,
+            resolution: nil, identityID: bryn.id, source: .human,
             humanVerified: true, wasExpectedParticipant: false
         )
         // The same cluster re-resolved automatically, concluding nothing.
@@ -949,12 +949,12 @@ struct SpeakerStoreTests {
 
         let occurrence = try #require(try await store.occurrences(meetingID: "m1").first)
         #expect(
-            occurrence.resolvedIdentityID == chris.id,
+            occurrence.resolvedIdentityID == bryn.id,
             "a later automatic pass must not clear a person's answer"
         )
         #expect(occurrence.source == .human)
         #expect(occurrence.humanVerified)
-        #expect(try await store.meetingCount(for: chris.id) == 1)
+        #expect(try await store.meetingCount(for: bryn.id) == 1)
     }
 
     @Test("deleting a person takes the whole merged family's vectors")
@@ -967,16 +967,16 @@ struct SpeakerStoreTests {
             speechSeconds: 90, qualityScore: 1, source: .anonymousSeed,
             evidence: VoiceEvidenceFixture.evidence(meeting: "m1", seconds: 90, source: .anonymousSeed)
         ))
-        let chris = try await store.createPerson(name: "Chris")
+        let bryn = try await store.createPerson(name: "Bryn")
         _ = try await store.enrol(VoiceEnrollmentCandidate(
-            identityID: chris.id, vector: SpeakerFixtures.vector(seed: 64), model: .fluidAudioOffline,
+            identityID: bryn.id, vector: SpeakerFixtures.vector(seed: 64), model: .fluidAudioOffline,
             speechSeconds: 90, qualityScore: 1, source: .humanConfirmedCluster,
             evidence: VoiceEvidenceFixture.evidence(meeting: "m2", seconds: 90, source: .humanConfirmedCluster)
         ))
-        try await store.merge(voice.id, into: chris.id)
+        try await store.merge(voice.id, into: bryn.id)
 
-        try await store.delete(chris.id)
-        #expect((try await store.current(chris.id)) == nil)
+        try await store.delete(bryn.id)
+        #expect((try await store.current(bryn.id)) == nil)
         #expect(
             (try await store.current(voice.id)) == nil,
             "the merged identity holds the same person's voice and goes with them"
@@ -1029,25 +1029,25 @@ struct SpeakerStoreTests {
             speechSeconds: 90, qualityScore: 1, source: .anonymousSeed,
             evidence: VoiceEvidenceFixture.evidence(meeting: "m1", seconds: 90, source: .anonymousSeed)
         ))
-        let chris = try await store.createPerson(name: "Chris")
-        try await store.merge(voice.id, into: chris.id)
+        let bryn = try await store.createPerson(name: "Bryn")
+        try await store.merge(voice.id, into: bryn.id)
 
-        try await store.forgetVoice(of: chris.id)
+        try await store.forgetVoice(of: bryn.id)
         try await store.unmerge(voice.id)
         #expect(
             try await store.searchableProfiles(model: .fluidAudioOffline).isEmpty,
             "separating a merge must not resurrect a forgotten voice"
         )
-        #expect(try await store.current(chris.id)?.resolvedName == "Chris")
+        #expect(try await store.current(bryn.id)?.resolvedName == "Bryn")
     }
 
     @Test("merging an unnamed voice into a person keeps the profile human-verified")
     func mergingAnUnnamedVoiceIntoAPersonKeepsTheProfileHumanVerified() async throws {
         let (store, root) = try SpeakerFixtures.makeStore()
         defer { try? FileManager.default.removeItem(at: root) }
-        let chris = try await store.createPerson(name: "Chris")
+        let bryn = try await store.createPerson(name: "Bryn")
         _ = try await store.enrol(VoiceEnrollmentCandidate(
-            identityID: chris.id, vector: SpeakerFixtures.vector(seed: 66), model: .fluidAudioOffline,
+            identityID: bryn.id, vector: SpeakerFixtures.vector(seed: 66), model: .fluidAudioOffline,
             speechSeconds: 90, qualityScore: 1, source: .humanConfirmedCluster,
             evidence: VoiceEvidenceFixture.evidence(meeting: "m1", seconds: 90, source: .humanConfirmedCluster)
         ))
@@ -1058,15 +1058,15 @@ struct SpeakerStoreTests {
             evidence: VoiceEvidenceFixture.evidence(meeting: "m2", seconds: 90, source: .anonymousSeed)
         ))
 
-        try await store.merge(voice.id, into: chris.id)
+        try await store.merge(voice.id, into: bryn.id)
         #expect(
-            try await store.profileStatus(of: chris.id, model: .fluidAudioOffline).sampleCount == 1,
+            try await store.profileStatus(of: bryn.id, model: .fluidAudioOffline).sampleCount == 1,
             "a provisional seed must not reach a named centroid through a merge"
         )
-        let profile = try #require(try await store.searchableProfiles(model: .fluidAudioOffline).first { $0.identity.id == chris.id })
+        let profile = try #require(try await store.searchableProfiles(model: .fluidAudioOffline).first { $0.identity.id == bryn.id })
         #expect(
             VoiceVector.cosine(profile.centroid, SpeakerFixtures.vector(seed: 66)) > 0.99,
-            "Chris is still scored against his own confirmed voice alone"
+            "Bryn is still scored against his own confirmed voice alone"
         )
     }
 }
@@ -1417,7 +1417,7 @@ struct SpeakerRecognitionTests {
         let (store, root) = try SpeakerFixtures.makeStore()
         defer { try? FileManager.default.removeItem(at: root) }
         let service = SpeakerRecognitionService(store: store)
-        let chris = try await store.createPerson(name: "Chris")
+        let bryn = try await store.createPerson(name: "Bryn")
         let status = try await service.confirmCluster(
             meetingID: "m1",
             cluster: SpeakerClusterInput(
@@ -1428,7 +1428,7 @@ struct SpeakerRecognitionTests {
                     end: VoiceEvidenceFixture.lane("run-001_speaker_01") + 95
                 )]
             ),
-            identityID: chris.id,
+            identityID: bryn.id,
             settings: SpeakerRecognitionSettings()
         )
         #expect(status.sampleCount == 1)
@@ -1442,30 +1442,30 @@ struct SpeakerRecognitionTests {
     func oneMeetingContributesOneEnrolmentHoweverManyLinesAreCorrecte() async throws {
         let (store, root) = try SpeakerFixtures.makeStore()
         defer { try? FileManager.default.removeItem(at: root) }
-        let chris = try await store.createPerson(name: "Chris")
+        let bryn = try await store.createPerson(name: "Bryn")
         let model = EmbeddingModelIdentifier.fluidAudioOffline
         #expect(
             !(try await store.hasEnrolment(
-                identityID: chris.id, meetingID: "m1",
+                identityID: bryn.id, meetingID: "m1",
                 source: .humanConfirmedUtterances, model: model
             ))
         )
 
         _ = try await store.enrol(VoiceEnrollmentCandidate(
-            identityID: chris.id, vector: SpeakerFixtures.vector(seed: 72), model: model,
+            identityID: bryn.id, vector: SpeakerFixtures.vector(seed: 72), model: model,
             speechSeconds: 60, qualityScore: 0.5,
             source: .humanConfirmedUtterances,
             evidence: VoiceEvidenceFixture.evidence(meeting: "m1", seconds: 60, source: .humanConfirmedUtterances)
         ))
         #expect(
             try await store.hasEnrolment(
-                identityID: chris.id, meetingID: "m1",
+                identityID: bryn.id, meetingID: "m1",
                 source: .humanConfirmedUtterances, model: model
             )
         )
         #expect(
             !(try await store.hasEnrolment(
-                identityID: chris.id, meetingID: "m2",
+                identityID: bryn.id, meetingID: "m2",
                 source: .humanConfirmedUtterances, model: model
             )),
             "a different meeting is still fresh material"
@@ -1477,7 +1477,7 @@ struct SpeakerRecognitionTests {
         let (store, root) = try SpeakerFixtures.makeStore()
         defer { try? FileManager.default.removeItem(at: root) }
         let service = SpeakerRecognitionService(store: store)
-        let chris = try await store.createPerson(name: "Chris")
+        let bryn = try await store.createPerson(name: "Bryn")
         let status = try await service.confirmCluster(
             meetingID: "m1",
             cluster: SpeakerClusterInput(
@@ -1487,11 +1487,11 @@ struct SpeakerRecognitionTests {
                     end: VoiceEvidenceFixture.lane("c") + 300
                 )]
             ),
-            identityID: chris.id,
+            identityID: bryn.id,
             settings: SpeakerRecognitionSettings(learnFromCorrections: false)
         )
         #expect(status.sampleCount == 0, "the name is applied, the voice is not learned")
-        #expect(try await store.occurrences(meetingID: "m1").first?.resolvedIdentityID == chris.id)
+        #expect(try await store.occurrences(meetingID: "m1").first?.resolvedIdentityID == bryn.id)
     }
 }
 @Suite("IdentityHandles")
@@ -1500,15 +1500,15 @@ struct IdentityHandlesTests {
     func aHandleNamesItsPersonAndFollowsAMerge() async throws {
         let (store, root) = try SpeakerFixtures.makeStore()
         defer { try? FileManager.default.removeItem(at: root) }
-        let chris = try await store.createPerson(name: "Chris")
+        let bryn = try await store.createPerson(name: "Bryn")
         try await store.setHandle(
-            IdentityHandle(provider: "slack", handle: "U0CHRIS"), to: chris.id
+            IdentityHandle(provider: "slack", handle: "U0CHRIS"), to: bryn.id
         )
-        #expect(await store.identity(handle: "U0CHRIS", provider: "slack")?.id == chris.id)
-        // The saved Chris and the huddle Chris turn out to be one
+        #expect(await store.identity(handle: "U0CHRIS", provider: "slack")?.id == bryn.id)
+        // The saved Bryn and the huddle Bryn turn out to be one
         // person. The handle keeps working, resolved to the survivor.
-        let saved = try await store.createPerson(name: "Chris Whitton")
-        try await store.merge(chris.id, into: saved.id)
+        let saved = try await store.createPerson(name: "Bryn Tolliver")
+        try await store.merge(bryn.id, into: saved.id)
         #expect(await store.identity(handle: "U0CHRIS", provider: "slack")?.id == saved.id)
     }
 
@@ -1545,8 +1545,8 @@ struct IdentityHandlesTests {
     func thePeoplePaneSeesTheHandlesAMergeCarriedIn() async throws {
         let (store, root) = try SpeakerFixtures.makeStore()
         defer { try? FileManager.default.removeItem(at: root) }
-        let source = try await store.createPerson(name: "Chris")
-        let target = try await store.createPerson(name: "Chris Whitton")
+        let source = try await store.createPerson(name: "Bryn")
+        let target = try await store.createPerson(name: "Bryn Tolliver")
         try await store.setHandle(
             IdentityHandle(provider: "slack", handle: "U0CHRIS"), to: source.id
         )

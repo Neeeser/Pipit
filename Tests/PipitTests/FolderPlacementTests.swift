@@ -75,7 +75,7 @@ struct FolderPlacementTests {
         let root = try TestPaths.makeTemporaryDirectory()
         defer { try? FileManager.default.removeItem(at: root) }
         let folders = MeetingFolderStore(root: root)
-        var folder = try folders.create(name: "Capital One", about: "Client work")
+        var folder = try folders.create(name: "Fenwick Trust", about: "Client work")
         // Switched on, to prove that a model's answer is refused even by
         // a folder that files everything it is allowed to.
         folder.filesAutomatically = true
@@ -85,7 +85,7 @@ struct FolderPlacementTests {
         backend.enrichment = MeetingEnrichment(
             summary: "Discussed the review.",
             folderCandidates: [ModelFolderCandidate(
-                folderName: "Capital One", confidence: 0.9,
+                folderName: "Fenwick Trust", confidence: 0.9,
                 why: "their security review", quote: "The security review is still open.",
                 atSeconds: 1
             )]
@@ -97,7 +97,7 @@ struct FolderPlacementTests {
             return
         }
         let suggestion = found.store.readFolderSuggestion()
-        #expect(suggestion?.folderName == "Capital One")
+        #expect(suggestion?.folderName == "Fenwick Trust")
         #expect(suggestion?.reason == .model)
         #expect(suggestion?.quote == "The security review is still open.")
         #expect(found.metadata.folderName == nil, "a model guess never files")
@@ -108,14 +108,14 @@ struct FolderPlacementTests {
         let root = try TestPaths.makeTemporaryDirectory()
         defer { try? FileManager.default.removeItem(at: root) }
         let folders = MeetingFolderStore(root: root)
-        try folders.create(name: "Capital One", about: "Client work with Capital One")
+        try folders.create(name: "Fenwick Trust", about: "Client work with Fenwick Trust")
 
         let backend = FakeAIBackend()
         _ = try await Self.processed(root: root, backend: backend, settings: AppSettings())
 
         #expect(backend.lastEnrichmentFolders?.count == 1)
-        #expect(backend.lastEnrichmentFolders?.first?.name == "Capital One")
-        #expect(backend.lastEnrichmentFolders?.first?.about == "Client work with Capital One")
+        #expect(backend.lastEnrichmentFolders?.first?.name == "Fenwick Trust")
+        #expect(backend.lastEnrichmentFolders?.first?.about == "Client work with Fenwick Trust")
     }
 
     @Test("recurring meetings only asks the model nothing about folders")
@@ -123,7 +123,7 @@ struct FolderPlacementTests {
         let root = try TestPaths.makeTemporaryDirectory()
         defer { try? FileManager.default.removeItem(at: root) }
         let folders = MeetingFolderStore(root: root)
-        try folders.create(name: "Capital One", about: "Client work")
+        try folders.create(name: "Fenwick Trust", about: "Client work")
 
         var settings = AppSettings()
         settings.enrichment.folderReach = .recurringOnly
@@ -131,8 +131,8 @@ struct FolderPlacementTests {
         backend.enrichment = MeetingEnrichment(
             summary: "Discussed the review.",
             folderCandidates: [ModelFolderCandidate(
-                folderName: "Capital One", confidence: 0.99, why: "named throughout",
-                quote: "Capital One", atSeconds: 1
+                folderName: "Fenwick Trust", confidence: 0.99, why: "named throughout",
+                quote: "Fenwick Trust", atSeconds: 1
             )]
         )
         let run = try await Self.processed(root: root, backend: backend, settings: settings)

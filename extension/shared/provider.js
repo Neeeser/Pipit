@@ -136,8 +136,8 @@ const MEET_TILE_CHROME = [
 // Material icon ligatures render as their own text inside the row, glued onto
 // the name with no separator. Matched as whole known tokens rather than by
 // pattern: a pattern for "a lowercase run containing an underscore" starts at
-// the run, and the run begins inside the name, so `Chris Latimermore_vert` cut
-// back to `Chris L`. A ligature this list does not know leaves the name
+// the run, and the run begins inside the name, so `Bryn Callistermore_vert` cut
+// back to `Bryn C`. A ligature this list does not know leaves the name
 // uncut, which is the safe direction.
 const MEET_TILE_LIGATURE = [
   'domain_disabled', 'more_vert', 'more_horiz', 'push_pin', 'present_to_all',
@@ -149,7 +149,7 @@ const MEET_TILE_LIGATURE = [
 // a line like this is an icon whether or not the list above knows it yet.
 //
 // Whole lines only. The same test run across a line cuts real names apart:
-// `Chris Latimermore_vert` starts its lowercase run inside `Latimer`, which is
+// `Bryn Callistermore_vert` starts its lowercase run inside `Callister`, which is
 // what the list above exists to avoid.
 //
 // The cost is a display name that really is a lowercase handle, `john_doe`,
@@ -178,8 +178,8 @@ function meetLineName(raw) {
 /// The person's name out of a Meet participant row.
 ///
 /// Panel rows put the name and the controls on one line: measured on a real
-/// call, one read `Chris LatimerMeeting hostdevicesYou can't remotely mute
-/// Chris Latimer's microphone` on a single line, and taking that line whole put
+/// call, one read `Bryn CallisterMeeting hostdevicesYou can't remotely mute
+/// Bryn Callister's microphone` on a single line, and taking that line whole put
 /// the entire run into the roster, truncated mid-word at the 80-character cap.
 /// The roster is what names a voice, so that string became a speaker's name.
 ///
@@ -340,7 +340,7 @@ export function createSpeakingTracker({ holdMs = 1_500 } = {}) {
 /// Reads one participants-panel row out of Zoom's accessible label.
 ///
 /// Measured on the web client (PWA 7.1.0), a row reads
-/// `Andrew Neeser (Host, me),computer audio muted,video off`. The label is the
+/// `Marlow Fenn (Host, me),computer audio muted,video off`. The label is the
 /// whole surface: the row's DOM id is a list position, and no element in the
 /// document carries a participant identifier. The parenthesised role list ends
 /// in `me` on the local user's own row, and the audio clause tracks the mute

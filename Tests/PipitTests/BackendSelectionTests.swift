@@ -136,13 +136,13 @@ struct BackendSettingsTests {
             {
               "version": 1,
               "storageRootPath": "/tmp/meetings",
-              "localUserName": "Andrew",
+              "localUserName": "Marlow",
               "models": { "transcription": "whisper-1" },
               "enrichment": { "generateالتitle": true }
             }
             """.replacingOccurrences(of: "generateالتitle", with: "generateTitle")
         let settings = try JSONDecoder().decode(AppSettings.self, from: Data(legacy.utf8))
-        #expect(settings.localUserName == "Andrew")
+        #expect(settings.localUserName == "Marlow")
         #expect(settings.storageRootPath == "/tmp/meetings")
         #expect(
             settings.models.transcription == "whisper-1",

@@ -20,14 +20,14 @@ struct MeetingFolderRenameTests {
         )
         let created = try repository.createMeeting(
             source: .slackHuddle, provider: .slack, startedAt: started,
-            titles: TitleCandidates(provider: "Hindsight Daily", timestampFallback: "f"),
+            titles: TitleCandidates(provider: "Northwind Daily", timestampFallback: "f"),
             now: started
         )
         let name = created.store.layout.root.lastPathComponent
-        #expect(name == "Hindsight Daily (Aug 18, 9:02 AM)")
+        #expect(name == "Northwind Daily (Aug 18, 9:02 AM)")
         #expect(created.metadata.directoryName == name)
         #expect(name != created.metadata.id, "the folder is not the identifier")
-        #expect(created.metadata.id.hasSuffix("slack-huddle-hindsight-daily"), "got \(created.metadata.id)")
+        #expect(created.metadata.id.hasSuffix("slack-huddle-northwind-daily"), "got \(created.metadata.id)")
     }
 
     @Test("a meeting is found after its folder no longer matches its identifier")
@@ -189,7 +189,7 @@ struct MeetingFolderRenameTests {
         let started = MeetingFolderNameTests.date(
             year: 2026, month: 8, day: 18, hour: 9, minute: 2
         )
-        let titles = TitleCandidates(provider: "Hindsight Daily", timestampFallback: "f")
+        let titles = TitleCandidates(provider: "Northwind Daily", timestampFallback: "f")
         let first = try repository.createMeeting(
             source: .slackHuddle, provider: .slack, startedAt: started,
             titles: titles, now: started
@@ -199,8 +199,8 @@ struct MeetingFolderRenameTests {
             titles: titles, now: started
         )
 
-        #expect(first.store.layout.root.lastPathComponent == "Hindsight Daily (Aug 18, 9:02 AM)")
-        #expect(second.store.layout.root.lastPathComponent == "Hindsight Daily (Aug 18, 9:02 AM) 2")
+        #expect(first.store.layout.root.lastPathComponent == "Northwind Daily (Aug 18, 9:02 AM)")
+        #expect(second.store.layout.root.lastPathComponent == "Northwind Daily (Aug 18, 9:02 AM) 2")
         #expect(first.metadata.id != second.metadata.id, "identifiers collided: \(first.metadata.id)")
         #expect(repository.findMeeting(id: second.metadata.id)?.store.layout.root == second.store.layout.root)
     }

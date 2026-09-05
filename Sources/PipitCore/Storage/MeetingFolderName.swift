@@ -9,7 +9,7 @@ import Foundation
 /// The date follows so that a daily standup has forty distinguishable folders
 /// instead of forty collisions.
 ///
-/// `Hindsight Daily (Aug 18, 9:02 AM)`
+/// `Northwind Daily (Aug 18, 9:02 AM)`
 public enum MeetingFolderName {
     /// The longest a title may run inside a folder name.
     private static let titleLimit = 60

@@ -25,7 +25,7 @@ public enum PeopleFixtures {
             root: root, clusters: ["remote-001_speaker_00"], title: title, startedAt: started
         )
         var map = SpeakerMap()
-        map.assign("Ben", to: "remote-001_speaker_00", identityID: identityID)
+        map.assign("Ellis", to: "remote-001_speaker_00", identityID: identityID)
         try meeting.store.writeSpeakerMap(map)
         try meeting.store.writeCanonicalTranscript(CanonicalTranscript(
             generatedAt: started,

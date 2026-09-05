@@ -60,11 +60,11 @@ struct LiveEndToEndTests {
         metadata.processing.advance(to: .audioSafe, at: started)
         try created.store.writeMetadata(metadata)
         try created.store.writeNotes(
-            "Call with me (Andrew), my boss Chris, and Tim from the platform team."
+            "Call with me (Marlow), my boss Bryn, and Owen from the platform team."
         )
 
         var mutableSettings = AppSettings()
-        mutableSettings.localUserName = "Andrew"
+        mutableSettings.localUserName = "Marlow"
         let settings = mutableSettings
         let pipeline = ProcessingPipeline(
             repository: repository,

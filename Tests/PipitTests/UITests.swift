@@ -390,7 +390,7 @@ struct UITests {
             runtime.update(settings: settings)
             let model = MeetingReviewModel(runtime: runtime, meetingID: created.metadata.id)
             model.titleBinding().wrappedValue = "Frankfurt cutover"
-            model.notesBinding().wrappedValue = "Chris owns the runbook"
+            model.notesBinding().wrappedValue = "Bryn owns the runbook"
             return model
         }
         _ = model
@@ -403,7 +403,7 @@ struct UITests {
             savedTitle = (try? created.store.readMetadata())?.titles.human
             if !savedNotes.isEmpty, savedTitle != nil { break }
         }
-        #expect(savedNotes == "Chris owns the runbook")
+        #expect(savedNotes == "Bryn owns the runbook")
         #expect(savedTitle == "Frankfurt cutover")
     }
 
@@ -637,14 +637,14 @@ struct UITests {
         #expect(store.load().localUserName == "Me", "defaults apply to a fresh install")
 
         var settings = AppSettings()
-        settings.localUserName = "Andrew"
+        settings.localUserName = "Marlow"
         settings.providers.zoom = ProviderPolicy(autoStart: .never, autoStop: false)
         settings.enrichment.generateSummary = false
         settings.alwaysRecordApplications = ["com.example.videochat"]
         try store.save(settings)
 
         let reloaded = SettingsStore(directory: root).load()
-        #expect(reloaded.localUserName == "Andrew")
+        #expect(reloaded.localUserName == "Marlow")
         #expect(reloaded.providers.zoom.autoStart == .never)
         #expect(!reloaded.enrichment.generateSummary)
         #expect(reloaded.alwaysRecordApplications == ["com.example.videochat"])
@@ -659,10 +659,10 @@ struct UITests {
         // A menu-bar utility that takes a Dock slot on upgrade is a
         // visible change nobody asked for, so an absent key reads as
         // off rather than as the platform default for an app.
-        let older = #"{"version": 3, "localUserName": "Andrew"}"#
+        let older = #"{"version": 3, "localUserName": "Marlow"}"#
         let settings = try JSONDecoder().decode(AppSettings.self, from: Data(older.utf8))
         #expect(!settings.showsDockIcon)
-        #expect(settings.localUserName == "Andrew", "the fields beside it are untouched")
+        #expect(settings.localUserName == "Marlow", "the fields beside it are untouched")
         #expect(!AppSettings().showsDockIcon, "and a fresh install is menu bar only")
 
         let chosen = #"{"version": 3, "showsDockIcon": true}"#
@@ -680,7 +680,7 @@ struct UITests {
         let store = SettingsStore(directory: root)
 
         var settings = AppSettings()
-        settings.localUserName = "Andrew"
+        settings.localUserName = "Marlow"
         settings.hasCompletedOnboarding = true
         try store.save(settings)
 
@@ -692,7 +692,7 @@ struct UITests {
         try JSONSerialization.data(withJSONObject: object).write(to: store.url)
 
         let reloaded = store.load()
-        #expect(reloaded.localUserName == "Andrew", "existing values must survive")
+        #expect(reloaded.localUserName == "Marlow", "existing values must survive")
         #expect(reloaded.hasCompletedOnboarding, "onboarding must not reappear")
         #expect(!reloaded.firefoxSensorHasConnected, "the missing field takes its default")
     }
@@ -709,7 +709,7 @@ struct UITests {
         let store = SettingsStore(directory: root)
 
         var settings = AppSettings()
-        settings.localUserName = "Andrew"
+        settings.localUserName = "Marlow"
         settings.hasCompletedOnboarding = true
         try store.save(settings)
         for stale in [true, false] {
@@ -720,7 +720,7 @@ struct UITests {
             try JSONSerialization.data(withJSONObject: object).write(to: store.url)
 
             let reloaded = store.load()
-            #expect(reloaded.localUserName == "Andrew", "the key is ignored, not fatal")
+            #expect(reloaded.localUserName == "Marlow", "the key is ignored, not fatal")
             #expect(reloaded.hasCompletedOnboarding)
         }
     }

@@ -9,10 +9,10 @@ struct SummaryDocumentTests {
     @Test("both sections come back separately")
     func bothSectionsComeBackSeparately() async throws {
         let document = SummaryDocument(
-            markdown: "## Summary\n\nWe agreed on the pilot.\n\n## Notes\n\n- Chris sends the list."
+            markdown: "## Summary\n\nWe agreed on the pilot.\n\n## Notes\n\n- Bryn sends the list."
         )
         #expect(document.summary == "We agreed on the pilot.")
-        #expect(document.generatedNotes == "- Chris sends the list.")
+        #expect(document.generatedNotes == "- Bryn sends the list.")
     }
 
     @Test("a summary written without notes leaves the notes empty")
@@ -28,8 +28,8 @@ struct SummaryDocumentTests {
         // opens with the notes heading is a real file. It used to read
         // as the summary, which put the notes on the Summary tab with
         // the heading showing in the body.
-        let document = SummaryDocument(markdown: "## Notes\n\n- Chris sends the list.")
-        #expect(document.generatedNotes == "- Chris sends the list.")
+        let document = SummaryDocument(markdown: "## Notes\n\n- Bryn sends the list.")
+        #expect(document.generatedNotes == "- Bryn sends the list.")
         #expect(document.summary == nil)
     }
 
@@ -39,7 +39,7 @@ struct SummaryDocumentTests {
         // the split whose prose happens to mention the words is still
         // one summary, and moving half of it to another tab would be
         // worse than leaving the words where they are.
-        let text = "We agreed on the pilot.\n\n## Notes were taken by Chris."
+        let text = "We agreed on the pilot.\n\n## Notes were taken by Bryn."
         #expect(SummaryDocument(markdown: text).summary == text)
     }
 
@@ -48,7 +48,7 @@ struct SummaryDocumentTests {
         // A legacy summary can open with those words in a sentence. It
         // is a summary, and reading it as notes would put the whole
         // meeting on a tab the user has no reason to open.
-        let text = "## Notes were taken by Chris and sent round afterwards."
+        let text = "## Notes were taken by Bryn and sent round afterwards."
         let document = SummaryDocument(markdown: text)
         #expect(document.summary == text)
         #expect(document.generatedNotes == nil)
@@ -56,7 +56,7 @@ struct SummaryDocumentTests {
 
     @Test("a notes-only document round-trips")
     func aNotesOnlyDocumentRoundTrips() async throws {
-        let original = SummaryDocument(generatedNotes: "- Chris sends the list.")
+        let original = SummaryDocument(generatedNotes: "- Bryn sends the list.")
         #expect(SummaryDocument(markdown: original.markdown) == original)
     }
 
@@ -65,8 +65,8 @@ struct SummaryDocumentTests {
         // Every summary.md written before the split, and any a person
         // edited by hand. It has always shown on the Summary tab and
         // still does.
-        let document = SummaryDocument(markdown: "Call with Capital One about retrieval.")
-        #expect(document.summary == "Call with Capital One about retrieval.")
+        let document = SummaryDocument(markdown: "Call with Fenwick Trust about retrieval.")
+        #expect(document.summary == "Call with Fenwick Trust about retrieval.")
         #expect(document.generatedNotes == nil)
     }
 
@@ -97,7 +97,7 @@ struct SummaryDocumentTests {
     @Test("what enrichment writes reads back unchanged")
     func whatEnrichmentWritesReadsBackUnchanged() async throws {
         let original = SummaryDocument(
-            summary: "We agreed on the pilot.", generatedNotes: "- Chris sends the list."
+            summary: "We agreed on the pilot.", generatedNotes: "- Bryn sends the list."
         )
         #expect(SummaryDocument(markdown: original.markdown) == original)
     }

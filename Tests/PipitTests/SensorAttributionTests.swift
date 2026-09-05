@@ -160,10 +160,10 @@ struct SensorTimelineTests {
             at: 0, participants: [participant("d406", nil)], speakingID: nil
         ))
         builder.record(SensorObservation(
-            at: 1, participants: [participant("d406", "Priya")], speakingID: nil
+            at: 1, participants: [participant("d406", "Nadia")], speakingID: nil
         ))
         let raw = builder.finish()
-        #expect(raw.participants.first?.displayName == "Priya")
+        #expect(raw.participants.first?.displayName == "Nadia")
     }
 
     @Test("a speaker nobody listed cannot hold the floor")
@@ -543,7 +543,7 @@ struct SensorAttributionTests {
         // diarizer, which hears the audio.
         let raw = sensors(
             participants: [
-                participant("me", "Andrew", isSelf: true), participant("U2", "Ada"),
+                participant("me", "Marlow", isSelf: true), participant("U2", "Ada"),
             ],
             turns: [("me", 0, 10), ("U2", 10, 20)]
         )
@@ -784,7 +784,7 @@ struct SensorAttributionTests {
     func theLocalUserSVoiceIsNeverEnrolledFromTheFarEnd() async throws {
         let raw = sensors(
             participants: [
-                participant("me", "Andrew", isSelf: true), participant("U2", "Ada"),
+                participant("me", "Marlow", isSelf: true), participant("U2", "Ada"),
             ],
             turns: [("me", 0, 30), ("U2", 30, 60)]
         )
@@ -799,7 +799,7 @@ struct SensorAttributionTests {
     func speakerEntriesCoverWhoHeldTheFloorAndGotAName() async throws {
         let raw = sensors(
             participants: [
-                participant("me", "Andrew", isSelf: true),
+                participant("me", "Marlow", isSelf: true),
                 participant("U2", "Ada"),
                 participant("U3", nil),
                 participant("U4", "Silent"),
@@ -859,13 +859,13 @@ struct SensorAttributionTests {
             participants: [
                 participant("d406", "keep_outline"),
                 participant("d411", "frame_person"),
-                participant("d407", "Fireflies.ai Notetaker Chris"),
+                participant("d407", "Fireflies.ai Notetaker Bryn"),
             ],
             turns: [("d406", 0, 30), ("d411", 30, 60), ("d407", 60, 90)]
         )
         let entries = SensorAttribution.speakerEntries(sensors: raw)
         #expect(entries.count == 1)
-        #expect(entries.first?.assignment.displayName == "Fireflies.ai Notetaker Chris")
+        #expect(entries.first?.assignment.displayName == "Fireflies.ai Notetaker Bryn")
     }
 
     @Test("a one-word icon name is refused too")
@@ -892,7 +892,7 @@ struct SensorAttributionTests {
     func aNameThatMerelyContainsAnUnderscoreStillNamesItsVoice() async throws {
         // The test is the whole name, not a run inside it. Cutting on a
         // pattern anywhere in the string is what once took
-        // `Chris Latimermore_vert` back to `Chris L`.
+        // `Bryn Callistermore_vert` back to `Bryn C`.
         let raw = sensors(
             participants: [
                 participant("U1", "Ada Lovelace_"),
@@ -1000,11 +1000,11 @@ struct SensorIdentityLinkTests {
         // Meet marks its own tile with the English word "You", so a
         // client in any other language reports nobody as self. Matching
         // the configured name instead is what shipped, and it never
-        // fired: Meet renders "Andrew Neeser" where the setting reads
-        // "Andrew". Every Meet recording on disk has nobody marked.
+        // fired: Meet renders "Marlow Fenn" where the setting reads
+        // "Marlow". Every Meet recording on disk has nobody marked.
         let raw = sensors(
             participants: [
-                participant("d406", "Andrew Neeser"),
+                participant("d406", "Marlow Fenn"),
                 participant("d409", "Grace"),
             ],
             turns: [("d406", 0, 60), ("d409", 60, 120)]
@@ -1031,8 +1031,8 @@ struct SensorIdentityLinkTests {
         // separates them.
         let raw = sensors(
             participants: [
-                participant("d381", "Andrew Neeser"),
-                participant("d382", "Andrew Neeser"),
+                participant("d381", "Marlow Fenn"),
+                participant("d382", "Marlow Fenn"),
             ],
             turns: [("d381", 0, 60), ("d382", 60, 120)]
         )
@@ -1119,7 +1119,7 @@ struct SensorIdentityLinkTests {
         let raw = sensors(
             participants: [
                 participant("U1", "Ada"), participant("U2", "Grace"),
-                participant("U3", "Chris"),
+                participant("U3", "Bryn"),
             ],
             turns: [("U1", 0, 60), ("U2", 60, 120), ("U3", 120, 180)]
         )
@@ -1193,7 +1193,7 @@ struct SensorIdentityLinkTests {
         // evidence is not evidence that nobody is the local user, so the
         // record comes back untouched rather than guessed at.
         let raw = sensors(
-            participants: [participant("d406", "Andrew"), participant("d409", "Grace")],
+            participants: [participant("d406", "Marlow"), participant("d409", "Grace")],
             turns: [("d406", 0, 10), ("d409", 10, 20)]
         )
         #expect(raw.markingSelf(using: nil).participants.filter(\.isSelf).count == 0)
@@ -1230,7 +1230,7 @@ struct SensorSelfHandlingTests {
         // than leaving it for a person to fill in.
         let raw = sensors(
             participants: [
-                participant("me", "Andrew", isSelf: true),
+                participant("me", "Marlow", isSelf: true),
                 participant("U2", "Grace"),
             ],
             turns: [("me", 0, 10), ("U2", 30, 40)]
@@ -1248,7 +1248,7 @@ struct SensorSelfHandlingTests {
         // guarding and second place won the cluster outright.
         let raw = sensors(
             participants: [
-                participant("me", "Andrew", isSelf: true),
+                participant("me", "Marlow", isSelf: true),
                 participant("U2", "Grace"),
             ],
             turns: [("me", 0, 8), ("U2", 8, 10)]
@@ -1263,7 +1263,7 @@ struct SensorSelfHandlingTests {
     func theLocalUserIsNotOneOfTheVoicesToBeFound() async throws {
         let raw = sensors(
             participants: [
-                participant("me", "Andrew", isSelf: true),
+                participant("me", "Marlow", isSelf: true),
                 participant("U2", "Grace"), participant("U3", "Ada"),
             ],
             turns: [("me", 0, 30), ("U2", 30, 60), ("U3", 60, 90)]
@@ -1286,8 +1286,8 @@ struct SensorSelfHandlingTests {
         // name still lands.
         let raw = sensors(
             participants: [
-                participant("me", "Andrew", isSelf: true),
-                participant("U2", "Andrew"),
+                participant("me", "Marlow", isSelf: true),
+                participant("U2", "Marlow"),
                 participant("U3", "Ada"),
                 participant("U4", "Grace"),
             ],
@@ -1312,7 +1312,7 @@ struct SensorSelfHandlingTests {
         let named = Dictionary(
             uniqueKeysWithValues: result.matches.map { ($0.clusterID, $0.displayName) }
         )
-        #expect(named["a"] == "Andrew")
+        #expect(named["a"] == "Marlow")
         #expect(named["b"] == "Ada")
         #expect(named["c"] == "Grace")
     }
@@ -1438,10 +1438,10 @@ struct SlackHuddleTileTests {
     @Test("the display name comes out of the profile description")
     func theDisplayNameComesOutOfTheProfileDescription() async throws {
         #expect(
-            SlackHuddleTileParser.displayName(from: "View Andrew Neeser\'s profile") == "Andrew Neeser"
+            SlackHuddleTileParser.displayName(from: "View Marlow Fenn\'s profile") == "Marlow Fenn"
         )
         #expect(
-            SlackHuddleTileParser.displayName(from: "View andrew.neeser525\'s profile") == "andrew.neeser525"
+            SlackHuddleTileParser.displayName(from: "View marlow.fenn525\'s profile") == "marlow.fenn525"
         )
         #expect(SlackHuddleTileParser.displayName(from: "video is off, audio is on") == nil)
     }
@@ -1597,7 +1597,7 @@ struct SensorAssemblyTests {
         let sensors = RawSensors(
             source: "slack-huddle-ax",
             participants: [
-                SensorParticipant(id: "U_ME", displayName: "Andrew", isSelf: true),
+                SensorParticipant(id: "U_ME", displayName: "Marlow", isSelf: true),
             ],
             turns: [SensorTurn(start: 0, end: 10, participantID: "U_ME")]
         )
@@ -1685,7 +1685,7 @@ struct SensorRoundTripTests {
         try store.writeRawSensors(RawSensors(
             source: "slack-huddle-ax",
             participants: [
-                SensorParticipant(id: "U_ME", displayName: "Andrew", isSelf: true),
+                SensorParticipant(id: "U_ME", displayName: "Marlow", isSelf: true),
                 SensorParticipant(id: "U_ADA", displayName: "Ada"),
                 SensorParticipant(id: "U_GRACE", displayName: "Grace"),
             ],
@@ -1746,7 +1746,7 @@ struct SensorRoundTripTests {
         // all, and this is the case that matters most: a user fixing a
         // wrong name must not have it undone on the next re-analysis.
         var speakers = SpeakerMap()
-        speakers.assign("Priya", to: "remote-001_speaker_01")
+        speakers.assign("Nadia", to: "remote-001_speaker_01")
 
         var diarization = RawDiarization()
         diarization.setActive(DiarizationRun(
@@ -1764,7 +1764,7 @@ struct SensorRoundTripTests {
         ) {
             speakers.applySuggestion(entry.assignment, for: entry.key)
         }
-        #expect(speakers.entries["remote-001_speaker_01"]?.displayName == "Priya")
+        #expect(speakers.entries["remote-001_speaker_01"]?.displayName == "Nadia")
         #expect(speakers.entries["remote-001_speaker_01"]?.origin == .human)
     }
 

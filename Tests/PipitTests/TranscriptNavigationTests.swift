@@ -12,11 +12,11 @@ struct TranscriptNavigationTests {
 
     private static func blocks() -> [CombinedLineBlock] {
         CombinedLineBlock.blocks(from: [
-            line(speaker: "Andrew", start: 0, text: "You talking about the demo tomorrow?"),
-            line(speaker: "Chris Latimer", start: 3, text: "Yeah, the one you said you wanted."),
+            line(speaker: "Marlow", start: 0, text: "You talking about the demo tomorrow?"),
+            line(speaker: "Bryn Callister", start: 3, text: "Yeah, the one you said you wanted."),
             line(speaker: "Speaker 3", start: 6, text: "Sorry, can everyone hear me?"),
-            line(speaker: "Andrew", start: 9, text: "Did you see the email from McKinsey?"),
-            line(speaker: "Andrew", start: 12, text: "He is a product manager at McKinsey. McKinsey runs Lily."),
+            line(speaker: "Marlow", start: 9, text: "Did you see the email from Ashcombe?"),
+            line(speaker: "Marlow", start: 12, text: "He is a product manager at Ashcombe. Ashcombe runs Tessera."),
             line(speaker: "Speaker 3", start: 15, text: "Yes, loud and clear."),
         ])
     }
@@ -30,7 +30,7 @@ struct TranscriptNavigationTests {
         #expect(walk.counter == "1 of 2")
         #expect(walk.label == "Speaker 3")
         walk.next()
-        #expect(walk.current?.blockID == all[4].id, "the last block, after Andrew's merged turn")
+        #expect(walk.current?.blockID == all[4].id, "the last block, after Marlow's merged turn")
         walk.next()
         #expect(walk.current?.blockID == all[2].id, "the last turn is followed by the first")
         walk.previous()
@@ -48,9 +48,9 @@ struct TranscriptNavigationTests {
     @Test("a search counts every occurrence, case-insensitively, in reading order")
     func aSearchCountsEveryOccurrenceCaseInsensitivelyInReadingOrder() async throws {
         let all = Self.blocks()
-        // The question and the answer are consecutive Andrew lines, so
+        // The question and the answer are consecutive Marlow lines, so
         // the grouping shows them as one block with three matches.
-        let walk = TranscriptNavigation.find("mckinsey", in: all)
+        let walk = TranscriptNavigation.find("ashcombe", in: all)
         #expect(all.count == 5)
         #expect(walk.targets.count == 3, "one in the question, two in the answer")
         #expect(walk.targets.map(\.blockID) == [all[3].id, all[3].id, all[3].id])
@@ -74,14 +74,14 @@ struct TranscriptNavigationTests {
     @Test("a walk survives a correction and keeps its place where it still exists")
     func aWalkSurvivesACorrectionAndKeepsItsPlaceWhereItStillExists() async throws {
         let all = Self.blocks()
-        var walk = TranscriptNavigation.find("McKinsey", in: all)
+        var walk = TranscriptNavigation.find("Ashcombe", in: all)
         walk.next()
         walk.next()
         #expect(walk.counter == "3 of 3")
-        // The answer is reassigned to Chris, so it is a different block
+        // The answer is reassigned to Bryn, so it is a different block
         // with the same words in it.
         var lines = all.flatMap(\.lines)
-        lines[4].speakerName = "Chris Latimer"
+        lines[4].speakerName = "Bryn Callister"
         let refreshed = walk.refreshed(in: CombinedLineBlock.blocks(from: lines))
         #expect(refreshed.targets.count == 3)
         #expect(refreshed.counter == "1 of 3", "the old place is gone, so it starts over")

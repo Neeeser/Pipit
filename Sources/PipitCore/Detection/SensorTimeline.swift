@@ -216,7 +216,7 @@ public struct RawSensors: Codable, Sendable, Equatable {
     /// person or it is not, and the recording already measured that for
     /// `LocalSpeechPolicy`. Matching the configured display name was the
     /// previous answer and it is deliberately gone: it never fired here, where
-    /// the roster reads "Andrew Neeser" and the setting reads "Andrew", and
+    /// the roster reads "Marlow Fenn" and the setting reads "Marlow", and
     /// where it does fire it cannot tell two tiles under one name apart. One
     /// recording has exactly that, and marking both would have deleted a real
     /// participant's speech.

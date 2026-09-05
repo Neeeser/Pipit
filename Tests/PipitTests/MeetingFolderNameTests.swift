@@ -29,16 +29,16 @@ struct MeetingFolderNameTests {
     @Test("the day is padded so a series sorts by date")
     func theDayIsPaddedSoASeriesSortsByDate() async throws {
         let third = MeetingFolderName.base(
-            title: "Hindsight Daily",
+            title: "Northwind Daily",
             source: .slackHuddle,
             startedAt: Self.date(year: 2026, month: 8, day: 3, hour: 9, minute: 2)
         )
         let eighteenth = MeetingFolderName.base(
-            title: "Hindsight Daily",
+            title: "Northwind Daily",
             source: .slackHuddle,
             startedAt: Self.date(year: 2026, month: 8, day: 18, hour: 9, minute: 0)
         )
-        #expect(third == "Hindsight Daily (Aug 03, 9:02 AM)")
+        #expect(third == "Northwind Daily (Aug 03, 9:02 AM)")
         #expect(third < eighteenth, "\(third) should sort before \(eighteenth)")
     }
 
@@ -116,8 +116,8 @@ struct MeetingFolderNameTests {
 
         // What the people in the meeting call it wins, so a recurring
         // meeting keeps one name across every instance.
-        titles.calendar = "Hindsight Daily"
-        #expect(titles.resolved == "Hindsight Daily")
+        titles.calendar = "Northwind Daily"
+        #expect(titles.resolved == "Northwind Daily")
         titles.provider = "Huddle in #engineering"
         #expect(titles.resolved == "Huddle in #engineering")
         titles.human = "What I called it"

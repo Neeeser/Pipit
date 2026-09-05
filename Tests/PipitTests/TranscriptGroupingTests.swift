@@ -26,13 +26,13 @@ struct TranscriptGroupingTests {
     @Test("consecutive lines from one speaker form one block")
     func consecutiveLinesFromOneSpeakerFormOneBlock() async throws {
         let blocks = CombinedLineBlock.blocks(from: [
-            Self.line(speaker: "Andrew", start: 0, text: "first"),
-            Self.line(speaker: "Andrew", start: 3, text: "second"),
-            Self.line(speaker: "Andrew", start: 7, text: "third"),
+            Self.line(speaker: "Marlow", start: 0, text: "first"),
+            Self.line(speaker: "Marlow", start: 3, text: "second"),
+            Self.line(speaker: "Marlow", start: 7, text: "third"),
         ])
         #expect(blocks.count == 1, "one speaker, one block")
         #expect(blocks.first?.lines.count == 3, "all three lines kept")
-        #expect(blocks.first?.speakerName == "Andrew", "block carries the name")
+        #expect(blocks.first?.speakerName == "Marlow", "block carries the name")
         #expect(
             blocks.first?.lines.map(\.utterance.text) == ["first", "second", "third"],
             "order preserved"
@@ -42,12 +42,12 @@ struct TranscriptGroupingTests {
     @Test("a change of speaker starts a new block")
     func aChangeOfSpeakerStartsANewBlock() async throws {
         let blocks = CombinedLineBlock.blocks(from: [
-            Self.line(speaker: "Andrew", start: 0, text: "a"),
-            Self.line(speaker: "Dana", start: 3, text: "b"),
-            Self.line(speaker: "Andrew", start: 6, text: "c"),
+            Self.line(speaker: "Marlow", start: 0, text: "a"),
+            Self.line(speaker: "Dara", start: 3, text: "b"),
+            Self.line(speaker: "Marlow", start: 6, text: "c"),
         ])
         #expect(blocks.count == 3, "interleaved speakers never merge")
-        #expect(blocks.map(\.speakerName) == ["Andrew", "Dana", "Andrew"], "one block each")
+        #expect(blocks.map(\.speakerName) == ["Marlow", "Dara", "Marlow"], "one block each")
     }
 
     @Test("the same display name in two recordings stays two blocks")
@@ -68,9 +68,9 @@ struct TranscriptGroupingTests {
 
     @Test("a block is identified by its first line")
     func aBlockIsIdentifiedByItsFirstLine() async throws {
-        let first = Self.line(speaker: "Andrew", start: 0, text: "a")
+        let first = Self.line(speaker: "Marlow", start: 0, text: "a")
         let blocks = CombinedLineBlock.blocks(from: [
-            first, Self.line(speaker: "Andrew", start: 3, text: "b"),
+            first, Self.line(speaker: "Marlow", start: 3, text: "b"),
         ])
         #expect(blocks.first?.id == first.id, "stable identity for lazy rendering")
     }

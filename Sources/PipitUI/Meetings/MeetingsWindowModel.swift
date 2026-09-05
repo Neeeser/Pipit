@@ -591,7 +591,7 @@ public final class MeetingsWindowModel {
         let name = row.suggestion.name.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !name.isEmpty, let detail else { return }
         // An existing person where the name is already one, so accepting does
-        // not create a second Chris beside the one in the directory.
+        // not create a second Bryn beside the one in the directory.
         let known = detail.knownPeople.first { $0.identity.resolvedName == name }
         applyClusterChange(
             clusterIDs: [row.clusterID], recordingID: row.recordingID, name: name

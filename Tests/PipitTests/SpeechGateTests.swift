@@ -244,7 +244,7 @@ struct SpeechGateAssemblyTests {
         // the cleaned one, so the fabricated spans sit over audio the
         // detector does not call speech.
         let raw = RawTranscript(chunks: [chunk([
-            (24.95, 27.25, "Hey, Brian, how's it going?"),
+            (24.95, 27.25, "Hey, Rowan, how's it going?"),
             (213.01, 217.61, "I'll send a video in the slack later today"),
             (445.97, 446.42, "We'll be right back."),
             (703.86, 704.20, "Thanks for watching!"),
@@ -264,7 +264,7 @@ struct SpeechGateAssemblyTests {
             micTrackIsLocalUser: true, generatedAt: Date(timeIntervalSince1970: 0)
         )
         #expect(
-            transcript.utterances.map(\.text) == ["Hey, Brian, how's it going?", "I'll send a video in the slack later today"],
+            transcript.utterances.map(\.text) == ["Hey, Rowan, how's it going?", "I'll send a video in the slack later today"],
             "only the two turns the user spoke"
         )
     }
@@ -431,7 +431,7 @@ struct SpeechGateMeasurementTests {
             RawTranscriptSegment(start: 0, end: 2, text: "I think we change retrieval.", speaker: nil),
         ]
         backend.diarizationSegments = [
-            RawTranscriptSegment(start: 0, end: 2, text: "Chris here, agreed.", speaker: "A"),
+            RawTranscriptSegment(start: 0, end: 2, text: "Bryn here, agreed.", speaker: "A"),
         ]
         let pipeline = PipelineFixtures.makePipeline(
             repository: meeting.repository, backend: backend
@@ -458,7 +458,7 @@ struct SpeechGateMeasurementTests {
             RawTranscriptSegment(start: 0, end: 2, text: "I think we change retrieval.", speaker: nil),
         ]
         backend.diarizationSegments = [
-            RawTranscriptSegment(start: 0, end: 2, text: "Chris here, agreed.", speaker: "A"),
+            RawTranscriptSegment(start: 0, end: 2, text: "Bryn here, agreed.", speaker: "A"),
         ]
         let pipeline = PipelineFixtures.makePipeline(
             repository: meeting.repository, backend: backend

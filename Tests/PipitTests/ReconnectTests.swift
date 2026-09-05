@@ -57,7 +57,7 @@ struct ReconnectTests {
             ]
         ))
         var secondMap = SpeakerMap()
-        secondMap.assign("Priya", to: "remote-001_speaker_00")
+        secondMap.assign("Nadia", to: "remote-001_speaker_00")
         try second.store.writeSpeakerMap(secondMap)
 
         if link {
@@ -92,7 +92,7 @@ struct ReconnectTests {
             "expected \(900) ± \(0.001), got \(lines[1].timelineStart) — the second half is placed by when its recording started"
         )
         #expect(
-            lines[1].speakerName == "Priya",
+            lines[1].speakerName == "Nadia",
             "and resolved through its own speaker map, not the first half's"
         )
         #expect(
@@ -198,13 +198,13 @@ struct ReconnectTests {
         )
 
         try await pipeline.applyUtteranceSpeaker(
-            "Dana", utteranceIDs: ["b1"], meetingID: second
+            "Dara", utteranceIDs: ["b1"], meetingID: second
         )
 
         let continuation = try #require(repository.findMeeting(id: second, includingMerged: true))
         let map = try continuation.store.readSpeakerMap()
         #expect(
-            map.utteranceOverrides.first?.assignment.displayName == "Dana",
+            map.utteranceOverrides.first?.assignment.displayName == "Dara",
             "the correction is stored on the recording the line came from"
         )
         let earlier = try #require(repository.findMeeting(id: first))
@@ -215,7 +215,7 @@ struct ReconnectTests {
 
         // And it is what the combined view now shows.
         let logical = try #require(repository.logicalMeeting(id: second))
-        #expect(logical.combinedTranscript().last?.speakerName == "Dana")
+        #expect(logical.combinedTranscript().last?.speakerName == "Dara")
     }
 
     @Test("linking does not rewrite either recording's own duration")

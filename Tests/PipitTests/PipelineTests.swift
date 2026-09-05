@@ -431,12 +431,12 @@ struct PipelineTests {
             RawTranscriptSegment(start: 0, end: 2, text: "I think we change retrieval.", speaker: nil),
         ]
         backend.diarizationSegments = [
-            RawTranscriptSegment(start: 0, end: 2, text: "Chris here, agreed.", speaker: "A"),
+            RawTranscriptSegment(start: 0, end: 2, text: "Bryn here, agreed.", speaker: "A"),
         ]
         backend.suggestions = [
             SpeakerSuggestion(
-                label: "remote_chunk_001_speaker_00", name: "Chris",
-                confidence: 0.98, quote: "Chris here, agreed.", atSeconds: 0
+                label: "remote_chunk_001_speaker_00", name: "Bryn",
+                confidence: 0.98, quote: "Bryn here, agreed.", atSeconds: 0
             ),
         ]
 
@@ -457,8 +457,8 @@ struct PipelineTests {
         let suggestions = meeting.store.readSpeakerSuggestions()
             .visible(forUnnamed: ["remote_chunk_001_speaker_00"])
         #expect(suggestions.count == 1)
-        #expect(suggestions.first?.name == "Chris")
-        #expect(suggestions.first?.quote == "Chris here, agreed.")
+        #expect(suggestions.first?.name == "Bryn")
+        #expect(suggestions.first?.quote == "Bryn here, agreed.")
 
         _ = try String(
             contentsOf: meeting.store.layout.transcriptMarkdown, encoding: .utf8
@@ -697,12 +697,12 @@ struct PipelineTests {
         let callsAfterProcessing = backend.calls.count
 
         try await pipeline.applySpeakerName(
-            "Tim", to: "remote_chunk_001_speaker_00", meetingID: meeting.metadata.id
+            "Owen", to: "remote_chunk_001_speaker_00", meetingID: meeting.metadata.id
         )
         let markdown = try String(
             contentsOf: meeting.store.layout.transcriptMarkdown, encoding: .utf8
         )
-        #expect(markdown.contains("Tim"))
+        #expect(markdown.contains("Owen"))
         #expect(backend.calls.count == callsAfterProcessing, "renaming must cost no API calls")
 
         let raw = try meeting.store.readRawTranscript()
@@ -820,7 +820,7 @@ struct PipelineTests {
         // split runs to the end of the turn, which is already a
         // boundary, so it records one cut and not two.
         _ = try await pipeline.applySpeakerRange(
-            "Dana", meetingID: meeting.id, track: .remote,
+            "Dara", meetingID: meeting.id, track: .remote,
             parts: try Self.windows(of: meeting.store, from: 5, to: 11)
         )
 
@@ -837,16 +837,16 @@ struct PipelineTests {
         #expect(lines.count == 2, "the line reads as two")
         #expect(lines[0].text == "so what do you think")
         #expect(lines[1].text == "i think we ship on friday")
-        #expect(map.resolvedName(for: lines[1]) == "Dana")
+        #expect(map.resolvedName(for: lines[1]) == "Dara")
         #expect(
-            map.resolvedName(for: lines[0]) == "Priya",
+            map.resolvedName(for: lines[0]) == "Nadia",
             "the words before the boundary stay with the cluster"
         )
         let markdown = try String(
             contentsOf: meeting.store.layout.transcriptMarkdown, encoding: .utf8
         )
-        #expect(markdown.contains("Dana"), "and the markdown says so too")
-        #expect(markdown.contains("Priya"), "on the half that kept its name")
+        #expect(markdown.contains("Dara"), "and the markdown says so too")
+        #expect(markdown.contains("Nadia"), "on the half that kept its name")
     }
 
     @Test("pulling a phrase out leaves the words either side alone")
@@ -862,7 +862,7 @@ struct PipelineTests {
         )
 
         _ = try await pipeline.applySpeakerRange(
-            "Dana", meetingID: meeting.id, track: .remote,
+            "Dara", meetingID: meeting.id, track: .remote,
             parts: try Self.windows(of: meeting.store, from: 5, to: 7)
         )
 
@@ -871,7 +871,7 @@ struct PipelineTests {
             try meeting.store.readCanonicalTranscript()
         ).utterances
         #expect(lines.count == 3, "two boundaries, three pieces")
-        #expect(lines.map { map.resolvedName(for: $0) } == ["Priya", "Dana", "Priya"])
+        #expect(lines.map { map.resolvedName(for: $0) } == ["Nadia", "Dara", "Nadia"])
         #expect(lines[1].text == "i think", "only the phrase moved")
     }
 
@@ -894,7 +894,7 @@ struct PipelineTests {
             "Sam", utteranceIDs: [first.id], meetingID: meeting.id
         )
         _ = try await pipeline.applySpeakerRange(
-            "Dana", meetingID: meeting.id, track: .remote,
+            "Dara", meetingID: meeting.id, track: .remote,
             parts: try Self.windows(of: meeting.store, from: 5, to: 11)
         )
 
@@ -902,7 +902,7 @@ struct PipelineTests {
         let lines = try #require(
             try meeting.store.readCanonicalTranscript()
         ).utterances
-        #expect(lines.map { map.resolvedName(for: $0) } == ["Sam", "Dana"])
+        #expect(lines.map { map.resolvedName(for: $0) } == ["Sam", "Dara"])
     }
 
     @Test("splitting a line keeps a narrow correction narrow")
@@ -929,7 +929,7 @@ struct PipelineTests {
         try meeting.store.writeSpeakerMap(speakers)
 
         _ = try await pipeline.applySpeakerRange(
-            "Dana", meetingID: meeting.id, track: .remote,
+            "Dara", meetingID: meeting.id, track: .remote,
             parts: try Self.windows(of: meeting.store, from: 5, to: 11)
         )
 
@@ -975,7 +975,7 @@ struct PipelineTests {
         let all = try #require(try meeting.store.readCanonicalTranscript()).utterances
         let clicked = try #require(all.first { $0.chunkID == "c2" })
         _ = try await pipeline.applySpeakerRange(
-            "Dana", meetingID: meeting.id, track: .remote, parts: [SpeakerRangePart(
+            "Dara", meetingID: meeting.id, track: .remote, parts: [SpeakerRangePart(
                 utteranceID: clicked.id, startSeconds: 6, endSeconds: 10
             )]
         )
@@ -993,7 +993,7 @@ struct PipelineTests {
             "expected \(11) ± \(0.001), got \(untouched.end - untouched.start) — the other chunk's line was not divided"
         )
         #expect(
-            map.resolvedName(for: untouched) == "Priya",
+            map.resolvedName(for: untouched) == "Nadia",
             "and did not change hands"
         )
         #expect(map.utteranceOverrides.count == 1, "one piece changed hands")
@@ -1020,7 +1020,7 @@ struct PipelineTests {
         // "so", the first word, which starts a second after the line
         // does and lasts less than that second.
         _ = try await pipeline.applySpeakerRange(
-            "Dana", meetingID: meeting.id, track: .remote,
+            "Dara", meetingID: meeting.id, track: .remote,
             parts: try Self.windows(of: meeting.store, from: 1, to: 1.7)
         )
 
@@ -1030,8 +1030,8 @@ struct PipelineTests {
         ).utterances
         #expect(lines.count == 2)
         #expect(lines[0].text == "so")
-        #expect(map.resolvedName(for: lines[0]) == "Dana")
-        #expect(map.resolvedName(for: lines[1]) == "Priya", "the rest is untouched")
+        #expect(map.resolvedName(for: lines[0]) == "Dara")
+        #expect(map.resolvedName(for: lines[1]) == "Nadia", "the rest is untouched")
     }
 
     @Test("pulling out the last words of a turn names them")
@@ -1046,7 +1046,7 @@ struct PipelineTests {
         // "friday", the last word, which ends a second before the line
         // does and lasts less than that second.
         _ = try await pipeline.applySpeakerRange(
-            "Dana", meetingID: meeting.id, track: .remote,
+            "Dara", meetingID: meeting.id, track: .remote,
             parts: try Self.windows(of: meeting.store, from: 11, to: 11.7)
         )
 
@@ -1056,8 +1056,8 @@ struct PipelineTests {
         ).utterances
         #expect(lines.count == 2)
         #expect(lines[1].text == "friday")
-        #expect(map.resolvedName(for: lines[1]) == "Dana")
-        #expect(map.resolvedName(for: lines[0]) == "Priya")
+        #expect(map.resolvedName(for: lines[1]) == "Dara")
+        #expect(map.resolvedName(for: lines[0]) == "Nadia")
     }
 
     @Test("a split names the rest of the turn as it is printed")
@@ -1080,7 +1080,7 @@ struct PipelineTests {
             printedAfter.start < 6, "the later line really does begin before the boundary"
         )
         _ = try await pipeline.applySpeakerRange(
-            "Dana", meetingID: meeting.id, track: .remote,
+            "Dara", meetingID: meeting.id, track: .remote,
             parts: [
                 SpeakerRangePart(
                     utteranceID: clicked.id, startSeconds: 6, endSeconds: clicked.end
@@ -1099,10 +1099,10 @@ struct PipelineTests {
         let head = try #require(lines.first { $0.chunkID == "c1" && $0.start < 6 })
         let tail = try #require(lines.first { $0.chunkID == "c1" && $0.start >= 6 })
         let after = try #require(lines.first { $0.chunkID == "c2" })
-        #expect(map.resolvedName(for: head) == "Priya", "before the boundary")
-        #expect(map.resolvedName(for: tail) == "Dana", "after it")
+        #expect(map.resolvedName(for: head) == "Nadia", "before the boundary")
+        #expect(map.resolvedName(for: tail) == "Dara", "after it")
         #expect(
-            map.resolvedName(for: after) == "Dana",
+            map.resolvedName(for: after) == "Dara",
             "and the line printed after it, whose clock says otherwise"
         )
     }
@@ -1118,7 +1118,7 @@ struct PipelineTests {
             repository: meeting.repository, backend: FakeAIBackend()
         )
         _ = try await pipeline.applySpeakerRange(
-            "Dana", meetingID: meeting.id, track: .remote,
+            "Dara", meetingID: meeting.id, track: .remote,
             parts: try Self.windows(of: meeting.store, from: 5, to: 11)
         )
         // Whatever else re-assembly does, the boundary and the name it
@@ -1126,7 +1126,7 @@ struct PipelineTests {
         let map = try meeting.store.readSpeakerMap()
         #expect(map.lineCuts.count == 1)
         #expect(map.utteranceOverrides.count == 1)
-        #expect(map.utteranceOverrides.first?.assignment.displayName == "Dana")
+        #expect(map.utteranceOverrides.first?.assignment.displayName == "Dara")
     }
 
     /// Every line the panel would be showing, each windowed to the same
@@ -1194,7 +1194,7 @@ struct PipelineTests {
             CanonicalTranscript(generatedAt: started, utterances: utterances)
         )
         var map = SpeakerMap()
-        map.assign("Priya", to: "remote-001_speaker_00")
+        map.assign("Nadia", to: "remote-001_speaker_00")
         try created.store.writeSpeakerMap(map)
         return (created.metadata.id, created.store, repository)
     }

@@ -178,7 +178,7 @@ struct SpeakerAttributionTests {
         // the words start: on that call one turn opened at 170.56 and
         // the interval began at 174.30. Inheritance ran forwards only,
         // so the words before it had nothing to inherit and came out as
-        // a speakerless line of their own. Chris B's "Okay. Okay," was
+        // a speakerless line of their own. Bryn B's "Okay. Okay," was
         // torn off the front of his own sentence nine times over.
         //
         // The recogniser's segment is the unit. A leading run takes the
@@ -255,7 +255,7 @@ struct SpeakerCorrectionsTests {
     @Test("renaming a cluster changes every line it owns and nothing else")
     func renamingAClusterChangesEveryLineItOwnsAndNothingElse() async throws {
         var map = SpeakerMap()
-        map.assign("Samantha", to: "remote-001_speaker_00")
+        map.assign("Talia", to: "remote-001_speaker_00")
         let mine = Utterance(
             id: "u1", start: 0, end: 3, track: .remote,
             rawSpeakerLabel: "remote-001_speaker_00",
@@ -268,14 +268,14 @@ struct SpeakerCorrectionsTests {
             speakerKey: "remote-001_speaker_01", text: "hi",
             chunkID: "remote_full", model: "whisperkit"
         )
-        #expect(map.resolvedName(for: mine) == "Samantha")
+        #expect(map.resolvedName(for: mine) == "Talia")
         #expect(map.resolvedName(for: theirs) == "Speaker 2")
     }
 
     @Test("correcting one line leaves every other line in its cluster alone")
     func correctingOneLineLeavesEveryOtherLineInItsClusterAlone() async throws {
         var map = SpeakerMap()
-        map.assign("Samantha", to: "remote-001_speaker_00")
+        map.assign("Talia", to: "remote-001_speaker_00")
         let first = Utterance(
             id: "u1", start: 0, end: 3, track: .remote, rawSpeakerLabel: nil,
             speakerKey: "remote-001_speaker_00", text: "one",
@@ -288,13 +288,13 @@ struct SpeakerCorrectionsTests {
         )
         map.overrideUtterance(
             second,
-            with: SpeakerAssignment(displayName: "Chris", origin: .human),
+            with: SpeakerAssignment(displayName: "Bryn", origin: .human),
             at: Date()
         )
-        #expect(map.resolvedName(for: first) == "Samantha")
-        #expect(map.resolvedName(for: second) == "Chris")
+        #expect(map.resolvedName(for: first) == "Talia")
+        #expect(map.resolvedName(for: second) == "Bryn")
         #expect(
-            map.entries["remote-001_speaker_00"]?.displayName == "Samantha",
+            map.entries["remote-001_speaker_00"]?.displayName == "Talia",
             "the cluster mapping is untouched"
         )
     }
@@ -308,10 +308,10 @@ struct SpeakerCorrectionsTests {
             chunkID: "remote_full", model: "whisperkit"
         )
         map.overrideUtterance(
-            line, with: SpeakerAssignment(displayName: "Chris", origin: .human), at: Date()
+            line, with: SpeakerAssignment(displayName: "Bryn", origin: .human), at: Date()
         )
-        map.assign("Samantha", to: "remote-001_speaker_02")
-        #expect(map.resolvedName(for: line) == "Chris")
+        map.assign("Talia", to: "remote-001_speaker_02")
+        #expect(map.resolvedName(for: line) == "Bryn")
     }
 
     @Test("a correction survives the transcript being reassembled differently")
@@ -325,7 +325,7 @@ struct SpeakerCorrectionsTests {
             chunkID: "remote_full", model: "whisperkit"
         )
         map.overrideUtterance(
-            before, with: SpeakerAssignment(displayName: "Chris", origin: .human), at: Date()
+            before, with: SpeakerAssignment(displayName: "Bryn", origin: .human), at: Date()
         )
 
         // The same moment, in a line with a different identifier, a
@@ -335,7 +335,7 @@ struct SpeakerCorrectionsTests {
             speakerKey: "remote-002_speaker_04", text: "we can have that friday",
             chunkID: "remote_full", model: "whisperkit"
         )
-        #expect(map.resolvedName(for: after) == "Chris")
+        #expect(map.resolvedName(for: after) == "Bryn")
     }
 
     @Test("a correction survives the corrected line being split in two")
@@ -350,7 +350,7 @@ struct SpeakerCorrectionsTests {
             chunkID: "remote_full", model: "whisperkit"
         )
         map.overrideUtterance(
-            before, with: SpeakerAssignment(displayName: "Chris", origin: .human), at: Date()
+            before, with: SpeakerAssignment(displayName: "Bryn", origin: .human), at: Date()
         )
 
         let firstHalf = Utterance(
@@ -363,8 +363,8 @@ struct SpeakerCorrectionsTests {
             speakerKey: "remote-002_speaker_04", text: "shipped it on friday",
             chunkID: "remote_full", model: "whisperkit"
         )
-        #expect(map.resolvedName(for: firstHalf) == "Chris")
-        #expect(map.resolvedName(for: secondHalf) == "Chris")
+        #expect(map.resolvedName(for: firstHalf) == "Bryn")
+        #expect(map.resolvedName(for: secondHalf) == "Bryn")
 
         // And a line the correction never covered is untouched.
         let elsewhere = Utterance(
@@ -382,7 +382,7 @@ struct SpeakerCorrectionsTests {
             id: "u1", start: 0, end: 4, track: .remote, rawSpeakerLabel: nil,
             speakerKey: "remote-001_speaker_00", text: "x", chunkID: "c", model: "m"
         )
-        for name in ["Chris", "Samantha", "John"] {
+        for name in ["Bryn", "Talia", "John"] {
             map.overrideUtterance(
                 line, with: SpeakerAssignment(displayName: name, origin: .human), at: Date()
             )
@@ -407,9 +407,9 @@ struct SpeakerCorrectionsTests {
             speakerKey: SpeakerLabel.localUser, text: "y", chunkID: "c", model: "m"
         )
         map.overrideUtterance(
-            remote, with: SpeakerAssignment(displayName: "Chris", origin: .human), at: Date()
+            remote, with: SpeakerAssignment(displayName: "Bryn", origin: .human), at: Date()
         )
-        #expect(map.resolvedName(for: remote) == "Chris")
+        #expect(map.resolvedName(for: remote) == "Bryn")
         #expect(map.resolvedName(for: mic) == "Me")
     }
 
@@ -434,19 +434,19 @@ struct SpeakerCorrectionsTests {
             "a later textual guess must not undo a voice match"
         )
 
-        map.assign("Chris", to: key)
+        map.assign("Bryn", to: key)
         map.applySuggestion(
             SpeakerAssignment(displayName: "Someone else", origin: .voiceProfile), for: key
         )
-        #expect(map.displayName(for: key) == "Chris", "a person's answer is final")
+        #expect(map.displayName(for: key) == "Bryn", "a person's answer is final")
 
-        var mine = SpeakerMap.withLocalUser(named: "Andrew")
+        var mine = SpeakerMap.withLocalUser(named: "Marlow")
         mine.applySuggestion(
             SpeakerAssignment(displayName: "Not me", origin: .voiceProfile),
             for: SpeakerLabel.localUser
         )
         #expect(
-            mine.displayName(for: SpeakerLabel.localUser) == "Andrew",
+            mine.displayName(for: SpeakerLabel.localUser) == "Marlow",
             "the microphone track is not a guess"
         )
     }
@@ -456,8 +456,8 @@ struct SpeakerCorrectionsTests {
         // The people bank is the truth and a platform handle points at
         // it. Measured on a Slack huddle recorded on 3 September 2026,
         // the pointer reached exactly one key: `sensor_U0619AZFDT6`
-        // read "Chris L" from the bank while four cluster keys carrying
-        // the same account read Slack's roster string "Chris Latimer"
+        // read "Bryn C" from the bank while four cluster keys carrying
+        // the same account read Slack's roster string "Bryn Callister"
         // with no identity at all. One person, two names, one meeting.
         //
         // The keys with no identity are the worse half. `refreshName`
@@ -466,7 +466,7 @@ struct SpeakerCorrectionsTests {
         // cluster already belonged to.
         var map = SpeakerMap()
         let roster = SpeakerAssignment(
-            displayName: "Chris Latimer", origin: .sensor,
+            displayName: "Bryn Callister", origin: .sensor,
             participantID: "U0619AZFDT6",
             provenance: SpeakerProvenance(source: .sensor)
         )
@@ -474,7 +474,7 @@ struct SpeakerCorrectionsTests {
         map.applySuggestion(roster, for: "remote-002_speaker_03")
         map.applySuggestion(
             SpeakerAssignment(
-                displayName: "Brian McNamara", origin: .sensor,
+                displayName: "Rowan Ashby", origin: .sensor,
                 participantID: "U0B17GB9VPA"
             ),
             for: "remote-001_speaker_01"
@@ -482,7 +482,7 @@ struct SpeakerCorrectionsTests {
         map.assign("Someone else", to: "remote-001_speaker_09", participantID: "U0619AZFDT6")
 
         let bound = SpeakerAssignment(
-            displayName: "Chris L", origin: .sensor,
+            displayName: "Bryn C", origin: .sensor,
             participantID: "U0619AZFDT6", identityID: IdentityID(2),
             provenance: SpeakerProvenance(
                 source: .sensor, identityID: IdentityID(2), humanVerified: true
@@ -490,14 +490,14 @@ struct SpeakerCorrectionsTests {
         )
         map.applySuggestion(bound, toParticipant: "U0619AZFDT6")
 
-        #expect(map.displayName(for: "remote-001_speaker_02") == "Chris L")
-        #expect(map.displayName(for: "remote-002_speaker_03") == "Chris L")
+        #expect(map.displayName(for: "remote-001_speaker_02") == "Bryn C")
+        #expect(map.displayName(for: "remote-002_speaker_03") == "Bryn C")
         #expect(
             map.entries["remote-002_speaker_03"]?.identityID == IdentityID(2),
             "and the key now knows who it belongs to, so a rename reaches it"
         )
         #expect(
-            map.displayName(for: "remote-001_speaker_01") == "Brian McNamara",
+            map.displayName(for: "remote-001_speaker_01") == "Rowan Ashby",
             "another account is untouched"
         )
         #expect(
@@ -573,10 +573,10 @@ struct SpeakerCorrectionsTests {
         )
         #expect(map.referencedIdentities == [identity])
 
-        let renamed = map.refreshName(of: identity, to: "Samantha Lee")
+        let renamed = map.refreshName(of: identity, to: "Talia Brightwood")
         #expect(renamed)
-        #expect(map.displayName(for: "remote-001_speaker_00") == "Samantha Lee")
-        #expect(map.resolvedName(for: line) == "Samantha Lee")
+        #expect(map.displayName(for: "remote-001_speaker_00") == "Talia Brightwood")
+        #expect(map.resolvedName(for: line) == "Talia Brightwood")
         let unknown = map.refreshName(of: IdentityID(99), to: "Nobody")
         #expect(!unknown, "an identity this meeting never saw changes nothing")
     }
@@ -604,7 +604,7 @@ struct SpeakerCorrectionsTests {
 
         var map = SpeakerMap()
         map.assign("Bob", to: "remote-001_speaker_00", identityID: ann.id)
-        _ = try await store.rename(bob.id, to: "Bob Tran")
+        _ = try await store.rename(bob.id, to: "Bob Trask")
         let current = try await store.current(bob.id)
 
         var changed = false
@@ -613,17 +613,17 @@ struct SpeakerCorrectionsTests {
             changed = true
         }
         #expect(changed, "the entry written under the merged id is found")
-        #expect(map.displayName(for: "remote-001_speaker_00") == "Bob Tran")
+        #expect(map.displayName(for: "remote-001_speaker_00") == "Bob Trask")
     }
 
     @Test("a speaker map written before line corrections existed still loads")
     func aSpeakerMapWrittenBeforeLineCorrectionsExistedStillLoads() async throws {
         let legacy = """
-            {"version":1,"entries":{"local":{"displayName":"Andrew","origin":"deterministic"}}}
+            {"version":1,"entries":{"local":{"displayName":"Marlow","origin":"deterministic"}}}
             """
         let map = try JSONDecoder().decode(SpeakerMap.self, from: Data(legacy.utf8))
         #expect(map.entries.count == 1)
-        #expect(map.displayName(for: SpeakerLabel.localUser) == "Andrew")
+        #expect(map.displayName(for: SpeakerLabel.localUser) == "Marlow")
         #expect(map.utteranceOverrides.isEmpty)
     }
 
@@ -650,12 +650,12 @@ struct SpeakerCorrectionsTests {
         var map = SpeakerMap()
         map.overrideUtterance(
             full,
-            with: SpeakerAssignment(displayName: "Chris", origin: .human),
+            with: SpeakerAssignment(displayName: "Bryn", origin: .human),
             at: Date()
         )
-        #expect(map.resolvedName(for: full) == "Chris")
+        #expect(map.resolvedName(for: full) == "Bryn")
         #expect(
-            map.resolvedName(for: tail) != "Chris",
+            map.resolvedName(for: tail) != "Bryn",
             "a line the user never touched keeps its own speaker"
         )
 
@@ -663,11 +663,11 @@ struct SpeakerCorrectionsTests {
         // one's correction.
         map.overrideUtterance(
             tail,
-            with: SpeakerAssignment(displayName: "Dana", origin: .human),
+            with: SpeakerAssignment(displayName: "Dara", origin: .human),
             at: Date()
         )
-        #expect(map.resolvedName(for: tail) == "Dana")
-        #expect(map.resolvedName(for: full) == "Chris")
+        #expect(map.resolvedName(for: tail) == "Dara")
+        #expect(map.resolvedName(for: full) == "Bryn")
     }
 
     @Test("a correction survives the line being split in two")
@@ -681,12 +681,12 @@ struct SpeakerCorrectionsTests {
         var map = SpeakerMap()
         map.overrideUtterance(
             line("u1", 10, 20),
-            with: SpeakerAssignment(displayName: "Chris", origin: .human),
+            with: SpeakerAssignment(displayName: "Bryn", origin: .human),
             at: Date()
         )
         // Re-assembly splits the turn where the speaker changed.
-        #expect(map.resolvedName(for: line("u1", 10, 15)) == "Chris")
-        #expect(map.resolvedName(for: line("u2", 15, 20)) == "Chris")
+        #expect(map.resolvedName(for: line("u1", 10, 15)) == "Bryn")
+        #expect(map.resolvedName(for: line("u2", 15, 20)) == "Bryn")
     }
 
     @Test("words no interval claimed are not filed under a real cluster")

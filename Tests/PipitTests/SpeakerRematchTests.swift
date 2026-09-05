@@ -84,19 +84,19 @@ struct SpeakerRematchTests {
         defer { try? FileManager.default.removeItem(at: root) }
         let service = SpeakerRecognitionService(store: store)
 
-        let andrew = Self.vector(seed: 401)
+        let marlow = Self.vector(seed: 401)
         let voice = try await Self.seedVoice(
-            store, meeting: "import-1", cluster: "run-1_speaker_00", vector: andrew,
+            store, meeting: "import-1", cluster: "run-1_speaker_00", vector: marlow,
             seconds: 421
         )
         // Enrolled after the import, which is the whole point.
         let person = try await Self.enrolPerson(
-            store, name: "Andrew", meeting: "later-1", vector: andrew
+            store, name: "Marlow", meeting: "later-1", vector: marlow
         )
         // A second person, so there is a runner-up and the margin means
         // something.
         _ = try await Self.enrolPerson(
-            store, name: "Dana", meeting: "later-2", vector: Self.vector(seed: 402)
+            store, name: "Dara", meeting: "later-2", vector: Self.vector(seed: 402)
         )
 
         let matches = try await service.rematchUnnamedVoices()
@@ -117,13 +117,13 @@ struct SpeakerRematchTests {
         defer { try? FileManager.default.removeItem(at: root) }
         let service = SpeakerRecognitionService(store: store)
 
-        let andrew = Self.vector(seed: 411)
+        let marlow = Self.vector(seed: 411)
         let voice = try await Self.seedVoice(
-            store, meeting: "import-1", cluster: "run-1_speaker_00", vector: andrew
+            store, meeting: "import-1", cluster: "run-1_speaker_00", vector: marlow
         )
-        _ = try await Self.enrolPerson(store, name: "Andrew", meeting: "later-1", vector: andrew)
+        _ = try await Self.enrolPerson(store, name: "Marlow", meeting: "later-1", vector: marlow)
         _ = try await Self.enrolPerson(
-            store, name: "Dana", meeting: "later-2", vector: Self.vector(seed: 412)
+            store, name: "Dara", meeting: "later-2", vector: Self.vector(seed: 412)
         )
         let before = try await store.statistics()
 
@@ -210,7 +210,7 @@ struct SpeakerRematchTests {
         defer { try? FileManager.default.removeItem(at: root) }
         let service = SpeakerRecognitionService(store: store)
         let shared = Self.vector(seed: 451)
-        _ = try await Self.enrolPerson(store, name: "Andrew", meeting: "m1", vector: shared)
+        _ = try await Self.enrolPerson(store, name: "Marlow", meeting: "m1", vector: shared)
         _ = try await Self.enrolPerson(store, name: "Andy", meeting: "m2", vector: shared)
         let matches = try await service.rematchUnnamedVoices()
         #expect(
@@ -221,7 +221,7 @@ struct SpeakerRematchTests {
 
     @Test("a voice in the suggestion band is left alone")
     func aVoiceInTheSuggestionBandIsLeftAlone() async throws {
-        // Blended 45% of the way towards Andrew, which lands near 0.60:
+        // Blended 45% of the way towards Marlow, which lands near 0.60:
         // over the 0.55 the policy will suggest at and under the 0.70 it
         // will name at. Offering it would put in front of the user a
         // decision the numbers cannot settle, which is the case for
@@ -230,13 +230,13 @@ struct SpeakerRematchTests {
         let (store, root) = try Self.makeStore()
         defer { try? FileManager.default.removeItem(at: root) }
         let service = SpeakerRecognitionService(store: store)
-        let andrew = Self.vector(seed: 461)
+        let marlow = Self.vector(seed: 461)
         let nearly = SpeakerFixtures.blended(
-            Self.vector(seed: 462), with: andrew, towards: 0.45
+            Self.vector(seed: 462), with: marlow, towards: 0.45
         )
         // Pinned, so a fixture that drifts out of the band says so here
         // rather than passing for the wrong reason.
-        let score = VoiceVector.cosine(nearly, andrew)
+        let score = VoiceVector.cosine(nearly, marlow)
         #expect(
             score > SpeakerResolutionPolicy.shipping.mediumScore
                 && score < SpeakerResolutionPolicy.shipping.namedHighScore,
@@ -245,9 +245,9 @@ struct SpeakerRematchTests {
         _ = try await Self.seedVoice(
             store, meeting: "m1", cluster: "run-1_speaker_00", vector: nearly
         )
-        _ = try await Self.enrolPerson(store, name: "Andrew", meeting: "m2", vector: andrew)
+        _ = try await Self.enrolPerson(store, name: "Marlow", meeting: "m2", vector: marlow)
         _ = try await Self.enrolPerson(
-            store, name: "Dana", meeting: "m3", vector: Self.vector(seed: 463)
+            store, name: "Dara", meeting: "m3", vector: Self.vector(seed: 463)
         )
         let matches = try await service.rematchUnnamedVoices()
         #expect(matches.isEmpty, "under 0.70 nothing is offered")
@@ -286,8 +286,8 @@ struct SpeakerRematchTests {
             identityID: voice.id, source: .ai,
             humanVerified: false, wasExpectedParticipant: false
         )
-        let andrew = try await Self.enrolPerson(
-            store, name: "Andrew", meeting: "later-1", vector: Self.vector(seed: 481)
+        let marlow = try await Self.enrolPerson(
+            store, name: "Marlow", meeting: "later-1", vector: Self.vector(seed: 481)
         )
 
         let pipeline = ProcessingPipeline(
@@ -303,14 +303,14 @@ struct SpeakerRematchTests {
             wait: { _ in }
         )
         try await pipeline.applyRematch(
-            voice: voice.id, into: andrew.id, named: "Andrew"
+            voice: voice.id, into: marlow.id, named: "Marlow"
         )
 
         let map = try meeting.store.readSpeakerMap()
-        #expect(map.displayName(for: key) == "Andrew", "the transcript now names him")
-        #expect(map.entries[key]?.identityID == andrew.id)
+        #expect(map.displayName(for: key) == "Marlow", "the transcript now names him")
+        #expect(map.entries[key]?.identityID == marlow.id)
         let current = try await store.current(voice.id)
         let merged = try #require(current)
-        #expect(merged.id == andrew.id, "and the voice resolves to him")
+        #expect(merged.id == marlow.id, "and the voice resolves to him")
     }
 }

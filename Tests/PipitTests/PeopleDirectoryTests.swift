@@ -63,8 +63,8 @@ struct PeoplePickerTests {
         let day = Date(timeIntervalSince1970: 1_700_000_000)
         let entries = [
             entry(1, name: "Zoe", organization: "Acme"),
-            entry(2, name: "Brian M", organization: "Acme"),
-            entry(3, name: "Ali Rodell", lastSeen: day),
+            entry(2, name: "Rowan A", organization: "Acme"),
+            entry(3, name: "Ivo Rennick", lastSeen: day),
             entry(4, name: "Alastair"),
         ]
         let sections = PeoplePickerRanking.sections(
@@ -76,8 +76,8 @@ struct PeoplePickerTests {
                 PeoplePickerRanking.everyoneTitle,
             ]
         )
-        #expect(sections[0].rows.map(\.entry.identity.resolvedName) == ["Brian M"])
-        #expect(sections[1].rows.map(\.entry.identity.resolvedName) == ["Ali Rodell"])
+        #expect(sections[0].rows.map(\.entry.identity.resolvedName) == ["Rowan A"])
+        #expect(sections[1].rows.map(\.entry.identity.resolvedName) == ["Ivo Rennick"])
         #expect(
             sections[2].rows.map(\.entry.identity.resolvedName) == ["Alastair", "Zoe"],
             "what is left is alphabetical"
@@ -88,26 +88,26 @@ struct PeoplePickerTests {
     func nobodyAppearsTwice() async throws {
         let day = Date(timeIntervalSince1970: 1_700_000_000)
         let entries = [
-            entry(1, name: "Brian M", lastSeen: day),
-            entry(2, name: "Ali Rodell", lastSeen: day.addingTimeInterval(-60)),
+            entry(1, name: "Rowan A", lastSeen: day),
+            entry(2, name: "Ivo Rennick", lastSeen: day.addingTimeInterval(-60)),
         ]
         let sections = PeoplePickerRanking.sections(
             entries, context: [IdentityID(1): .onAChip]
         )
         let names = sections.flatMap(\.rows).map(\.entry.identity.resolvedName)
         #expect(names.count == Set(names).count, "a person offered twice is two answers")
-        #expect(sections[0].rows.map(\.entry.identity.resolvedName) == ["Brian M"])
-        #expect(sections[1].rows.map(\.entry.identity.resolvedName) == ["Ali Rodell"])
+        #expect(sections[0].rows.map(\.entry.identity.resolvedName) == ["Rowan A"])
+        #expect(sections[1].rows.map(\.entry.identity.resolvedName) == ["Ivo Rennick"])
     }
 
     @Test("someone already heard is offered above someone merely expected")
     func someoneAlreadyHeardIsOfferedAboveSomeoneMerelyExpected() async throws {
         let sections = PeoplePickerRanking.sections(
-            [entry(1, name: "Ali Rodell"), entry(2, name: "Brian M")],
+            [entry(1, name: "Ivo Rennick"), entry(2, name: "Rowan A")],
             context: [IdentityID(1): .expected, IdentityID(2): .onAChip]
         )
         #expect(
-            sections.first?.rows.map(\.entry.identity.resolvedName) == ["Brian M", "Ali Rodell"],
+            sections.first?.rows.map(\.entry.identity.resolvedName) == ["Rowan A", "Ivo Rennick"],
             "a voice already heard is a likelier answer than a name off the invite"
         )
     }
@@ -134,24 +134,24 @@ struct PeoplePickerTests {
     func searchingCollapsesRecentIntoOneListAndKeepsTheMeetingsOwn() async throws {
         let day = Date(timeIntervalSince1970: 1_700_000_000)
         let entries = [
-            entry(1, name: "Chris B", organization: "Acme"),
-            entry(2, name: "Chris Latimer", lastSeen: day),
-            entry(3, name: "Christine Ayers"),
-            entry(4, name: "Dana Kwon", lastSeen: day),
+            entry(1, name: "Bryn B", organization: "Acme"),
+            entry(2, name: "Bryn Callister", lastSeen: day),
+            entry(3, name: "Brynne Oakhurst"),
+            entry(4, name: "Dara Kestrel", lastSeen: day),
         ]
         let sections = PeoplePickerRanking.sections(
-            entries, context: [IdentityID(1): .onAChip], query: "chris"
+            entries, context: [IdentityID(1): .onAChip], query: "bryn"
         )
         #expect(
             sections.map(\.title)
                 == [PeoplePickerRanking.inThisMeetingTitle, PeoplePickerRanking.everyoneTitle],
             "splitting five recent names off three results hides the split's reason"
         )
-        #expect(sections[0].rows.map(\.entry.identity.resolvedName) == ["Chris B"])
+        #expect(sections[0].rows.map(\.entry.identity.resolvedName) == ["Bryn B"])
         #expect(
             sections[1].rows.map(\.entry.identity.resolvedName)
-                == ["Chris Latimer", "Christine Ayers"],
-            "Dana does not match, and the section is alphabetical"
+                == ["Bryn Callister", "Brynne Oakhurst"],
+            "Dara does not match, and the section is alphabetical"
         )
     }
 
@@ -159,7 +159,7 @@ struct PeoplePickerTests {
     func aSearchMatchingNobodyLeavesNoSectionsAtAll() async throws {
         #expect(
             PeoplePickerRanking.sections(
-                [entry(1, name: "Chris B")],
+                [entry(1, name: "Bryn B")],
                 context: [IdentityID(1): .onAChip], query: "dara"
             ).isEmpty,
             "the empty result is what offers to create the person typed"
@@ -175,7 +175,7 @@ struct PeoplePickerTests {
     func theLineUnderANameSaysTheOrganizationAndWhyTheyAreOffered() async throws {
         #expect(
             PeoplePickerRanking.detail(
-                of: entry(1, name: "Brian M", organization: "Acme"), context: .onAChip
+                of: entry(1, name: "Rowan A", organization: "Acme"), context: .onAChip
             ) == "Acme · already on a chip here"
         )
         #expect(
@@ -204,18 +204,18 @@ struct PersonDetailTests {
     func notesBadgesAndAPictureRoundTrip() async throws {
         let (store, root) = try makeStore()
         defer { try? FileManager.default.removeItem(at: root) }
-        let chris = try await store.createPerson(name: "Chris", organization: "Acme")
+        let bryn = try await store.createPerson(name: "Bryn", organization: "Acme")
 
-        try await store.setNotes("Owns the ingest retries.", on: chris.id)
-        try await store.setBadges([.slack, .zoom], on: chris.id)
-        try await store.setAvatar(Data([0x89, 0x50, 0x4E, 0x47]), on: chris.id)
+        try await store.setNotes("Owns the ingest retries.", on: bryn.id)
+        try await store.setBadges([.slack, .zoom], on: bryn.id)
+        try await store.setAvatar(Data([0x89, 0x50, 0x4E, 0x47]), on: bryn.id)
 
-        let current = try await store.current(chris.id)
+        let current = try await store.current(bryn.id)
         let read = try #require(current)
         #expect(read.notes == "Owns the ingest retries.")
         #expect(read.badges == [.slack, .zoom])
         #expect(read.hasAvatar, "the list needs to know a picture exists")
-        let avatar = try await store.avatar(of: chris.id)
+        let avatar = try await store.avatar(of: bryn.id)
         #expect(avatar == Data([0x89, 0x50, 0x4E, 0x47]))
     }
 
@@ -223,12 +223,12 @@ struct PersonDetailTests {
     func blankNotesClearTheFieldRatherThanStoringWhitespace() async throws {
         let (store, root) = try makeStore()
         defer { try? FileManager.default.removeItem(at: root) }
-        let chris = try await store.createPerson(name: "Chris")
-        try await store.setNotes("something", on: chris.id)
-        try await store.setNotes("   \n ", on: chris.id)
+        let bryn = try await store.createPerson(name: "Bryn")
+        try await store.setNotes("something", on: bryn.id)
+        try await store.setNotes("   \n ", on: bryn.id)
         // A participant block built from whitespace prints a name with
         // an empty line under it in every transcript they are in.
-        let notes = try await store.current(chris.id)?.notes
+        let notes = try await store.current(bryn.id)?.notes
         #expect(notes == nil)
     }
 
@@ -236,10 +236,10 @@ struct PersonDetailTests {
     func replacingTheBadgeSetRemovesWhatIsNoLongerThere() async throws {
         let (store, root) = try makeStore()
         defer { try? FileManager.default.removeItem(at: root) }
-        let chris = try await store.createPerson(name: "Chris")
-        try await store.setBadges([.slack, .zoom, .phone], on: chris.id)
-        try await store.setBadges([.zoom], on: chris.id)
-        let badges = try await store.current(chris.id)?.badges
+        let bryn = try await store.createPerson(name: "Bryn")
+        try await store.setBadges([.slack, .zoom, .phone], on: bryn.id)
+        try await store.setBadges([.zoom], on: bryn.id)
+        let badges = try await store.current(bryn.id)?.badges
         #expect(badges == [.zoom])
     }
 
@@ -247,16 +247,16 @@ struct PersonDetailTests {
     func deletingAPersonTakesTheirNotesBadgesAndPicture() async throws {
         let (store, root) = try makeStore()
         defer { try? FileManager.default.removeItem(at: root) }
-        let chris = try await store.createPerson(name: "Chris")
-        try await store.setNotes("Owns the ingest retries.", on: chris.id)
-        try await store.setBadges([.slack], on: chris.id)
-        try await store.setAvatar(Data([0x89, 0x50]), on: chris.id)
+        let bryn = try await store.createPerson(name: "Bryn")
+        try await store.setNotes("Owns the ingest retries.", on: bryn.id)
+        try await store.setBadges([.slack], on: bryn.id)
+        try await store.setAvatar(Data([0x89, 0x50]), on: bryn.id)
 
-        try await store.delete(chris.id)
+        try await store.delete(bryn.id)
 
-        let current = try await store.current(chris.id)
+        let current = try await store.current(bryn.id)
         #expect(current == nil)
-        let avatar = try await store.avatar(of: chris.id)
+        let avatar = try await store.avatar(of: bryn.id)
         #expect(
             avatar == nil,
             "the cascade has to reach the picture, or a deleted person leaves their face behind"
@@ -267,14 +267,14 @@ struct PersonDetailTests {
     func aMergedPersonKeepsTheirOwnNotesForAnUnmergeToFind() async throws {
         let (store, root) = try makeStore()
         defer { try? FileManager.default.removeItem(at: root) }
-        let chris = try await store.createPerson(name: "Chris")
-        let duplicate = try await store.createPerson(name: "C. Fowler")
+        let bryn = try await store.createPerson(name: "Bryn")
+        let duplicate = try await store.createPerson(name: "B. Ashgrove")
         try await store.setNotes("The other row's notes.", on: duplicate.id)
-        try await store.setNotes("Owns the ingest retries.", on: chris.id)
+        try await store.setNotes("Owns the ingest retries.", on: bryn.id)
 
-        try await store.merge(duplicate.id, into: chris.id)
+        try await store.merge(duplicate.id, into: bryn.id)
         // Reads resolve through the tombstone, so the duplicate reads as
-        // Chris and shows his notes.
+        // Bryn and shows his notes.
         let merged = try await store.current(duplicate.id)?.notes
         #expect(merged == "Owns the ingest retries.")
 
@@ -291,9 +291,9 @@ struct PersonDetailTests {
         let (store, root) = try makeStore()
         defer { try? FileManager.default.removeItem(at: root) }
         let people = try await [
-            store.createPerson(name: "Chris"),
-            store.createPerson(name: "Dana"),
-            store.createPerson(name: "Priya"),
+            store.createPerson(name: "Bryn"),
+            store.createPerson(name: "Dara"),
+            store.createPerson(name: "Nadia"),
         ]
         try await store.setOrganization("Acme", on: [people[0].id, people[2].id])
         let first = try await store.current(people[0].id)?.organization
@@ -309,23 +309,23 @@ struct PersonDetailTests {
         let root = try TestPaths.makeTemporaryDirectory()
         defer { try? FileManager.default.removeItem(at: root) }
         let url = root.appendingPathComponent("voices.sqlite")
-        try writeVersionOneDatabase(at: url, name: "Chris")
+        try writeVersionOneDatabase(at: url, name: "Bryn")
 
         let store = try SpeakerStore(url: url)
         let people = try await store.identities(kind: .person)
         #expect(people.count == 1, "the migration must not drop anybody")
-        #expect(people.first?.resolvedName == "Chris")
+        #expect(people.first?.resolvedName == "Bryn")
         #expect(people.first?.notes == nil)
         #expect(people.first?.badges == [])
 
         // And the columns the migration added are writable, which is
         // what it was for.
-        let chris = try #require(people.first)
-        try await store.setNotes("Still here.", on: chris.id)
-        try await store.setBadges([.slack], on: chris.id)
-        let notes = try await store.current(chris.id)?.notes
+        let bryn = try #require(people.first)
+        try await store.setNotes("Still here.", on: bryn.id)
+        try await store.setBadges([.slack], on: bryn.id)
+        let notes = try await store.current(bryn.id)?.notes
         #expect(notes == "Still here.")
-        let badges = try await store.current(chris.id)?.badges
+        let badges = try await store.current(bryn.id)?.badges
         #expect(badges == [.slack])
     }
 }
@@ -338,14 +338,14 @@ struct PeopleDirectoryFilterTests {
         // organization it sits among colleagues, in alphabetical order,
         // named like anybody else.
         let entries = [
-            entry(1, name: "Andrew", organization: "Acme", isLocalUser: true),
+            entry(1, name: "Marlow", organization: "Acme", isLocalUser: true),
             entry(2, name: "Aaron", organization: "Acme"),
-            entry(3, name: "Priya"),
+            entry(3, name: "Nadia"),
             entry(4, anonymousNumber: 2),
         ]
         let sections = PeopleDirectoryFilter.sections(entries)
         #expect(sections.first?.title == PeopleDirectoryFilter.youTitle)
-        #expect(sections.first?.entries.map(\.identity.resolvedName) == ["Andrew"])
+        #expect(sections.first?.entries.map(\.identity.resolvedName) == ["Marlow"])
         #expect(
             !sections.dropFirst().contains { $0.entries.contains { $0.identity.isLocalUser } },
             "one row, in one place"
@@ -359,11 +359,11 @@ struct PeopleDirectoryFilterTests {
     @Test("a search that does not match you leaves the section out")
     func aSearchThatDoesNotMatchYouLeavesTheSectionOut() async throws {
         let entries = [
-            entry(1, name: "Andrew", isLocalUser: true),
-            entry(2, name: "Priya"),
+            entry(1, name: "Marlow", isLocalUser: true),
+            entry(2, name: "Nadia"),
         ]
         #expect(
-            PeopleDirectoryFilter.sections(entries, query: "priya").map(\.title)
+            PeopleDirectoryFilter.sections(entries, query: "nadia").map(\.title)
                 == [PeopleDirectoryFilter.noOrganizationTitle]
         )
     }
@@ -371,18 +371,18 @@ struct PeopleDirectoryFilterTests {
     @Test("search reaches the organization, the aliases and the notes")
     func searchReachesTheOrganizationTheAliasesAndTheNotes() async throws {
         let entries = [
-            entry(1, name: "Chris Fowler", organization: "Acme"),
-            entry(2, name: "Dana Kwon", aliases: ["DK"]),
-            entry(3, name: "Priya Raman", notes: "Owns the ingest retries."),
+            entry(1, name: "Bryn Ashgrove", organization: "Acme"),
+            entry(2, name: "Dara Kestrel", aliases: ["DK"]),
+            entry(3, name: "Nadia Quist", notes: "Owns the ingest retries."),
         ]
         func names(_ query: String) -> [String] {
             PeopleDirectoryFilter.sections(entries, query: query)
                 .flatMap(\.entries).map(\.identity.resolvedName)
         }
-        #expect(names("acme") == ["Chris Fowler"])
-        #expect(names("dk") == ["Dana Kwon"], "an alias is how a name was written elsewhere")
+        #expect(names("acme") == ["Bryn Ashgrove"])
+        #expect(names("dk") == ["Dara Kestrel"], "an alias is how a name was written elsewhere")
         #expect(
-            names("ingest") == ["Priya Raman"],
+            names("ingest") == ["Nadia Quist"],
             "notes are the field people fill in to tell two similar voices apart"
         )
         #expect(names("nobody") == [])
@@ -393,7 +393,7 @@ struct PeopleDirectoryFilterTests {
         let entries = [
             entry(10, anonymousNumber: 10),
             entry(9, anonymousNumber: 9),
-            entry(1, name: "Chris Fowler", organization: "Acme"),
+            entry(1, name: "Bryn Ashgrove", organization: "Acme"),
         ]
         let sections = PeopleDirectoryFilter.sections(entries)
         #expect(sections.map(\.title) == ["Acme", PeopleDirectoryFilter.unnamedTitle])
@@ -406,8 +406,8 @@ struct PeopleDirectoryFilterTests {
     @Test("people with no organization group above the unnamed voices")
     func peopleWithNoOrganizationGroupAboveTheUnnamedVoices() async throws {
         let entries = [
-            entry(1, name: "Chris Fowler", organization: "Acme"),
-            entry(2, name: "Dana Kwon"),
+            entry(1, name: "Bryn Ashgrove", organization: "Acme"),
+            entry(2, name: "Dara Kestrel"),
             entry(3, anonymousNumber: 3),
         ]
         #expect(
@@ -429,24 +429,24 @@ struct PeopleDirectoryFilterTests {
         // kept counting towards "heard in 3 meetings" forever.
         let (store, root) = try makeStore()
         defer { try? FileManager.default.removeItem(at: root) }
-        let chris = try await store.createPerson(name: "Chris")
+        let bryn = try await store.createPerson(name: "Bryn")
         for meeting in ["m-1", "m-2"] {
             try await store.recordOccurrence(
                 meetingID: meeting, clusterID: "remote-001_speaker_00", track: .remote,
                 speechSeconds: 120, embedding: nil, model: nil, resolution: nil,
-                identityID: chris.id, source: .human,
+                identityID: bryn.id, source: .human,
                 humanVerified: true, wasExpectedParticipant: false
             )
         }
-        let before = try await store.meetingCount(for: chris.id)
+        let before = try await store.meetingCount(for: bryn.id)
         #expect(before == 2)
 
         let deleted = try await store.deleteOccurrences(meetingID: "m-1")
         #expect(deleted == 1)
 
-        let after = try await store.meetingCount(for: chris.id)
+        let after = try await store.meetingCount(for: bryn.id)
         #expect(after == 1)
-        let remaining = try await store.meetingsReferencing(chris.id)
+        let remaining = try await store.meetingsReferencing(bryn.id)
         #expect(
             remaining == ["m-2"],
             "and the meeting still on disk is the one that is left"
@@ -456,8 +456,8 @@ struct PeopleDirectoryFilterTests {
     @Test("each filter admits what it says it does")
     func eachFilterAdmitsWhatItSaysItDoes() async throws {
         let entries = [
-            entry(1, name: "Chris Fowler", profile: .ready(samples: 4, recordings: 4, speechSeconds: 600)),
-            entry(2, name: "Dana Kwon"),
+            entry(1, name: "Bryn Ashgrove", profile: .ready(samples: 4, recordings: 4, speechSeconds: 600)),
+            entry(2, name: "Dara Kestrel"),
             entry(3, anonymousNumber: 3, profile: .learning(samples: 1, recordings: 1, speechSeconds: 60)),
         ]
         func count(_ filter: PeopleFilter) -> Int {
@@ -479,7 +479,7 @@ struct TranscriptParticipantsTests {
             utterances: [PeopleFixtures.utterance("s1", "We ship Friday.", at: 0)]
         )
         var speakers = SpeakerMap()
-        speakers.assign("Priya Raman", to: "s1")
+        speakers.assign("Nadia Quist", to: "s1")
         let markdown = TranscriptRenderer().markdown(
             transcript: transcript,
             speakers: speakers,
@@ -488,7 +488,7 @@ struct TranscriptParticipantsTests {
             durationSeconds: 600,
             participants: [
                 TranscriptParticipant(
-                    name: "Priya Raman", organization: "Acme",
+                    name: "Nadia Quist", organization: "Acme",
                     notes: "Owns the ingest retries."
                 )
             ]
@@ -499,7 +499,7 @@ struct TranscriptParticipantsTests {
             participantsAt.lowerBound < dialogueAt.lowerBound,
             "a reader who meets the notes after the conversation has already decided who everybody is"
         )
-        #expect(markdown.contains("**Priya Raman** · Acme"))
+        #expect(markdown.contains("**Nadia Quist** · Acme"))
         #expect(markdown.contains("Owns the ingest retries."))
     }
 
@@ -510,14 +510,14 @@ struct TranscriptParticipantsTests {
             utterances: [PeopleFixtures.utterance("s1", "We ship Friday.", at: 0)]
         )
         var speakers = SpeakerMap()
-        speakers.assign("Priya Raman", to: "s1")
+        speakers.assign("Nadia Quist", to: "s1")
         let markdown = TranscriptRenderer().markdown(
             transcript: transcript,
             speakers: speakers,
             title: "Roadmap sync",
             startedAt: Date(timeIntervalSince1970: 1_700_000_000),
             durationSeconds: 600,
-            participants: [TranscriptParticipant(name: "Priya Raman")]
+            participants: [TranscriptParticipant(name: "Nadia Quist")]
         )
         #expect(
             !markdown.contains("## Participants"),
@@ -563,15 +563,15 @@ struct ParticipantBlockRefreshTests {
         let (store, storeRoot) = try makeStore()
         defer { try? FileManager.default.removeItem(at: storeRoot) }
 
-        let (pipeline, meeting, chris) = try await makeRenderedMeeting(
+        let (pipeline, meeting, bryn) = try await makeRenderedMeeting(
             root: root, store: store, notes: "Owns the ingest retries."
         )
         #expect(try markdown(meeting).contains("Owns the ingest retries."))
 
         // What the runtime does: the meetings are collected while the row
         // still exists, because afterwards nothing can find them.
-        let affected = try await store.meetingsReferencing(chris.id)
-        try await store.delete(chris.id)
+        let affected = try await store.meetingsReferencing(bryn.id)
+        try await store.delete(bryn.id)
         await pipeline.rerenderMeetings(affected)
 
         #expect(
@@ -616,12 +616,12 @@ private func makeRenderedMeeting(
     ))
     try meeting.store.writeRawDiarization(diarization)
 
-    let chris = try await store.createPerson(name: "Chris")
-    try await store.setNotes(notes, on: chris.id)
+    let bryn = try await store.createPerson(name: "Bryn")
+    try await store.setNotes(notes, on: bryn.id)
     try await store.recordOccurrence(
         meetingID: meeting.metadata.id, clusterID: "remote-001_speaker_00", track: .remote,
         speechSeconds: 120, embedding: nil, model: nil, resolution: nil,
-        identityID: chris.id, source: .human,
+        identityID: bryn.id, source: .human,
         humanVerified: true, wasExpectedParticipant: false
     )
 
@@ -630,7 +630,7 @@ private func makeRenderedMeeting(
         utterances: [PeopleFixtures.utterance("remote-001_speaker_00", "We ship Friday.", at: 0)]
     ))
     var map = SpeakerMap()
-    map.assign("Chris", to: "remote-001_speaker_00", identityID: chris.id)
+    map.assign("Bryn", to: "remote-001_speaker_00", identityID: bryn.id)
     try meeting.store.writeSpeakerMap(map)
 
     let pipeline = ProcessingPipeline(
@@ -647,8 +647,8 @@ private func makeRenderedMeeting(
     )
     // The first render, so the assertions are about a rewrite rather than
     // about a file appearing.
-    try await pipeline.refreshCachedNames(for: chris.id)
-    return (pipeline, meeting.store, chris)
+    try await pipeline.refreshCachedNames(for: bryn.id)
+    return (pipeline, meeting.store, bryn)
 }
 
 /// The meetings on a person's profile, and the audio behind them.
@@ -676,20 +676,20 @@ private func appearancesListEveryMeeting() async throws {
     defer { try? FileManager.default.removeItem(at: root) }
     let runtime = RuntimeFixtures.makeRuntime(root: root)
     let store = try #require(runtime.speakerStore)
-    let ben = try await store.createPerson(name: "Ben")
+    let ellis = try await store.createPerson(name: "Ellis")
 
     let older = try await PeopleFixtures.makeAppearance(
-        store: store, identityID: ben.id, root: root,
+        store: store, identityID: ellis.id, root: root,
         title: "Design review", at: Date(timeIntervalSince1970: 1_787_000_000),
         turns: [(0, 12)]
     )
     let newer = try await PeopleFixtures.makeAppearance(
-        store: store, identityID: ben.id, root: root,
+        store: store, identityID: ellis.id, root: root,
         title: "Weekly sync", at: Date(timeIntervalSince1970: 1_787_900_000),
         turns: [(0, 4), (10, 15)]
     )
 
-    let appearances = await runtime.appearances(of: ben.id)
+    let appearances = await runtime.appearances(of: ellis.id)
     #expect(appearances.map(\.meetingID) == [newer, older], "newest first")
     #expect(appearances.first?.title == "Weekly sync")
     #expect(appearances.first?.speechSeconds == 9)
@@ -697,7 +697,7 @@ private func appearancesListEveryMeeting() async throws {
     #expect(everyOneHasAudio)
 
     // Nobody else's meetings, and nobody else's silence.
-    let stranger = try await store.createPerson(name: "Priya")
+    let stranger = try await store.createPerson(name: "Nadia")
     let strangers = await runtime.appearances(of: stranger.id)
     #expect(strangers.isEmpty, "a person heard in nothing has nothing to list")
 }
@@ -708,14 +708,14 @@ private func theSampleIsTheLongestTurn() async throws {
     defer { try? FileManager.default.removeItem(at: root) }
     let runtime = RuntimeFixtures.makeRuntime(root: root)
     let store = try #require(runtime.speakerStore)
-    let ben = try await store.createPerson(name: "Ben")
+    let ellis = try await store.createPerson(name: "Ellis")
     let meetingID = try await PeopleFixtures.makeAppearance(
-        store: store, identityID: ben.id, root: root,
+        store: store, identityID: ellis.id, root: root,
         title: "Weekly sync", at: Date(timeIntervalSince1970: 1_787_900_000),
         turns: [(0, 3), (30, 60)]
     )
 
-    let found = await runtime.voiceSample(of: ben.id, inMeeting: meetingID)
+    let found = await runtime.voiceSample(of: ellis.id, inMeeting: meetingID)
     let sample = try #require(found)
     #expect(sample.start == 30, "the longest turn, not the first")
     #expect(
@@ -727,7 +727,7 @@ private func theSampleIsTheLongestTurn() async throws {
     // A merged duplicate reads as the person it was merged into, so the
     // sample follows the same pointer every other read does.
     let duplicate = try await store.createPerson(name: "B. Baker")
-    try await store.merge(ben.id, into: duplicate.id)
+    try await store.merge(ellis.id, into: duplicate.id)
     let viaDuplicate = await runtime.voiceSample(of: duplicate.id, inMeeting: meetingID)
     _ = try #require(viaDuplicate)
 }
@@ -738,18 +738,18 @@ private func noAudioMeansNoSample() async throws {
     defer { try? FileManager.default.removeItem(at: root) }
     let runtime = RuntimeFixtures.makeRuntime(root: root)
     let store = try #require(runtime.speakerStore)
-    let ben = try await store.createPerson(name: "Ben")
+    let ellis = try await store.createPerson(name: "Ellis")
     let meetingID = try await PeopleFixtures.makeAppearance(
-        store: store, identityID: ben.id, root: root,
+        store: store, identityID: ellis.id, root: root,
         title: "Weekly sync", at: Date(timeIntervalSince1970: 1_787_900_000),
         turns: [(0, 20)], writingAudio: false
     )
 
     // Compaction removes the mixdown of an old meeting. The row stays, and
     // the button that would play nothing is not offered.
-    let hasAudio = await runtime.appearances(of: ben.id).first?.hasAudio ?? true
+    let hasAudio = await runtime.appearances(of: ellis.id).first?.hasAudio ?? true
     #expect(!hasAudio)
-    let sample = await runtime.voiceSample(of: ben.id, inMeeting: meetingID)
+    let sample = await runtime.voiceSample(of: ellis.id, inMeeting: meetingID)
     #expect(sample == nil)
 }
 
@@ -784,7 +784,7 @@ private func tellingARowItIsAlsoYou() async throws {
     let store = try #require(runtime.speakerStore)
 
     await runtime.ensureLocalUserIdentity()
-    let fromSlack = try await store.createPerson(name: "Andrew Neeser")
+    let fromSlack = try await store.createPerson(name: "Marlow Fenn")
     let model = PeopleDirectoryModel(runtime: runtime)
     await model.reload()
 
@@ -795,7 +795,7 @@ private func tellingARowItIsAlsoYou() async throws {
     let localUser = try await store.localUser()
     #expect(localUser?.id == fromSlack.id)
     #expect(
-        runtime.settings.localUserName == "Andrew Neeser",
+        runtime.settings.localUserName == "Marlow Fenn",
         "the launch sync writes the cached name onto the flagged row, so it has to move too"
     )
     #expect(runtime.settings.processing.localUserIdentityID == fromSlack.id)
@@ -817,7 +817,7 @@ private func mergingYouCarriesTheFlag() async throws {
     await runtime.ensureLocalUserIdentity()
     let existing = try await store.localUser()
     let me = try #require(existing)
-    let fromSlack = try await store.createPerson(name: "Andrew Neeser")
+    let fromSlack = try await store.createPerson(name: "Marlow Fenn")
 
     try await store.merge(me.id, into: fromSlack.id)
 
@@ -837,8 +837,8 @@ private func forgettingAVoiceTakesTheReadings() async throws {
     defer { try? FileManager.default.removeItem(at: root) }
     let runtime = RuntimeFixtures.makeRuntime(root: root)
     let store = try #require(runtime.speakerStore)
-    let old = try await store.createPerson(name: "Andrew")
-    let current = try await store.createPerson(name: "Andrew Neeser")
+    let old = try await store.createPerson(name: "Marlow")
+    let current = try await store.createPerson(name: "Marlow Fenn")
     try await store.merge(old.id, into: current.id)
 
     let archive = runtime.voiceEnrollmentArchive
@@ -1020,9 +1020,9 @@ private func aRightClickActsOnTheRowUnderIt() async throws {
     defer { try? FileManager.default.removeItem(at: root) }
     let model = PeopleDirectoryModel(runtime: RuntimeFixtures.makeRuntime(root: root))
     model.entries = [
-        entry(1, name: "Chris Fowler"),
-        entry(2, name: "Dana Kwon"),
-        entry(3, name: "Priya Raman"),
+        entry(1, name: "Bryn Ashgrove"),
+        entry(2, name: "Dara Kestrel"),
+        entry(3, name: "Nadia Quist"),
     ]
     model.select(IdentityID(1), extending: false)
 

@@ -203,15 +203,15 @@ struct LiveOpenAITests {
             SpeakerResolutionRequest(
                 transcript: anonymous,
                 labels: transcript.speakerKeys,
-                humanContext: "Call with me (Andrew), my boss Chris, and Tim from the platform team.",
+                humanContext: "Call with me (Marlow), my boss Bryn, and Owen from the platform team.",
                 nameHints: [],
-                localUserName: "Andrew"
+                localUserName: "Marlow"
             ),
             model: AIModelSettings().metadata
         )
         let names = Set(suggestions.map { $0.name.split(separator: " ").first.map(String.init) ?? $0.name })
-        #expect(names.contains("Chris"), "expected Chris among \(names.sorted())")
-        #expect(names.contains("Tim"), "expected Tim among \(names.sorted())")
+        #expect(names.contains("Bryn"), "expected Bryn among \(names.sorted())")
+        #expect(names.contains("Owen"), "expected Owen among \(names.sorted())")
         for suggestion in suggestions {
             #expect(
                 transcript.speakerKeys.contains(suggestion.label),
@@ -232,13 +232,13 @@ struct LiveOpenAITests {
         // second is the case that used to produce a confident guess out
         // of nothing.
         let transcript = """
-        [00:12] Chris L: The retain numbers landed overnight and they look clean.
-        [00:19] Chris L: Ben, do you want to take the ingestion question?
+        [00:12] Bryn C: The retain numbers landed overnight and they look clean.
+        [00:19] Bryn C: Ellis, do you want to take the ingestion question?
         [00:24] remote-001_speaker_03: Yeah. The chunker is still the slow part, but I \
         pulled the embedding call out of the loop and it dropped to about four seconds a document.
         [00:41] remote-001_speaker_07: I looked at the same path last week. The batching \
         helps but the tokenizer is doing twice the work it needs to on short documents.
-        [00:58] Chris L: Good. Let us pick it up tomorrow.
+        [00:58] Bryn C: Good. Let us pick it up tomorrow.
         """
 
         let suggestions = try await client.resolveSpeakers(
@@ -246,8 +246,8 @@ struct LiveOpenAITests {
                 transcript: transcript,
                 labels: ["remote-001_speaker_03", "remote-001_speaker_07"],
                 humanContext: nil,
-                nameHints: ["Ben Bartholomew", "Chris Latimer", "Nicolo Boschi"],
-                localUserName: "Andrew"
+                nameHints: ["Ellis Marchetti", "Bryn Callister", "Renee Balfour"],
+                localUserName: "Marlow"
             ),
             model: AIModelSettings().metadata
         )
@@ -255,20 +255,20 @@ struct LiveOpenAITests {
         let named = Dictionary(
             uniqueKeysWithValues: suggestions.map { ($0.label, $0) }
         )
-        let ben = try #require(named["remote-001_speaker_03"])
+        let ellis = try #require(named["remote-001_speaker_03"])
         #expect(
-            ben.name.localizedCaseInsensitiveContains("Ben"),
-            "expected Ben for the addressed speaker, got \(ben.name)"
+            ellis.name.localizedCaseInsensitiveContains("Ellis"),
+            "expected Ellis for the addressed speaker, got \(ellis.name)"
         )
         // The quote is the whole point: it has to be a line that is
         // actually in the transcript.
         #expect(
             transcript.localizedCaseInsensitiveContains(
-                ben.quote.trimmingCharacters(in: CharacterSet(charactersIn: "\"“” "))
+                ellis.quote.trimmingCharacters(in: CharacterSet(charactersIn: "\"“” "))
             ),
-            "quote is not in the transcript: \(ben.quote)"
+            "quote is not in the transcript: \(ellis.quote)"
         )
-        #expect(ben.confidence > 0.5, "confidence was \(ben.confidence)")
+        #expect(ellis.confidence > 0.5, "confidence was \(ellis.confidence)")
 
         // Nobody said this speaker's name, so nothing may be proposed
         // for them above the floor the strip draws at.
@@ -296,7 +296,7 @@ struct LiveOpenAITests {
             EnrichmentRequest(
                 transcript: response.text,
                 humanNotes: nil,
-                participants: ["Andrew", "Chris", "Tim"],
+                participants: ["Marlow", "Bryn", "Owen"],
                 provider: .googleMeet,
                 durationSeconds: 40,
                 wantsTitle: true,

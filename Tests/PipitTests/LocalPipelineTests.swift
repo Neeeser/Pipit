@@ -253,7 +253,7 @@ struct LocalPipelineTests {
         )
         let (store, storeRoot) = try SpeakerFixtures.makeStore()
         defer { try? FileManager.default.removeItem(at: storeRoot) }
-        let me = try await store.createPerson(name: "Andrew", isLocalUser: true)
+        let me = try await store.createPerson(name: "Marlow", isLocalUser: true)
         // A second person in the bank, because a match is only high
         // when it clears a margin over the runner-up, and a bank of one
         // has no runner-up to clear.
@@ -285,7 +285,7 @@ struct LocalPipelineTests {
             source: "google-meet",
             participants: [
                 SensorParticipant(id: "d1", displayName: "Ada"),
-                SensorParticipant(id: "d2", displayName: "Andrew", isSelf: true),
+                SensorParticipant(id: "d2", displayName: "Marlow", isSelf: true),
             ],
             turns: [SensorTurn(start: 0, end: 50, participantID: "d1")]
         ))
@@ -802,7 +802,7 @@ struct LocalPipelineTests {
         // Name one of them, the way a user would.
         let named = try #require(keysBefore.sorted().first)
         var map = try meeting.store.readSpeakerMap()
-        map.assign("Chris", to: named)
+        map.assign("Bryn", to: named)
         try meeting.store.writeSpeakerMap(map)
 
         try await pipeline.rebuildTranscript(meetingID: meeting.metadata.id)
@@ -813,7 +813,7 @@ struct LocalPipelineTests {
         let markdown = try String(
             contentsOf: meeting.store.layout.transcriptMarkdown, encoding: .utf8
         )
-        #expect(markdown.contains("Chris"), "the name the user typed still renders")
+        #expect(markdown.contains("Bryn"), "the name the user typed still renders")
     }
 
     @Test("rebuilding a transcript sheds a stored icon name")
@@ -1227,7 +1227,7 @@ struct LocalPipelineTests {
         backend.enrichment = MeetingEnrichment(
             title: "Retrieval logic",
             summary: "We agreed on the pilot.",
-            notes: "- Chris sends the connector list."
+            notes: "- Bryn sends the connector list."
         )
 
         let pipeline = PipelineFixtures.makePipeline(
@@ -1252,7 +1252,7 @@ struct LocalPipelineTests {
         // notes on their own tab instead of under the summary.
         let document = meeting.store.readSummaryDocument()
         #expect(document.summary == "We agreed on the pilot.")
-        #expect(document.generatedNotes == "- Chris sends the connector list.")
+        #expect(document.generatedNotes == "- Bryn sends the connector list.")
     }
 
     @Test("asking by hand still refuses a name the user cleared")
@@ -1294,8 +1294,8 @@ struct LocalPipelineTests {
         // the guard is the only thing keeping it off the strip.
         backend.suggestions = [
             SpeakerSuggestion(
-                label: target, name: "Priya Raman", confidence: 0.93,
-                quote: "Priya, what did it come back at?", atSeconds: 3
+                label: target, name: "Nadia Quist", confidence: 0.93,
+                quote: "Nadia, what did it come back at?", atSeconds: 3
             ),
         ]
         // "Leave unnamed" on the chip, which is what clears a key.
@@ -1323,8 +1323,8 @@ struct LocalPipelineTests {
         backend.configured = false
         backend.suggestions = [
             SpeakerSuggestion(
-                label: "remote-001_speaker_00", name: "Priya Raman",
-                confidence: 0.93, quote: "Priya, what did it come back at?", atSeconds: 3
+                label: "remote-001_speaker_00", name: "Nadia Quist",
+                confidence: 0.93, quote: "Nadia, what did it come back at?", atSeconds: 3
             ),
         ]
 
@@ -1354,7 +1354,7 @@ struct LocalPipelineTests {
 
         let written = meeting.store.readSpeakerSuggestions().suggestions
         #expect(written.count == 1)
-        #expect(written.first?.name == "Priya Raman")
+        #expect(written.first?.name == "Nadia Quist")
         // A proposal, exactly as on the first pass. Asking by hand does
         // not make it an assignment.
         #expect((try meeting.store.readSpeakerMap().entries["remote-001_speaker_00"]) == nil)
@@ -1668,7 +1668,7 @@ struct LocalPipelineTests {
         var threw = false
         do {
             try await pipeline.applyUtteranceSpeaker(
-                "Priya", utteranceIDs: ["u0", "u1", "gone", "u3"],
+                "Nadia", utteranceIDs: ["u0", "u1", "gone", "u3"],
                 meetingID: meeting.metadata.id
             )
         } catch {
@@ -1709,7 +1709,7 @@ struct LocalPipelineTests {
         try meeting.store.writeSpeakerMap(map)
 
         try await store.merge(ann.id, into: bob.id)
-        _ = try await store.rename(bob.id, to: "Bob Tran")
+        _ = try await store.rename(bob.id, to: "Bob Trask")
 
         let pipeline = PipelineFixtures.makePipeline(
             repository: meeting.repository, backend: FakeAIBackend(),
@@ -1722,7 +1722,7 @@ struct LocalPipelineTests {
         try await pipeline.refreshCachedNames(for: bob.id)
 
         #expect(
-            try meeting.store.readSpeakerMap().displayName(for: "remote-001_speaker_00") == "Bob Tran",
+            try meeting.store.readSpeakerMap().displayName(for: "remote-001_speaker_00") == "Bob Trask",
             "the entry written under the merged identifier is refreshed too"
         )
         #expect(
@@ -1872,15 +1872,15 @@ struct LocalPipelineTests {
             scratchRoot: root.appendingPathComponent("scratch")
         )
 
-        let chris = try #require(await pipeline.applySpeakerName("Chris", to: key, meetingID: meeting.metadata.id))
+        let bryn = try #require(await pipeline.applySpeakerName("Bryn", to: key, meetingID: meeting.metadata.id))
         #expect(
-            try await store.profileStatus(of: chris, model: .fluidAudioOffline).sampleCount == 1,
+            try await store.profileStatus(of: bryn, model: .fluidAudioOffline).sampleCount == 1,
             "confirming a cluster is what builds a profile"
         )
 
         _ = try await pipeline.applySpeakerName("", to: key, meetingID: meeting.metadata.id)
         #expect(
-            try await store.profileStatus(of: chris, model: .fluidAudioOffline).sampleCount == 0,
+            try await store.profileStatus(of: bryn, model: .fluidAudioOffline).sampleCount == 0,
             "and clearing it takes the voice back, or the next pass writes the name again"
         )
         #expect(
@@ -1904,7 +1904,7 @@ struct LocalPipelineTests {
         defer { try? FileManager.default.removeItem(at: storeRoot) }
         try meeting.store.writeRawSensors(RawSensors(
             source: "slack-huddle-ax",
-            participants: [SensorParticipant(id: "U123", displayName: "Chris")],
+            participants: [SensorParticipant(id: "U123", displayName: "Bryn")],
             turns: [SensorTurn(start: 0, end: 30, participantID: "U123")]
         ))
         let pipeline = PipelineFixtures.makePipeline(
@@ -1917,9 +1917,9 @@ struct LocalPipelineTests {
         )
         let key = SpeakerLabel.sensor(participantID: "U123")
 
-        let chris = try #require(await pipeline.applySpeakerName("Chris", to: key, meetingID: meeting.metadata.id))
+        let bryn = try #require(await pipeline.applySpeakerName("Bryn", to: key, meetingID: meeting.metadata.id))
         #expect(
-            await store.identity(handle: "U123", provider: "slack")?.id == chris,
+            await store.identity(handle: "U123", provider: "slack")?.id == bryn,
             "naming a sensor speaker binds the account"
         )
 
@@ -2048,11 +2048,11 @@ struct LocalPipelineTests {
         let meeting = try PipelineFixtures.makeRecordedMeeting(root: root, seconds: 6)
         let (store, storeRoot) = try SpeakerFixtures.makeStore()
         defer { try? FileManager.default.removeItem(at: storeRoot) }
-        let me = try await store.createPerson(name: "Andrew", isLocalUser: true)
+        let me = try await store.createPerson(name: "Marlow", isLocalUser: true)
 
         var map = SpeakerMap()
         map.entries[SpeakerLabel.localUser] = SpeakerAssignment(
-            displayName: "Andrew", origin: .deterministic
+            displayName: "Marlow", origin: .deterministic
         )
         try meeting.store.writeSpeakerMap(map)
         try meeting.store.writeCanonicalTranscript(CanonicalTranscript(
@@ -2089,13 +2089,13 @@ struct LocalPipelineTests {
         let meeting = try PipelineFixtures.makeRecordedMeeting(root: root, seconds: 6)
         let (store, storeRoot) = try SpeakerFixtures.makeStore()
         defer { try? FileManager.default.removeItem(at: storeRoot) }
-        let me = try await store.createPerson(name: "Andrew", isLocalUser: true)
+        let me = try await store.createPerson(name: "Marlow", isLocalUser: true)
 
-        // What "the microphone was Priya" leaves behind: a human origin
+        // What "the microphone was Nadia" leaves behind: a human origin
         // and no link, because that identity was never resolved here.
         var map = SpeakerMap()
         map.entries[SpeakerLabel.localUser] = SpeakerAssignment(
-            displayName: "Priya", origin: .human
+            displayName: "Nadia", origin: .human
         )
         try meeting.store.writeSpeakerMap(map)
         try meeting.store.writeCanonicalTranscript(CanonicalTranscript(
@@ -2135,13 +2135,13 @@ struct LocalPipelineTests {
         let meeting = try PipelineFixtures.makeRecordedMeeting(root: root, seconds: 6)
         let (store, storeRoot) = try SpeakerFixtures.makeStore()
         defer { try? FileManager.default.removeItem(at: storeRoot) }
-        let me = try await store.createPerson(name: "Andrew", isLocalUser: true)
+        let me = try await store.createPerson(name: "Marlow", isLocalUser: true)
 
         // What an already-processed meeting holds: a named microphone
         // track in the map, lines in the transcript, no occurrence row.
         var map = SpeakerMap()
         map.entries[SpeakerLabel.localUser] = SpeakerAssignment(
-            displayName: "Andrew", origin: .deterministic, identityID: me.id
+            displayName: "Marlow", origin: .deterministic, identityID: me.id
         )
         try meeting.store.writeSpeakerMap(map)
         try meeting.store.writeCanonicalTranscript(CanonicalTranscript(
@@ -2178,11 +2178,11 @@ struct LocalPipelineTests {
         let meeting = try PipelineFixtures.makeRecordedMeeting(root: root, seconds: 6)
         let (store, storeRoot) = try SpeakerFixtures.makeStore()
         defer { try? FileManager.default.removeItem(at: storeRoot) }
-        let me = try await store.createPerson(name: "Andrew", isLocalUser: true)
+        let me = try await store.createPerson(name: "Marlow", isLocalUser: true)
 
         var map = SpeakerMap()
         map.entries[SpeakerLabel.localUser] = SpeakerAssignment(
-            displayName: "Andrew", origin: .deterministic, identityID: me.id
+            displayName: "Marlow", origin: .deterministic, identityID: me.id
         )
         try meeting.store.writeSpeakerMap(map)
         try meeting.store.writeCanonicalTranscript(CanonicalTranscript(
@@ -2228,7 +2228,7 @@ struct LocalPipelineTests {
         let meeting = try PipelineFixtures.makeRecordedMeeting(root: root, seconds: 6)
         let (store, storeRoot) = try SpeakerFixtures.makeStore()
         defer { try? FileManager.default.removeItem(at: storeRoot) }
-        let me = try await store.createPerson(name: "Andrew", isLocalUser: true)
+        let me = try await store.createPerson(name: "Marlow", isLocalUser: true)
 
         let pipeline = PipelineFixtures.makePipeline(
             repository: meeting.repository, backend: FakeAIBackend(),
@@ -2266,7 +2266,7 @@ struct LocalPipelineTests {
         let meeting = try PipelineFixtures.makeRecordedMeeting(root: root, seconds: 6)
         let (store, storeRoot) = try SpeakerFixtures.makeStore()
         defer { try? FileManager.default.removeItem(at: storeRoot) }
-        let me = try await store.createPerson(name: "Andrew", isLocalUser: true)
+        let me = try await store.createPerson(name: "Marlow", isLocalUser: true)
 
         let pipeline = PipelineFixtures.makePipeline(
             repository: meeting.repository, backend: FakeAIBackend(),
@@ -2298,7 +2298,7 @@ struct LocalPipelineTests {
         let meeting = try PipelineFixtures.makeRecordedMeeting(root: root, seconds: 6)
         let (store, storeRoot) = try SpeakerFixtures.makeStore()
         defer { try? FileManager.default.removeItem(at: storeRoot) }
-        let me = try await store.createPerson(name: "Andrew", isLocalUser: true)
+        let me = try await store.createPerson(name: "Marlow", isLocalUser: true)
 
         let pipeline = PipelineFixtures.makePipeline(
             repository: meeting.repository, backend: FakeAIBackend(),
@@ -2341,7 +2341,7 @@ struct LocalPipelineTests {
         let (store, storeRoot) = try SpeakerFixtures.makeStore()
         defer { try? FileManager.default.removeItem(at: storeRoot) }
 
-        let me = try await store.createPerson(name: "Andrew", isLocalUser: true)
+        let me = try await store.createPerson(name: "Marlow", isLocalUser: true)
         var settings = AppSettings()
         settings.processing.localUserIdentityID = me.id
         settings.enrichment = EnrichmentSettings(
@@ -2387,10 +2387,10 @@ struct LocalPipelineTests {
         // The same query drives the rename refresh, so without the row
         // above, renaming yourself left every past transcript of your
         // own showing the name you had left behind.
-        _ = try await store.rename(me.id, to: "Andrew Neeser")
+        _ = try await store.rename(me.id, to: "Marlow Fenn")
         try await pipeline.refreshCachedNames(for: me.id)
         #expect(
-            try meeting.store.readSpeakerMap().displayName(for: SpeakerLabel.localUser) == "Andrew Neeser",
+            try meeting.store.readSpeakerMap().displayName(for: SpeakerLabel.localUser) == "Marlow Fenn",
             "renaming yourself reaches the meetings you were in"
         )
     }
@@ -2408,7 +2408,7 @@ struct LocalPipelineTests {
         let (store, storeRoot) = try SpeakerFixtures.makeStore()
         defer { try? FileManager.default.removeItem(at: storeRoot) }
 
-        let me = try await store.createPerson(name: "Andrew", isLocalUser: true)
+        let me = try await store.createPerson(name: "Marlow", isLocalUser: true)
         _ = try await store.enrol(VoiceEnrollmentCandidate(
             identityID: me.id, vector: SpeakerFixtures.vector(seed: 99),
             model: .fluidAudioOffline, speechSeconds: 200, qualityScore: 1,
@@ -2434,7 +2434,7 @@ struct LocalPipelineTests {
             scratchRoot: root.appendingPathComponent("scratch")
         )
         _ = try await pipeline.applySpeakerName(
-            "Priya", to: SpeakerLabel.localUser, meetingID: meeting.metadata.id
+            "Nadia", to: SpeakerLabel.localUser, meetingID: meeting.metadata.id
         )
         #expect(
             try await store.profileStatus(of: me.id, model: .fluidAudioOffline).sampleCount == 0,
@@ -2802,7 +2802,7 @@ struct LocalPipelineTests {
         // cluster is. Pinned so that changing either half has to be a
         // decision rather than an accident.
         var map = SpeakerMap()
-        map.assign("Andrew", to: "remote-001_speaker_00")
+        map.assign("Marlow", to: "remote-001_speaker_00")
         let corrected = Utterance(
             id: "chunk_000-remote-001000-004000", start: 1, end: 4, track: .remote,
             rawSpeakerLabel: "remote-001_speaker_00",
@@ -2812,7 +2812,7 @@ struct LocalPipelineTests {
         map.overrideUtterance(
             corrected,
             with: SpeakerAssignment(
-                displayName: "Chris", origin: .human,
+                displayName: "Bryn", origin: .human,
                 provenance: SpeakerProvenance(source: .human, humanVerified: true)
             ),
             at: Date(timeIntervalSince1970: 1_787_070_000)
@@ -2825,7 +2825,7 @@ struct LocalPipelineTests {
             chunkID: "chunk_000", model: "stub"
         )
         #expect(
-            map.resolvedName(for: renumbered) == "Chris",
+            map.resolvedName(for: renumbered) == "Bryn",
             "the correction is anchored to the audio, not to the cluster"
         )
         #expect(map.hasOverride(for: renumbered))
@@ -2841,7 +2841,7 @@ struct LocalPipelineTests {
             "the name given to the previous run's cluster does not follow it"
         )
         #expect(
-            map.displayName(for: "remote-001_speaker_00") == "Andrew",
+            map.displayName(for: "remote-001_speaker_00") == "Marlow",
             "and is still on disk rather than deleted"
         )
     }

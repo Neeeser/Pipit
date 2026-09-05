@@ -765,9 +765,9 @@ struct TranscriptAssemblerTests {
     func consecutiveSegmentsFromOneSpeakerReadAsOneTurn() async throws {
         let remote = chunk(id: "remote_chunk_001", track: .remote, offset: 0, segments: [
             RawTranscriptSegment(start: 0, end: 0.4, text: "Hey,", speaker: "A"),
-            RawTranscriptSegment(start: 0.5, end: 0.9, text: "Andrew,", speaker: "A"),
-            RawTranscriptSegment(start: 1.0, end: 1.6, text: "Chris here.", speaker: "A"),
-            RawTranscriptSegment(start: 4.0, end: 5.0, text: "This is Tim.", speaker: "B"),
+            RawTranscriptSegment(start: 0.5, end: 0.9, text: "Marlow,", speaker: "A"),
+            RawTranscriptSegment(start: 1.0, end: 1.6, text: "Bryn here.", speaker: "A"),
+            RawTranscriptSegment(start: 4.0, end: 5.0, text: "This is Owen.", speaker: "B"),
         ])
         let transcript = TranscriptAssembler().assemble(
             raw: RawTranscript(chunks: [remote]),
@@ -775,7 +775,7 @@ struct TranscriptAssemblerTests {
             generatedAt: Date(timeIntervalSince1970: 0)
         )
         #expect(transcript.utterances.count == 2)
-        #expect(transcript.utterances[0].text == "Hey, Andrew, Chris here.")
+        #expect(transcript.utterances[0].text == "Hey, Marlow, Bryn here.")
         #expect(
             abs(transcript.utterances[0].end - 1.6) <= 0.001,
             "expected \(1.6) ± \(0.001), got \(transcript.utterances[0].end)"
@@ -786,13 +786,13 @@ struct TranscriptAssemblerTests {
     func renamingASpeakerChangesTheRenderingNotTheRawData() async throws {
         let raw = RawTranscript(chunks: [
             chunk(id: "remote_chunk_001", track: .remote, offset: 0, segments: [
-                RawTranscriptSegment(start: 0, end: 2, text: "Chris here.", speaker: "A"),
+                RawTranscriptSegment(start: 0, end: 2, text: "Bryn here.", speaker: "A"),
             ]),
         ])
         let transcript = TranscriptAssembler().assemble(
             raw: raw, micTrackIsLocalUser: true, generatedAt: Date(timeIntervalSince1970: 0)
         )
-        var speakers = SpeakerMap.withLocalUser(named: "Andrew")
+        var speakers = SpeakerMap.withLocalUser(named: "Marlow")
         let renderer = TranscriptRenderer()
 
         let before = renderer.markdown(
@@ -802,13 +802,13 @@ struct TranscriptAssemblerTests {
         )
         #expect(before.contains("Speaker 1"), "unnamed speakers get a readable fallback")
 
-        speakers.assign("Chris", to: "remote_chunk_001_speaker_00")
+        speakers.assign("Bryn", to: "remote_chunk_001_speaker_00")
         let after = renderer.markdown(
             transcript: transcript, speakers: speakers, title: "Sync",
             startedAt: Date(timeIntervalSince1970: 0), durationSeconds: 2,
             participants: []
         )
-        #expect(after.contains("Chris"))
+        #expect(after.contains("Bryn"))
         #expect(!after.contains("Speaker 1"))
         // The raw response is untouched by the rename.
         #expect(raw.chunks[0].segments[0].speaker == "A")
@@ -817,19 +817,19 @@ struct TranscriptAssemblerTests {
     @Test("a human name is never overwritten by a suggestion")
     func aHumanNameIsNeverOverwrittenByASuggestion() async throws {
         var speakers = SpeakerMap()
-        speakers.assign("Chris", to: "remote_chunk_001_speaker_00")
+        speakers.assign("Bryn", to: "remote_chunk_001_speaker_00")
         speakers.applySuggestion(
-            SpeakerAssignment(displayName: "Tim", origin: .ai, confidence: 0.98),
+            SpeakerAssignment(displayName: "Owen", origin: .ai, confidence: 0.98),
             for: "remote_chunk_001_speaker_00"
         )
-        #expect(speakers.resolvedName(for: "remote_chunk_001_speaker_00") == "Chris")
+        #expect(speakers.resolvedName(for: "remote_chunk_001_speaker_00") == "Bryn")
 
         // A label the user has not named does take the suggestion.
         speakers.applySuggestion(
-            SpeakerAssignment(displayName: "Tim", origin: .ai, confidence: 0.9),
+            SpeakerAssignment(displayName: "Owen", origin: .ai, confidence: 0.9),
             for: "remote_chunk_001_speaker_01"
         )
-        #expect(speakers.resolvedName(for: "remote_chunk_001_speaker_01") == "Tim")
+        #expect(speakers.resolvedName(for: "remote_chunk_001_speaker_01") == "Owen")
         // And a human correction wins over the suggestion afterwards.
         speakers.assign("John", to: "remote_chunk_001_speaker_01")
         #expect(speakers.entries["remote_chunk_001_speaker_01"]?.origin == .human)

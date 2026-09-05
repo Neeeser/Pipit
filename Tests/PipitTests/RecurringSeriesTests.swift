@@ -8,7 +8,7 @@ import Testing
 struct RecurringSeriesTests {
     private static func facts(
         _ title: String, provider: MeetingProvider = .slack, at minute: Int = 11 * 60 + 30,
-        weekday: Int = 2, people: [String] = ["Andrew", "Chris Latimer", "Nate"],
+        weekday: Int = 2, people: [String] = ["Marlow", "Bryn Callister", "Nate"],
         series: String? = nil
     ) -> MeetingFacts {
         MeetingFacts(
@@ -19,7 +19,7 @@ struct RecurringSeriesTests {
 
     private static var standups: [MeetingFacts] {
         (0..<13).map { index in
-            facts("Hindsight Daily", at: 11 * 60 + 28 + (index % 5), weekday: 2 + (index % 5))
+            facts("Northwind Daily", at: 11 * 60 + 28 + (index % 5), weekday: 2 + (index % 5))
         }
     }
 
@@ -27,7 +27,7 @@ struct RecurringSeriesTests {
     func thirteenMeetingsWithOneTitleProposeATitleAndProviderRule() async throws {
         let archive = Self.standups + [Self.facts("Tudor Meeting 2", at: 13 * 60 + 30)]
         guard let proposal = RecurringSeries.propose(
-            for: Self.facts("Hindsight Daily"), among: archive
+            for: Self.facts("Northwind Daily"), among: archive
         ) else {
             Issue.record("nothing proposed")
             return
@@ -35,8 +35,8 @@ struct RecurringSeriesTests {
 
         #expect(proposal.defaultTicks == [.title, .provider])
         #expect(proposal.lookalikeCount == 13, "the other meeting is not caught")
-        let rule = proposal.rule(ticking: proposal.defaultTicks, from: Self.facts("Hindsight Daily"))
-        #expect(rule.titleIs == "Hindsight Daily")
+        let rule = proposal.rule(ticking: proposal.defaultTicks, from: Self.facts("Northwind Daily"))
+        #expect(rule.titleIs == "Northwind Daily")
         #expect(rule.provider == .slack)
         #expect(rule.weekdays.isEmpty, "the slot is offered, not assumed")
     }
@@ -44,7 +44,7 @@ struct RecurringSeriesTests {
     @Test("the slot clause covers every time they actually started")
     func theSlotClauseCoversEveryTimeTheyActuallyStarted() async throws {
         guard let proposal = RecurringSeries.propose(
-            for: Self.facts("Hindsight Daily"), among: Self.standups
+            for: Self.facts("Northwind Daily"), among: Self.standups
         ) else {
             Issue.record("nothing proposed")
             return
@@ -54,11 +54,11 @@ struct RecurringSeriesTests {
         #expect(proposal.window.before == 11 * 60 + 47)
         #expect(proposal.weekdays == [2, 3, 4, 5, 6])
         let slot = proposal.rule(
-            ticking: [.title, .provider, .slot], from: Self.facts("Hindsight Daily")
+            ticking: [.title, .provider, .slot], from: Self.facts("Northwind Daily")
         )
-        #expect(slot.matches(Self.facts("Hindsight Daily", at: 11 * 60 + 45, weekday: 6)))
+        #expect(slot.matches(Self.facts("Northwind Daily", at: 11 * 60 + 45, weekday: 6)))
         #expect(
-            !slot.matches(Self.facts("Hindsight Daily", at: 16 * 60, weekday: 7)),
+            !slot.matches(Self.facts("Northwind Daily", at: 16 * 60, weekday: 7)),
             "a Saturday afternoon is not the standup"
         )
     }
@@ -100,7 +100,7 @@ struct RecurringSeriesTests {
             return copy
         }
         guard let proposal = RecurringSeries.propose(
-            for: Self.facts("Hindsight Daily"), among: archive
+            for: Self.facts("Northwind Daily"), among: archive
         ) else {
             Issue.record("nothing proposed")
             return

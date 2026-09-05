@@ -117,12 +117,12 @@ struct TranscriptDivisionTests {
         let original = line()
         speakers.overrideUtterance(
             original,
-            with: SpeakerAssignment(displayName: "Dana", origin: .human),
+            with: SpeakerAssignment(displayName: "Dara", origin: .human),
             at: Date()
         )
         let pieces = LineDivision.divide(original, at: [cut(at: 2)])
-        #expect(speakers.resolvedName(for: pieces[0]) == "Dana")
-        #expect(speakers.resolvedName(for: pieces[1]) == "Dana")
+        #expect(speakers.resolvedName(for: pieces[0]) == "Dara")
+        #expect(speakers.resolvedName(for: pieces[1]) == "Dara")
     }
 
     @Test("naming one piece does not confirm the other's audio")
@@ -134,7 +134,7 @@ struct TranscriptDivisionTests {
         let pieces = LineDivision.divide(line(), at: [cut(at: 2)])
         speakers.overrideUtterance(
             pieces[1],
-            with: SpeakerAssignment(displayName: "Dana", origin: .human),
+            with: SpeakerAssignment(displayName: "Dara", origin: .human),
             at: Date()
         )
         #expect(speakers.confirms(pieces[1]), "the piece that was named")
@@ -168,12 +168,12 @@ struct TranscriptParagraphTests {
     func aBlockSWordsAreLocatedInTheTextTheReaderSees() async throws {
         let block = CombinedLineBlock(lines: [
             CombinedLine(
-                recordingID: "rec", utterance: line(), speakerName: "Dana",
+                recordingID: "rec", utterance: line(), speakerName: "Dara",
                 timelineStart: 0
             ),
             CombinedLine(
                 recordingID: "rec", utterance: line(id: "c1", start: 4),
-                speakerName: "Dana", timelineStart: 4
+                speakerName: "Dara", timelineStart: 4
             ),
         ])
         let (text, spans) = block.paragraph()
@@ -195,7 +195,7 @@ struct TranscriptParagraphTests {
     @Test("a line without timings contributes one span covering it")
     func aLineWithoutTimingsContributesOneSpanCoveringIt() async throws {
         let block = CombinedLineBlock(lines: [CombinedLine(
-            recordingID: "rec", utterance: line(timed: false), speakerName: "Dana",
+            recordingID: "rec", utterance: line(timed: false), speakerName: "Dara",
             timelineStart: 0
         )])
         let (text, spans) = block.paragraph()
@@ -211,11 +211,11 @@ struct TranscriptParagraphTests {
     func aBlockReportsTheRangeItCovers() async throws {
         let block = CombinedLineBlock(lines: [
             CombinedLine(
-                recordingID: "rec", utterance: line(), speakerName: "Dana",
+                recordingID: "rec", utterance: line(), speakerName: "Dara",
                 timelineStart: 60
             ),
             CombinedLine(
-                recordingID: "rec", utterance: line(start: 4), speakerName: "Dana",
+                recordingID: "rec", utterance: line(start: 4), speakerName: "Dara",
                 timelineStart: 64
             ),
         ])

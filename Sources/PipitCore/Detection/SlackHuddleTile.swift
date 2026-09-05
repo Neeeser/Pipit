@@ -85,7 +85,7 @@ public enum SlackHuddleTileParser {
         identifier.contains("-self_")
     }
 
-    /// `View Andrew Neeser's profile` names the person. Anything else does not.
+    /// `View Marlow Fenn's profile` names the person. Anything else does not.
     public static func displayName(from description: String) -> String? {
         let prefix = "View "
         let suffix = "'s profile"
