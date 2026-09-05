@@ -1193,4 +1193,66 @@ struct AudioTests {
         let after = try store.readMetadata()
         #expect(after.processing.state == .failed)
     }
+
+    @Test("a refused retry is written to the meeting the user is reading")
+    @MainActor
+    func aRefusedRetryIsWrittenToTheMeetingTheUserIsReading() async throws {
+        // The refusal reaches the user only through the failure line under the
+        // Retry button, so the message the pipeline threw has to land there.
+        let root = try TestPaths.makeTemporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let (sourceURL, _) = try Self.writeTruncatedRecording(in: root)
+
+        let runtime = RuntimeFixtures.makeRuntime(root: root)
+        await #expect(throws: ProcessingError.audioUnreadable(path: "voice-memo.caf")) {
+            _ = try await runtime.importRecording(from: sourceURL)
+        }
+
+        let repository = MeetingRepository(root: root.appendingPathComponent("Meetings"))
+        let summary = try #require(repository.listMeetings().first)
+        let store = MeetingStore(layout: MeetingLayout(root: summary.directory))
+        let meetingID = try store.readMetadata().id
+
+        let refusal = ProcessingError.localProcessingFailed(
+            reason: "The imported file could not be read to the end. Import it again.",
+            retryable: false
+        ).userMessage
+        runtime.retryProcessing(meetingID: meetingID)
+        for _ in 0..<200 where try store.readMetadata().processing.lastFailure?.message != refusal {
+            try await Task.sleep(nanoseconds: 10_000_000)
+        }
+
+        let after = try store.readMetadata()
+        #expect(after.processing.lastFailure?.message == refusal)
+        #expect(after.processing.state == .failed)
+    }
+
+    @Test("a failed import stays failed when the launch sweep resumes it")
+    @MainActor
+    func aFailedImportStaysFailedWhenTheLaunchSweepResumesIt() async throws {
+        // Retry refuses this meeting, but the launch sweep hands every
+        // unfinished meeting straight to `process`, which treats `finalizing`
+        // as work already done and finished the import on a fraction of a file.
+        let root = try TestPaths.makeTemporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let (sourceURL, _) = try Self.writeTruncatedRecording(in: root)
+
+        let runtime = RuntimeFixtures.makeRuntime(root: root)
+        await #expect(throws: ProcessingError.audioUnreadable(path: "voice-memo.caf")) {
+            _ = try await runtime.importRecording(from: sourceURL)
+        }
+
+        let repository = MeetingRepository(root: root.appendingPathComponent("Meetings"))
+        let summary = try #require(repository.listMeetings().first)
+        let store = MeetingStore(layout: MeetingLayout(root: summary.directory))
+
+        let pipeline = PipelineFixtures.makePipeline(
+            repository: repository, backend: FakeAIBackend()
+        )
+        await pipeline.resumeInterrupted()
+
+        let after = try store.readMetadata()
+        #expect(after.processing.state == .failed)
+        #expect(after.processing.failedStage == .finalizing)
+    }
 }
