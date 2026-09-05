@@ -35,6 +35,14 @@ runs `swift test --no-parallel`. Running `swift test --no-parallel` directly
 works when the repairs are not needed. The suite shares temporary directories
 and process-wide state, so it must not run in parallel.
 
+Xcode's test navigator ignores that flag and runs suites in parallel. A suite
+whose own tests collide with each other carries `.serialized`, and a suite that
+needs the whole run serial carries a comment on its `@Suite` saying what it
+depends on. One test in `CaptureEngineHardening` is in the second group. It
+measures a real timer, and a saturated machine stretches it past the microphone
+watchdog. Run the suite through `scripts/test.sh`. Treat a green Xcode run as a
+bonus.
+
 ## Targeted checks
 
 List or filter application tests with:

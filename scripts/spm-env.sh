@@ -2,7 +2,8 @@
 # Source this before any `swift build` / `swift run` invocation.
 #
 # It repairs two Command Line Tools defects. On a healthy toolchain both checks
-# pass and this script exports nothing.
+# pass and this script exports nothing. It also turns warnings into errors when
+# PIPIT_WARNINGS_AS_ERRORS=1 is set, which is how CI builds.
 #
 # 1. Manifest linking. Some CLT installs ship a PackageDescription.swiftmodule
 #    whose `.private.swiftinterface` predates the shipped
@@ -37,6 +38,13 @@ if [ -d "$CLT_CXX" ] && [ -d "$SDK_CXX" ]; then
     if [ "$clt_count" -lt "$sdk_count" ]; then
         PIPIT_SWIFT_FLAGS=(-Xcxx -I"$SDK_CXX")
     fi
+fi
+
+# --- Warnings as errors ------------------------------------------------------
+# CI sets PIPIT_WARNINGS_AS_ERRORS=1 so a warning fails the job. A local build
+# leaves it unset, so a warning in half-written code does not stop the build.
+if [ "${PIPIT_WARNINGS_AS_ERRORS:-0}" = "1" ]; then
+    PIPIT_SWIFT_FLAGS+=(-Xswiftc -warnings-as-errors)
 fi
 
 # --- 1. Manifest linking -----------------------------------------------------

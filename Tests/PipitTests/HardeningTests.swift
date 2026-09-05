@@ -136,6 +136,12 @@ private final class SilentDelegate: CaptureEngineDelegate, @unchecked Sendable {
     }
 }
 
+// The engine under test polls a real timer, so a test here has to run to the end
+// inside one poll interval. Under `swift test` without `--no-parallel` the whole
+// machine is saturated and a 15 ms test stretches past 8 seconds, which is long
+// enough for the microphone watchdog to rebuild a track the test never touched.
+// `.serialized` does not help. The contention comes from the other 89 suites
+// rather than from this one. Run the suite through `scripts/test.sh`.
 @Suite("CaptureEngineHardening")
 struct CaptureEngineHardeningTests {
     /// Records half a second of tap audio at one amplitude and returns what the

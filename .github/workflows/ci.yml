@@ -18,6 +18,10 @@ jobs:
     name: Build and test
     runs-on: macos-15
     timeout-minutes: 30
+    env:
+      # Every swift build and the test run compile with -warnings-as-errors.
+      # scripts/spm-env.sh reads this variable. A local build leaves it unset.
+      PIPIT_WARNINGS_AS_ERRORS: '1'
     steps:
       - uses: actions/checkout@v4
 
@@ -31,13 +35,17 @@ jobs:
           echo "selecting $newest"
           sudo xcode-select -s "$newest"
 
+      - name: Install SwiftLint
+        run: brew install swiftlint
+
       - name: Show toolchain
+        # Printed before the first build so a red Lint or Build step can be
+        # read against the exact tool versions that produced it.
         run: |
           swift --version
           xcodebuild -version || true
-
-      - name: Install SwiftLint
-        run: brew install swiftlint
+          swift format --version
+          swiftlint version
 
       - name: Lint
         # Style and defect rules. It fails on any file that has not been run
