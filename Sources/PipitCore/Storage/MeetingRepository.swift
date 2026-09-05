@@ -535,17 +535,16 @@ public struct MeetingRepository: Sendable {
 
     /// An identifier no meeting in the archive already holds.
     ///
-    /// It used to be enough to check whether a directory of that name existed,
-    /// because the directory was named for the identifier. It no longer is, so
-    /// this asks the resolver. Runs once per meeting created.
+    /// The scan covers two places. The first is the month directory the
+    /// identifier names, which is where a meeting sits until somebody files it.
+    /// The second is every meeting under `Folders/`, because filing moves the
+    /// directory out of its month and the month alone then reports a filed
+    /// identifier free. The rest of the archive is out of reach by
+    /// construction, since an identifier starts with the minute the meeting
+    /// started. Runs once per meeting created.
     private func uniqueMeetingID(base: String, startedAt: Date) -> String {
-        // The month the identifier names, not the resolver. A new meeting's
-        // identifier is free almost always, and asking the resolver made every
-        // recording start by decoding every metadata.json in the archive: the
-        // identifier is absent, so every cheap step misses and the scan runs to
-        // the end. A meeting starting now is in this month by construction.
-        let month = archive.monthDirectory(startedAt: startedAt)
-        let taken = identifiers(in: month)
+        var taken = identifiers(in: archive.monthDirectory(startedAt: startedAt))
+        taken.formUnion(filedIdentifiers())
         var candidate = base
         var suffix = 2
         while taken.contains(candidate) {
@@ -555,9 +554,29 @@ public struct MeetingRepository: Sendable {
         return candidate
     }
 
-    private func identifiers(in month: URL) -> Set<String> {
+    /// The identifiers of every meeting filed into a folder.
+    ///
+    /// A filed meeting's directory is named for the meeting rather than for its
+    /// identifier, and a person may rename it in Finder, so the name on disk
+    /// says nothing about which identifier is inside. Reading the metadata is
+    /// the only answer. The cost is one decode per filed meeting, paid once
+    /// when a meeting is created.
+    private func filedIdentifiers() -> Set<String> {
+        guard let folders = try? FileManager.default.contentsOfDirectory(
+            at: archive.foldersRoot, includingPropertiesForKeys: nil,
+            options: [.skipsHiddenFiles]
+        ) else { return [] }
+        var out: Set<String> = []
+        for folder in folders where folder.hasDirectoryPath {
+            out.formUnion(identifiers(in: folder))
+        }
+        return out
+    }
+
+    /// The identifiers of the meetings sitting directly inside a directory.
+    private func identifiers(in directory: URL) -> Set<String> {
         guard let entries = try? FileManager.default.contentsOfDirectory(
-            at: month, includingPropertiesForKeys: nil, options: [.skipsHiddenFiles]
+            at: directory, includingPropertiesForKeys: nil, options: [.skipsHiddenFiles]
         ) else { return [] }
         var out: Set<String> = []
         for entry in entries where entry.hasDirectoryPath {
