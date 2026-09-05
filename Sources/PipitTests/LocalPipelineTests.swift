@@ -45,19 +45,19 @@ enum LocalPipelineTests {
         handed: URL, recording: TrackAudioLocation
     ) throws -> (farEndLostDB: Double, userLostDB: Double) {
         let heard = try samples(ofFile: handed)
-        let recorded = try MicrophoneCleanerTests.samples(recording)
+        let recorded = try MicrophoneCleaningFixtures.samples(recording)
         func energy(_ samples: [Float], _ from: Double, _ to: Double, _ frequency: Double) -> Double {
-            MicrophoneCleanerTests.toneEnergy(
-                MicrophoneCleanerTests.seconds(from, to, of: samples), frequency: frequency
+            MicrophoneCleaningFixtures.toneEnergy(
+                MicrophoneCleaningFixtures.seconds(from, to, of: samples), frequency: frequency
             )
         }
-        let far = MicrophoneCleanerTests.farToneA
-        let near = MicrophoneCleanerTests.nearTone
+        let far = MicrophoneCleaningFixtures.farToneA
+        let near = MicrophoneCleaningFixtures.nearTone
         return (
-            MicrophoneCleanerTests.dropDB(
+            MicrophoneCleaningFixtures.dropDB(
                 from: energy(recorded, 20, 30, far), to: energy(heard, 20, 30, far)
             ),
-            MicrophoneCleanerTests.dropDB(
+            MicrophoneCleaningFixtures.dropDB(
                 from: energy(recorded, 12, 18, near), to: energy(heard, 12, 18, near)
             )
         )
@@ -248,10 +248,10 @@ enum LocalPipelineTests {
                 // The far end's track is digital zero, as the tap wrote it, so
                 // the cleaner has no reference and the evidence reads no far
                 // end.
-                let frames = Int(60 * MicrophoneCleanerTests.rate)
-                let meeting = try MicrophoneCleanerTests.makeMeeting(
+                let frames = Int(60 * MicrophoneCleaningFixtures.rate)
+                let meeting = try MicrophoneCleaningFixtures.makeMeeting(
                     root: root,
-                    mic: MicrophoneCleanerTests.tone(count: frames, frequency: 700, amplitude: 0.3),
+                    mic: MicrophoneCleaningFixtures.tone(count: frames, frequency: 700, amplitude: 0.3),
                     remote: [Float](repeating: 0, count: frames)
                 )
                 let (store, storeRoot) = try SpeakerFixtures.makeStore()
@@ -2857,7 +2857,7 @@ enum LocalPipelineTests {
                 // end's words being written down under the local user's name.
                 let root = try TestPaths.makeTemporaryDirectory()
                 defer { try? FileManager.default.removeItem(at: root) }
-                let meeting = try MicrophoneCleanerTests.makeCallOnSpeakers(root: root)
+                let meeting = try MicrophoneCleaningFixtures.makeCallOnSpeakers(root: root)
 
                 let transcriber = StubLocalTranscriber(segments: [
                     RawTranscriptSegment(
@@ -2918,7 +2918,7 @@ enum LocalPipelineTests {
                 // export instead of the track it just wrote.
                 let root = try TestPaths.makeTemporaryDirectory()
                 defer { try? FileManager.default.removeItem(at: root) }
-                let meeting = try MicrophoneCleanerTests.makeCallOnSpeakers(root: root)
+                let meeting = try MicrophoneCleaningFixtures.makeCallOnSpeakers(root: root)
                 let scratchRoot = root.appendingPathComponent("scratch")
 
                 let recording = meeting.store.rawTrackAudioLocation(
@@ -2992,7 +2992,7 @@ enum LocalPipelineTests {
                 // the user really spoke.
                 let root = try TestPaths.makeTemporaryDirectory()
                 defer { try? FileManager.default.removeItem(at: root) }
-                let meeting = try MicrophoneCleanerTests.makeCallOnSpeakers(root: root)
+                let meeting = try MicrophoneCleaningFixtures.makeCallOnSpeakers(root: root)
 
                 // A microphone loud in every window and carrying the far end in
                 // every window, which is what the recording measures and the
@@ -3042,13 +3042,13 @@ enum LocalPipelineTests {
                 // the canceller could not subtract. Compared against the
                 // recording's own level rather than a fixed number, because
                 // what is being asserted is which track was measured.
-                let recorded = try MicrophoneCleanerTests.samples(
+                let recorded = try MicrophoneCleaningFixtures.samples(
                     meeting.store.rawTrackAudioLocation(
                         track: .mic, metadata: try meeting.store.readMetadata(),
                         timeline: try meeting.store.readTimeline()
                     )
                 )
-                let tail = MicrophoneCleanerTests.seconds(20, 30, of: recorded)
+                let tail = MicrophoneCleaningFixtures.seconds(20, 30, of: recorded)
                 let squares = tail.reduce(0.0) { $0 + Double($1) * Double($1) }
                 let recordedDBFS = 20 * log10((squares / Double(max(tail.count, 1))).squareRoot())
                 let lastThird = evidence.micLevels.suffix(evidence.micLevels.count / 3)
@@ -3132,7 +3132,7 @@ enum LocalPipelineTests {
                 // holds nothing for so it cannot disturb the run.
                 let root = try TestPaths.makeTemporaryDirectory()
                 defer { try? FileManager.default.removeItem(at: root) }
-                let meeting = try MicrophoneCleanerTests.makeCallOnSpeakers(root: root)
+                let meeting = try MicrophoneCleaningFixtures.makeCallOnSpeakers(root: root)
                 let cleanedFile = meeting.store.layout.cleanedMicFile
 
                 let transcriber = StubLocalTranscriber(segments: [

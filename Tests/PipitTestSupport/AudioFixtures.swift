@@ -40,4 +40,33 @@ public enum AudioFixtures {
         }
         return samples
     }
+
+    /// Energy summed across the whole band.
+    ///
+    /// Use this where the microphone holds no copy of the far end. There is
+    /// nothing to subtract, so the difference between input and output is
+    /// what the canceller took out of the user.
+    public static func energy(_ samples: [Float]) -> Double {
+        samples.reduce(0.0) { $0 + Double($1) * Double($1) }
+    }
+
+    /// Energy at one frequency, by the Goertzel recurrence.
+    ///
+    /// One narrow band rather than the whole spectrum. Where the microphone
+    /// does hold a copy of the far end, broadband energy after cancellation is
+    /// mostly residue from subtracting it, so it says nothing about whether
+    /// the user's own voice came through.
+    public static func toneEnergy(
+        _ samples: [Float], frequency: Double, sampleRate: Double
+    ) -> Double {
+        let coefficient = 2 * cos(2 * Double.pi * frequency / sampleRate)
+        var previous = 0.0
+        var older = 0.0
+        for sample in samples {
+            let current = Double(sample) + coefficient * previous - older
+            older = previous
+            previous = current
+        }
+        return previous * previous + older * older - coefficient * previous * older
+    }
 }
