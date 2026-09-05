@@ -19,7 +19,13 @@ for browser in firefox chrome; do
     sed -E 's/^export (function|const|let|class)/\1/' "$ROOT/shared/provider.js" \
         > "$DIST/$browser/shared/provider.js"
     cp "$ROOT/shared/content.js" "$DIST/$browser/shared/content.js"
-    cp "$ROOT/shared/background.js" "$DIST/$browser/shared/background.js"
+    # relay.js is testable on its own, and background.js calls it. A Chrome MV3
+    # service worker names one file, so the two are concatenated instead of both
+    # being listed in the manifest.
+    {
+        sed -E 's/^export (function|const|let|class)/\1/' "$ROOT/shared/relay.js"
+        cat "$ROOT/shared/background.js"
+    } > "$DIST/$browser/shared/background.js"
     cp "$ROOT/$browser/manifest.json" "$DIST/$browser/manifest.json"
     # The app icon, which is what the browser shows in its add-on list and in
     # the install prompt. Without it the browser draws a generic puzzle piece.
