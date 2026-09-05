@@ -92,8 +92,8 @@ extension PipitRuntime {
     @discardableResult
     public func renameFolder(_ name: String, to newName: String) async throws -> MeetingFolder {
         let store = folderStore
-        // Asked before the listing, which returns an empty list for a folder
-        // that is not there and would rename nothing while reporting success.
+        // Asked before the listing, so a folder that is not there reports
+        // `folderNotFound` rather than the `folderUnreadable` the listing throws.
         guard store.exists(name) else { throw MeetingFolderError.folderNotFound(name) }
         let folder = try await pipeline.performFolderChange(
             involving: try meetingIDs(inFolder: name)

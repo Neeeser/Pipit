@@ -602,7 +602,7 @@ public actor ProcessingPipeline {
     ///
     /// A meeting already in flight is left alone: rewriting its stage from here
     /// would be overwritten by the run that is mid-request anyway.
-    public func retry(meetingID: String) async {
+    public func retry(meetingID: String) async throws {
         guard !running.contains(meetingID) else { return }
         // Same reason as process: a meeting folded into an earlier one is hidden
         // from the archive, and refusing it here made the Retry button on its own
@@ -614,6 +614,17 @@ public actor ProcessingPipeline {
         guard metadata.processing.state == .failed, let stage = metadata.processing.resumeStage else {
             await process(meetingID: meetingID)
             return
+        }
+        // An import that failed at `finalizing` never wrote whole audio. The
+        // stage loop treats `finalizing` as done work, so retrying walked
+        // straight past it and finished the meeting on the fraction that was
+        // read. Reading the file again is the only fix, and the user has to
+        // start it.
+        if metadata.source == .imported, stage == .finalizing {
+            throw ProcessingError.localProcessingFailed(
+                reason: "the imported file could not be read to the end, import it again",
+                retryable: false
+            )
         }
         metadata.processing.advance(to: stage, at: clock.now)
         try? persist(metadata, to: found.store)

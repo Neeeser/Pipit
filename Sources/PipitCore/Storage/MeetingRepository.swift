@@ -544,7 +544,15 @@ public struct MeetingRepository: Sendable {
     /// started. Runs once per meeting created.
     private func uniqueMeetingID(base: String, startedAt: Date) -> String {
         var taken = identifiers(in: archive.monthDirectory(startedAt: startedAt))
-        taken.formUnion(filedIdentifiers())
+        guard let filed = filedIdentifiers() else {
+            // The filed identifiers are unknown, so counting up from the base
+            // can land on one of them. Six random hex characters cannot, and
+            // recording starts either way.
+            var candidate = "\(base)-\(Self.discriminator())"
+            while taken.contains(candidate) { candidate = "\(base)-\(Self.discriminator())" }
+            return candidate
+        }
+        taken.formUnion(filed)
         var candidate = base
         var suffix = 2
         while taken.contains(candidate) {
@@ -552,6 +560,12 @@ public struct MeetingRepository: Sendable {
             suffix += 1
         }
         return candidate
+    }
+
+    /// Six lowercase hex characters, for an identifier that cannot be checked
+    /// against the archive.
+    private static func discriminator() -> String {
+        String(format: "%06x", UInt32.random(in: 0..<0x100_0000))
     }
 
     /// The identifiers of every meeting filed into a folder.
@@ -565,7 +579,11 @@ public struct MeetingRepository: Sendable {
     /// The scan is bounded to the meeting's own month plus `Folders/` on
     /// purpose. A whole-archive scan made every recording start by decoding
     /// every metadata file on disk.
-    private func filedIdentifiers() -> Set<String> {
+    ///
+    /// Returns `nil` when `Folders/` is there and will not list. The
+    /// identifiers it holds are then unknown, and the caller has to make one up
+    /// that nothing on disk can already hold.
+    private func filedIdentifiers() -> Set<String>? {
         let folders: [URL]
         do {
             folders = try FileManager.default.contentsOfDirectory(
@@ -574,24 +592,14 @@ public struct MeetingRepository: Sendable {
             )
         } catch {
             // No `Folders/` yet means nothing is filed, and the month directory
-            // is the whole answer. A directory that is there and will not list
-            // is different: the identifiers it holds are unknown, and handing
-            // one out twice puts two meetings in one directory. The full walk
-            // costs a decode per meeting, which is only paid on this path.
+            // is the whole answer.
             guard FileManager.default.fileExists(atPath: archive.foldersRoot.path) else {
                 return []
             }
             Log.storage.error(
                 "filed meetings could not be listed: \(logSafeDescription(error), privacy: .public)"
             )
-            var out: Set<String> = []
-            for directory in meetingDirectories() {
-                guard let metadata = try? MeetingStore(layout: MeetingLayout(root: directory))
-                    .readMetadata()
-                else { continue }
-                out.insert(metadata.id)
-            }
-            return out
+            return nil
         }
         var out: Set<String> = []
         for folder in folders where folder.hasDirectoryPath {

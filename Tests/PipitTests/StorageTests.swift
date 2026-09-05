@@ -150,6 +150,30 @@ struct StorageTests {
         )
     }
 
+    @Test("an identifier gets a random suffix when the folders cannot be listed")
+    func anIdentifierGetsARandomSuffixWhenTheFoldersCannotBeListed() async throws {
+        // A `Folders/` that will not list hides every filed identifier, so the
+        // plain candidate could already belong to a meeting. A random suffix
+        // cannot, and recording still starts.
+        let root = try TestPaths.makeTemporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        try Data().write(to: root.appendingPathComponent("Folders"))
+        let repository = MeetingRepository(root: root)
+        let started = Date(timeIntervalSince1970: 1_787_070_000)
+
+        let created = try repository.createMeeting(
+            source: .slackHuddle, provider: .slack, startedAt: started, now: started
+        )
+
+        let suffix = created.metadata.id.suffix(7)
+        #expect(suffix.first == "-", "got \(created.metadata.id)")
+        #expect(
+            suffix.dropFirst().count == 6
+                && suffix.dropFirst().allSatisfy { $0.isHexDigit && !$0.isUppercase },
+            "got \(created.metadata.id)"
+        )
+    }
+
     @Test("listing finds meetings and skips ones folded into another")
     func listingFindsMeetingsAndSkipsOnesFoldedIntoAnother() async throws {
         let root = try TestPaths.makeTemporaryDirectory()

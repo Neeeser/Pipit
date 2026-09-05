@@ -689,8 +689,8 @@ public final class PipitRuntime {
                 try importer.import(source: url, into: store, meetingID: meetingIdentifier)
             }.value
         } catch {
-            // The directory stays: the copy of the original and the manifest are
-            // the record of what happened. Marking it failed is what keeps
+            // The directory stays. The copy of the original and the manifest
+            // are the record of what happened. Marking it failed is what keeps
             // recovery off it, which would otherwise adopt a meeting still in
             // `recording` at the next launch and present a partial import as an
             // interrupted call.
@@ -758,8 +758,40 @@ public final class PipitRuntime {
     public func retryProcessing(meetingID: String) {
         runProcessing { [weak self] in
             guard let self else { return }
-            await pipeline.retry(meetingID: meetingID)
+            do {
+                try await pipeline.retry(meetingID: meetingID)
+            } catch {
+                recordRetryRefusal(meetingID: meetingID, error: error)
+                onProcessingUpdate?(meetingID)
+            }
             refreshRecentMeetings()
+        }
+    }
+
+    /// Puts a refused retry where the user reads it, on the meeting's own
+    /// failure line under the Retry button. The meeting stays failed.
+    private func recordRetryRefusal(meetingID: String, error: any Error) {
+        let failure = ProcessingPipeline.processingError(from: error)
+        Log.app.error("retry refused: \(logSafeDescription(error), privacy: .public)")
+        guard let found = repository.findMeeting(id: meetingID, includingMerged: true) else {
+            return
+        }
+        var metadata = found.metadata
+        metadata.processing.recordFailure(
+            ProcessingFailure(
+                stage: metadata.processing.failedStage ?? .finalizing,
+                message: failure.userMessage,
+                isRetryable: false,
+                occurredAt: clock.now
+            ),
+            at: clock.now
+        )
+        do {
+            try found.store.writeMetadata(metadata)
+        } catch {
+            Log.app.error(
+                "refused retry not recorded: \(logSafeDescription(error), privacy: .public)"
+            )
         }
     }
 

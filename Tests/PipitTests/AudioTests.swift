@@ -1163,4 +1163,34 @@ struct AudioTests {
         #expect(report.recovered.isEmpty, "a failed import was recovered as an interrupted call")
         #expect(!report.unreadable.contains(metadata.id))
     }
+
+    @Test("retrying a failed import is refused rather than completed")
+    @MainActor
+    func retryingAFailedImportIsRefusedRatherThanCompleted() async throws {
+        // The import failed before any audio was written, so the stage it
+        // failed at holds no work the pipeline can redo. Retrying walked past
+        // it and finished the meeting on whatever fraction had been read.
+        let root = try TestPaths.makeTemporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let (sourceURL, _) = try Self.writeTruncatedRecording(in: root)
+
+        let runtime = RuntimeFixtures.makeRuntime(root: root)
+        await #expect(throws: ProcessingError.audioUnreadable(path: "voice-memo.caf")) {
+            _ = try await runtime.importRecording(from: sourceURL)
+        }
+
+        let repository = MeetingRepository(root: root.appendingPathComponent("Meetings"))
+        let summary = try #require(repository.listMeetings().first)
+        let store = MeetingStore(layout: MeetingLayout(root: summary.directory))
+        let meetingID = try store.readMetadata().id
+
+        let pipeline = PipelineFixtures.makePipeline(
+            repository: repository, backend: FakeAIBackend()
+        )
+        await #expect(throws: ProcessingError.self) {
+            try await pipeline.retry(meetingID: meetingID)
+        }
+        let after = try store.readMetadata()
+        #expect(after.processing.state == .failed)
+    }
 }

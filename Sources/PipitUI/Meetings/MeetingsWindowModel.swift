@@ -909,7 +909,7 @@ public final class MeetingsWindowModel {
                 + "\(remaining.count == 1 ? "is not a meeting" : "are not meetings") "
                 + "Pipit can move, so the folder was left in place."
         } else if failures[name] != nil {
-            folderProblem = "The folder could not be read, so it was left in place."
+            folderProblem = "Pipit could not remove the folder."
         } else if !failures.isEmpty {
             folderProblem =
                 "\(failures.count) \(failures.count == 1 ? "meeting" : "meetings") could not be "
