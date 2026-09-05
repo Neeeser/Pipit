@@ -16,6 +16,10 @@ public enum MeetingFolderError: Error, Equatable, Sendable {
     /// merged into another, so removing the directory would take audio nothing
     /// had moved out. `remaining` names what is left, sorted.
     case folderNotEmpty(name: String, remaining: [String])
+    /// The folder directory would not list, or one meeting in it has metadata
+    /// that does not decode. Either way the set of meetings the folder holds is
+    /// unknown, and a move that cannot name what it is moving is refused.
+    case folderUnreadable(name: String)
 
     public var message: String {
         switch self {
@@ -26,6 +30,8 @@ public enum MeetingFolderError: Error, Equatable, Sendable {
         case .invalidFolderName(let name): "\(name) cannot be used as a folder name."
         case .folderNotEmpty(_, let remaining):
             "The folder still holds \(remaining.count) item\(remaining.count == 1 ? "" : "s") that did not move out of it."
+        case .folderUnreadable(let name):
+            "Pipit could not read what the folder \(name) holds, so it was left alone."
         }
     }
 }

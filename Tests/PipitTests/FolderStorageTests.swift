@@ -217,6 +217,63 @@ struct FolderStorageTests {
         #expect(refusal == .folderNotEmpty(name: "Tudor", remaining: ["Unreadable"]))
     }
 
+    @Test("renaming a folder holding an unreadable meeting is refused")
+    @MainActor
+    func renamingAFolderHoldingAnUnreadableMeetingIsRefused() async throws {
+        let root = try TestPaths.makeTemporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let archive = root.appendingPathComponent("Meetings")
+        let repository = MeetingRepository(root: archive)
+        let store = MeetingFolderStore(root: archive)
+        try store.create(name: "Tudor")
+        let listed = try Self.meeting(repository, title: "Kickoff")
+        try repository.move(meetingID: listed.id, toFolder: "Tudor")
+
+        // A meeting whose metadata does not decode cannot be checked against
+        // the holds, so what the rename would move is unknown.
+        let corrupt = archive.appendingPathComponent("Folders/Tudor/Unreadable")
+        try FileManager.default.createDirectory(
+            at: corrupt.appendingPathComponent("raw"), withIntermediateDirectories: true
+        )
+        try "{".write(
+            to: corrupt.appendingPathComponent("raw/metadata.json"),
+            atomically: true, encoding: .utf8
+        )
+
+        let runtime = RuntimeFixtures.makeRuntime(root: root)
+        await #expect(throws: MeetingFolderError.folderUnreadable(name: "Tudor")) {
+            try await runtime.renameFolder("Tudor", to: "Tudor Trust")
+        }
+        #expect(store.exists("Tudor"))
+        #expect(!store.exists("Tudor Trust"))
+        #expect(FileManager.default.fileExists(atPath: corrupt.path))
+        #expect(repository.meetings(inFolder: "Tudor").count == 1)
+    }
+
+    @Test("the meetings a folder holds include one merged into another")
+    @MainActor
+    func theMeetingsAFolderHoldsIncludeOneMergedIntoAnother() async throws {
+        let root = try TestPaths.makeTemporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let archive = root.appendingPathComponent("Meetings")
+        let repository = MeetingRepository(root: archive)
+        let store = MeetingFolderStore(root: archive)
+        try store.create(name: "Tudor")
+        let kept = try Self.meeting(repository, title: "Kickoff", hour: 11)
+        let merged = try Self.meeting(repository, title: "Kickoff", hour: 12)
+        try repository.move(meetingID: kept.id, toFolder: "Tudor")
+        try repository.move(meetingID: merged.id, toFolder: "Tudor")
+        _ = try #require(repository.findMeeting(id: merged.id)).store.updateMetadata {
+            $0.mergedIntoMeetingID = kept.id
+        }
+
+        // The archive listing hides the continuation, so a rename that asked
+        // the listing would move a directory it never checked.
+        #expect(repository.meetings(inFolder: "Tudor").map(\.id) == [kept.id])
+        let runtime = RuntimeFixtures.makeRuntime(root: root)
+        #expect(try runtime.meetingIDs(inFolder: "Tudor").sorted() == [kept.id, merged.id].sorted())
+    }
+
     @Test("a folder holding nothing but its manifest is deleted")
     func aFolderHoldingNothingButItsManifestIsDeleted() async throws {
         let (root, repository, store) = try Self.archive()

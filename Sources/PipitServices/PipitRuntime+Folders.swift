@@ -93,7 +93,7 @@ extension PipitRuntime {
     public func renameFolder(_ name: String, to newName: String) async throws -> MeetingFolder {
         let store = folderStore
         let folder = try await pipeline.performFolderChange(
-            involving: meetingIDs(inFolder: name)
+            involving: try meetingIDs(inFolder: name)
         ) {
             try store.rename(name, to: newName)
         }
@@ -108,15 +108,30 @@ extension PipitRuntime {
     /// Read from the directory rather than from the archive listing, which
     /// hides a meeting merged into another one. Its directory sits in the
     /// folder and moves with it like any other, and a job can be writing into
-    /// it: its segments are the only copy of what a reconnection recorded.
-    private func meetingIDs(inFolder name: String) -> [String] {
+    /// it. Its segments are the only copy of what a reconnection recorded.
+    ///
+    /// Throws `MeetingFolderError.folderUnreadable` when the directory will not
+    /// list or when one meeting's metadata does not decode. A partial list would
+    /// let the rename move a meeting a job is holding, so a caller that cannot
+    /// name everything in the folder does not move the folder.
+    public func meetingIDs(inFolder name: String) throws -> [String] {
         let directory = repository.archive.folderDirectory(name)
-        guard let entries = try? FileManager.default.contentsOfDirectory(
-            at: directory, includingPropertiesForKeys: nil, options: [.skipsHiddenFiles]
-        ) else { return [] }
-        return entries
-            .filter(\.hasDirectoryPath)
-            .compactMap { try? MeetingStore(layout: MeetingLayout(root: $0)).readMetadata().id }
+        let entries: [URL]
+        do {
+            entries = try FileManager.default.contentsOfDirectory(
+                at: directory, includingPropertiesForKeys: nil, options: [.skipsHiddenFiles]
+            )
+        } catch {
+            throw MeetingFolderError.folderUnreadable(name: name)
+        }
+        return try entries.filter(\.hasDirectoryPath).map { entry in
+            guard let metadata = try? MeetingStore(
+                layout: MeetingLayout(root: entry)
+            ).readMetadata() else {
+                throw MeetingFolderError.folderUnreadable(name: name)
+            }
+            return metadata.id
+        }
     }
 
     /// Takes a folder away, putting everything in it back under `YYYY/MM`.

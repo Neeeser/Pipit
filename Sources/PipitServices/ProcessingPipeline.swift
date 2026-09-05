@@ -114,7 +114,7 @@ public actor ProcessingPipeline {
     /// The check and the move happen in one step on this actor, so no job can
     /// take a hold in between and find its folder gone. `MeetingRepository`
     /// refuses a meeting whose persisted state says it is recording or
-    /// processing, which says nothing about re-analysis or compaction: both run
+    /// processing, which says nothing about re-analysis or compaction. Both run
     /// for minutes on a meeting that is already complete.
     ///
     /// Throws `MeetingFolderError.meetingIsBusy` for the first held meeting,
