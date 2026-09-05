@@ -217,19 +217,21 @@ public struct AudioCompactor: Sendable {
     }
 
     /// Every recorded archive file must decode to the duration its record
-    /// claims, right now, or nothing is deleted. Throws retryable: with the
+    /// claims, right now, or nothing is deleted. The whole file is decoded
+    /// rather than opened, because a container whose payload was damaged still
+    /// reports the recorded length in its header. Throws retryable: with the
     /// segments still on disk, a later attempt can rebuild the archive.
     private func verifyArchivesIntact(store: MeetingStore, archive: AudioArchive) throws {
         let inspector = AudioFileInspector()
         for track in CaptureTrack.allCases {
             guard let record = archive.track(track) else { continue }
             let url = store.layout.trackArchiveDirectory.appendingPathComponent(record.file)
-            guard let info = try? inspector.inspect(url: url),
+            guard let info = try? inspector.decode(url: url),
                   abs(info.seconds - record.seconds) <= max(0.5, min(record.seconds * 0.01, 2.0))
             else {
                 throw ProcessingError.localProcessingFailed(
-                    reason: "recorded archive for \(track.segmentPrefix) is missing or short; "
-                        + "keeping the segments",
+                    reason: "recorded archive for \(track.segmentPrefix) is missing, short or "
+                        + "undecodable; keeping the segments",
                     retryable: true
                 )
             }

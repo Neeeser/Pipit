@@ -23,6 +23,45 @@ public struct AudioFileInspector: AudioFileInspecting {
             byteCount: byteCount
         )
     }
+
+    /// Decodes the whole file and reports what came out of it.
+    ///
+    /// A container whose atoms are intact and whose payload is not opens fine
+    /// and reads a full length from the header. Only a decode of every frame
+    /// tells the two apart, so this is what runs before a compacted archive
+    /// replaces the segments it was made from. The returned frame count is the
+    /// number of frames actually decoded.
+    public func decode(url: URL) throws -> AudioFileInfo {
+        guard let file = try? AVAudioFile(forReading: url) else {
+            throw StorageError.fileReadFailed(path: url.path, underlying: "unreadable audio file")
+        }
+        let attributes = try? FileManager.default.attributesOfItem(atPath: url.path)
+        let byteCount = (attributes?[.size] as? NSNumber)?.int64Value ?? 0
+        let format = file.processingFormat
+        guard let buffer = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: 16_384) else {
+            throw StorageError.fileReadFailed(path: url.path, underlying: "buffer allocation failed")
+        }
+
+        // Bounded by the header length because AVAudioFile throws rather than
+        // returning zero frames on a read that starts at the end.
+        var decodedFrames: Int64 = 0
+        while file.framePosition < file.length {
+            do {
+                try file.read(into: buffer)
+            } catch {
+                throw StorageError.fileReadFailed(path: url.path, underlying: "\(error)")
+            }
+            guard buffer.frameLength > 0 else { break }
+            decodedFrames += Int64(buffer.frameLength)
+        }
+
+        return AudioFileInfo(
+            frameCount: decodedFrames,
+            sampleRate: format.sampleRate,
+            channelCount: Int(format.channelCount),
+            byteCount: byteCount
+        )
+    }
 }
 
 /// Reads media files chosen for import. Uses AVFoundation only, which decoded

@@ -400,6 +400,64 @@ struct CompactionTests {
         #expect(FileManager.default.fileExists(atPath: survivor.path), "nothing was deleted")
     }
 
+    /// Overwrites bytes inside the `mdat` payload of an M4A, leaving every
+    /// container atom in place. The header still describes a full-length file
+    /// and `AVAudioFile(forReading:)` still opens it; the samples are gone.
+    private static func corruptPayload(of url: URL, bytes: Int = 8_192) throws {
+        var data = try Data(contentsOf: url)
+        let marker = Array("mdat".utf8)
+        let start = try #require(
+            (0..<(data.count - marker.count)).first { offset in
+                Array(data[offset..<(offset + marker.count)]) == marker
+            },
+            "the archive has no mdat atom"
+        )
+        let from = start + 4_096
+        let to = min(data.count, from + bytes)
+        #expect(to > from, "the archive is too short to corrupt past its mdat header")
+        for offset in from..<to { data[offset] = UInt8.random(in: 0...255) }
+        try data.write(to: url)
+    }
+
+    @Test("an archive whose payload is corrupt stops deletion cold")
+    func anArchiveWhosePayloadIsCorruptStopsDeletionCold() async throws {
+        let root = try TestPaths.makeTemporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let meeting = try Self.makeCompleteMeeting(root: root)
+        let store = meeting.store
+        _ = try AudioCompactor().compact(store: store)
+
+        // A sync or a restore can hand back a file whose atoms survived and
+        // whose samples did not. The header still reports the recorded
+        // duration, so only decoding finds it, and the recreated segments are
+        // the only audio left.
+        let archiveFile = store.layout.trackArchiveFile(track: .mic)
+        try Self.corruptPayload(of: archiveFile)
+        let record = try #require(try store.readMetadata().audioArchive?.track(.mic))
+        let header = try AudioFileInspector().inspect(url: archiveFile)
+        #expect(
+            abs(header.seconds - record.seconds) <= 0.5,
+            "the fixture keeps the header intact, so the header check passes it"
+        )
+
+        try FileManager.default.createDirectory(
+            at: store.layout.segments, withIntermediateDirectories: true
+        )
+        let survivor = store.layout.segments.appendingPathComponent("mic.0001.caf")
+        try Data("the only copy".utf8).write(to: survivor)
+
+        var thrown: (any Error)?
+        do { _ = try AudioCompactor().compact(store: store) } catch { thrown = error }
+        #expect(thrown != nil, "verification refuses the corrupt archive")
+        if let processing = thrown as? ProcessingError,
+           case let .localProcessingFailed(_, retryable) = processing {
+            #expect(retryable, "the segments are still there, so a later run can rebuild")
+        } else {
+            Issue.record("expected localProcessingFailed, got \(String(describing: thrown))")
+        }
+        #expect(FileManager.default.fileExists(atPath: survivor.path), "nothing was deleted")
+    }
+
     @Test("the archive starts where the PCM started")
     func theArchiveStartsWhereThePCMStarted() async throws {
         let root = try TestPaths.makeTemporaryDirectory()
