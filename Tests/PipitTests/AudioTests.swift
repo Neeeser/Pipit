@@ -1076,4 +1076,53 @@ struct AudioTests {
         #expect(timeline.isComplete)
     }
 
+    @Test("an import that stops on a read error throws and is not marked complete")
+    func anImportThatStopsOnAReadErrorThrowsAndIsNotMarkedComplete() async throws {
+        let root = try TestPaths.makeTemporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let sourceURL = root.appendingPathComponent("voice-memo.caf")
+        do {
+            let sourceFile = try AVAudioFile(
+                forWriting: sourceURL,
+                settings: [
+                    AVFormatIDKey: kAudioFormatLinearPCM,
+                    AVSampleRateKey: 44_100,
+                    AVNumberOfChannelsKey: 1,
+                    AVLinearPCMBitDepthKey: 32,
+                    AVLinearPCMIsFloatKey: true,
+                    AVLinearPCMIsNonInterleaved: false,
+                ]
+            )
+            try sourceFile.write(
+                from: AudioFixtures.makeTone(seconds: 6, sampleRate: 44_100, channels: 1)
+            )
+        }
+        // A CAF keeps its frame count in the header, so a file cut short after
+        // the header opens, reads a few buffers and then fails. A truncated WAV
+        // does not: its length is clamped to the bytes that are there.
+        let whole = try Data(contentsOf: sourceURL)
+        let truncated = whole.prefix(whole.count / 4)
+        try truncated.write(to: sourceURL)
+
+        let archive = root.appendingPathComponent("archive", isDirectory: true)
+        let repository = MeetingRepository(root: archive)
+        let now = Date(timeIntervalSince1970: 1_787_070_000)
+        let created = try repository.createMeeting(
+            source: .imported, provider: .unknown, startedAt: now, now: now
+        )
+
+        #expect(throws: ProcessingError.audioUnreadable(path: "voice-memo.caf")) {
+            try AudioImporter(segmentSeconds: 2).import(
+                source: sourceURL, into: created.store, meetingID: created.metadata.id
+            )
+        }
+
+        let manifest = try String(contentsOf: created.store.layout.manifest, encoding: .utf8)
+        #expect(
+            !manifest.contains("import_complete"),
+            "an import that failed partway was recorded as complete"
+        )
+        #expect(manifest.contains("import_failed"))
+        #expect(try Data(contentsOf: sourceURL) == Data(truncated), "the source was modified")
+    }
 }

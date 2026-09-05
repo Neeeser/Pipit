@@ -29,7 +29,7 @@ enum ReprocessCommand {
             note("cannot read \(meeting.path): \(error)")
             return 1
         }
-        let root = repositoryRoot(for: meeting)
+        let root = MeetingArchiveRoot.resolve(for: meeting)
         let repository = MeetingRepository(root: root)
         guard repository.findMeeting(id: original.id, includingMerged: true) != nil else {
             note("\(original.id) is not in the archive at \(root.path)")
@@ -182,15 +182,6 @@ enum ReprocessCommand {
 
     private static func pad(_ value: String, _ width: Int) -> String {
         value.count >= width ? value + " " : value + String(repeating: " ", count: width - value.count)
-    }
-
-    /// `<root>/<year>/<month>/<meeting>` or `<root>/Folders/<name>/<meeting>`.
-    private static func repositoryRoot(for meeting: URL) -> URL {
-        let parent = meeting.deletingLastPathComponent()
-        if parent.deletingLastPathComponent().lastPathComponent == "Folders" {
-            return parent.deletingLastPathComponent().deletingLastPathComponent()
-        }
-        return parent.deletingLastPathComponent().deletingLastPathComponent()
     }
 
     private static func note(_ text: String) {

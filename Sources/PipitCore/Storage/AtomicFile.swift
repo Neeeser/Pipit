@@ -27,7 +27,11 @@ public enum AtomicFile {
                 writeError = .fileWriteFailed(path: temporary.path, underlying: "write errno \(errno)")
             }
         }
-        fsync(descriptor)
+        // An fsync failure means the bytes are not on the disk, so the temporary
+        // file is thrown away rather than renamed over the previous contents.
+        if writeError == nil, fsync(descriptor) != 0 {
+            writeError = .fileWriteFailed(path: temporary.path, underlying: "fsync errno \(errno)")
+        }
         close(descriptor)
 
         if let writeError {
@@ -47,18 +51,24 @@ public enum AtomicFile {
             }
         }
 
-        syncDirectory(directory)
+        try syncDirectory(directory)
     }
 
     public static func writeText(_ text: String, to url: URL) throws {
         try write(Data(text.utf8), to: url)
     }
 
-    private static func syncDirectory(_ url: URL) {
+    /// Reports a failed directory sync, because the rename it commits is what
+    /// makes the new file the one that survives a power loss.
+    private static func syncDirectory(_ url: URL) throws {
         let descriptor = open(url.path, O_RDONLY)
         guard descriptor >= 0 else { return }
-        fsync(descriptor)
+        let result = fsync(descriptor)
+        let code = errno
         close(descriptor)
+        if result != 0 {
+            throw StorageError.fileWriteFailed(path: url.path, underlying: "fsync errno \(code)")
+        }
     }
 }
 
