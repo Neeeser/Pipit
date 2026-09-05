@@ -140,7 +140,7 @@ public final class VoiceEnrollmentModel {
             takes = []
             phase = .finished(status)
             onEnrolled?()
-        } catch let error as SpokenEnrollmentError {
+        } catch {
             if case .rejected(.tooLittleSpeech(let heard, let required)) = error {
                 // Kept, all of it. This is the failure a reader hits by talking
                 // quickly, and throwing the audio away made them start the
@@ -154,8 +154,6 @@ public final class VoiceEnrollmentModel {
             discardTakes(except: nil)
             takes = []
             phase = .failed(Self.message(for: error))
-        } catch {
-            phase = .failed("The recording could not be used.")
         }
     }
 

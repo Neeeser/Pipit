@@ -218,8 +218,8 @@ public struct SpeakerMap: Codable, Sendable, Equatable {
     /// automatic stage that wrote it, so the next pass put the same name back.
     /// That is invisible for a name derived from audio, because re-deriving it
     /// is the point, and wrong for one the meeting client hands over ready
-    /// made: the client says "Chris" every time, so without this a person can
-    /// never take "Chris" off that speaker.
+    /// made: the client says "Bryn" every time, so without this a person can
+    /// never take "Bryn" off that speaker.
     public var clearedKeys: Set<String>
 
     public init(
@@ -309,9 +309,9 @@ public struct SpeakerMap: Codable, Sendable, Equatable {
     /// The people bank is the truth and a platform handle points at it. That
     /// only holds if the pointer reaches every key the account holds. Measured
     /// on a Slack huddle recorded on 3 September 2026 it reached one:
-    /// `sensor_U0619AZFDT6` carried the bank's "Chris L" and its identity,
+    /// `sensor_U0619AZFDT6` carried the bank's "Bryn C" and its identity,
     /// while four cluster keys carrying the same account carried Slack's roster
-    /// string "Chris Latimer" and no identity at all. One person, two names,
+    /// string "Bryn Callister" and no identity at all. One person, two names,
     /// one meeting.
     ///
     /// The keys left without an identity are the worse half. `refreshName`

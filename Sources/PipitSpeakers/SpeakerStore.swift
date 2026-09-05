@@ -561,7 +561,7 @@ public actor SpeakerStore {
 
     /// Deletes the voice and keeps the name.
     ///
-    /// Past transcripts still read "Chris", the occurrences still point at the
+    /// Past transcripts still read "Bryn", the occurrences still point at the
     /// same identity, and nothing about him can be matched from audio again
     /// until he is re-enrolled. Covers the merged family for the same reason
     /// `delete` does: separating a merge afterwards would otherwise rebuild a

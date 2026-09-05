@@ -3353,9 +3353,9 @@ public actor ProcessingPipeline {
     ///
     ///   Without it the lookup is display-name equality and nothing else, and
     ///   that is how a second record for one human gets made: on 1 September
-    ///   2026 a cluster reading Slack's roster string "Chris Latimer" was named
-    ///   with that string, the search for a person of that name missed "Chris
-    ///   L", and identity 24 was created beside identity 2, which holds the
+    ///   2026 a cluster reading Slack's roster string "Bryn Callister" was named
+    ///   with that string, the search for a person of that name missed "Bryn
+    ///   C", and identity 24 was created beside identity 2, which holds the
     ///   voice profile and the Slack handle for the same man.
     /// The platform account behind one speaker key, where the platform's
     /// identifier outlives the meeting.
@@ -3396,7 +3396,7 @@ public actor ProcessingPipeline {
         // for good. `.human` outranks everything and is never overwritten.
         if let account,
            try await person(named: trimmed) == nil,
-           let bound = try await store.identity(handle: account.handle, provider: account.provider),
+           let bound = await store.identity(handle: account.handle, provider: account.provider),
            bound.resolvedName.isEmpty
                || bound.resolvedName.caseInsensitiveCompare(trimmed) == .orderedSame
                || bound.aliases.contains(where: {

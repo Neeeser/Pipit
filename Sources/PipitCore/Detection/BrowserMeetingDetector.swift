@@ -128,7 +128,7 @@ public enum BrowserWindowTitle {
     /// decoration taken off.
     ///
     /// The extension relays `document.title` untouched, so a Meet call arrives
-    /// as "Meet - Hindsight Daily" and was filed under that. Nil where what is
+    /// as "Meet - Northwind Daily" and was filed under that. Nil where what is
     /// left is a meeting code or the bare product name, neither of which is a
     /// name anybody chose. A title from a provider with no rules here comes
     /// back as it went in.

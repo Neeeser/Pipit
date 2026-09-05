@@ -262,8 +262,8 @@ test('a zoom row label yields name, self and mute state', () => {
   // Measured on the web client: the label is the whole surface. The row id is
   // a list position and no element carries a participant identifier.
   assert.deepEqual(
-    zoomParticipantFromLabel('Andrew Neeser (Host, me),computer audio muted,video off'),
-    { name: 'Andrew Neeser', isSelf: true, muted: true }
+    zoomParticipantFromLabel('Marlow Fenn (Host, me),computer audio muted,video off'),
+    { name: 'Marlow Fenn', isSelf: true, muted: true }
   );
   assert.deepEqual(
     zoomParticipantFromLabel('A 2 (Guest),computer audio unmuted,video off'),
@@ -296,8 +296,8 @@ test('an empty or roleless-empty zoom label is nobody', () => {
 // --- Meet tile names -------------------------------------------------------
 
 test('a grid tile name is the first line', () => {
-  assert.equal(meetTileName('Chris Latimer\nsomething else'), 'Chris Latimer');
-  assert.equal(meetTileName('  Nicol\u00f2 Boschi  '), 'Nicol\u00f2 Boschi');
+  assert.equal(meetTileName('Bryn Callister\nsomething else'), 'Bryn Callister');
+  assert.equal(meetTileName('  Ren\u00e9e Balfour  '), 'Ren\u00e9e Balfour');
 });
 
 test('a people-panel row is cut back to the name', () => {
@@ -305,8 +305,8 @@ test('a people-panel row is cut back to the name', () => {
   // the first line returned the whole run: the name, the host badge, an icon
   // ligature, and the mute tooltip, truncated mid-word at 80 characters.
   assert.equal(
-    meetTileName("Chris LatimerMeeting hostdevicesYou can't remotely mute Chris Latimer's microphone"),
-    'Chris Latimer',
+    meetTileName("Bryn CallisterMeeting hostdevicesYou can't remotely mute Bryn Callister's microphone"),
+    'Bryn Callister',
   );
   assert.equal(
     meetTileName('2303 TLVdomain_disabledVisitorAdmitmore_vertMore actions'),
@@ -316,19 +316,19 @@ test('a people-panel row is cut back to the name', () => {
 
 test('a ligature glued to the name does not eat the name', () => {
   // The cut has to land at the ligature, not at the start of the lowercase run
-  // leading into it. Matching a pattern instead took "Chris Latimermore_vert"
-  // back to "Chris L", and a wrong name is cached for the rest of the call.
-  assert.equal(meetTileName('Chris Latimermore_vertMore actions'), 'Chris Latimer');
-  assert.equal(meetTileName('Andrew Neesermic_off'), 'Andrew Neeser');
-  assert.equal(meetTileName('Nicol\u00f2 Boschimore_vert'), 'Nicol\u00f2 Boschi');
+  // leading into it. Matching a pattern instead took "Bryn Callistermore_vert"
+  // back to "Bryn C", and a wrong name is cached for the rest of the call.
+  assert.equal(meetTileName('Bryn Callistermore_vertMore actions'), 'Bryn Callister');
+  assert.equal(meetTileName('Marlow Fennmic_off'), 'Marlow Fenn');
+  assert.equal(meetTileName('Ren\u00e9e Balfourmore_vert'), 'Ren\u00e9e Balfour');
   assert.equal(meetTileName('Bobmore_vert'), 'Bob');
 });
 
 test('a name is read through a leading blank line', () => {
   // Trimming after the split rather than before returned the empty first line,
   // so the tile got no name and was re-read with innerText on every tick.
-  assert.equal(meetTileName('\nChris Latimer\nmore_vert'), 'Chris Latimer');
-  assert.equal(meetTileName('  \n Nicol\u00f2 Boschi'), 'Nicol\u00f2 Boschi');
+  assert.equal(meetTileName('\nBryn Callister\nmore_vert'), 'Bryn Callister');
+  assert.equal(meetTileName('  \n Ren\u00e9e Balfour'), 'Ren\u00e9e Balfour');
 });
 
 test('a cut does not leave dangling punctuation', () => {
@@ -341,8 +341,8 @@ test('an icon ligature on its own line is not a name', () => {
   // ligature and the name sat on the line below it. Four people came back as
   // `keep_outline` and a fifth as `frame_person`, and because a speaker chip is
   // keyed by the name, four different voices collapsed into one chip.
-  assert.equal(meetTileName('keep_outline\nChris Latimer'), 'Chris Latimer');
-  assert.equal(meetTileName('frame_person\nNicol\u00f2 Boschi'), 'Nicol\u00f2 Boschi');
+  assert.equal(meetTileName('keep_outline\nBryn Callister'), 'Bryn Callister');
+  assert.equal(meetTileName('frame_person\nRen\u00e9e Balfour'), 'Ren\u00e9e Balfour');
   assert.equal(meetTileName('keep_outline\nmic_off\nBob'), 'Bob');
 });
 

@@ -302,7 +302,7 @@ public enum SlackWindowTitle {
             conversation = String(conversationPart[conversationPart.startIndex..<open])
                 .trimmingCharacters(in: .whitespaces)
         }
-        // Slack publishes "- Hindsight - Slack" while a conversation loads, and
+        // Slack publishes "- Northwind - Slack" while a conversation loads, and
         // " (DM) - ..." between conversations. Both parse to a name made only of
         // separators, which was then filed and announced as the meeting's title.
         // Naming nothing lets the last real conversation stand.

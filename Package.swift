@@ -1,16 +1,14 @@
 // swift-tools-version: 6.0
 import PackageDescription
 
-// Pipit is built with SwiftPM because the development machine has Command Line
-// Tools only (no Xcode, so no xcodebuild). scripts/bundle-app.sh assembles the
-// executable products into Pipit.app.
+// Pipit is built with SwiftPM rather than xcodebuild. scripts/bundle-app.sh
+// assembles the SwiftPM products into Pipit.app.
 let package = Package(
     name: "Pipit",
     platforms: [.macOS(.v15)],
     products: [
         .executable(name: "Pipit", targets: ["PipitApp"]),
         .executable(name: "pipit-nativehost", targets: ["PipitNativeHost"]),
-        .executable(name: "pipit-test", targets: ["PipitTests"]),
         .executable(name: "pipit-eval", targets: ["PipitEval"]),
         .library(name: "PipitCore", targets: ["PipitCore"]),
     ],
@@ -118,17 +116,17 @@ let package = Package(
             ]
         ),
 
-        // Minimal test harness. XCTest and swift-testing ship with Xcode, which is
-        // not installed here, so the suite runs as an ordinary executable.
-        .target(name: "TestKit"),
-        .executableTarget(
+        // The suite, under Swift Testing. `Support/` holds the fixtures and
+        // fakes the test files share. It builds recordings, stores and stub
+        // backends, and every assertion lives in the test that runs it.
+        .testTarget(
             name: "PipitTests",
             dependencies: [
-                "TestKit", "PipitCore", "PipitAudio", "PipitDetection",
+                "PipitCore", "PipitAudio", "PipitDetection",
                 "PipitIntegrations", "PipitSpeakers", "PipitLocalAI",
                 "PipitServices", "PipitUI", "PipitBench",
             ],
-            resources: [.copy("Fixtures")]
+            path: "Tests/PipitTests"
         ),
     ],
     swiftLanguageModes: [.v6],

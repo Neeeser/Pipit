@@ -267,7 +267,10 @@ struct LocalModelChoicePicker: View {
     let select: (LocalTranscriptionModel) -> Void
 
     var body: some View {
-        Picker("Model", selection: Binding(get: { selected }, set: select)) {
+        // The setter is written out rather than passed as `set: select`, so the
+        // call is made from this main-actor body instead of handing the binding
+        // a function value it could call from anywhere.
+        Picker("Model", selection: Binding(get: { selected }, set: { newValue in select(newValue) })) {
             ForEach(LocalTranscriptionModel.pickerRows(selected: selected), id: \.rawValue) { model in
                 choice(model)
             }

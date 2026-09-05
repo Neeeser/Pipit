@@ -4,7 +4,7 @@ Verified behavior has been run and checked. An implementation alone does not
 count as verification.
 
 The latest hardware checks used a MacBook Pro with an M2 Pro. The machine ran
-macOS 27 with Command Line Tools and no Developer ID signing identity.
+macOS 27 with Xcode 26 and no Developer ID signing identity.
 
 ## Automated checks
 
@@ -44,7 +44,7 @@ They do not run in the ordinary suite.
 | --- | --- |
 | Prevent model downloads during tests | `./scripts/check-offline.sh` |
 | Capture through real audio devices | `PIPIT_LIVE_CAPTURE=1 ./scripts/test.sh --filter LiveCapture` |
-| Run on-device speech models | `PIPIT_LOCAL_MODELS=1 PIPIT_LIVE_FIXTURE=/tmp/pipit-fixture ./scripts/test.sh --filter LocalModels` |
+| Run on-device speech models | `PIPIT_LOCAL_MODELS=1 PIPIT_LIVE_FIXTURE=/tmp/pipit-fixture ./scripts/test.sh --filter LocalModelTests` |
 | Call OpenAI speech endpoints | `PIPIT_LIVE_OPENAI=1 PIPIT_LIVE_FIXTURE=/tmp/pipit-fixture OPENAI_API_KEY=... ./scripts/test.sh --filter LiveOpenAI` |
 | Process a long recording | `PIPIT_LIVE_LONG=1 PIPIT_LIVE_FIXTURE=/tmp/pipit-fixture ./scripts/test.sh` |
 | Run a capture soak | `PIPIT_SOAK_MINUTES=30 ./scripts/test.sh --filter Soak` |

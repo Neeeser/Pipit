@@ -13,8 +13,8 @@ WORK="$OUT_DIR/turns"
 rm -rf "$WORK"
 mkdir -p "$WORK"
 
-# Andrew is the local user, so his lines become the microphone track. Chris and
-# Tim are remote, and both introduce themselves: speaker resolution is meant to
+# Marlow is the local user, so his lines become the microphone track. Bryn and
+# Owen are remote, and both introduce themselves: speaker resolution is meant to
 # find them from exactly that kind of evidence.
 say_turn() {
     local index="$1" voice="$2" speaker="$3" text="$4"
@@ -25,13 +25,13 @@ say_turn() {
 }
 
 turns=(
-    "Alex|Andrew|Morning. Before we start, did the staging cut over finish last night?"
-    "Daniel|Chris|Hey Andrew, Chris here. It finished at about two in the morning, and the read replicas are still catching up."
-    "Fred|Tim|This is Tim from the platform side. Two seconds of replication lag is fine for us, but we need Frankfurt provisioned before production moves."
-    "Alex|Andrew|Agreed. Tim, can your team have Frankfurt ready by the twentieth?"
-    "Fred|Tim|The twentieth is tight. I would say the twenty third is realistic, assuming the capacity request clears."
-    "Daniel|Chris|Works for me. One more thing: who is owning the rollback runbook?"
-    "Alex|Andrew|I will take the runbook. Let us grab time tomorrow morning and walk through it."
+    "Alex|Marlow|Morning. Before we start, did the staging cut over finish last night?"
+    "Daniel|Bryn|Hey Marlow, Bryn here. It finished at about two in the morning, and the read replicas are still catching up."
+    "Fred|Owen|This is Owen from the platform side. Two seconds of replication lag is fine for us, but we need Frankfurt provisioned before production moves."
+    "Alex|Marlow|Agreed. Owen, can your team have Frankfurt ready by the twentieth?"
+    "Fred|Owen|The twentieth is tight. I would say the twenty third is realistic, assuming the capacity request clears."
+    "Daniel|Bryn|Works for me. One more thing: who is owning the rollback runbook?"
+    "Alex|Marlow|I will take the runbook. Let us grab time tomorrow morning and walk through it."
 )
 
 index=0
@@ -83,7 +83,7 @@ for path in converted:
     full_frames.append(frames)
     # Each track carries its own speech and silence everywhere else, which is
     # what two separate capture sources actually produce.
-    if speaker == 'Andrew':
+    if speaker == 'Marlow':
         mic_frames.append(frames)
         remote_frames.append(silence)
     else:

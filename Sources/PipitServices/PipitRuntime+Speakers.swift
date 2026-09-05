@@ -576,7 +576,7 @@ extension PipitRuntime {
 
     /// Deletes the biometric material and keeps the name.
     ///
-    /// Past transcripts still say Chris. Nothing about his voice can be matched
+    /// Past transcripts still say Bryn. Nothing about his voice can be matched
     /// from audio again until he is confirmed on a new recording.
     public func forgetVoice(of identityID: IdentityID) async {
         guard let store = speakerStore else { return }

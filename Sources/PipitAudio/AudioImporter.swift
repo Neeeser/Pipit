@@ -96,16 +96,22 @@ public struct AudioImporter: Sendable {
                 Double(readBuffer.frameLength) * targetFormat.sampleRate / sourceFormat.sampleRate + 1_024
             )
             guard let output = AVAudioPCMBuffer(pcmFormat: targetFormat, frameCapacity: capacity) else { break }
-            var consumed = false
+            // The converter calls the input block synchronously on this thread,
+            // but the block is typed `@Sendable`. The box carries the buffer and
+            // the consumed-once flag across that boundary as one value: it holds
+            // the buffer until the block hands it over, and nil afterwards.
+            let pending = LockedBox<AVAudioPCMBuffer?>(readBuffer)
             var conversionError: NSError?
             let status = converter.convert(to: output, error: &conversionError) { _, statusPointer in
-                if consumed {
-                    statusPointer.pointee = .noDataNow
-                    return nil
+                pending.withLock { buffer in
+                    guard let ready = buffer else {
+                        statusPointer.pointee = .noDataNow
+                        return nil
+                    }
+                    buffer = nil
+                    statusPointer.pointee = .haveData
+                    return ready
                 }
-                consumed = true
-                statusPointer.pointee = .haveData
-                return readBuffer
             }
             if status == .error { break }
             guard output.frameLength > 0 else { continue }

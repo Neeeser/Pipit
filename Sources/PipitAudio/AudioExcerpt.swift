@@ -73,16 +73,22 @@ public struct AudioExcerptCutter: Sendable {
             guard readBuffer.frameLength > 0 else { break }
             remaining -= readBuffer.frameLength
 
-            var supplied = false
+            // The converter calls the input block synchronously on this thread,
+            // but the block is typed `@Sendable`. The box carries the buffer and
+            // the supplied-once flag across that boundary as one value: it holds
+            // the buffer until the block hands it over, and nil afterwards.
+            let pending = LockedBox<AVAudioPCMBuffer?>(readBuffer)
             var conversionError: NSError?
             let status = converter.convert(to: writeBuffer, error: &conversionError) { _, outStatus in
-                if supplied {
-                    outStatus.pointee = .noDataNow
-                    return nil
+                pending.withLock { buffer in
+                    guard let ready = buffer else {
+                        outStatus.pointee = .noDataNow
+                        return nil
+                    }
+                    buffer = nil
+                    outStatus.pointee = .haveData
+                    return ready
                 }
-                supplied = true
-                outStatus.pointee = .haveData
-                return readBuffer
             }
             if let conversionError { throw conversionError }
             guard status != .error, writeBuffer.frameLength > 0 else { continue }
