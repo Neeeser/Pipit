@@ -844,9 +844,9 @@ public final class MeetingsWindowModel {
     }
 
     /// Files meetings, from the row menu or the batch panel.
-    public func file(_ rows: [MeetingRow], in folder: String?) {
+    public func file(_ rows: [MeetingRow], in folder: String?) async {
         guard !rows.isEmpty else { return }
-        let failures = runtime.file(meetingIDs: rows.map(\.id), in: folder)
+        let failures = await runtime.file(meetingIDs: rows.map(\.id), in: folder)
         if let first = failures.values.first {
             folderProblem = (first as? MeetingFolderError)?.message
                 ?? "The meeting could not be moved."
@@ -866,17 +866,17 @@ public final class MeetingsWindowModel {
     }
 
     /// Makes the folder the prompt asked for and files what it was opened with.
-    public func commitNewFolder() {
+    public func commitNewFolder() async {
         guard let request = pendingNewFolder else { return }
         pendingNewFolder = nil
         let targets = rows.filter { request.meetingIDs.contains($0.id) }
-        createFolder(named: request.name, filing: targets)
+        await createFolder(named: request.name, filing: targets)
     }
 
-    public func createFolder(named name: String, filing rows: [MeetingRow] = []) {
+    public func createFolder(named name: String, filing rows: [MeetingRow] = []) async {
         do {
             let folder = try runtime.createFolder(name: name)
-            if !rows.isEmpty { file(rows, in: folder.name) } else { Task { await reload() } }
+            if !rows.isEmpty { await file(rows, in: folder.name) } else { Task { await reload() } }
         } catch let error as MeetingFolderError {
             folderProblem = error.message
         } catch {
@@ -884,9 +884,9 @@ public final class MeetingsWindowModel {
         }
     }
 
-    public func renameFolder(_ name: String, to newName: String) {
+    public func renameFolder(_ name: String, to newName: String) async {
         do {
-            let renamed = try runtime.renameFolder(name, to: newName)
+            let renamed = try await runtime.renameFolder(name, to: newName)
             if openFolder == name { openFolder = renamed.name }
             Task { await reload() }
         } catch let error as MeetingFolderError {
@@ -896,8 +896,8 @@ public final class MeetingsWindowModel {
         }
     }
 
-    public func deleteFolder(_ name: String) {
-        let failures = runtime.deleteFolder(name)
+    public func deleteFolder(_ name: String) async {
+        let failures = await runtime.deleteFolder(name)
         if let refusal = failures[name] as? MeetingFolderError,
             case .folderNotEmpty(_, let remaining) = refusal {
             folderProblem =
@@ -944,9 +944,9 @@ public final class MeetingsWindowModel {
 
     /// Takes the offered folder, and puts the recurring question on screen when
     /// there is a series behind the meeting.
-    public func acceptFolderSuggestion(for meetingID: String) {
+    public func acceptFolderSuggestion(for meetingID: String) async {
         guard let suggestion = folderSuggestion(for: meetingID) else { return }
-        let proposal = runtime.acceptFolderSuggestion(for: meetingID)
+        let proposal = await runtime.acceptFolderSuggestion(for: meetingID)
         archiveChanges += 1
         receipt = MeetingReceipt(
             text: "Moved to \(suggestion.folderName)", meetingID: meetingID

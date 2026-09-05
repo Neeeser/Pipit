@@ -201,7 +201,7 @@ struct FolderStorageTests {
         try Data([0x01, 0x02, 0x03]).write(to: segment)
 
         let runtime = RuntimeFixtures.makeRuntime(root: root)
-        let failures = runtime.deleteFolder("Tudor")
+        let failures = await runtime.deleteFolder("Tudor")
 
         // The meeting that could be listed went back to its month.
         #expect(repository.findMeeting(id: listed.id)?.store.layout.root.path.contains("/2026/08/") == true)

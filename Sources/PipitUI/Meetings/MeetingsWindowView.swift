@@ -548,7 +548,7 @@ struct MeetingRowView: View {
         Menu(many ? "Move \(targets.count) to Folder" : "Move to Folder") {
             ForEach(model.folderRows) { folder in
                 Button {
-                    model.file(targets, in: folder.name)
+                    Task { await model.file(targets, in: folder.name) }
                 } label: {
                     // A tick on the folder every one of them is already in, so
                     // the menu says where the selection stands as well as where
@@ -565,7 +565,7 @@ struct MeetingRowView: View {
                 model.pendingNewFolder = NewFolderRequest(filing: targets.map(\.id))
             }
             if targets.contains(where: { $0.summary.folderName != nil }) {
-                Button("Remove from Folder") { model.file(targets, in: nil) }
+                Button("Remove from Folder") { Task { await model.file(targets, in: nil) } }
             }
         }
         Divider()
@@ -703,7 +703,7 @@ struct MeetingsSelectionView: View {
                         Menu("Move to Folder") {
                             ForEach(model.folderRows) { folder in
                                 Button(folder.name) {
-                                    model.file(model.selectedRows, in: folder.name)
+                                    Task { await model.file(model.selectedRows, in: folder.name) }
                                 }
                             }
                             if !model.folderRows.isEmpty { Divider() }
@@ -712,7 +712,9 @@ struct MeetingsSelectionView: View {
                                     filing: model.selectedRows.map(\.id)
                                 )
                             }
-                            Button("Remove from Folder") { model.file(model.selectedRows, in: nil) }
+                            Button("Remove from Folder") {
+                                Task { await model.file(model.selectedRows, in: nil) }
+                            }
                         }
                         .fixedSize()
                         if model.selectedRows.allSatisfy(\.isArchived) {

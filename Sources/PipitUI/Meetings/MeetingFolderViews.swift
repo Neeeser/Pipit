@@ -70,7 +70,9 @@ struct FolderRowView: View {
             }
             .disabled(row.folder.rule.isEmpty)
             Button("Rename…") { model.pendingFolderRename = row.name }
-            Button("Delete Folder…", role: .destructive) { model.deleteFolder(row.name) }
+            Button("Delete Folder…", role: .destructive) {
+                Task { await model.deleteFolder(row.name) }
+            }
         }
         .accessibilityElement(children: .combine)
         .accessibilityLabel("\(row.name), \(subtitle)")
@@ -240,7 +242,7 @@ struct FolderDetailView: View {
                                 .lineLimit(1)
                         }
                         Spacer(minLength: 4)
-                        Button("Move it") { model.acceptFolderSuggestion(for: entry.row.id) }
+                        Button("Move it") { Task { await model.acceptFolderSuggestion(for: entry.row.id) } }
                         Button("Dismiss") { model.dismissFolderSuggestion(for: entry.row.id) }
                             .buttonStyle(.link)
                     }
@@ -334,7 +336,7 @@ struct FolderPrompts: ViewModifier {
                     set: { model.pendingNewFolder?.name = $0 }
                 ))
                 Button("Cancel", role: .cancel) { model.pendingNewFolder = nil }
-                Button("Create") { model.commitNewFolder() }
+                Button("Create") { Task { await model.commitNewFolder() } }
             } message: {
                 Text(
                     "A directory under Meetings/Folders. The meetings you file into it move there."
@@ -396,7 +398,7 @@ private struct RenameFolderFields: View {
         Button("Cancel", role: .cancel) { model.pendingFolderRename = nil }
         Button("Rename") {
             model.pendingFolderRename = nil
-            model.renameFolder(original, to: typed)
+            Task { await model.renameFolder(original, to: typed) }
         }
     }
 }

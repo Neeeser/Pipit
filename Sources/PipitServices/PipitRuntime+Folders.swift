@@ -83,13 +83,40 @@ extension PipitRuntime {
         try folderStore.write(folder)
     }
 
+    /// Renames a folder, unless a job is writing into a meeting it holds.
+    ///
+    /// The rename moves every meeting directory under it, which takes the
+    /// folder out from under the absolute paths a running job holds. The check
+    /// and the rename run in one step on the pipeline actor, so no job can
+    /// start in between.
     @discardableResult
-    public func renameFolder(_ name: String, to newName: String) throws -> MeetingFolder {
-        let folder = try folderStore.rename(name, to: newName)
+    public func renameFolder(_ name: String, to newName: String) async throws -> MeetingFolder {
+        let store = folderStore
+        let folder = try await pipeline.performFolderChange(
+            involving: meetingIDs(inFolder: name)
+        ) {
+            try store.rename(name, to: newName)
+        }
         // Every meeting in it moved with the directory, so what the rows say
         // about where they are is now a launch behind.
         refreshRecentMeetings()
         return folder
+    }
+
+    /// Every meeting a folder holds, folded continuations included.
+    ///
+    /// Read from the directory rather than from the archive listing, which
+    /// hides a meeting merged into another one. Its directory sits in the
+    /// folder and moves with it like any other, and a job can be writing into
+    /// it: its segments are the only copy of what a reconnection recorded.
+    private func meetingIDs(inFolder name: String) -> [String] {
+        let directory = repository.archive.folderDirectory(name)
+        guard let entries = try? FileManager.default.contentsOfDirectory(
+            at: directory, includingPropertiesForKeys: nil, options: [.skipsHiddenFiles]
+        ) else { return [] }
+        return entries
+            .filter(\.hasDirectoryPath)
+            .compactMap { try? MeetingStore(layout: MeetingLayout(root: $0)).readMetadata().id }
     }
 
     /// Takes a folder away, putting everything in it back under `YYYY/MM`.
@@ -97,11 +124,14 @@ extension PipitRuntime {
     /// The meetings are moved one at a time and the folder is only removed once
     /// they are all out, so a move that fails leaves a folder that still holds
     /// what could not be moved rather than a deletion that lost it.
-    public func deleteFolder(_ name: String) -> [String: any Error] {
+    public func deleteFolder(_ name: String) async -> [String: any Error] {
+        let repository = self.repository
         var failures: [String: any Error] = [:]
         for summary in repository.meetings(inFolder: name) {
             do {
-                try repository.move(meetingID: summary.id, toFolder: nil)
+                _ = try await pipeline.performFolderChange(involving: [summary.id]) {
+                    try repository.move(meetingID: summary.id, toFolder: nil)
+                }
             } catch {
                 failures[summary.id] = error
             }
@@ -117,12 +147,19 @@ extension PipitRuntime {
 
     /// Files meetings into a folder, or takes them out when `folder` is nil.
     /// Returns the ones that would not move, with why.
+    ///
+    /// Each meeting is moved on the pipeline actor, which refuses one a job is
+    /// writing into. One meeting per call, so a busy meeting is reported on its
+    /// own row and the rest of a batch still moves.
     @discardableResult
-    public func file(meetingIDs: [String], in folder: String?) -> [String: any Error] {
+    public func file(meetingIDs: [String], in folder: String?) async -> [String: any Error] {
+        let repository = self.repository
         var failures: [String: any Error] = [:]
         for id in meetingIDs {
             do {
-                try repository.move(meetingID: id, toFolder: folder)
+                _ = try await pipeline.performFolderChange(involving: [id]) {
+                    try repository.move(meetingID: id, toFolder: folder)
+                }
             } catch {
                 failures[id] = error
                 Log.app.error("filing failed: \(logSafeDescription(error), privacy: .public)")
@@ -150,9 +187,11 @@ extension PipitRuntime {
     /// Takes the offer. Returns the proposal to make a rule out of it, when
     /// there is a series behind the meeting worth offering one for.
     @discardableResult
-    public func acceptFolderSuggestion(for meetingID: String) -> RecurringProposal? {
+    public func acceptFolderSuggestion(for meetingID: String) async -> RecurringProposal? {
         guard let suggestion = folderSuggestion(for: meetingID) else { return nil }
-        guard file(meetingIDs: [meetingID], in: suggestion.folderName).isEmpty else { return nil }
+        guard await file(meetingIDs: [meetingID], in: suggestion.folderName).isEmpty else {
+            return nil
+        }
         return recurringProposal(for: meetingID)
     }
 

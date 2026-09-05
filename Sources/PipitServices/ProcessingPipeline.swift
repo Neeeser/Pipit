@@ -109,6 +109,25 @@ public actor ProcessingPipeline {
         (foldersHeld[meetingID] ?? 0) > (besidesSelf ? 1 : 0)
     }
 
+    /// Moves meeting directories, refusing while a job is writing into one.
+    ///
+    /// The check and the move happen in one step on this actor, so no job can
+    /// take a hold in between and find its folder gone. `MeetingRepository`
+    /// refuses a meeting whose persisted state says it is recording or
+    /// processing, which says nothing about re-analysis or compaction: both run
+    /// for minutes on a meeting that is already complete.
+    ///
+    /// Throws `MeetingFolderError.meetingIsBusy` for the first held meeting,
+    /// and otherwise returns what `body` returned.
+    public func performFolderChange<T>(
+        involving meetingIDs: [String], _ body: @Sendable () throws -> sending T
+    ) throws -> sending T {
+        for meetingID in meetingIDs where foldersHeld[meetingID] != nil {
+            throw MeetingFolderError.meetingIsBusy(meetingID)
+        }
+        return try body()
+    }
+
     /// One heavy job at a time. Transcription is 92% of the work and the local
     /// models share one Neural Engine, so a second concurrent meeting takes
     /// time from the first rather than adding any.
