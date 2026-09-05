@@ -92,6 +92,9 @@ extension PipitRuntime {
     @discardableResult
     public func renameFolder(_ name: String, to newName: String) async throws -> MeetingFolder {
         let store = folderStore
+        // Asked before the listing, which returns an empty list for a folder
+        // that is not there and would rename nothing while reporting success.
+        guard store.exists(name) else { throw MeetingFolderError.folderNotFound(name) }
         let folder = try await pipeline.performFolderChange(
             involving: try meetingIDs(inFolder: name)
         ) {
@@ -201,11 +204,13 @@ extension PipitRuntime {
 
     /// Takes the offer. Returns the proposal to make a rule out of it, when
     /// there is a series behind the meeting worth offering one for.
+    /// Throws what the move was refused with, so a caller does not report a
+    /// meeting as filed that is still where it was.
     @discardableResult
-    public func acceptFolderSuggestion(for meetingID: String) async -> RecurringProposal? {
+    public func acceptFolderSuggestion(for meetingID: String) async throws -> RecurringProposal? {
         guard let suggestion = folderSuggestion(for: meetingID) else { return nil }
-        guard await file(meetingIDs: [meetingID], in: suggestion.folderName).isEmpty else {
-            return nil
+        if let failure = await file(meetingIDs: [meetingID], in: suggestion.folderName).values.first {
+            throw failure
         }
         return recurringProposal(for: meetingID)
     }

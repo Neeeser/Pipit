@@ -193,9 +193,13 @@ public final class PipitRuntime {
     /// database, the models, and the audio of a spoken enrolment.
     @ObservationIgnored public let applicationSupport: URL
 
+    /// `backend` is the cloud client the pipeline and its cloud stages use.
+    /// It is a parameter so a test can drive the pipeline this runtime files
+    /// through, which is the same object the folder holds live on.
     public init(
         settingsDirectory: URL = SensorTransport.defaultApplicationSupport,
         clock: any Clock = SystemClock(),
+        backend: (any AIBackend)? = nil,
         trash: @escaping @Sendable (URL) throws -> Void = {
             try FileManager.default.trashItem(at: $0, resultingItemURL: nil)
         }
@@ -241,7 +245,7 @@ public final class PipitRuntime {
         // longer trusts.
         let cachedKeys = CachingAPIKeyStore(keyStore)
         apiKeys = cachedKeys
-        let cloud = OpenAIClient(keyProvider: cachedKeys)
+        let cloud: any AIBackend = backend ?? OpenAIClient(keyProvider: cachedKeys)
         let modelManager = LocalModelManager(
             applicationSupport: settingsDirectory,
             required: LocalModelUnit.required(for: loaded),
@@ -679,9 +683,20 @@ public final class PipitRuntime {
         let importer = AudioImporter(segmentSeconds: settings.segmentSeconds, clock: clock)
         let store = created.store
         let meetingIdentifier = created.metadata.id
-        let result = try await Task.detached(priority: .userInitiated) {
-            try importer.import(source: url, into: store, meetingID: meetingIdentifier)
-        }.value
+        let result: AudioImporter.Result
+        do {
+            result = try await Task.detached(priority: .userInitiated) {
+                try importer.import(source: url, into: store, meetingID: meetingIdentifier)
+            }.value
+        } catch {
+            // The directory stays: the copy of the original and the manifest are
+            // the record of what happened. Marking it failed is what keeps
+            // recovery off it, which would otherwise adopt a meeting still in
+            // `recording` at the next launch and present a partial import as an
+            // interrupted call.
+            markImportFailed(metadata: created.metadata, store: created.store, error: error)
+            throw error
+        }
 
         var metadata = created.metadata
         metadata.durationSeconds = result.durationSeconds
@@ -700,6 +715,31 @@ public final class PipitRuntime {
         let meetingID = metadata.id
         Task { await pipeline.process(meetingID: meetingID) }
         return meetingID
+    }
+
+    /// Records why an import stopped, on the meeting the import created.
+    private func markImportFailed(
+        metadata: MeetingMetadata, store: MeetingStore, error: any Error
+    ) {
+        var metadata = metadata
+        let failure = ProcessingPipeline.processingError(from: error)
+        metadata.processing.recordFailure(
+            ProcessingFailure(
+                stage: .finalizing,
+                message: failure.userMessage,
+                isRetryable: false,
+                occurredAt: clock.now
+            ),
+            at: clock.now
+        )
+        do {
+            try store.writeMetadata(metadata)
+        } catch {
+            Log.app.error(
+                "failed import not marked: \(logSafeDescription(error), privacy: .public)"
+            )
+        }
+        refreshRecentMeetings()
     }
 
     // MARK: - meeting actions

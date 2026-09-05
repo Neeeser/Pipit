@@ -250,6 +250,17 @@ struct FolderStorageTests {
         #expect(repository.meetings(inFolder: "Tudor").count == 1)
     }
 
+    @Test("renaming a folder that is not there is refused")
+    @MainActor
+    func renamingAFolderThatIsNotThereIsRefused() async throws {
+        let root = try TestPaths.makeTemporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let runtime = RuntimeFixtures.makeRuntime(root: root)
+        await #expect(throws: MeetingFolderError.folderNotFound("Tudor")) {
+            try await runtime.renameFolder("Tudor", to: "Tudor Trust")
+        }
+    }
+
     @Test("the meetings a folder holds include one merged into another")
     @MainActor
     func theMeetingsAFolderHoldsIncludeOneMergedIntoAnother() async throws {

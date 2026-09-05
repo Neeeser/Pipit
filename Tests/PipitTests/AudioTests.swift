@@ -2,6 +2,7 @@ import AVFoundation
 import Foundation
 import PipitAudio
 import PipitCore
+import PipitServices
 import Testing
 
 /// Real audio through the real writers and readers. These use AVFoundation but no
@@ -1076,10 +1077,12 @@ struct AudioTests {
         #expect(timeline.isComplete)
     }
 
-    @Test("an import that stops on a read error throws and is not marked complete")
-    func anImportThatStopsOnAReadErrorThrowsAndIsNotMarkedComplete() async throws {
-        let root = try TestPaths.makeTemporaryDirectory()
-        defer { try? FileManager.default.removeItem(at: root) }
+    /// A CAF whose header promises six seconds of audio that is not there.
+    ///
+    /// A CAF keeps its frame count in the header, so a file cut short after the
+    /// header opens, reads a few buffers and then fails. A truncated WAV does
+    /// not. Its length is clamped to the bytes that are there.
+    private static func writeTruncatedRecording(in root: URL) throws -> (url: URL, bytes: Data) {
         let sourceURL = root.appendingPathComponent("voice-memo.caf")
         do {
             let sourceFile = try AVAudioFile(
@@ -1097,12 +1100,17 @@ struct AudioTests {
                 from: AudioFixtures.makeTone(seconds: 6, sampleRate: 44_100, channels: 1)
             )
         }
-        // A CAF keeps its frame count in the header, so a file cut short after
-        // the header opens, reads a few buffers and then fails. A truncated WAV
-        // does not: its length is clamped to the bytes that are there.
         let whole = try Data(contentsOf: sourceURL)
-        let truncated = whole.prefix(whole.count / 4)
+        let truncated = Data(whole.prefix(whole.count / 4))
         try truncated.write(to: sourceURL)
+        return (sourceURL, truncated)
+    }
+
+    @Test("an import that stops on a read error throws and is not marked complete")
+    func anImportThatStopsOnAReadErrorThrowsAndIsNotMarkedComplete() async throws {
+        let root = try TestPaths.makeTemporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let (sourceURL, truncated) = try Self.writeTruncatedRecording(in: root)
 
         let archive = root.appendingPathComponent("archive", isDirectory: true)
         let repository = MeetingRepository(root: archive)
@@ -1124,5 +1132,35 @@ struct AudioTests {
         )
         #expect(manifest.contains("import_failed"))
         #expect(try Data(contentsOf: sourceURL) == Data(truncated), "the source was modified")
+    }
+
+    @Test("an import that fails is left failed rather than offered for recovery")
+    @MainActor
+    func anImportThatFailsIsLeftFailedRatherThanOfferedForRecovery() async throws {
+        // The meeting directory is created before the audio is read, so an
+        // import that throws leaves one behind in `recording`. Recovery adopts
+        // a meeting in that state at the next launch and hands the user a
+        // partial import as if it were an interrupted call.
+        let root = try TestPaths.makeTemporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let (sourceURL, _) = try Self.writeTruncatedRecording(in: root)
+
+        let runtime = RuntimeFixtures.makeRuntime(root: root)
+        await #expect(throws: ProcessingError.audioUnreadable(path: "voice-memo.caf")) {
+            _ = try await runtime.importRecording(from: sourceURL)
+        }
+
+        let repository = MeetingRepository(root: root.appendingPathComponent("Meetings"))
+        let summary = try #require(repository.listMeetings().first)
+        let metadata = try MeetingStore(layout: MeetingLayout(root: summary.directory))
+            .readMetadata()
+        #expect(metadata.processing.state == .failed)
+        #expect(metadata.processing.lastFailure?.message.isEmpty == false)
+
+        let report = RecoveryScanner(
+            repository: repository, inspector: AudioFileInspector()
+        ).scan()
+        #expect(report.recovered.isEmpty, "a failed import was recovered as an interrupted call")
+        #expect(!report.unreadable.contains(metadata.id))
     }
 }

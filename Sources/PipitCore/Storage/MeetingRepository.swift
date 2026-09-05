@@ -561,11 +561,38 @@ public struct MeetingRepository: Sendable {
     /// says nothing about which identifier is inside. Reading the metadata is
     /// the only answer. The cost is one decode per filed meeting, paid once
     /// when a meeting is created.
+    ///
+    /// The scan is bounded to the meeting's own month plus `Folders/` on
+    /// purpose. A whole-archive scan made every recording start by decoding
+    /// every metadata file on disk.
     private func filedIdentifiers() -> Set<String> {
-        guard let folders = try? FileManager.default.contentsOfDirectory(
-            at: archive.foldersRoot, includingPropertiesForKeys: nil,
-            options: [.skipsHiddenFiles]
-        ) else { return [] }
+        let folders: [URL]
+        do {
+            folders = try FileManager.default.contentsOfDirectory(
+                at: archive.foldersRoot, includingPropertiesForKeys: nil,
+                options: [.skipsHiddenFiles]
+            )
+        } catch {
+            // No `Folders/` yet means nothing is filed, and the month directory
+            // is the whole answer. A directory that is there and will not list
+            // is different: the identifiers it holds are unknown, and handing
+            // one out twice puts two meetings in one directory. The full walk
+            // costs a decode per meeting, which is only paid on this path.
+            guard FileManager.default.fileExists(atPath: archive.foldersRoot.path) else {
+                return []
+            }
+            Log.storage.error(
+                "filed meetings could not be listed: \(logSafeDescription(error), privacy: .public)"
+            )
+            var out: Set<String> = []
+            for directory in meetingDirectories() {
+                guard let metadata = try? MeetingStore(layout: MeetingLayout(root: directory))
+                    .readMetadata()
+                else { continue }
+                out.insert(metadata.id)
+            }
+            return out
+        }
         var out: Set<String> = []
         for folder in folders where folder.hasDirectoryPath {
             out.formUnion(identifiers(in: folder))

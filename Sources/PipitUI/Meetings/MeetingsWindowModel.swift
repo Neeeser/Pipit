@@ -852,10 +852,14 @@ public final class MeetingsWindowModel {
                 ?? "The meeting could not be moved."
         }
         archiveChanges += 1
-        receipt = MeetingReceipt(
-            text: folder.map { "Moved to \($0)" } ?? "Taken out of its folder",
-            meetingID: rows[0].id
-        )
+        // A receipt for a move that was refused told the user their meeting is
+        // somewhere it is not. The problem line above says what happened.
+        if failures.isEmpty {
+            receipt = MeetingReceipt(
+                text: folder.map { "Moved to \($0)" } ?? "Taken out of its folder",
+                meetingID: rows[0].id
+            )
+        }
         // One meeting filed by hand is the moment to ask whether the rest of
         // its series should follow. A batch is not: the user has already said
         // what they meant about all of them.
@@ -901,9 +905,11 @@ public final class MeetingsWindowModel {
         if let refusal = failures[name] as? MeetingFolderError,
             case .folderNotEmpty(_, let remaining) = refusal {
             folderProblem =
-                "The folder still holds \(remaining.count) "
-                + "\(remaining.count == 1 ? "item" : "items") Pipit could not list, "
-                + "so the folder is still there."
+                "\(remaining.count) \(remaining.count == 1 ? "item" : "items") in the folder "
+                + "\(remaining.count == 1 ? "is not a meeting" : "are not meetings") "
+                + "Pipit can move, so the folder was left in place."
+        } else if failures[name] != nil {
+            folderProblem = "The folder could not be read, so it was left in place."
         } else if !failures.isEmpty {
             folderProblem =
                 "\(failures.count) \(failures.count == 1 ? "meeting" : "meetings") could not be "
@@ -946,7 +952,18 @@ public final class MeetingsWindowModel {
     /// there is a series behind the meeting.
     public func acceptFolderSuggestion(for meetingID: String) async {
         guard let suggestion = folderSuggestion(for: meetingID) else { return }
-        let proposal = await runtime.acceptFolderSuggestion(for: meetingID)
+        let proposal: RecurringProposal?
+        do {
+            proposal = try await runtime.acceptFolderSuggestion(for: meetingID)
+        } catch let error as MeetingFolderError {
+            folderProblem = error.message
+            Task { await reload() }
+            return
+        } catch {
+            folderProblem = "The meeting could not be moved."
+            Task { await reload() }
+            return
+        }
         archiveChanges += 1
         receipt = MeetingReceipt(
             text: "Moved to \(suggestion.folderName)", meetingID: meetingID
