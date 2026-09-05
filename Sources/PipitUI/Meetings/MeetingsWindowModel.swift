@@ -898,7 +898,13 @@ public final class MeetingsWindowModel {
 
     public func deleteFolder(_ name: String) {
         let failures = runtime.deleteFolder(name)
-        if !failures.isEmpty {
+        if let refusal = failures[name] as? MeetingFolderError,
+            case .folderNotEmpty(_, let remaining) = refusal {
+            folderProblem =
+                "The folder still holds \(remaining.count) "
+                + "\(remaining.count == 1 ? "item" : "items") Pipit could not list, "
+                + "so the folder is still there."
+        } else if !failures.isEmpty {
             folderProblem =
                 "\(failures.count) \(failures.count == 1 ? "meeting" : "meetings") could not be "
                 + "moved out, so the folder is still there."

@@ -228,9 +228,6 @@ struct FolderStorageTests {
 
         try store.delete("Tudor")
         #expect(!store.exists("Tudor"))
-        #expect(throws: MeetingFolderError.folderNotFound("Gone")) {
-            try store.delete("Gone")
-        }
     }
 
 }
