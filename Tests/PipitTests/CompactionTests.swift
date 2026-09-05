@@ -402,7 +402,8 @@ struct CompactionTests {
 
     /// Overwrites bytes inside the `mdat` payload of an M4A, leaving every
     /// container atom in place. The header still describes a full-length file
-    /// and `AVAudioFile(forReading:)` still opens it; the samples are gone.
+    /// and `AVAudioFile(forReading:)` still opens it. The samples are gone.
+    /// The overwrite is a fixed 0x5A, 0xA5 pattern so a failure reproduces.
     private static func corruptPayload(of url: URL, bytes: Int = 8_192) throws {
         var data = try Data(contentsOf: url)
         let marker = Array("mdat".utf8)
@@ -415,7 +416,7 @@ struct CompactionTests {
         let from = start + 4_096
         let to = min(data.count, from + bytes)
         #expect(to > from, "the archive is too short to corrupt past its mdat header")
-        for offset in from..<to { data[offset] = UInt8.random(in: 0...255) }
+        for offset in from..<to { data[offset] = (offset - from).isMultiple(of: 2) ? 0x5A : 0xA5 }
         try data.write(to: url)
     }
 
