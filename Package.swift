@@ -9,7 +9,6 @@ let package = Package(
     products: [
         .executable(name: "Pipit", targets: ["PipitApp"]),
         .executable(name: "pipit-nativehost", targets: ["PipitNativeHost"]),
-        .executable(name: "pipit-test", targets: ["PipitLegacyTests"]),
         .executable(name: "pipit-eval", targets: ["PipitEval"]),
         .library(name: "PipitCore", targets: ["PipitCore"]),
     ],
@@ -117,41 +116,17 @@ let package = Package(
             ]
         ),
 
-        // Fixtures and fakes shared by both harnesses. No test framework here.
-        // It builds recordings, stores and stub backends, and every assertion
-        // lives in the target that runs the test.
-        .target(
-            name: "PipitTestSupport",
-            dependencies: [
-                "PipitCore", "PipitAudio", "PipitIntegrations", "PipitSpeakers",
-                "PipitLocalAI", "PipitServices",
-            ],
-            path: "Tests/PipitTestSupport"
-        ),
-
-        // The suite, under Swift Testing. Files move here from PipitLegacyTests
-        // as they are converted.
+        // The suite, under Swift Testing. `Support/` holds the fixtures and
+        // fakes the test files share. It builds recordings, stores and stub
+        // backends, and every assertion lives in the test that runs it.
         .testTarget(
             name: "PipitTests",
             dependencies: [
-                "PipitTestSupport", "PipitCore", "PipitAudio", "PipitDetection",
+                "PipitCore", "PipitAudio", "PipitDetection",
                 "PipitIntegrations", "PipitSpeakers", "PipitLocalAI",
                 "PipitServices", "PipitUI", "PipitBench",
             ],
             path: "Tests/PipitTests"
-        ),
-
-        // The tests that have not been converted yet. They run as an ordinary
-        // executable against the TestKit harness.
-        .target(name: "TestKit"),
-        .executableTarget(
-            name: "PipitLegacyTests",
-            dependencies: [
-                "TestKit", "PipitTestSupport", "PipitCore", "PipitAudio", "PipitDetection",
-                "PipitIntegrations", "PipitSpeakers", "PipitLocalAI",
-                "PipitServices", "PipitUI", "PipitBench",
-            ],
-            path: "Sources/PipitTests"
         ),
     ],
     swiftLanguageModes: [.v6],

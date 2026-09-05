@@ -1,6 +1,5 @@
 import Foundation
 import PipitCore
-import PipitTestSupport
 import Testing
 
 /// The folder a meeting lives in is named for the meeting, and the identifier

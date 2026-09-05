@@ -5,7 +5,6 @@ import PipitAudio
 import PipitCore
 import PipitIntegrations
 import PipitServices
-import PipitTestSupport
 import Testing
 
 @Suite("ProcessingPipeline")

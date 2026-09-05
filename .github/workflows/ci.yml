@@ -42,7 +42,21 @@ jobs:
       - name: Run the test suite
         # Live OpenAI tests are skipped here: they need a key, and CI must not
         # spend money or depend on a network service.
-        run: ./scripts/test.sh
+        run: ./scripts/test.sh --enable-code-coverage
+
+      - name: Report code coverage
+        # Informational only. There is no threshold and a missing profile does
+        # not fail the job.
+        run: |
+          profdata=.build/debug/codecov/default.profdata
+          binary="$(ls -d .build/debug/*.xctest/Contents/MacOS/* 2>/dev/null | head -1)"
+          if [ ! -f "$profdata" ] || [ -z "$binary" ]; then
+            echo "coverage: no profile or test binary found, skipping the report"
+            exit 0
+          fi
+          xcrun llvm-cov report "$binary" \
+            -instr-profile "$profdata" \
+            -ignore-filename-regex '(\.build|Tests/|CWebRTCAEC3)'
 
       - name: Build (release)
         run: ./scripts/build.sh release

@@ -3,7 +3,6 @@ import Foundation
 import PipitAudio
 import PipitCore
 import PipitServices
-import PipitTestSupport
 import Testing
 
 /// Storage compaction: PCM segments become verified archive files, and the

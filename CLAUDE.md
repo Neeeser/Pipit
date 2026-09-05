@@ -6,8 +6,8 @@ the results as files on disk.
 ## Commands
 
 Use the repository scripts. They configure the SDK and repair known Command
-Line Tools problems. `swift test` is not supported. `spm-env.sh` is Bash-only
-and must not be sourced from zsh.
+Line Tools problems. `scripts/test.sh` wraps `swift test --no-parallel`.
+`spm-env.sh` is Bash-only and must not be sourced from zsh.
 
 ```sh
 ./scripts/build.sh debug

@@ -4,7 +4,6 @@ import PipitAudio
 import PipitCore
 import PipitIntegrations
 import PipitServices
-import PipitTestSupport
 import Testing
 
 /// End-to-end runs against the real API: import a recording, process it, and

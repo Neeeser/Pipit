@@ -1,6 +1,5 @@
 import Foundation
 import PipitCore
-import PipitTestSupport
 import Testing
 
 /// Reports whatever a test says a CAF file contains, so crash recovery can be

@@ -4,7 +4,6 @@ import PipitAudio
 import PipitCore
 import PipitDetection
 import PipitServices
-import PipitTestSupport
 import Testing
 
 // Regressions for defects found by adversarial review. Each one failed against

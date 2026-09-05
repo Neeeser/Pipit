@@ -1,6 +1,5 @@
 import Foundation
 import PipitCore
-import PipitTestSupport
 import Testing
 
 @Suite("Manifest")

@@ -3,7 +3,6 @@ import Foundation
 import PipitAudio
 import PipitCore
 import PipitServices
-import PipitTestSupport
 import Testing
 
 /// The cleaned microphone track: what comes out of it, what it is called, and

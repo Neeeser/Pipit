@@ -2,7 +2,6 @@ import AppKit
 import Foundation
 import PipitCore
 import PipitServices
-import PipitTestSupport
 import PipitUI
 import SwiftUI
 import Testing

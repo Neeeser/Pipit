@@ -2,7 +2,6 @@ import Foundation
 import PipitCore
 import PipitServices
 import PipitSpeakers
-import PipitTestSupport
 import Testing
 
 /// Scoring unnamed voices against the gallery long after their meetings were

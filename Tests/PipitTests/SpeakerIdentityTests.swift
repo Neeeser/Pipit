@@ -1,7 +1,6 @@
 import Foundation
 import PipitCore
 import PipitSpeakers
-import PipitTestSupport
 import Testing
 
 // The rules that decide whether a voice gets a name, and what may ever be

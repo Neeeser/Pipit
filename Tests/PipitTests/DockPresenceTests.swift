@@ -3,7 +3,6 @@ import Foundation
 import PipitCore
 import PipitServices
 import PipitUI
-import PipitTestSupport
 import Testing
 
 /// Whether Pipit takes a Dock slot, and what it costs when it does not.

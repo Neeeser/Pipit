@@ -4,7 +4,6 @@ import PipitCore
 import PipitServices
 import PipitSpeakers
 import PipitUI
-import PipitTestSupport
 import SQLite3
 import Testing
 

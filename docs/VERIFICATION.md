@@ -4,7 +4,7 @@ Verified behavior has been run and checked. An implementation alone does not
 count as verification.
 
 The latest hardware checks used a MacBook Pro with an M2 Pro. The machine ran
-macOS 27 with Command Line Tools and no Developer ID signing identity.
+macOS 27 with Xcode 26 and no Developer ID signing identity.
 
 ## Automated checks
 

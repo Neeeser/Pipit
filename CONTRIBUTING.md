@@ -8,11 +8,8 @@ and stored recordings readable across versions.
 
 - macOS 15 or later
 - Swift 6
-- Xcode or Apple Command Line Tools
+- Xcode 26 or later
 - Node.js 22 for browser sensor changes
-
-Xcode is optional. The repository scripts support a Command Line Tools-only
-environment.
 
 ## Build and test
 
@@ -33,8 +30,9 @@ open dist/Pipit.app
 ```
 
 Use the scripts instead of bare SwiftPM commands. They configure the SDK and
-repair known Command Line Tools problems before Swift runs. The test suite uses
-the `pipit-test` executable, so `swift test` is not supported.
+repair known Command Line Tools problems before Swift runs. `scripts/test.sh`
+runs `swift test --no-parallel`. A bare `swift test` also works, without those
+repairs.
 
 ## Targeted checks
 

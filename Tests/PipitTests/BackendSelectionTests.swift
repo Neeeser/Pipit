@@ -4,7 +4,6 @@ import PipitCore
 import PipitIntegrations
 import PipitServices
 import PipitUI
-import PipitTestSupport
 import Testing
 
 /// Which backend runs where, how that survives an upgrade, and the rule that

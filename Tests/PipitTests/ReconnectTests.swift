@@ -3,7 +3,6 @@ import PipitCore
 import PipitServices
 import PipitSpeakers
 import PipitUI
-import PipitTestSupport
 import Testing
 
 /// A call that dropped and was rejoined is two recordings and one meeting.

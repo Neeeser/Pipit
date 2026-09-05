@@ -2,7 +2,6 @@ import AVFoundation
 import Foundation
 import PipitAudio
 import PipitCore
-import PipitTestSupport
 import Testing
 
 /// Real audio through the real writers and readers. These use AVFoundation but no

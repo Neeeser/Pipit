@@ -3,7 +3,6 @@ import PipitCore
 import PipitLocalAI
 import PipitServices
 import PipitUI
-import PipitTestSupport
 import Testing
 
 /// What first-run setup refuses to finish without.

@@ -3,7 +3,6 @@ import PipitAudio
 import PipitCore
 import PipitLocalAI
 import PipitSpeakers
-import PipitTestSupport
 import Testing
 
 private func localModelsEnabled() -> Bool {

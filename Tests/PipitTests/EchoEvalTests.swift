@@ -1,7 +1,6 @@
 import Foundation
 import PipitCore
 import PipitServices
-import PipitTestSupport
 import Testing
 
 /// What `pipit-eval echo` measures, on fixtures whose echo path is known.

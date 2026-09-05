@@ -1,6 +1,5 @@
 import Foundation
 import PipitCore
-import PipitTestSupport
 import Testing
 
 // Regressions for the failure modes the capture stress test found. Every one of

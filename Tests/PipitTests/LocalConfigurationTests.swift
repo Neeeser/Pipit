@@ -3,7 +3,6 @@ import FluidAudio
 import PipitCore
 import PipitLocalAI
 import PipitSpeakers
-import PipitTestSupport
 import Testing
 
 /// Pins the settings the local stack was measured with.
