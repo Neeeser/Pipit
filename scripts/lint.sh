@@ -18,6 +18,6 @@ swift format lint --strict --recursive --parallel "${PIPIT_LINT_PATHS[@]}"
 if command -v swiftlint >/dev/null 2>&1; then
     swiftlint lint --quiet
 else
-    echo "swiftlint not found; install it with 'brew install swiftlint'" >&2
+    echo "swiftlint not found. Install it with 'brew install swiftlint'." >&2
     exit 1
 fi

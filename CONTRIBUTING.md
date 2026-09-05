@@ -36,11 +36,9 @@ works when the repairs are not needed. The suite shares temporary directories
 and process-wide state, so it must not run in parallel.
 
 Xcode runs suites in parallel by default. Give a suite `.serialized` when its
-own tests collide with each other, and a suite that needs the whole run serial
-carries a comment on its `@Suite` saying what it depends on. One test in `CaptureEngineHardening` is in the second group. It
-measures a real timer, and a saturated machine stretches it past the microphone
-watchdog. Run the suite through `scripts/test.sh`. Treat a green Xcode run as a
-bonus.
+own tests collide with each other. One test in `CaptureEngineHardening` depends
+on a real-time watchdog and needs the whole run serial, which is why
+`scripts/test.sh` passes `--no-parallel`.
 
 ## Open in Xcode
 
@@ -55,7 +53,9 @@ package's `PipitTests` suite, subject to the parallel-run caveat above.
 `Pipit.xcodeproj` from it. Edit `project.yml` and regenerate rather than
 changing target settings in Xcode, because CI regenerates the project and fails
 on a difference. Modules and tests stay in `Package.swift`, which the project
-references as a local package.
+references as a local package. In a clone whose directory is not named `Pipit`,
+`xcodegen generate` renames that package reference and changes two lines in
+`Pipit.xcodeproj/project.pbxproj`, and those two lines must not be committed.
 
 The Xcode build and `scripts/bundle-app.sh` read the same `App/Info.plist` and
 `App/Pipit.entitlements`. A shipped bundle takes its version from `VERSION`,

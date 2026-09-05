@@ -56,10 +56,30 @@ jobs:
       - name: Check the Xcode project matches project.yml
         # project.yml is the source. A hand edit in Xcode that is not mirrored
         # there is lost on the next generate, so the job fails on a difference.
+        #
+        # XcodeGen names the local package reference after the checkout
+        # directory and derives its identifier from that name, so a clone not
+        # named Pipit differs on those two lines alone. Both sides get that
+        # name and identifier replaced with fixed text before the comparison.
         run: |
+          committed="$(mktemp)"
+          git show HEAD:Pipit.xcodeproj/project.pbxproj >"$committed"
           xcodegen generate
-          git add --intent-to-add Pipit.xcodeproj
-          git diff --exit-code Pipit.xcodeproj
+          normalise() {
+            id="$(sed -n -E 's/^[[:space:]]*([0-9A-F]{24}) .*lastKnownFileType = folder; name = [^;]*; path = \.; sourceTree = SOURCE_ROOT.*/\1/p' "$1" | head -1)"
+            if [ -z "$id" ]; then
+              cat "$1"
+              return
+            fi
+            # The section is sorted by identifier, so the two lines move as
+            # well as change. They are cut out and appended in a fixed form,
+            # which keeps their remaining text under the comparison.
+            grep -v "$id" "$1"
+            grep "$id" "$1" | sed -E \
+              -e 's#^[[:space:]]*[0-9A-F]{24} /\* [^*]* \*/#package reference#' \
+              -e 's/(name = )[^;]*;/\1PACKAGE;/'
+          }
+          diff -u <(normalise "$committed") <(normalise Pipit.xcodeproj/project.pbxproj)
 
       - name: Build (debug)
         run: ./scripts/build.sh debug
