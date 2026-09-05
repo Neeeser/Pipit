@@ -460,7 +460,7 @@ struct PipelineTests {
         #expect(suggestions.first?.name == "Chris")
         #expect(suggestions.first?.quote == "Chris here, agreed.")
 
-        let markdown = try String(
+        _ = try String(
             contentsOf: meeting.store.layout.transcriptMarkdown, encoding: .utf8
         )
         #expect(

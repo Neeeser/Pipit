@@ -168,7 +168,7 @@ struct PeoplePickerTests {
 
     @Test("the list follows the highlight only when the keyboard moves it")
     func theListFollowsTheHighlightOnlyWhenTheKeyboardMovesIt() async throws {
-        try await aHoveredRowDoesNotScrollTheList()
+        await aHoveredRowDoesNotScrollTheList()
     }
 
     @Test("the line under a name says the organization and why they are offered")

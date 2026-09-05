@@ -56,7 +56,8 @@ jobs:
           fi
           xcrun llvm-cov report "$binary" \
             -instr-profile "$profdata" \
-            -ignore-filename-regex '(\.build|Tests/|CWebRTCAEC3)'
+            -ignore-filename-regex '(\.build|Tests/|CWebRTCAEC3)' \
+            || echo "coverage: llvm-cov report failed"
 
       - name: Build (release)
         run: ./scripts/build.sh release

@@ -31,8 +31,9 @@ open dist/Pipit.app
 
 Use the scripts instead of bare SwiftPM commands. They configure the SDK and
 repair known Command Line Tools problems before Swift runs. `scripts/test.sh`
-runs `swift test --no-parallel`. A bare `swift test` also works, without those
-repairs.
+runs `swift test --no-parallel`. Running `swift test --no-parallel` directly
+works when the repairs are not needed. The suite shares temporary directories
+and process-wide state, so it must not run in parallel.
 
 ## Targeted checks
 
