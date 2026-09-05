@@ -151,8 +151,8 @@ public final class PipitRuntime {
     /// The on-device speech models, and the local voice memory. Both exist
     /// whichever backends are selected: choosing the cloud diarizer costs the
     /// vectors it would have returned, not the ability to remember a voice.
-    /// It is assigned in `init` after the stored properties it reads, so it
-    /// cannot be a plain `let`.
+    /// It is set once in `init` and left implicitly unwrapped so that no use
+    /// has to unwrap it.
     @ObservationIgnored public private(set) var models: LocalModelManager!
     // swiftlint:enable implicitly_unwrapped_optional
     @ObservationIgnored public private(set) var speakers: SpeakerRecognitionService?
@@ -177,8 +177,8 @@ public final class PipitRuntime {
     /// archives they build.
     @ObservationIgnored private let trash: @Sendable (URL) throws -> Void
     @ObservationIgnored private var sessionController: SessionController
-    // These three are assigned in `init` after the stored properties they
-    // depend on, so they cannot be plain `let`s.
+    // These three are set once in `init` and left implicitly unwrapped so that
+    // no use has to unwrap them.
     // swiftlint:disable:next implicitly_unwrapped_optional
     @ObservationIgnored private var captureEngine: CaptureEngine!
     // swiftlint:disable:next implicitly_unwrapped_optional

@@ -8,7 +8,7 @@ import PipitUI
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
     // These four are built in `applicationDidFinishLaunching`, which runs
-    // before any other method on this delegate.
+    // before any other method this delegate implements.
     // swiftlint:disable:next implicitly_unwrapped_optional
     private var runtime: PipitRuntime!
     // swiftlint:disable:next implicitly_unwrapped_optional

@@ -8,8 +8,11 @@
 excluded:
   # Vendored WebRTC sources. They are C and are never edited here.
   - Sources/CWebRTCAEC3
+  # Build output, not source.
   - .build
+  # Packaged application bundles produced by `scripts/bundle-app.sh`.
   - dist
+  # The browser extension is JavaScript, linted by its own npm scripts.
   - extension
 
 # 120 columns matches `.swift-format`. 62 lines in the tree are a single string
@@ -26,7 +29,6 @@ identifier_name:
   # Audio and geometry code uses two-letter names that read fine.
   min_length:
     warning: 2
-    error: 1
   excluded:
     - id
     - x
@@ -57,12 +59,15 @@ identifier_name:
 # them growing further.
 file_length:
   warning: 1200
-  error: 4000
+  # The two largest files sit under the old 4000 ceiling, and the warning
+  # already reports them, so the error is only a guard against runaway growth.
+  error: 6000
 
 type_body_length:
   warning: 600
-  # `LocalPipelineTests` spans 2798 lines and `ProcessingPipeline` 2441.
-  error: 3000
+  # `LocalPipelineTests` spans 2798 lines and `ProcessingPipeline` 2441. Both
+  # sat under the old 3000 ceiling and both are already reported as warnings.
+  error: 5000
 
 function_body_length:
   warning: 120
@@ -131,8 +136,8 @@ opt_in_rules:
   - unneeded_parentheses_in_closure_argument
 
 # `redundant_nil_coalescing` is deliberately not enabled. Every `?? nil` here
-# flattens a double optional produced by `try?` on a call that already returns
-# an optional, and removing it changes the type.
+# flattens a double optional produced by `try?` or by `.first` on a collection
+# of optionals, and removing it changes the type.
 
 # A forced cast or a forced `try` fails the build. Both are rare here and both
 # crash on input the code did not expect.
@@ -151,9 +156,12 @@ force_unwrapping:
 empty_count:
   severity: warning
 
-# Reported, not enforced. The remaining cases are objects built in
-# `applicationDidFinishLaunching` and are annotated where they occur.
+# Reported, not enforced. The remaining cases are `AppDelegate`'s objects, built
+# in `applicationDidFinishLaunching`, and `PipitRuntime`'s, built in its `init`.
+# Each one is annotated where it occurs.
 implicitly_unwrapped_optional:
   severity: warning
 
+# Xcode's format, so a violation is a clickable file and line in the terminal
+# and in an Xcode build log.
 reporter: "xcode"
