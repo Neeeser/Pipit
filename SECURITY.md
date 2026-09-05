@@ -16,5 +16,5 @@ Include the macOS version, the Pipit version, and the steps that reproduce the
 problem. Leave out recordings, transcripts, and the names of people on a real
 call. Describe the case with synthetic data instead.
 
-You get an acknowledgement within a week. The report stays private until a fix
+Acknowledgement goes out within a week. The report stays private until a fix
 ships, and the advisory credits you unless you ask otherwise.
