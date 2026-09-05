@@ -122,6 +122,14 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
+      - name: Install the extension dev dependencies
+        # ESLint is the only one. npm ci installs exactly what
+        # extension/package-lock.json pins.
+        working-directory: extension
+        run: npm ci
+      - name: Lint the sensor
+        working-directory: extension
+        run: npm run lint
       - name: Test the sensor logic
         working-directory: extension
         run: npm test

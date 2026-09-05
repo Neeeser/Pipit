@@ -17,12 +17,9 @@ recordings, transcripts, and notes as ordinary files on disk.
 
 Pipit requires macOS 15 or later.
 
-Download the latest disk image from [GitHub Releases](https://github.com/Neeeser/Pipit/releases/latest),
-or install it with Homebrew:
-
-```sh
-brew install --cask pipit
-```
+Download the latest disk image from [GitHub Releases](https://github.com/Neeeser/Pipit/releases/latest)
+and drag Pipit into Applications. The disk image is the only install route
+today. There is no Homebrew cask yet.
 
 Open Pipit and grant the permissions shown during setup. Pipit then runs from
 the menu bar.
@@ -62,6 +59,9 @@ and exports.
 ## Documentation
 
 - [Contributing](CONTRIBUTING.md)
+- [Changelog](CHANGELOG.md)
+- [Security policy](SECURITY.md)
+- [Code of conduct](CODE_OF_CONDUCT.md)
 - [Architecture](docs/ARCHITECTURE.md)
 - [Benchmarks](Benchmarks/README.md)
 - [Verification](docs/VERIFICATION.md)

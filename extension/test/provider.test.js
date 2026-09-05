@@ -13,7 +13,6 @@ import {
   zoomParticipantFromLabel,
   createSpeakingTracker,
   meetTileName,
-  collapseMeetTiles,
 } from '../shared/provider.js';
 import { relayEnvelope } from '../shared/relay.js';
 

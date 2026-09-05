@@ -6,6 +6,8 @@
 // provider.js is loaded as a separate content script and shares this scope, so
 // its functions are already defined here. Content scripts cannot be ES modules:
 // an `import` statement makes the whole script fail to load, silently.
+/* global providerForURL, buildState, shouldSend, meetTileName */
+/* global zoomParticipantFromLabel, createSpeakingTracker */
 
 const api = globalThis.browser ?? globalThis.chrome;
 const POLL_MS = 500;

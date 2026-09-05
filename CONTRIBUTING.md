@@ -78,9 +78,14 @@ Run the browser sensor tests after changing `extension/`:
 
 ```sh
 cd extension
+npm ci
+npm run lint
 npm test
 npm run build
 ```
+
+`npm run lint` is ESLint over `shared/` and `test/`, with the same flat config
+CI runs.
 
 To try the changed extension in Firefox, load it as a temporary add-on: open
 `about:debugging#/runtime/this-firefox`, choose Load Temporary Add-on, and select
@@ -115,6 +120,12 @@ relays its events to Pipit.
 Keep each pull request focused on one change. Add a regression test for every
 bug fix and confirm that the test fails before the fix and passes after it.
 Test behavior at the lowest layer that exposes the defect.
+
+GitHub fills the description from `.github/PULL_REQUEST_TEMPLATE.md`, which asks
+for the problem, the change, and the testing. New issues use the bug and feature
+templates under `.github/ISSUE_TEMPLATE/`. Record a user-visible change in the
+Unreleased section of [CHANGELOG.md](CHANGELOG.md). Report a security problem
+privately instead, through the process in [SECURITY.md](SECURITY.md).
 
 Do not commit recordings, API keys, benchmark audio, or meeting content. The
 CI hygiene job rejects audio files and strings shaped like API keys.
