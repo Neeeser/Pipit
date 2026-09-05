@@ -486,7 +486,7 @@ public actor ProcessingPipeline {
         }
         Log.storage.info(
             """
-            folder suggestion meeting=\(metadata.id, privacy: .public) \
+            folder suggestion meeting=\(metadata.logIdentifier, privacy: .public) \
             reason=\(suggestion.reason.rawValue, privacy: .public) \
             confidence=\(suggestion.confidence, privacy: .public)
             """

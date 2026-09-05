@@ -165,4 +165,26 @@ struct MeetingFolderNameTests {
         #expect(MeetingFolderName.base(for: metadata) == "Weekly retro (Aug 20, 3:14 PM)")
     }
 
+    @Test("the log identifier drops the title")
+    func theLogIdentifierDropsTheTitle() async throws {
+        let started = Self.date(year: 2026, month: 8, day: 18, hour: 14, minute: 18)
+        let identifier = MeetingArchiveLayout.meetingID(
+            startedAt: started, source: .slackHuddle, title: "Quarterly planning"
+        )
+        let metadata = MeetingMetadata(
+            id: identifier,
+            source: .slackHuddle,
+            provider: .slack,
+            createdAt: started,
+            startedAt: started,
+            titles: TitleCandidates(
+                window: "Quarterly planning", timestampFallback: "Slack huddle (Aug 18, 2:18 PM)"
+            )
+        )
+        #expect(identifier.contains("quarterly"))
+        #expect(metadata.logIdentifier == "2026-08-18-1418-slack-huddle")
+        #expect(!metadata.logIdentifier.lowercased().contains("quarterly"))
+        #expect(!metadata.logIdentifier.lowercased().contains("planning"))
+    }
+
 }
