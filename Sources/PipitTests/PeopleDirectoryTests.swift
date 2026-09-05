@@ -20,9 +20,7 @@ enum PeopleDirectoryTests {
     // MARK: helpers
 
     static func makeStore() throws -> (SpeakerStore, URL) {
-        let root = try TestPaths.makeTemporaryDirectory()
-        let store = try SpeakerStore(url: root.appendingPathComponent("voices.sqlite"))
-        return (store, root)
+        try SpeakerFixtures.makeStore()
     }
 
     static func entry(

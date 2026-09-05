@@ -107,11 +107,3 @@ public final class FakeAIBackend: AIBackend, @unchecked Sendable {
         return enrichment
     }
 }
-
-extension NSLock {
-    public func withLock<T>(_ body: () -> T) -> T {
-        lock()
-        defer { unlock() }
-        return body()
-    }
-}

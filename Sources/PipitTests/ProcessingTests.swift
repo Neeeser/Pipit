@@ -2,7 +2,6 @@ import Foundation
 import PipitCore
 import PipitIntegrations
 import PipitServices
-import PipitTestSupport
 import TestKit
 
 enum ProcessingTests {

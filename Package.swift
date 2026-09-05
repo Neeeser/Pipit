@@ -1,9 +1,8 @@
 // swift-tools-version: 6.0
 import PackageDescription
 
-// Pipit is built with SwiftPM because the development machine has Command Line
-// Tools only (no Xcode, so no xcodebuild). scripts/bundle-app.sh assembles the
-// executable products into Pipit.app.
+// Pipit is built with SwiftPM rather than xcodebuild. scripts/bundle-app.sh
+// assembles the SwiftPM products into Pipit.app.
 let package = Package(
     name: "Pipit",
     platforms: [.macOS(.v15)],
@@ -118,8 +117,8 @@ let package = Package(
             ]
         ),
 
-        // Fixtures and fakes shared by both harnesses. No test framework here:
-        // it builds recordings, stores and stub backends, and every assertion
+        // Fixtures and fakes shared by both harnesses. No test framework here.
+        // It builds recordings, stores and stub backends, and every assertion
         // lives in the target that runs the test.
         .target(
             name: "PipitTestSupport",
