@@ -11,6 +11,11 @@ public enum MeetingFolderError: Error, Equatable, Sendable {
     case folderExists(String)
     /// A name that sanitizes to nothing, or one the archive reserves.
     case invalidFolderName(String)
+    /// A folder still holding entries when something asked to remove it. The
+    /// listing skips a meeting whose metadata does not decode and a meeting
+    /// merged into another, so removing the directory would take audio nothing
+    /// had moved out. `remaining` names what is left, sorted.
+    case folderNotEmpty(name: String, remaining: [String])
 
     public var message: String {
         switch self {
@@ -19,6 +24,8 @@ public enum MeetingFolderError: Error, Equatable, Sendable {
         case .folderNotFound(let name): "There is no folder called \(name)."
         case .folderExists(let name): "There is already a folder called \(name)."
         case .invalidFolderName(let name): "\(name) cannot be used as a folder name."
+        case .folderNotEmpty(_, let remaining):
+            "The folder still holds \(remaining.count) item\(remaining.count == 1 ? "" : "s") that did not move out of it."
         }
     }
 }
@@ -121,9 +128,25 @@ public struct MeetingFolderStore: Sendable {
 
     /// Removes an empty folder. The caller moves the meetings out first, which
     /// is what puts them back under `YYYY/MM` and updates their metadata.
+    /// Removes a folder that holds nothing but its manifest.
+    ///
+    /// A caller moves the meetings out first. Anything still in the directory
+    /// is something the caller could not see, so removing it here would take
+    /// audio nothing else holds a copy of.
     public func delete(_ name: String) throws {
         guard exists(name) else { throw MeetingFolderError.folderNotFound(name) }
-        try FileManager.default.removeItem(at: archive.folderDirectory(name))
+        let directory = archive.folderDirectory(name)
+        let entries = (try? FileManager.default.contentsOfDirectory(
+            at: directory, includingPropertiesForKeys: nil, options: [.skipsHiddenFiles]
+        )) ?? []
+        let remaining = entries
+            .map(\.lastPathComponent)
+            .filter { $0 != archive.folderManifest(name).lastPathComponent }
+            .sorted()
+        guard remaining.isEmpty else {
+            throw MeetingFolderError.folderNotEmpty(name: name, remaining: remaining)
+        }
+        try FileManager.default.removeItem(at: directory)
     }
 
     /// A name a directory can be called, with the characters that break a macOS

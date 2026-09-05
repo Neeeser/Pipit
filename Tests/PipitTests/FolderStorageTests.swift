@@ -1,5 +1,6 @@
 import Foundation
 import PipitCore
+import PipitServices
 import Testing
 
 /// Filing a meeting moves its directory. These pin what has to survive that:
@@ -169,6 +170,67 @@ struct FolderStorageTests {
             "renaming must not drag it back to the month"
         )
         #expect(repository.findMeeting(id: created.id)?.metadata.folderName == "Northwind Daily")
+    }
+
+    @Test("deleting a folder that still holds an unlistable meeting is refused")
+    @MainActor
+    func deletingAFolderThatStillHoldsAnUnlistableMeetingIsRefused() async throws {
+        let root = try TestPaths.makeTemporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let archive = root.appendingPathComponent("Meetings")
+        let repository = MeetingRepository(root: archive)
+        let store = MeetingFolderStore(root: archive)
+        try store.create(name: "Tudor")
+        let listed = try Self.meeting(repository, title: "Kickoff")
+        try repository.move(meetingID: listed.id, toFolder: "Tudor")
+
+        // A meeting whose metadata does not decode is not listed, so nothing
+        // moves it out of the folder before the folder is taken away.
+        let corrupt = archive.appendingPathComponent("Folders/Tudor/Unreadable")
+        try FileManager.default.createDirectory(
+            at: corrupt.appendingPathComponent("raw"), withIntermediateDirectories: true
+        )
+        try "{".write(
+            to: corrupt.appendingPathComponent("raw/metadata.json"),
+            atomically: true, encoding: .utf8
+        )
+        let segment = corrupt.appendingPathComponent("raw/segments/000.caf")
+        try FileManager.default.createDirectory(
+            at: segment.deletingLastPathComponent(), withIntermediateDirectories: true
+        )
+        try Data([0x01, 0x02, 0x03]).write(to: segment)
+
+        let runtime = RuntimeFixtures.makeRuntime(root: root)
+        let failures = runtime.deleteFolder("Tudor")
+
+        // The meeting that could be listed went back to its month.
+        #expect(repository.findMeeting(id: listed.id)?.store.layout.root.path.contains("/2026/08/") == true)
+        // The one that could not is still there, with its audio.
+        #expect(store.exists("Tudor"))
+        #expect(FileManager.default.fileExists(atPath: corrupt.path))
+        #expect(FileManager.default.fileExists(atPath: segment.path))
+        #expect(failures.count == 1)
+        guard let refusal = failures["Tudor"] as? MeetingFolderError else {
+            Issue.record("the folder was removed, or refused for another reason")
+            return
+        }
+        #expect(refusal == .folderNotEmpty(name: "Tudor", remaining: ["Unreadable"]))
+    }
+
+    @Test("a folder holding nothing but its manifest is deleted")
+    func aFolderHoldingNothingButItsManifestIsDeleted() async throws {
+        let (root, repository, store) = try Self.archive()
+        defer { try? FileManager.default.removeItem(at: root) }
+        try store.create(name: "Tudor")
+        let created = try Self.meeting(repository, title: "Kickoff")
+        try repository.move(meetingID: created.id, toFolder: "Tudor")
+        try repository.move(meetingID: created.id, toFolder: nil)
+
+        try store.delete("Tudor")
+        #expect(!store.exists("Tudor"))
+        #expect(throws: MeetingFolderError.folderNotFound("Gone")) {
+            try store.delete("Gone")
+        }
     }
 
 }
