@@ -217,19 +217,35 @@ public struct AudioCompactor: Sendable {
     }
 
     /// Every recorded archive file must decode to the duration its record
-    /// claims, right now, or nothing is deleted. Throws retryable: with the
-    /// segments still on disk, a later attempt can rebuild the archive.
+    /// claims, right now, or nothing is deleted. The whole file is decoded
+    /// rather than opened, because a container whose payload was damaged still
+    /// reports the recorded length in its header. The failure is retryable. The
+    /// segments are still on disk, so a later attempt can rebuild the archive.
     private func verifyArchivesIntact(store: MeetingStore, archive: AudioArchive) throws {
         let inspector = AudioFileInspector()
         for track in CaptureTrack.allCases {
             guard let record = archive.track(track) else { continue }
             let url = store.layout.trackArchiveDirectory.appendingPathComponent(record.file)
-            guard let info = try? inspector.inspect(url: url),
-                  abs(info.seconds - record.seconds) <= max(0.5, min(record.seconds * 0.01, 2.0))
+            let info: AudioFileInfo
+            do {
+                info = try inspector.decode(url: url)
+            } catch {
+                // Only the error's category. A storage error carries the archive
+                // path, and the meeting directory name embeds the meeting title.
+                throw ProcessingError.localProcessingFailed(
+                    reason: "recorded archive for \(track.segmentPrefix) did not decode "
+                        + "(\(logSafeDescription(error))). Keeping the segments.",
+                    retryable: true
+                )
+            }
+            guard abs(info.seconds - record.seconds)
+                <= max(0.5, min(record.seconds * 0.01, 2.0))
             else {
                 throw ProcessingError.localProcessingFailed(
-                    reason: "recorded archive for \(track.segmentPrefix) is missing or short; "
-                        + "keeping the segments",
+                    reason: "recorded archive for \(track.segmentPrefix) decoded "
+                        + "\(String(format: "%.1f", info.seconds))s against "
+                        + "\(String(format: "%.1f", record.seconds))s recorded. "
+                        + "Keeping the segments.",
                     retryable: true
                 )
             }

@@ -1166,6 +1166,189 @@ struct LocalPipelineTests {
         )
     }
 
+    @Test("filing a meeting is refused while a job is writing into its folder")
+    func filingAMeetingIsRefusedWhileAJobIsWritingIntoItsFolder() async throws {
+        // Re-analysis and compaction run for minutes on a meeting that is
+        // already complete, and the persisted state says complete throughout,
+        // so the repository's own check lets the move through. The move takes
+        // the directory out from under the absolute paths the job holds, and
+        // the next write recreates the old directory, which leaves one meeting
+        // in two places.
+        let root = try TestPaths.makeTemporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let meeting = try PipelineFixtures.makeRecordedMeeting(root: root, seconds: 6)
+        let meetingID = meeting.metadata.id
+        let repository = meeting.repository
+        let folders = MeetingFolderStore(archive: repository.archive)
+        try folders.create(name: "Pilot")
+
+        let backend = FakeAIBackend()
+        backend.configured = false
+        let pipeline = PipelineFixtures.makePipeline(
+            repository: repository, backend: backend,
+            transcriber: StubLocalTranscriber(segments: [
+                RawTranscriptSegment(
+                    start: 0, end: 5, text: "we ship friday", speaker: nil,
+                    words: [RawTranscriptWord(start: 0, end: 2, text: " we ship friday")]
+                ),
+            ]),
+            diarizer: StubLocalDiarizer(
+                intervals: [DiarizationInterval(start: 0, end: 5, clusterID: "S1")],
+                chunkEmbeddings: Self.embeddings(cluster: "S1", seed: 71, spans: [(0, 5)])
+            ),
+            speakers: nil,
+            settings: AppSettings(), scratchRoot: root.appendingPathComponent("scratch")
+        )
+        await pipeline.process(meetingID: meetingID)
+        #expect(try meeting.store.readMetadata().processing.state == .complete)
+
+        // A job that holds the folder while the user files the meeting. The
+        // request is in flight, so the hold is taken and the enrichment writes
+        // that follow it are still to come.
+        backend.configured = true
+        let refusal = Mutex<MeetingFolderError?>(nil)
+        let filed = Mutex(false)
+        backend.enrichInterference = { [pipeline] in
+            do {
+                _ = try await pipeline.performFolderChange(involving: [meetingID]) {
+                    try repository.move(meetingID: meetingID, toFolder: "Pilot")
+                }
+                filed.withLock { $0 = true }
+            } catch let error as MeetingFolderError {
+                refusal.withLock { $0 = error }
+            } catch {
+                Issue.record("filing was refused for another reason: \(error)")
+            }
+        }
+        try await pipeline.generateEnrichment(meetingID: meetingID)
+
+        #expect(!filed.withLock { $0 }, "the meeting was filed out from under the job")
+        #expect(refusal.withLock { $0 } == .meetingIsBusy(meetingID))
+        #expect(
+            repository.findMeeting(id: meetingID)?.metadata.folderName == nil,
+            "and it is still where the job left it"
+        )
+
+        // Nothing is writing into it any more, so the same move goes through.
+        backend.enrichInterference = nil
+        let moved = try await pipeline.performFolderChange(involving: [meetingID]) {
+            try repository.move(meetingID: meetingID, toFolder: "Pilot")
+        }
+        #expect(
+            moved.deletingLastPathComponent().standardizedFileURL
+                == repository.archive.folderDirectory("Pilot").standardizedFileURL
+        )
+        #expect(repository.findMeeting(id: meetingID)?.metadata.folderName == "Pilot")
+    }
+
+    @Test("filing through the runtime is refused while a job is writing into the meeting")
+    @MainActor
+    func filingThroughTheRuntimeIsRefusedWhileAJobIsWritingIntoTheMeeting() async throws {
+        // The window files meetings through the runtime, and the runtime is the
+        // one that has to put the move on the pipeline actor. A move that went
+        // straight to the repository would take the directory out from under a
+        // running job whatever the pipeline knows.
+        let root = try TestPaths.makeTemporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let backend = FakeAIBackend()
+        backend.enrichment = MeetingEnrichment(
+            title: "Retrieval logic", summary: "We agreed on the pilot."
+        )
+        let runtime = RuntimeFixtures.makeRuntime(root: root, backend: backend)
+        let meeting = try RuntimeFixtures.makeMeeting(root: root, clusters: ["S1"])
+        let meetingID = meeting.id
+        try runtime.createFolder(name: "Pilot")
+
+        let refusal = Mutex<MeetingFolderError?>(nil)
+        let filed = Mutex(false)
+        backend.enrichInterference = { [runtime] in
+            let failures = await runtime.file(meetingIDs: [meetingID], in: "Pilot")
+            filed.withLock { $0 = failures.isEmpty }
+            refusal.withLock { $0 = failures[meetingID] as? MeetingFolderError }
+        }
+        await withCheckedContinuation { continuation in
+            runtime.generateEnrichment(meetingID: meetingID) { continuation.resume() }
+        }
+
+        #expect(!filed.withLock { $0 }, "the meeting was filed out from under the job")
+        #expect(refusal.withLock { $0 } == .meetingIsBusy(meetingID))
+        #expect(runtime.repository.findMeeting(id: meetingID)?.metadata.folderName == nil)
+
+        // Nothing is writing into it any more, so the same call goes through.
+        backend.enrichInterference = nil
+        #expect(await runtime.file(meetingIDs: [meetingID], in: "Pilot").isEmpty)
+        #expect(runtime.repository.findMeeting(id: meetingID)?.metadata.folderName == "Pilot")
+    }
+
+    @Test("renaming a folder is refused while a job is writing into a meeting in it")
+    func renamingAFolderIsRefusedWhileAJobIsWritingIntoAMeetingInIt() async throws {
+        // A rename moves the folder directory, and every meeting in it goes
+        // with it, so one running job is enough to refuse the whole rename.
+        let root = try TestPaths.makeTemporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let meeting = try PipelineFixtures.makeRecordedMeeting(root: root, seconds: 6)
+        let meetingID = meeting.metadata.id
+        let repository = meeting.repository
+        let folders = MeetingFolderStore(archive: repository.archive)
+        try folders.create(name: "Pilot")
+
+        let backend = FakeAIBackend()
+        backend.configured = false
+        let pipeline = PipelineFixtures.makePipeline(
+            repository: repository, backend: backend,
+            transcriber: StubLocalTranscriber(segments: [
+                RawTranscriptSegment(
+                    start: 0, end: 5, text: "we ship friday", speaker: nil,
+                    words: [RawTranscriptWord(start: 0, end: 2, text: " we ship friday")]
+                ),
+            ]),
+            diarizer: StubLocalDiarizer(
+                intervals: [DiarizationInterval(start: 0, end: 5, clusterID: "S1")],
+                chunkEmbeddings: Self.embeddings(cluster: "S1", seed: 72, spans: [(0, 5)])
+            ),
+            speakers: nil,
+            settings: AppSettings(), scratchRoot: root.appendingPathComponent("scratch")
+        )
+        await pipeline.process(meetingID: meetingID)
+        _ = try repository.move(meetingID: meetingID, toFolder: "Pilot")
+
+        backend.configured = true
+        let refusal = Mutex<MeetingFolderError?>(nil)
+        let renamed = Mutex(false)
+        backend.enrichInterference = { [pipeline] in
+            do {
+                let ids = repository.meetings(inFolder: "Pilot").map(\.id)
+                _ = try await pipeline.performFolderChange(involving: ids) {
+                    try folders.rename("Pilot", to: "Pilot archive")
+                }
+                renamed.withLock { $0 = true }
+            } catch let error as MeetingFolderError {
+                refusal.withLock { $0 = error }
+            } catch {
+                Issue.record("the rename was refused for another reason: \(error)")
+            }
+        }
+        try await pipeline.generateEnrichment(meetingID: meetingID)
+
+        #expect(!renamed.withLock { $0 }, "the folder moved out from under the job")
+        #expect(refusal.withLock { $0 } == .meetingIsBusy(meetingID))
+        #expect(folders.exists("Pilot"), "and the folder is still the one the job is in")
+
+        backend.enrichInterference = nil
+        let after = try await pipeline.performFolderChange(
+            involving: repository.meetings(inFolder: "Pilot").map(\.id)
+        ) {
+            try folders.rename("Pilot", to: "Pilot archive")
+        }
+        #expect(after.name == "Pilot archive")
+        #expect(
+            repository.findMeeting(id: meetingID)?.store.layout.root
+                .deletingLastPathComponent().standardizedFileURL
+                == repository.archive.folderDirectory("Pilot archive").standardizedFileURL,
+            "the meeting directory went with the folder"
+        )
+    }
+
     @Test("writing a summary leaves a generated title alone")
     func writingASummaryLeavesAGeneratedTitleAlone() async throws {
         // The control says nothing already on the meeting is replaced,

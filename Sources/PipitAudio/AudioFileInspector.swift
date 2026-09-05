@@ -23,52 +23,44 @@ public struct AudioFileInspector: AudioFileInspecting {
             byteCount: byteCount
         )
     }
-}
 
-/// Reads media files chosen for import. Uses AVFoundation only, which decoded
-/// WAV, M4A, MP3, CAF, AIFF and MP4 in feasibility testing with no FFmpeg.
-public struct MediaFileInspector: Sendable {
-    public struct Info: Sendable, Equatable {
-        public let durationSeconds: Double
-        public let sampleRate: Double
-        public let channelCount: Int
-        public let hasAudioTrack: Bool
-    }
-
-    public init() {}
-
-    public func inspect(url: URL) async throws -> Info {
-        let asset = AVURLAsset(url: url)
-        let tracks: [AVAssetTrack]
-        do {
-            tracks = try await asset.loadTracks(withMediaType: .audio)
-        } catch {
-            throw ProcessingError.audioUnreadable(path: url.lastPathComponent)
+    /// Decodes the whole file and reports what came out of it.
+    ///
+    /// A container whose atoms are intact and whose payload is not opens fine
+    /// and reads a full length from the header. Only a decode of every frame
+    /// tells the two apart, so this is what runs before a compacted archive
+    /// replaces the segments it was made from. The returned frame count is the
+    /// number of frames actually decoded.
+    public func decode(url: URL) throws -> AudioFileInfo {
+        guard let file = try? AVAudioFile(forReading: url) else {
+            throw StorageError.fileReadFailed(path: url.path, underlying: "unreadable audio file")
         }
-        guard let track = tracks.first else {
-            return Info(durationSeconds: 0, sampleRate: 0, channelCount: 0, hasAudioTrack: false)
+        let attributes = try? FileManager.default.attributesOfItem(atPath: url.path)
+        let byteCount = (attributes?[.size] as? NSNumber)?.int64Value ?? 0
+        let format = file.processingFormat
+        guard let buffer = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: 16_384) else {
+            throw StorageError.fileReadFailed(path: url.path, underlying: "buffer allocation failed")
         }
-        let duration = (try? await asset.load(.duration)) ?? .zero
-        var sampleRate: Double = 0
-        var channels = 0
-        if let descriptions = try? await track.load(.formatDescriptions) {
-            for description in descriptions {
-                guard let basic = CMAudioFormatDescriptionGetStreamBasicDescription(description) else { continue }
-                sampleRate = basic.pointee.mSampleRate
-                channels = Int(basic.pointee.mChannelsPerFrame)
-                break
+
+        // Bounded by the header length because AVAudioFile throws rather than
+        // returning zero frames on a read that starts at the end.
+        var decodedFrames: Int64 = 0
+        while file.framePosition < file.length {
+            do {
+                try file.read(into: buffer)
+            } catch {
+                throw StorageError.fileReadFailed(path: url.path, underlying: "\(error)")
             }
+            guard buffer.frameLength > 0 else { break }
+            decodedFrames += Int64(buffer.frameLength)
         }
-        return Info(
-            durationSeconds: CMTimeGetSeconds(duration),
-            sampleRate: sampleRate,
-            channelCount: channels,
-            hasAudioTrack: true
-        )
-    }
 
-    public static var supportedExtensions: [String] {
-        ["wav", "m4a", "mp3", "caf", "aiff", "aif", "mp4", "mov", "aac", "flac", "m4v"]
+        return AudioFileInfo(
+            frameCount: decodedFrames,
+            sampleRate: format.sampleRate,
+            channelCount: Int(format.channelCount),
+            byteCount: byteCount
+        )
     }
 }
 

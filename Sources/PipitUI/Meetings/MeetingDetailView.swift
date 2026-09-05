@@ -231,7 +231,7 @@ public struct MeetingDetailView: View {
 
     private func file(in folder: String?) {
         guard let row = model.rows.first(where: { $0.id == detail.meetingID }) else { return }
-        model.file([row], in: folder)
+        Task { await model.file([row], in: folder) }
     }
 
     /// The folder this meeting was thought to belong in.
@@ -254,7 +254,7 @@ public struct MeetingDetailView: View {
                 .truncationMode(.tail)
                 .help(quoteHelp(suggestion))
             Spacer(minLength: 8)
-            Button("Move it") { model.acceptFolderSuggestion(for: detail.meetingID) }
+            Button("Move it") { Task { await model.acceptFolderSuggestion(for: detail.meetingID) } }
             Button("Dismiss") { model.dismissFolderSuggestion(for: detail.meetingID) }
                 .buttonStyle(.link)
         }

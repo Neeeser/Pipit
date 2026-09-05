@@ -1,4 +1,7 @@
 // Relays content-script observations to the native host, and counts audible tabs.
+//
+// `relayEnvelope` comes from shared/relay.js, which the build concatenates in
+// front of this file.
 
 const api = globalThis.browser ?? globalThis.chrome;
 const HOST_NAME = 'com.pipit.sensor';
@@ -76,7 +79,7 @@ api.runtime.onMessage.addListener(async (message, sender) => {
   if (!message || message.type !== 'state') return;
   const tabId = sender.tab ? sender.tab.id : null;
   const otherAudibleTabs = await countOtherAudibleTabs(tabId);
-  post({ ...message, tabId, otherAudibleTabs, sentAt: Date.now() });
+  post(relayEnvelope(message, tabId, otherAudibleTabs));
 });
 
 api.tabs.onRemoved.addListener((tabId) => {

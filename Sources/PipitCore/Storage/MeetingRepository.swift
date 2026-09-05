@@ -535,17 +535,24 @@ public struct MeetingRepository: Sendable {
 
     /// An identifier no meeting in the archive already holds.
     ///
-    /// It used to be enough to check whether a directory of that name existed,
-    /// because the directory was named for the identifier. It no longer is, so
-    /// this asks the resolver. Runs once per meeting created.
+    /// The scan covers two places. The first is the month directory the
+    /// identifier names, which is where a meeting sits until somebody files it.
+    /// The second is every meeting under `Folders/`, because filing moves the
+    /// directory out of its month and the month alone then reports a filed
+    /// identifier free. The rest of the archive is out of reach by
+    /// construction, since an identifier starts with the minute the meeting
+    /// started. Runs once per meeting created.
     private func uniqueMeetingID(base: String, startedAt: Date) -> String {
-        // The month the identifier names, not the resolver. A new meeting's
-        // identifier is free almost always, and asking the resolver made every
-        // recording start by decoding every metadata.json in the archive: the
-        // identifier is absent, so every cheap step misses and the scan runs to
-        // the end. A meeting starting now is in this month by construction.
-        let month = archive.monthDirectory(startedAt: startedAt)
-        let taken = identifiers(in: month)
+        var taken = identifiers(in: archive.monthDirectory(startedAt: startedAt))
+        guard let filed = filedIdentifiers() else {
+            // The filed identifiers are unknown, so counting up from the base
+            // can land on one of them. Six random hex characters cannot, and
+            // recording starts either way.
+            var candidate = "\(base)-\(Self.discriminator())"
+            while taken.contains(candidate) { candidate = "\(base)-\(Self.discriminator())" }
+            return candidate
+        }
+        taken.formUnion(filed)
         var candidate = base
         var suffix = 2
         while taken.contains(candidate) {
@@ -555,9 +562,56 @@ public struct MeetingRepository: Sendable {
         return candidate
     }
 
-    private func identifiers(in month: URL) -> Set<String> {
+    /// Six lowercase hex characters, for an identifier that cannot be checked
+    /// against the archive.
+    private static func discriminator() -> String {
+        String(format: "%06x", UInt32.random(in: 0..<0x100_0000))
+    }
+
+    /// The identifiers of every meeting filed into a folder.
+    ///
+    /// A filed meeting's directory is named for the meeting rather than for its
+    /// identifier, and a person may rename it in Finder, so the name on disk
+    /// says nothing about which identifier is inside. Reading the metadata is
+    /// the only answer. The cost is one decode per filed meeting, paid once
+    /// when a meeting is created.
+    ///
+    /// The scan is bounded to the meeting's own month plus `Folders/` on
+    /// purpose. A whole-archive scan made every recording start by decoding
+    /// every metadata file on disk.
+    ///
+    /// Returns `nil` when `Folders/` is there and will not list. The
+    /// identifiers it holds are then unknown, and the caller has to make one up
+    /// that nothing on disk can already hold.
+    private func filedIdentifiers() -> Set<String>? {
+        let folders: [URL]
+        do {
+            folders = try FileManager.default.contentsOfDirectory(
+                at: archive.foldersRoot, includingPropertiesForKeys: nil,
+                options: [.skipsHiddenFiles]
+            )
+        } catch {
+            // No `Folders/` yet means nothing is filed, and the month directory
+            // is the whole answer.
+            guard FileManager.default.fileExists(atPath: archive.foldersRoot.path) else {
+                return []
+            }
+            Log.storage.error(
+                "filed meetings could not be listed: \(logSafeDescription(error), privacy: .public)"
+            )
+            return nil
+        }
+        var out: Set<String> = []
+        for folder in folders where folder.hasDirectoryPath {
+            out.formUnion(identifiers(in: folder))
+        }
+        return out
+    }
+
+    /// The identifiers of the meetings sitting directly inside a directory.
+    private func identifiers(in directory: URL) -> Set<String> {
         guard let entries = try? FileManager.default.contentsOfDirectory(
-            at: month, includingPropertiesForKeys: nil, options: [.skipsHiddenFiles]
+            at: directory, includingPropertiesForKeys: nil, options: [.skipsHiddenFiles]
         ) else { return [] }
         var out: Set<String> = []
         for entry in entries where entry.hasDirectoryPath {

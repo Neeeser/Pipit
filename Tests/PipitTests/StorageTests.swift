@@ -114,6 +114,66 @@ struct StorageTests {
         #expect(rereadMap.resolvedName(for: "chunk_001_speaker_01") == "Speaker 2")
     }
 
+    @Test("a meeting filed into a folder still holds its identifier")
+    func aMeetingFiledIntoAFolderStillHoldsItsIdentifier() async throws {
+        // Filing moves the directory out of the month, so a scan of the month
+        // alone reports the identifier free and hands it to a second recording.
+        let root = try TestPaths.makeTemporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let repository = MeetingRepository(root: root)
+        let started = Date(timeIntervalSince1970: 1_787_070_000)
+        let titles = TitleCandidates(provider: "Weekly sync", timestampFallback: "fallback")
+
+        let first = try repository.createMeeting(
+            source: .slackHuddle, provider: .slack, startedAt: started,
+            titles: titles, now: started
+        )
+        _ = try first.store.updateMetadata {
+            $0.processing = ProcessingStatus(state: .complete, updatedAt: started)
+        }
+        try MeetingFolderStore(archive: MeetingArchiveLayout(root: root)).create(name: "Team")
+        let filed = try repository.move(meetingID: first.metadata.id, toFolder: "Team")
+
+        let second = try repository.createMeeting(
+            source: .slackHuddle, provider: .slack, startedAt: started,
+            titles: titles, now: started
+        )
+
+        #expect(second.metadata.id != first.metadata.id)
+        #expect(second.metadata.id == "\(first.metadata.id)-2", "got \(second.metadata.id)")
+        let foundFirst = try #require(repository.findMeeting(id: first.metadata.id))
+        let foundSecond = try #require(repository.findMeeting(id: second.metadata.id))
+        #expect(foundFirst.store.layout.root.standardizedFileURL == filed.standardizedFileURL)
+        #expect(
+            foundSecond.store.layout.root.standardizedFileURL
+                == second.store.layout.root.standardizedFileURL
+        )
+    }
+
+    @Test("an identifier gets a random suffix when the folders cannot be listed")
+    func anIdentifierGetsARandomSuffixWhenTheFoldersCannotBeListed() async throws {
+        // A `Folders/` that will not list hides every filed identifier, so the
+        // plain candidate could already belong to a meeting. A random suffix
+        // cannot, and recording still starts.
+        let root = try TestPaths.makeTemporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        try Data().write(to: root.appendingPathComponent("Folders"))
+        let repository = MeetingRepository(root: root)
+        let started = Date(timeIntervalSince1970: 1_787_070_000)
+
+        let created = try repository.createMeeting(
+            source: .slackHuddle, provider: .slack, startedAt: started, now: started
+        )
+
+        let suffix = created.metadata.id.suffix(7)
+        #expect(suffix.first == "-", "got \(created.metadata.id)")
+        #expect(
+            suffix.dropFirst().count == 6
+                && suffix.dropFirst().allSatisfy { $0.isHexDigit && !$0.isUppercase },
+            "got \(created.metadata.id)"
+        )
+    }
+
     @Test("listing finds meetings and skips ones folded into another")
     func listingFindsMeetingsAndSkipsOnesFoldedIntoAnother() async throws {
         let root = try TestPaths.makeTemporaryDirectory()

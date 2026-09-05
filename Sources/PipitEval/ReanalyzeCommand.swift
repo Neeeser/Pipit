@@ -56,7 +56,7 @@ enum ReanalyzeCommand {
 
         // The archive root, not the folder: a meeting inside a user folder is
         // two levels down, and the repository is what resolves either.
-        let root = repositoryRoot(for: meeting)
+        let root = MeetingArchiveRoot.resolve(for: meeting)
         let repository = MeetingRepository(root: root)
         guard repository.findMeeting(id: metadata.id, includingMerged: true) != nil else {
             FileHandle.standardError.write(
@@ -174,17 +174,5 @@ enum ReanalyzeCommand {
 
     private static func pad(_ value: String, _ width: Int) -> String {
         value.count >= width ? value + " " : value + String(repeating: " ", count: width - value.count)
-    }
-
-    /// Walks up out of any user folders to the archive the repository owns.
-    ///
-    /// A meeting lives at `<root>/<id>` or at `<root>/Folders/<name>/<id>`, and
-    /// the tool is pointed at the meeting.
-    private static func repositoryRoot(for meeting: URL) -> URL {
-        let parent = meeting.deletingLastPathComponent()
-        if parent.deletingLastPathComponent().lastPathComponent == "Folders" {
-            return parent.deletingLastPathComponent().deletingLastPathComponent()
-        }
-        return parent
     }
 }

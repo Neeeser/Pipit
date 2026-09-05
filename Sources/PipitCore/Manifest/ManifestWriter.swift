@@ -78,7 +78,13 @@ public final class ManifestWriter: Sendable {
                 state.writeFailures += 1
                 return false
             }
-            fsync(state.descriptor)
+            // The line is only durable once the fsync returns 0. A caller that
+            // acts on `true` would otherwise record an event that a power loss
+            // takes with it.
+            guard fsync(state.descriptor) == 0 else {
+                state.writeFailures += 1
+                return false
+            }
             return true
         }
     }
@@ -86,7 +92,7 @@ public final class ManifestWriter: Sendable {
     public func close() {
         state.withLock { state in
             guard !state.isClosed else { return }
-            fsync(state.descriptor)
+            if fsync(state.descriptor) != 0 { state.writeFailures += 1 }
             Foundation.close(state.descriptor)
             state.isClosed = true
         }

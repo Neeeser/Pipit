@@ -15,6 +15,7 @@ import {
   meetTileName,
   collapseMeetTiles,
 } from '../shared/provider.js';
+import { relayEnvelope } from '../shared/relay.js';
 
 const leaveControl = { ariaLabel: 'Leave call' };
 const joinControl = { ariaLabel: 'Join now' };
@@ -454,4 +455,20 @@ test('with no meter anywhere the old tie-break still decides', () => {
   const soup = (id, meter) => ({ id, meter, hasMeter: false });
   tracker.update([soup('a', '1'), soup('b', '1')], 0);
   assert.equal(tracker.update([soup('a', '2'), soup('b', '2')], 500), 'a');
+});
+
+test('the relay keeps the time the content script observed the state', () => {
+  const envelope = relayEnvelope({ type: 'state', sentAt: 1000 }, 7, 0);
+  assert.equal(envelope.sentAt, 1000);
+  assert.equal(envelope.tabId, 7);
+  assert.equal(envelope.otherAudibleTabs, 0);
+  assert.equal(envelope.type, 'state');
+});
+
+test('a message with no time gets one at the relay', () => {
+  const before = Date.now();
+  const envelope = relayEnvelope({ type: 'state' }, 3, undefined);
+  assert.ok(envelope.sentAt >= before);
+  assert.ok(envelope.sentAt <= Date.now());
+  assert.equal(envelope.tabId, 3);
 });

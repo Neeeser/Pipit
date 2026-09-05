@@ -385,6 +385,17 @@ public struct MeetingMetadata: Codable, Sendable, Equatable, Identifiable {
 
     public var isProcessingComplete: Bool { processing.state == .complete }
 
+    /// How this meeting is named in the log.
+    ///
+    /// The identifier ends in a slug of the title, and titles come from window
+    /// titles and calendar entries, which are meeting content. This is the same
+    /// identifier built with no title, so it is the timestamp and the source and
+    /// nothing a person said. Built by `MeetingArchiveLayout.meetingID` so the
+    /// two forms cannot drift apart.
+    public var logIdentifier: String {
+        MeetingArchiveLayout.meetingID(startedAt: startedAt, source: source, title: nil)
+    }
+
     /// Whether this meeting may be offered a folder at all. One offer per
     /// meeting for its whole life, and none once it is already filed.
     public var acceptsFolderSuggestion: Bool {

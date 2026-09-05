@@ -109,6 +109,25 @@ public actor ProcessingPipeline {
         (foldersHeld[meetingID] ?? 0) > (besidesSelf ? 1 : 0)
     }
 
+    /// Moves meeting directories, refusing while a job is writing into one.
+    ///
+    /// The check and the move happen in one step on this actor, so no job can
+    /// take a hold in between and find its folder gone. `MeetingRepository`
+    /// refuses a meeting whose persisted state says it is recording or
+    /// processing, which says nothing about re-analysis or compaction. Both run
+    /// for minutes on a meeting that is already complete.
+    ///
+    /// Throws `MeetingFolderError.meetingIsBusy` for the first held meeting,
+    /// and otherwise returns what `body` returned.
+    public func performFolderChange<T>(
+        involving meetingIDs: [String], _ body: @Sendable () throws -> sending T
+    ) throws -> sending T {
+        for meetingID in meetingIDs where foldersHeld[meetingID] != nil {
+            throw MeetingFolderError.meetingIsBusy(meetingID)
+        }
+        return try body()
+    }
+
     /// One heavy job at a time. Transcription is 92% of the work and the local
     /// models share one Neural Engine, so a second concurrent meeting takes
     /// time from the first rather than adding any.
@@ -238,6 +257,20 @@ public actor ProcessingPipeline {
 
         while let stage = metadata.processing.resumeStage, stage != .complete {
             if discardIfGone(metadata.id, store: store) { return }
+            // An import that failed at `finalizing` never wrote whole audio, and
+            // the stage loop below treats `finalizing` as work already done. The
+            // launch sweep hands every unfinished meeting to this method, so
+            // without this it walked past the stage and finished the meeting on
+            // the fraction that had been read. Reading the file again is the
+            // only fix, and the user starts that. `retry` refuses the same
+            // meeting with a message the user reads.
+            if metadata.source == .imported, stage == .finalizing,
+                metadata.processing.state == .failed {
+                Log.processing.info(
+                    "failed import left failed meeting=\(metadata.logIdentifier, privacy: .public)"
+                )
+                return
+            }
             do {
                 // Capture always wins. A job started before a meeting parks here
                 // between stages rather than competing for the microphone, the
@@ -467,7 +500,7 @@ public actor ProcessingPipeline {
         }
         Log.storage.info(
             """
-            folder suggestion meeting=\(metadata.id, privacy: .public) \
+            folder suggestion meeting=\(metadata.logIdentifier, privacy: .public) \
             reason=\(suggestion.reason.rawValue, privacy: .public) \
             confidence=\(suggestion.confidence, privacy: .public)
             """
@@ -583,7 +616,7 @@ public actor ProcessingPipeline {
     ///
     /// A meeting already in flight is left alone: rewriting its stage from here
     /// would be overwritten by the run that is mid-request anyway.
-    public func retry(meetingID: String) async {
+    public func retry(meetingID: String) async throws {
         guard !running.contains(meetingID) else { return }
         // Same reason as process: a meeting folded into an earlier one is hidden
         // from the archive, and refusing it here made the Retry button on its own
@@ -595,6 +628,17 @@ public actor ProcessingPipeline {
         guard metadata.processing.state == .failed, let stage = metadata.processing.resumeStage else {
             await process(meetingID: meetingID)
             return
+        }
+        // An import that failed at `finalizing` never wrote whole audio. The
+        // stage loop treats `finalizing` as done work, so retrying walked
+        // straight past it and finished the meeting on the fraction that was
+        // read. Reading the file again is the only fix, and the user has to
+        // start it.
+        if metadata.source == .imported, stage == .finalizing {
+            throw ProcessingError.localProcessingFailed(
+                reason: "The imported file could not be read to the end. Import it again.",
+                retryable: false
+            )
         }
         metadata.processing.advance(to: stage, at: clock.now)
         try? persist(metadata, to: found.store)

@@ -88,14 +88,18 @@ public struct AudioImporter: Sendable {
             do {
                 try input.read(into: readBuffer)
             } catch {
-                break
+                endFailedImport(writer: writer, manifest: manifest)
+                throw ProcessingError.audioUnreadable(path: source.lastPathComponent)
             }
             guard readBuffer.frameLength > 0 else { break }
 
             let capacity = AVAudioFrameCount(
                 Double(readBuffer.frameLength) * targetFormat.sampleRate / sourceFormat.sampleRate + 1_024
             )
-            guard let output = AVAudioPCMBuffer(pcmFormat: targetFormat, frameCapacity: capacity) else { break }
+            guard let output = AVAudioPCMBuffer(pcmFormat: targetFormat, frameCapacity: capacity) else {
+                endFailedImport(writer: writer, manifest: manifest)
+                throw ProcessingError.audioUnreadable(path: source.lastPathComponent)
+            }
             // The converter calls the input block synchronously on this thread,
             // but the block is typed `@Sendable`. The box carries the buffer and
             // the consumed-once flag across that boundary as one value: it holds
@@ -113,7 +117,10 @@ public struct AudioImporter: Sendable {
                     return ready
                 }
             }
-            if status == .error { break }
+            if status == .error {
+                endFailedImport(writer: writer, manifest: manifest)
+                throw ProcessingError.audioUnreadable(path: source.lastPathComponent)
+            }
             guard output.frameLength > 0 else { continue }
 
             writer.enqueueSynchronously(AudioBufferPacket(buffer: output, hostTime: hostTime))
@@ -132,6 +139,20 @@ public struct AudioImporter: Sendable {
             durationSeconds: stats.totalSeconds,
             originalFilename: source.lastPathComponent,
             segmentCount: stats.segmentCount
+        )
+    }
+
+    /// Closes the segments an abandoned import wrote and records why it stopped.
+    ///
+    /// The session end says `import_failed`, so the part of the file that was
+    /// decoded before the failure is not read back as a whole meeting. The
+    /// source file is left as it is.
+    private func endFailedImport(writer: SegmentWriter, manifest: ManifestWriter) {
+        writer.finish(reason: "import_failed")
+        let stats = writer.stats
+        manifest.append(
+            .sessionEnd(.init(reason: "import_failed", micSeconds: stats.totalSeconds, remoteSeconds: 0)),
+            hostTime: clock.monotonicSeconds, wallClock: clock.now
         )
     }
 }

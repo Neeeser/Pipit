@@ -569,7 +569,7 @@ struct PipelineTests {
         backend.diarizationSegments = [
             RawTranscriptSegment(start: 0, end: 2, text: "Welcome back.", speaker: "A"),
         ]
-        await pipeline.retry(meetingID: meeting.metadata.id)
+        try await pipeline.retry(meetingID: meeting.metadata.id)
         let afterRetry = try meeting.store.readMetadata()
         #expect(afterRetry.processing.state == .complete)
     }
@@ -617,7 +617,7 @@ struct PipelineTests {
             transcribeCalls == 1,
             "diarization failed and was retried; transcription was already done"
         )
-        await pipeline.retry(meetingID: meeting.metadata.id)
+        try await pipeline.retry(meetingID: meeting.metadata.id)
         #expect(
             backend.calls.filter { $0.kind == "transcribe" }.count == transcribeCalls,
             "a completed chunk must not be sent again"

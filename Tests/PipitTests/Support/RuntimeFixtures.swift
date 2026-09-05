@@ -1,6 +1,7 @@
 import AppKit
 import Foundation
 import PipitCore
+import PipitIntegrations
 import PipitServices
 
 /// A runtime and an archive under one temporary root.
@@ -54,11 +55,14 @@ public enum RuntimeFixtures {
     /// The Finder's own Trash would fill with the archives these tests build,
     /// so a trashed folder is moved here instead. It is also what lets a test
     /// see that a meeting was moved rather than unlinked.
+    ///
+    /// `backend` replaces the cloud client, so a test can make the runtime's own
+    /// pipeline do something while it files a meeting.
     @MainActor
-    public static func makeRuntime(root: URL) -> PipitRuntime {
+    public static func makeRuntime(root: URL, backend: (any AIBackend)? = nil) -> PipitRuntime {
         NSApplication.shared.setActivationPolicy(.prohibited)
         let trash = trashDirectory(under: root)
-        let runtime = PipitRuntime(settingsDirectory: root, trash: { folder in
+        let runtime = PipitRuntime(settingsDirectory: root, backend: backend, trash: { folder in
             try FileManager.default.createDirectory(
                 at: trash, withIntermediateDirectories: true
             )
