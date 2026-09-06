@@ -23,7 +23,7 @@ jobs:
       # scripts/spm-env.sh reads this variable. A local build leaves it unset.
       PIPIT_WARNINGS_AS_ERRORS: '1'
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Select the newest Xcode on the image
         # The SpeechAnalyzer backend needs the macOS 26 SDK to compile in.
@@ -138,7 +138,7 @@ jobs:
     runs-on: macos-15
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
@@ -165,7 +165,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Investigation material stays untracked
         run: |
