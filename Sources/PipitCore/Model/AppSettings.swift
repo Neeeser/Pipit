@@ -329,6 +329,10 @@ public struct AppSettings: Codable, Sendable, Equatable {
     /// slot on upgrade is a visible change nobody asked for. The menu bar item
     /// is there either way, so the app is always reachable.
     public var showsDockIcon: Bool
+    /// Whether the updater also offers pre-releases. Off by default: a beta
+    /// carries work that is not finished, and nobody is moved onto one by an
+    /// upgrade.
+    public var receivesBetaUpdates: Bool
     public var models: AIModelSettings
     public var processing: ProcessingSettings
     public var enrichment: EnrichmentSettings
@@ -367,6 +371,7 @@ public struct AppSettings: Codable, Sendable, Equatable {
         launchAtLogin: Bool = false,
         showNotifications: Bool = true,
         showsDockIcon: Bool = false,
+        receivesBetaUpdates: Bool = false,
         models: AIModelSettings = AIModelSettings(),
         processing: ProcessingSettings = ProcessingSettings(),
         enrichment: EnrichmentSettings = EnrichmentSettings(),
@@ -387,6 +392,7 @@ public struct AppSettings: Codable, Sendable, Equatable {
         self.storageRootPath = storageRootPath
         self.launchAtLogin = launchAtLogin
         self.showsDockIcon = showsDockIcon
+        self.receivesBetaUpdates = receivesBetaUpdates
         self.showNotifications = showNotifications
         self.models = models
         self.processing = processing
@@ -421,6 +427,9 @@ public struct AppSettings: Codable, Sendable, Equatable {
             ?? defaults.showNotifications
         showsDockIcon =
             try container.decodeIfPresent(Bool.self, forKey: .showsDockIcon) ?? defaults.showsDockIcon
+        receivesBetaUpdates =
+            try container.decodeIfPresent(Bool.self, forKey: .receivesBetaUpdates)
+            ?? defaults.receivesBetaUpdates
         // Deliberately not migrated to the newer default. `gpt-transcribe`
         // returns no timings, so choosing it commits the machine to a 600 MB
         // aligner download, and an upgrade that starts one mid-meeting is the
