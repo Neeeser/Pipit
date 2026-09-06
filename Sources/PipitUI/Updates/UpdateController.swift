@@ -1,4 +1,3 @@
-import PipitAudio
 import PipitCore
 import PipitServices
 import Sparkle
@@ -7,24 +6,20 @@ import Sparkle
 ///
 /// The controller is created once and held for the life of the process, because
 /// Sparkle schedules its own background checks from it and the delegate must
-/// stay alive to answer them. Nothing here draws anything: Sparkle brings its
+/// stay alive to answer them. The controller draws nothing. Sparkle brings its
 /// own windows.
 @MainActor
 public final class UpdateController: NSObject, SPUUpdaterDelegate {
-    private let runtime: PipitRuntime
+    private weak var runtime: PipitRuntime?
     private var controller: SPUStandardUpdaterController?
-    /// The beta setting as of the last settings change. Sparkle asks for the
-    /// channels from its own scheduler, off the main actor, so the value is
-    /// mirrored into a lock rather than read from the runtime at that point.
-    private let receivesBeta = LockedBox(false)
+
+    /// Whether the updater started. A menu item that calls `checkForUpdates()`
+    /// is disabled while this is false.
+    public var isAvailable: Bool { controller != nil }
 
     public init(runtime: PipitRuntime) {
         self.runtime = runtime
         super.init()
-        receivesBeta.withLock { $0 = runtime.settings.receivesBetaUpdates }
-        runtime.observeStatus { [box = receivesBeta] in
-            box.withLock { $0 = runtime.settings.receivesBetaUpdates }
-        }
     }
 
     /// Starts the updater and its daily schedule. Called after the runtime is
@@ -59,7 +54,11 @@ public final class UpdateController: NSObject, SPUUpdaterDelegate {
 
     // MARK: - SPUUpdaterDelegate
 
+    /// Sparkle calls its delegate on the main thread, so the current setting is
+    /// read from the runtime at check time rather than mirrored.
     public nonisolated func allowedChannels(for updater: SPUUpdater) -> Set<String> {
-        UpdateChannels.allowed(receivesBeta: receivesBeta.withLock { $0 })
+        MainActor.assumeIsolated {
+            UpdateChannels.allowed(receivesBeta: runtime?.settings.receivesBetaUpdates ?? false)
+        }
     }
 }

@@ -329,9 +329,9 @@ public struct AppSettings: Codable, Sendable, Equatable {
     /// slot on upgrade is a visible change nobody asked for. The menu bar item
     /// is there either way, so the app is always reachable.
     public var showsDockIcon: Bool
-    /// Whether the updater also offers pre-releases. Off by default: a beta
-    /// carries work that is not finished, and nobody is moved onto one by an
-    /// upgrade.
+    /// Whether the updater also offers pre-releases. It is off by default. A
+    /// beta carries work that is not finished, and nobody is moved onto one by
+    /// an upgrade.
     public var receivesBetaUpdates: Bool
     public var models: AIModelSettings
     public var processing: ProcessingSettings

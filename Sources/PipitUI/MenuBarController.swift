@@ -34,6 +34,9 @@ public final class MenuBarController: NSObject, NSMenuDelegate {
         super.init()
 
         let menu = NSMenu()
+        // Items carry their own enabled state. Automatic enabling would
+        // recompute it from the responder chain and re-enable the update item.
+        menu.autoenablesItems = false
         menu.delegate = self
         statusItem.menu = menu
         refreshButton()
@@ -391,6 +394,7 @@ public final class MenuBarController: NSObject, NSMenuDelegate {
             title: "Check for Updates…", action: #selector(checkForUpdates), keyEquivalent: ""
         )
         checkForUpdates.target = self
+        checkForUpdates.isEnabled = updates.isAvailable
         menu.addItem(checkForUpdates)
 
         let about = NSMenuItem(title: "About Pipit", action: #selector(openAbout), keyEquivalent: "")

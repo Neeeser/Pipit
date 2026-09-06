@@ -14,6 +14,14 @@ struct UpdateChannelTests {
         #expect(UpdateChannels.allowed(receivesBeta: true) == ["beta"])
     }
 
+    @Test("the channels follow the setting on the value the delegate reads")
+    func theChannelsFollowTheSettingOnTheValueTheDelegateReads() async throws {
+        var settings = AppSettings()
+        #expect(UpdateChannels.allowed(receivesBeta: settings.receivesBetaUpdates).isEmpty)
+        settings.receivesBetaUpdates = true
+        #expect(UpdateChannels.allowed(receivesBeta: settings.receivesBetaUpdates) == ["beta"])
+    }
+
     @Test("the beta setting defaults to false and round-trips through disk")
     func theBetaSettingDefaultsToFalseAndRoundTripsThroughDisk() async throws {
         let root = try TestPaths.makeTemporaryDirectory()
