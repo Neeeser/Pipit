@@ -14,6 +14,7 @@
 		4236B8609F5D4BE839A53CDC /* PipitCore in Frameworks */ = {isa = PBXBuildFile; productRef = 7D7B1FFD23061DE8918CD861 /* PipitCore */; };
 		43C4B96F81CFD44E3F86A18A /* Pipit.icns in Resources */ = {isa = PBXBuildFile; fileRef = 22EFBC85987D961C7C8CAA85 /* Pipit.icns */; };
 		5274BC7830D9FA9D13000936 /* pipit-idle@2x.png in Resources */ = {isa = PBXBuildFile; fileRef = A40349FB8BC23FA746B2FB67 /* pipit-idle@2x.png */; };
+		58D76C824E65EF3B973036E9 /* Sparkle in Frameworks */ = {isa = PBXBuildFile; productRef = 44A4F42B12EA66AB75A4CB20 /* Sparkle */; };
 		737ABAE4AD17ED2DF9714AC0 /* pipit-idle.png in Resources */ = {isa = PBXBuildFile; fileRef = 2D7A38581127B6E94CAC574A /* pipit-idle.png */; };
 		74B9CA3F8283500A96092D69 /* PipitServices in Frameworks */ = {isa = PBXBuildFile; productRef = DAA7CF268EB9FD79CBEB8159 /* PipitServices */; };
 		8CD97EAE847B47C5A3FDD5A5 /* PipitUI in Frameworks */ = {isa = PBXBuildFile; productRef = 4407356974D964D41851FC5A /* PipitUI */; };
@@ -76,6 +77,7 @@
 				8CD97EAE847B47C5A3FDD5A5 /* PipitUI in Frameworks */,
 				74B9CA3F8283500A96092D69 /* PipitServices in Frameworks */,
 				4236B8609F5D4BE839A53CDC /* PipitCore in Frameworks */,
+				58D76C824E65EF3B973036E9 /* Sparkle in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -215,6 +217,7 @@
 				4407356974D964D41851FC5A /* PipitUI */,
 				DAA7CF268EB9FD79CBEB8159 /* PipitServices */,
 				7D7B1FFD23061DE8918CD861 /* PipitCore */,
+				44A4F42B12EA66AB75A4CB20 /* Sparkle */,
 			);
 			productName = Pipit;
 			productReference = CD6F58DFE74C9079257BC916 /* Pipit.app */;
@@ -268,6 +271,7 @@
 			mainGroup = F66FE571820E047DC497882A;
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
+				1D25F17BFABBE3C61BCBA7EA /* XCRemoteSwiftPackageReference "Sparkle" */,
 				70BB0949691C5B6D8B098DC9 /* XCLocalSwiftPackageReference "." */,
 			);
 			preferredProjectObjectVersion = 77;
@@ -594,6 +598,17 @@
 		};
 /* End XCLocalSwiftPackageReference section */
 
+/* Begin XCRemoteSwiftPackageReference section */
+		1D25F17BFABBE3C61BCBA7EA /* XCRemoteSwiftPackageReference "Sparkle" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/sparkle-project/Sparkle";
+			requirement = {
+				kind = exactVersion;
+				version = 2.9.6;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
 /* Begin XCSwiftPackageProductDependency section */
 		1893E43E5457055E6E2D7622 /* PipitCore */ = {
 			isa = XCSwiftPackageProductDependency;
@@ -602,6 +617,11 @@
 		4407356974D964D41851FC5A /* PipitUI */ = {
 			isa = XCSwiftPackageProductDependency;
 			productName = PipitUI;
+		};
+		44A4F42B12EA66AB75A4CB20 /* Sparkle */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 1D25F17BFABBE3C61BCBA7EA /* XCRemoteSwiftPackageReference "Sparkle" */;
+			productName = Sparkle;
 		};
 		7D7B1FFD23061DE8918CD861 /* PipitCore */ = {
 			isa = XCSwiftPackageProductDependency;

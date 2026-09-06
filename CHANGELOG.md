@@ -9,6 +9,12 @@ described in [docs/RELEASING.md](docs/RELEASING.md).
 
 ## [Unreleased]
 
+### Added
+
+- Pipit updates itself through Sparkle, checking a signed appcast once a day.
+  The menu bar has a "Check for Updates…" item, and Settings has a "Receive beta
+  updates" option that follows the beta channel.
+
 ### Changed
 
 - The test suite runs on Swift Testing through `swift test`, so a contributor

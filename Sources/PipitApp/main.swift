@@ -7,7 +7,7 @@ import PipitUI
 /// takes a Dock slot is a setting; the menu bar item is there either way.
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
-    // These four are built in `applicationDidFinishLaunching`, which runs
+    // These five are built in `applicationDidFinishLaunching`, which runs
     // before any other method this delegate implements.
     // swiftlint:disable:next implicitly_unwrapped_optional
     private var runtime: PipitRuntime!
@@ -17,6 +17,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var menuBar: MenuBarController!
     // swiftlint:disable:next implicitly_unwrapped_optional
     private var notificationRouter: NotificationRouter!
+    // swiftlint:disable:next implicitly_unwrapped_optional
+    private var updates: UpdateController!
     private var isTerminating = false
 
     func applicationDidFinishLaunching(_ notification: Notification) {
@@ -27,9 +29,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // every settings change through the menu bar controller's observer and
         // whenever a window opens or closes.
         windows.refreshDockPresence()
-        menuBar = MenuBarController(runtime: runtime, windows: windows)
+        updates = UpdateController(runtime: runtime)
+        menuBar = MenuBarController(runtime: runtime, windows: windows, updates: updates)
         notificationRouter = NotificationRouter(runtime: runtime, windows: windows)
         runtime.start()
+        // After the runtime, so a check on launch never delays capture.
+        updates.start()
 
         // Asynchronous, because reading notification permission is a call into
         // another process. Recording and detection are already running by then;

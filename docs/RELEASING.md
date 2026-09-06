@@ -17,6 +17,7 @@ The release repository needs these GitHub Actions secrets:
 | `APPLE_APP_SPECIFIC_PASSWORD` | App-specific password for notarization |
 | `AMO_JWT_ISSUER` | Mozilla add-on API key, from the AMO credentials page |
 | `AMO_JWT_SECRET` | Mozilla add-on API secret for the same key |
+| `SPARKLE_PRIVATE_KEY` | Base64 EdDSA private key that signs each update archive |
 
 The workflow falls back to ad-hoc signing when the certificate is absent. Do
 not publish an ad-hoc signed build. Gatekeeper will reject it on another Mac.
@@ -65,6 +66,14 @@ Pipit-1.2.0.dmg
 Pipit-1.2.0.sha256
 ```
 
+A release started from the Actions tab has a pre-release checkbox. Ticking it
+marks the GitHub release as a pre-release and puts the appcast item on the beta
+channel. A version below 1.0.0 goes on the beta channel either way.
+
+The release job builds, tests, notarizes and packages within a 120-minute
+budget. The `swift test` step alone takes around half an hour because it
+rebuilds every dependency in debug.
+
 ## Review the draft
 
 The workflow creates a draft GitHub release. Before publishing it:
@@ -75,6 +84,13 @@ The workflow creates a draft GitHub release. Before publishing it:
 4. Confirm that Gatekeeper accepts the application.
 5. Complete setup and record a short meeting.
 6. Review the generated release notes and publish the draft.
+
+Publishing the draft starts `.github/workflows/appcast.yml`. It downloads
+`Pipit-1.2.0.zip` from the published release, runs `scripts/make-appcast.sh`,
+and commits `appcast.xml` to `gh-pages`. The feed serves the new version once
+the Pages deployment for that commit finishes. A draft that is never published, or is discarded, leaves the feed
+untouched. Re-run the workflow from the Actions tab with the tag as its input
+if the appcast needs rebuilding.
 
 ## Local release build
 
@@ -94,10 +110,48 @@ APPLE_APP_PASSWORD="app-password" \
 
 `scripts/package.sh` preserves the application signature in both archives.
 
+## In-app updates
+
+Pipit checks `https://neeeser.github.io/Pipit/appcast.xml` once a day. The
+release workflow writes that file with `scripts/make-appcast.sh`, which signs
+each archive with an EdDSA key and commits the result to `gh-pages`.
+
+Generate the key pair once, on the maintainer's Mac. `generate_keys` stores the
+private key in the login keychain and prints the public key:
+
+```sh
+curl -fsSLO https://github.com/sparkle-project/Sparkle/releases/download/2.9.6/Sparkle-2.9.6.tar.xz
+tar -xJf Sparkle-2.9.6.tar.xz
+./bin/generate_keys
+./bin/generate_keys -x sparkle-private-key.txt
+```
+
+Put the printed public key into `App/Info.plist` under `SUPublicEDKey`, and the
+one line in `sparkle-private-key.txt` into the `SPARKLE_PRIVATE_KEY` secret.
+Delete the exported file afterwards. `generate_appcast` compares the public key
+in the app against the public half of the private key it is given. On a mismatch
+it warns, leaves `edSignature` empty and exits 0, so `scripts/make-appcast.sh`
+checks the written appcast for that attribute and fails the run itself. The
+release workflow also refuses to build while `App/Info.plist` still holds the
+placeholder key, so an unsignable release never reaches the feed. Losing the
+private key means every installed copy stops updating, so keep a backup outside
+the repository.
+
+The `gh-pages` branch has to exist before Pages can point at it. The first
+published release creates it. To create it by hand instead:
+
+```sh
+git switch --orphan gh-pages
+git commit --allow-empty -m "Start the update feed"
+git push -u origin gh-pages
+```
+
+Then enable Pages once, under Settings > Pages: source "Deploy from a branch",
+branch `gh-pages`, folder `/ (root)`.
+
 ## Install route
 
-The disk image on the GitHub release is the install route. A Homebrew cask is a
-future step once the first release is published.
+The disk image on the GitHub release is the install route.
 
 ## Browser extension
 

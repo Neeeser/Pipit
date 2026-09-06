@@ -23,6 +23,11 @@ let package = Package(
     dependencies: [
         .package(url: "https://github.com/argmaxinc/argmax-oss-swift.git", exact: "1.1.0"),
         .package(url: "https://github.com/FluidInference/FluidAudio.git", exact: "0.15.6"),
+        // Sparkle ships the updater as a framework with nested XPC services and
+        // an Autoupdate helper. A version change moves that signing layout and
+        // changes how the updater behaves, so the version is exact and a bump
+        // is a re-test of the update flow.
+        .package(url: "https://github.com/sparkle-project/Sparkle", exact: "2.9.6"),
     ],
     targets: [
         // Pure logic. Foundation only: state machines, manifest, timeline arithmetic,
@@ -98,9 +103,22 @@ let package = Package(
         ),
 
         // SwiftUI/AppKit surfaces.
-        .target(name: "PipitUI", dependencies: ["PipitServices"]),
+        .target(
+            name: "PipitUI",
+            dependencies: ["PipitServices", .product(name: "Sparkle", package: "Sparkle")]
+        ),
 
-        .executableTarget(name: "PipitApp", dependencies: ["PipitUI"]),
+        // The rpath is what lets the executable find Sparkle.framework after
+        // scripts/bundle-app.sh copies it into Contents/Frameworks. SwiftPM
+        // links the framework as @rpath/Sparkle.framework/Versions/B/Sparkle
+        // but emits no rpath of its own that reaches a bundle layout.
+        .executableTarget(
+            name: "PipitApp",
+            dependencies: ["PipitUI"],
+            linkerSettings: [
+                .unsafeFlags(["-Xlinker", "-rpath", "-Xlinker", "@executable_path/../Frameworks"])
+            ]
+        ),
 
         // Firefox native messaging host. A compiled binary, because Firefox spawns
         // hosts with a minimal PATH and an interpreter shebang silently fails.

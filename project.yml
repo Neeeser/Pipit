@@ -16,6 +16,11 @@ options:
 packages:
   Pipit:
     path: .
+  # Version and reason are in Package.swift. Repeated here because XcodeGen
+  # resolves remote packages itself rather than reading the manifest.
+  Sparkle:
+    url: https://github.com/sparkle-project/Sparkle
+    exactVersion: 2.9.6
 
 settings:
   base:
@@ -70,6 +75,13 @@ targets:
         product: PipitServices
       - package: Pipit
         product: PipitCore
+      # Xcode embeds and signs the framework into Contents/Frameworks on its
+      # own for a binary package product, the same place scripts/bundle-app.sh
+      # puts it. An explicit embed phase entry cannot resolve an xcframework
+      # product and fails the build with "the file Sparkle couldn't be opened".
+      - package: Sparkle
+        product: Sparkle
+        embed: false
       # The host lands in Contents/MacOS next to the app executable, the path
       # the browser installer copies it from. scripts/bundle-app.sh puts it in
       # the same place.

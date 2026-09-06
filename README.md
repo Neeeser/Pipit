@@ -18,11 +18,12 @@ recordings, transcripts, and notes as ordinary files on disk.
 Pipit requires macOS 15 or later.
 
 Download the latest disk image from [GitHub Releases](https://github.com/Neeeser/Pipit/releases/latest)
-and drag Pipit into Applications. The disk image is the only install route
-today. There is no Homebrew cask yet.
+and drag Pipit into Applications.
 
 Open Pipit and grant the permissions shown during setup. Pipit then runs from
 the menu bar.
+
+Pipit checks for a new version once a day and installs the update in place.
 
 ## Features
 

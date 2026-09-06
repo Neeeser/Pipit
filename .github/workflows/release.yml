@@ -8,12 +8,16 @@ on:
       version:
         description: 'Version to build, without the leading v'
         required: true
+      prerelease:
+        description: 'Mark the release as a pre-release, which puts the appcast item on the beta channel'
+        type: boolean
+        default: false
 
 jobs:
   release:
     name: Build and publish
     runs-on: macos-15
-    timeout-minutes: 45
+    timeout-minutes: 120
     permissions:
       contents: write
     steps:
@@ -47,6 +51,10 @@ jobs:
           echo "$VERSION" > VERSION
 
       - name: Test before packaging
+        # The gate is the CI run on main, which tests every commit before it
+        # lands. This step only catches a tag placed on a commit that never went
+        # through it. It rebuilds the dependencies in debug and costs the job
+        # around half an hour.
         run: ./scripts/test.sh
 
       - name: Import the Developer ID certificate
@@ -100,6 +108,17 @@ jobs:
           fi
           ./scripts/sign-extension.sh "$VERSION"
 
+      - name: Check the update signing key
+        # Sparkle refuses an update whose archive is unsigned, and the archive
+        # is signed against the public key inside the app. A release built with
+        # the placeholder ships a copy that can never update itself.
+        run: |
+          KEY="$(/usr/libexec/PlistBuddy -c "Print :SUPublicEDKey" App/Info.plist 2>/dev/null || true)"
+          if [ -z "$KEY" ] || [ "$KEY" = "REPLACE_WITH_PUBLIC_KEY" ]; then
+            echo "App/Info.plist still carries the placeholder SUPublicEDKey. Generate the EdDSA key pair and set the real public key before tagging a release. See docs/RELEASING.md." >&2
+            exit 1
+          fi
+
       - name: Build the app
         env:
           PIPIT_SIGN_IDENTITY: ${{ steps.signing.outputs.identity }}
@@ -129,7 +148,9 @@ jobs:
             dist/Pipit-${{ steps.version.outputs.version }}.zip
             dist/Pipit-${{ steps.version.outputs.version }}.dmg
             dist/Pipit-${{ steps.version.outputs.version }}.sha256
+          tag_name: v${{ steps.version.outputs.version }}
           draft: true
+          prerelease: ${{ inputs.prerelease == true }}
           generate_release_notes: true
           body: |
             ${{ steps.signing.outputs.signed == 'true' && 'Signed with Developer ID and notarized.' || '**Unsigned build.** Gatekeeper will refuse to open it normally. Do not publish this as a public release; see docs/RELEASING.md.' }}

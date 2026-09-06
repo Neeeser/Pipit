@@ -12,6 +12,7 @@ import UniformTypeIdentifiers
 public final class MenuBarController: NSObject, NSMenuDelegate {
     private let runtime: PipitRuntime
     private let windows: WindowManager
+    private let updates: UpdateController
     private let statusItem: NSStatusItem
     /// What the button's image was last built from.
     private var iconKey: String?
@@ -25,13 +26,17 @@ public final class MenuBarController: NSObject, NSMenuDelegate {
     /// reaches launchd; the launch-time reconcile below still runs once.
     private var appliedLaunchAtLogin: Bool?
 
-    public init(runtime: PipitRuntime, windows: WindowManager) {
+    public init(runtime: PipitRuntime, windows: WindowManager, updates: UpdateController) {
         self.runtime = runtime
         self.windows = windows
+        self.updates = updates
         self.statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
         super.init()
 
         let menu = NSMenu()
+        // Items carry their own enabled state. Automatic enabling would
+        // recompute it from the responder chain and re-enable the update item.
+        menu.autoenablesItems = false
         menu.delegate = self
         statusItem.menu = menu
         refreshButton()
@@ -385,6 +390,13 @@ public final class MenuBarController: NSObject, NSMenuDelegate {
         setup.target = self
         menu.addItem(setup)
 
+        let checkForUpdates = NSMenuItem(
+            title: "Check for Updates…", action: #selector(checkForUpdates), keyEquivalent: ""
+        )
+        checkForUpdates.target = self
+        checkForUpdates.isEnabled = updates.isAvailable
+        menu.addItem(checkForUpdates)
+
         let about = NSMenuItem(title: "About Pipit", action: #selector(openAbout), keyEquivalent: "")
         about.target = self
         menu.addItem(about)
@@ -510,6 +522,8 @@ public final class MenuBarController: NSObject, NSMenuDelegate {
 
     @objc private func openSettings() { windows.showSettings() }
     @objc private func openBrowserSettings() { windows.showSettings(pane: .browsers) }
+
+    @objc private func checkForUpdates() { updates.checkForUpdates() }
 
     @objc private func openAbout() { windows.showAbout() }
 

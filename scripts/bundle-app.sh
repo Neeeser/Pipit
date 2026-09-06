@@ -19,6 +19,10 @@ VERSION="$(cat "$REPO_ROOT/VERSION" 2>/dev/null || echo "0.1.0")"
 BUILD_NUMBER="${PIPIT_BUILD_NUMBER:-1}"
 # Read from the plist so the signing identifier and the bundle cannot drift.
 BUNDLE_ID="$(/usr/libexec/PlistBuddy -c "Print :CFBundleIdentifier" "$REPO_ROOT/App/Info.plist")"
+UPDATE_KEY="$(/usr/libexec/PlistBuddy -c "Print :SUPublicEDKey" "$REPO_ROOT/App/Info.plist" 2>/dev/null || true)"
+if [ -z "$UPDATE_KEY" ] || [ "$UPDATE_KEY" = "REPLACE_WITH_PUBLIC_KEY" ]; then
+    echo "==> warning: App/Info.plist carries the placeholder SUPublicEDKey, so this build cannot install an update. Fine locally, not for a release."
+fi
 APP_DIR="$REPO_ROOT/dist/Pipit.app"
 BIN_DIR="$REPO_ROOT/.build/$CONFIG"
 
@@ -47,6 +51,14 @@ if [ -f "$REPO_ROOT/extension/signed/pipit-sensor.xpi" ]; then
         "$APP_DIR/Contents/Resources/extension/pipit-sensor.xpi"
     echo "==> bundled the signed Firefox add-on"
 fi
+# Sparkle. SwiftPM unpacks the xcframework into
+# .build/artifacts/sparkle/Sparkle/Sparkle.xcframework/macos-arm64_x86_64 and
+# copies the macOS slice to .build/<config>/Sparkle.framework as part of the
+# build, so the per-config path is the one to take. The executable reaches it
+# through the @executable_path/../Frameworks rpath PipitApp links with.
+mkdir -p "$APP_DIR/Contents/Frameworks"
+[ -d "$BIN_DIR/Sparkle.framework" ] || { echo "no framework at $BIN_DIR/Sparkle.framework. Build first." >&2; exit 1; }
+cp -R "$BIN_DIR/Sparkle.framework" "$APP_DIR/Contents/Frameworks/Sparkle.framework"
 cp "$REPO_ROOT/Assets/Pipit/AppIcons/Pipit.icns" "$APP_DIR/Contents/Resources/Pipit.icns"
 for state in idle recording paused warning; do
     cp "$REPO_ROOT/Assets/Pipit/MenuBar/pipit-$state.png" "$APP_DIR/Contents/Resources/"
@@ -86,6 +98,22 @@ case "$IDENTITY" in
         echo "==> signing with the local identity \"$IDENTITY\""
         ;;
 esac
+# Sparkle's nested code signs first, innermost outwards, then the framework, then
+# the app. --deep is not used. It would re-sign the nested items with the app's
+# identifier and entitlements, which Sparkle's helpers do not accept.
+SPARKLE="$APP_DIR/Contents/Frameworks/Sparkle.framework"
+for nested in \
+    "$SPARKLE/Versions/B/XPCServices/Installer.xpc" \
+    "$SPARKLE/Versions/B/XPCServices/Downloader.xpc" \
+    "$SPARKLE/Versions/B/Autoupdate" \
+    "$SPARKLE/Versions/B/Updater.app" \
+    "$SPARKLE"; do
+    codesign --force --sign "$IDENTITY" \
+        --options runtime \
+        "${TIMESTAMP[@]}" \
+        "$nested"
+done
+
 # A stable identifier is what lets the app recognise its own relay when the relay
 # connects to the sensor socket.
 codesign --force --sign "$IDENTITY" \

@@ -15,6 +15,11 @@ struct GeneralSettingsPane: View {
                     Text("The menu bar item stays either way.")
                         .font(.caption).foregroundStyle(.secondary)
                 }
+                VStack(alignment: .leading, spacing: 2) {
+                    Toggle("Receive beta updates", isOn: model.binding(\.receivesBetaUpdates))
+                    Text("Betas carry work that is not finished.")
+                        .font(.caption).foregroundStyle(.secondary)
+                }
                 Toggle(
                     "Pause automatic detection",
                     isOn: Binding(
