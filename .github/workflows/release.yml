@@ -228,7 +228,11 @@ jobs:
             echo "::warning::No AMO credentials configured; shipping without the signed add-on."
             exit 0
           fi
-          ./scripts/sign-extension.sh "$VERSION"
+          # Mozilla signs each add-on version once and refuses a repeat, so a
+          # second run of the same release would fail here. The run number
+          # makes every submission distinct while the app version stays the
+          # first three parts. Firefox accepts up to four numeric parts.
+          ./scripts/sign-extension.sh "$VERSION.$GITHUB_RUN_NUMBER"
 
       - name: Build the app
         env:
