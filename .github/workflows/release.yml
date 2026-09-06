@@ -5,11 +5,17 @@ on:
     tags: ['v*.*.*']
   workflow_dispatch:
     inputs:
+      level:
+        description: 'Bump VERSION by this much and tag the result'
+        type: choice
+        default: none
+        options: [none, patch, minor, major]
       version:
-        description: 'Version to build, without the leading v'
-        required: true
+        description: 'Version to build, without the leading v. Leave empty when a level is given'
+        required: false
+        default: ''
       prerelease:
-        description: 'Mark the release as a pre-release, which puts the appcast item on the beta channel'
+        description: 'Mark the release as a pre-release, which puts the appcast item on the beta channel. A version below 1.0.0 is a pre-release either way'
         type: boolean
         default: false
 
@@ -34,21 +40,68 @@ jobs:
 
       - name: Resolve the version
         id: version
+        # A manual run takes either a bump level or an explicit version. The
+        # level route reads VERSION and raises it. The version route names the
+        # number outright, which is how the first release is cut. A tag push
+        # takes the version from the tag.
         env:
           # Passed through the environment and validated, never interpolated into
           # the script body.
+          INPUT_LEVEL: ${{ inputs.level }}
           INPUT_VERSION: ${{ inputs.version }}
+          INPUT_PRERELEASE: ${{ inputs.prerelease }}
+          EVENT_NAME: ${{ github.event_name }}
         run: |
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            VERSION="$INPUT_VERSION"
+          BUMP=false
+          if [ "$EVENT_NAME" = "workflow_dispatch" ]; then
+            LEVEL="$INPUT_LEVEL"
+            if [ "$LEVEL" = "none" ]; then
+              LEVEL=""
+            fi
+            if [ -n "$LEVEL" ] && [ -n "$INPUT_VERSION" ]; then
+              echo "give a bump level or a version, not both" >&2
+              exit 1
+            fi
+            if [ -z "$LEVEL" ] && [ -z "$INPUT_VERSION" ]; then
+              echo "give a bump level or a version" >&2
+              exit 1
+            fi
+            if [ -n "$LEVEL" ]; then
+              VERSION="$(./scripts/bump-version.sh "$LEVEL")"
+              BUMP=true
+            else
+              VERSION="$INPUT_VERSION"
+            fi
           else
             VERSION="${GITHUB_REF_NAME#v}"
           fi
           case "$VERSION" in
             *[!0-9.]*|"") echo "version must be numeric, got: $VERSION" >&2; exit 1 ;;
           esac
-          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          # Below 1.0.0 the release is a pre-release whatever the box says, so
+          # the appcast item lands on the beta channel.
+          PRERELEASE=false
+          if [ "${VERSION%%.*}" = "0" ] || [ "$INPUT_PRERELEASE" = "true" ]; then
+            PRERELEASE=true
+          fi
+          {
+            echo "version=$VERSION"
+            echo "tag=v$VERSION"
+            echo "bump=$BUMP"
+            echo "prerelease=$PRERELEASE"
+          } >> "$GITHUB_OUTPUT"
           echo "$VERSION" > VERSION
+
+      - name: Check the update signing key
+        # Sparkle refuses an update whose archive is unsigned, and the archive
+        # is signed against the public key inside the app. A release built with
+        # the placeholder ships a copy that can never update itself.
+        run: |
+          KEY="$(/usr/libexec/PlistBuddy -c "Print :SUPublicEDKey" App/Info.plist 2>/dev/null || true)"
+          if [ -z "$KEY" ] || [ "$KEY" = "REPLACE_WITH_PUBLIC_KEY" ]; then
+            echo "App/Info.plist still carries the placeholder SUPublicEDKey. Generate the EdDSA key pair and set the real public key before tagging a release. See docs/RELEASING.md." >&2
+            exit 1
+          fi
 
       - name: Test before packaging
         # The gate is the CI run on main, which tests every commit before it
@@ -56,6 +109,40 @@ jobs:
         # through it. It rebuilds the dependencies in debug and costs the job
         # around half an hour.
         run: ./scripts/test.sh
+
+      - name: Commit and tag the version bump
+        # The level route owns the version commit. It lands on the branch the
+        # run was started from, which has to be the default branch, and the tag
+        # goes on that commit so the release describes the tree that was built.
+        # A push made with GITHUB_TOKEN does not start ci.yml. That is
+        # acceptable here. This tree is the tested main plus one line in
+        # VERSION, and the test step above ran against it.
+        if: steps.version.outputs.bump == 'true'
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+          TAG: ${{ steps.version.outputs.tag }}
+          BRANCH: ${{ github.ref_name }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+        run: |
+          if [ "$BRANCH" != "$DEFAULT_BRANCH" ]; then
+            echo "a bump level run belongs on $DEFAULT_BRANCH, not $BRANCH" >&2
+            exit 1
+          fi
+          if [ "$(git show "HEAD:VERSION" | tr -d '[:space:]')" = "$VERSION" ]; then
+            echo "VERSION already reads $VERSION; run with an explicit version to rebuild it" >&2
+            exit 1
+          fi
+          if git ls-remote --exit-code --tags origin "refs/tags/$TAG" >/dev/null 2>&1; then
+            echo "tag $TAG already exists" >&2
+            exit 1
+          fi
+          git config user.name 'github-actions[bot]'
+          git config user.email 'github-actions[bot]@users.noreply.github.com'
+          git add VERSION
+          git commit -m "Release $VERSION"
+          git tag "$TAG"
+          git push origin "HEAD:$BRANCH"
+          git push origin "$TAG"
 
       - name: Import the Developer ID certificate
         # Absent secrets are not a failure: the build still produces an ad-hoc
@@ -108,17 +195,6 @@ jobs:
           fi
           ./scripts/sign-extension.sh "$VERSION"
 
-      - name: Check the update signing key
-        # Sparkle refuses an update whose archive is unsigned, and the archive
-        # is signed against the public key inside the app. A release built with
-        # the placeholder ships a copy that can never update itself.
-        run: |
-          KEY="$(/usr/libexec/PlistBuddy -c "Print :SUPublicEDKey" App/Info.plist 2>/dev/null || true)"
-          if [ -z "$KEY" ] || [ "$KEY" = "REPLACE_WITH_PUBLIC_KEY" ]; then
-            echo "App/Info.plist still carries the placeholder SUPublicEDKey. Generate the EdDSA key pair and set the real public key before tagging a release. See docs/RELEASING.md." >&2
-            exit 1
-          fi
-
       - name: Build the app
         env:
           PIPIT_SIGN_IDENTITY: ${{ steps.signing.outputs.identity }}
@@ -148,9 +224,13 @@ jobs:
             dist/Pipit-${{ steps.version.outputs.version }}.zip
             dist/Pipit-${{ steps.version.outputs.version }}.dmg
             dist/Pipit-${{ steps.version.outputs.version }}.sha256
-          tag_name: v${{ steps.version.outputs.version }}
+          tag_name: ${{ steps.version.outputs.tag }}
           draft: true
-          prerelease: ${{ inputs.prerelease == true }}
+          prerelease: ${{ steps.version.outputs.prerelease == 'true' }}
+          # GitHub appends the notes it generates from merged pull requests
+          # after this body.
           generate_release_notes: true
           body: |
-            ${{ steps.signing.outputs.signed == 'true' && 'Signed with Developer ID and notarized.' || '**Unsigned build.** Gatekeeper will refuse to open it normally. Do not publish this as a public release; see docs/RELEASING.md.' }}
+            ${{ steps.signing.outputs.signed == 'true' && 'Signed with Developer ID and notarized.' || '**Unsigned build.** Gatekeeper will refuse to open it normally. Do not publish this as a public release. See docs/RELEASING.md.' }}
+
+            Install Pipit by opening `Pipit-${{ steps.version.outputs.version }}.dmg` and dragging the app to Applications.

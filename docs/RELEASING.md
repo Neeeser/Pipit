@@ -1,8 +1,8 @@
 # Releasing Pipit
 
-Pipit releases are built from version tags. The release workflow tests the
-project, signs and notarizes the application, creates ZIP and DMG archives,
-writes SHA-256 checksums, and drafts a GitHub release.
+A release is one manual workflow run. The release workflow bumps the version,
+tags it, tests the project, signs and notarizes the application, creates ZIP
+and DMG archives, writes SHA-256 checksums, and drafts a GitHub release.
 
 ## Requirements
 
@@ -54,41 +54,64 @@ gh label create skip-changelog --color E4E669 --description "Keeps this pull req
 keeps working for Dependabot. `.github/workflows/pr-labels.yml` fails a pull
 request until one of these labels is on it.
 
-## Prepare the release
+## Cut the release
 
-Start from an up-to-date `main` branch with a clean working tree. Update
-`VERSION` and run the application and extension tests:
+Open Actions > Release > Run workflow on `main`, pick a bump level, and run it.
+The workflow reads `VERSION` through `scripts/bump-version.sh`, writes the
+bumped number back, commits it as `Release <version>`, tags `v<version>`, and
+builds from that commit. The pre-release checkbox forces the pre-release flag.
+A version below 1.0.0 carries it either way, which puts the appcast item on the
+beta channel.
+
+The `level` route needs a `VERSION` to bump from. The first release is cut by
+leaving the level at `none` and typing `0.1.0` into the version field instead.
+From the second release on, the level does the arithmetic.
+
+A run refuses to start when the level and the version are both filled in, when
+neither is, when `VERSION` already holds the computed number, or when the tag
+already exists. It also refuses a level run started from a branch other than
+`main`, because that is where the version commit goes.
+
+The bump commit and tag are pushed after the test step passes, so a failing
+test leaves no tag behind. A build that fails later does leave the tag and the
+version commit on `main`. Delete the tag, fix the cause, and run again with an
+explicit version.
+
+The version commit is pushed with `GITHUB_TOKEN`, which does not start
+`ci.yml`. The tree it tests is `main` plus one line in `VERSION`, and the
+release job runs the full suite against it first.
+
+Check the arithmetic locally at any time:
 
 ```sh
-printf '1.2.0\n' > VERSION
-./scripts/test.sh
-(cd extension && npm test)
-git add VERSION
-git commit -m "chore: release 1.2.0"
+./scripts/bump-version.sh minor
+./scripts/bump-version.sh --self-test
 ```
 
-Push the version commit through the normal pull request process. After it lands
-on `main`, create and push the matching tag:
+### Tag by hand instead
+
+A tag push still starts the workflow, which is the fallback when the Actions
+route is unavailable:
 
 ```sh
 git switch main
 git pull --ff-only
+printf '1.2.0\n' > VERSION
+./scripts/test.sh
+(cd extension && npm test)
+git commit -am "Release 1.2.0"
+git push
 git tag v1.2.0
 git push origin v1.2.0
 ```
 
-The tag starts `.github/workflows/release.yml`. The workflow creates these
-artifacts:
+The workflow creates these artifacts:
 
 ```text
 Pipit-1.2.0.zip
 Pipit-1.2.0.dmg
 Pipit-1.2.0.sha256
 ```
-
-A release started from the Actions tab has a pre-release checkbox. Ticking it
-marks the GitHub release as a pre-release and puts the appcast item on the beta
-channel. A version below 1.0.0 goes on the beta channel either way.
 
 The release job builds, tests, notarizes and packages within a 120-minute
 budget. The `swift test` step alone takes around half an hour because it

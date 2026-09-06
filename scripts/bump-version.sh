@@ -1,0 +1,84 @@
+#!/bin/bash
+# Print the next version after a bump. Usage: scripts/bump-version.sh <patch|minor|major>
+#
+# It reads the current version from the repository's VERSION file and writes
+# the bumped version to stdout. It changes no files, so the caller decides what
+# to do with the number. The release workflow calls it to turn a bump level
+# into the version it tags.
+#
+# scripts/bump-version.sh --self-test checks the arithmetic against a table of
+# cases and prints PASS or FAIL for each.
+set -euo pipefail
+
+# Split MAJOR.MINOR.PATCH, raise the requested field, and zero the fields below
+# it. Bash arithmetic only, so the script runs on a bare macOS runner.
+next_version() {
+    local current="$1" level="$2"
+    case "$current" in
+        [0-9]*.[0-9]*.[0-9]*) ;;
+        *) echo "version must be MAJOR.MINOR.PATCH, got: $current" >&2; return 1 ;;
+    esac
+    local major="${current%%.*}"
+    local rest="${current#*.}"
+    local minor="${rest%%.*}"
+    local patch="${rest#*.}"
+    case "$major$minor$patch" in
+        *[!0-9]*) echo "version fields must be numeric, got: $current" >&2; return 1 ;;
+    esac
+    case "$level" in
+        major) echo "$((major + 1)).0.0" ;;
+        minor) echo "$major.$((minor + 1)).0" ;;
+        patch) echo "$major.$minor.$((patch + 1))" ;;
+        *) echo "level must be patch, minor, or major, got: $level" >&2; return 1 ;;
+    esac
+}
+
+self_test() {
+    local failures=0
+    local case_line current level expected actual
+    for case_line in \
+        "0.1.0 patch 0.1.1" \
+        "0.1.9 minor 0.2.0" \
+        "0.9.3 major 1.0.0" \
+        "1.2.3 major 2.0.0" \
+        "1.2.3 minor 1.3.0" \
+        "1.2.9 patch 1.2.10"; do
+        read -r current level expected <<<"$case_line"
+        actual="$(next_version "$current" "$level")"
+        if [ "$actual" = "$expected" ]; then
+            echo "PASS $current $level -> $actual"
+        else
+            echo "FAIL $current $level -> $actual, expected $expected"
+            failures=$((failures + 1))
+        fi
+    done
+    if next_version "1.2" patch >/dev/null 2>&1; then
+        echo "FAIL 1.2 patch was accepted"
+        failures=$((failures + 1))
+    else
+        echo "PASS 1.2 patch is rejected"
+    fi
+    if next_version "1.2.3" sideways >/dev/null 2>&1; then
+        echo "FAIL sideways was accepted as a level"
+        failures=$((failures + 1))
+    else
+        echo "PASS sideways is rejected as a level"
+    fi
+    [ "$failures" -eq 0 ]
+}
+
+REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+
+case "${1-}" in
+    --self-test)
+        self_test
+        ;;
+    patch|minor|major)
+        current="$(tr -d '[:space:]' <"$REPO_ROOT/VERSION")"
+        next_version "$current" "$1"
+        ;;
+    *)
+        echo "usage: scripts/bump-version.sh <patch|minor|major|--self-test>" >&2
+        exit 2
+        ;;
+esac

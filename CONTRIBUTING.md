@@ -125,9 +125,11 @@ Test behavior at the lowest layer that exposes the defect.
 
 GitHub fills the description from `.github/PULL_REQUEST_TEMPLATE.md`, which asks
 for the problem, the change, and the testing. New issues use the bug and feature
-templates under `.github/ISSUE_TEMPLATE/`. Record a user-visible change in the
-Unreleased section of [CHANGELOG.md](CHANGELOG.md). Report a security problem
-privately instead, through the process in [SECURITY.md](SECURITY.md).
+templates under `.github/ISSUE_TEMPLATE/`. A user-visible change needs no changelog entry. The
+release notes on the [releases page](https://github.com/Neeeser/Pipit/releases)
+are built from pull request titles, so write a title that says what changed.
+Report a security problem privately instead, through the process in
+[SECURITY.md](SECURITY.md).
 
 Every pull request carries exactly one of `breaking`, `feature`, `fix`, `docs`,
 `ci`, `chore`, `dependencies`, or `skip-changelog`. GitHub builds the release
