@@ -48,6 +48,7 @@ They do not run in the ordinary suite.
 | Call OpenAI speech endpoints | `PIPIT_LIVE_OPENAI=1 PIPIT_LIVE_FIXTURE=/tmp/pipit-fixture OPENAI_API_KEY=... ./scripts/test.sh --filter LiveOpenAI` |
 | Process a long recording | `PIPIT_LIVE_LONG=1 PIPIT_LIVE_FIXTURE=/tmp/pipit-fixture ./scripts/test.sh` |
 | Run a capture soak | `PIPIT_SOAK_MINUTES=30 ./scripts/test.sh --filter Soak` |
+| Update the application through Sparkle | `./scripts/test-update.sh` |
 
 Create the local fixture with:
 
@@ -82,6 +83,8 @@ The following paths have been exercised outside unit tests:
   completed against live endpoints.
 - Speaker corrections, re-analysis, and recurring identity updates were driven
   through the installed application interface.
+- A Developer ID signed build checked a local appcast, downloaded the newer
+  build, verified its EdDSA signature, and replaced itself on quit.
 
 ## Remaining manual checks
 
