@@ -136,7 +136,7 @@ The workflow creates these artifacts:
 
 ```text
 Pipit-1.2.0.zip
-Pipit-1.2.0.dmg
+Pipit.dmg
 Pipit-1.2.0.sha256
 ```
 

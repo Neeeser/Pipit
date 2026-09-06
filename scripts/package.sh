@@ -11,9 +11,12 @@ OUT="$REPO_ROOT/dist"
 test -d "$APP" || { echo "build the app first: scripts/bundle-app.sh release" >&2; exit 1; }
 
 ZIP="$OUT/Pipit-$VERSION.zip"
-DMG="$OUT/Pipit-$VERSION.dmg"
+DMG="$OUT/Pipit.dmg"
 rm -f "$ZIP" "$DMG"
 
+# The disk image people download is named for the app alone, the way Firefox
+# and ChatGPT ship theirs. The zip beside it is what Sparkle downloads, so it
+# keeps the version and never reaches a Downloads folder.
 # ditto preserves the bundle's signature and symlinks; zip does not.
 ditto -c -k --sequesterRsrc --keepParent "$APP" "$ZIP"
 
@@ -39,7 +42,7 @@ tiffutil -cathidpicheck \
 # reach for --skip-jenkins: it skips the AppleScript altogether and ships a
 # disk image with no layout at all.
 create-dmg \
-  --volname "Pipit $VERSION" \
+  --volname "Pipit" \
   --volicon "$REPO_ROOT/Assets/Pipit/AppIcons/Pipit.icns" \
   --background "$BACKGROUND" \
   --window-pos 200 120 \
@@ -53,5 +56,5 @@ create-dmg \
   "$STAGING"
 rm -rf "$STAGING" "$(dirname "$BACKGROUND")"
 
-( cd "$OUT" && shasum -a 256 "Pipit-$VERSION.zip" "Pipit-$VERSION.dmg" ) > "$OUT/Pipit-$VERSION.sha256"
+( cd "$OUT" && shasum -a 256 "Pipit-$VERSION.zip" "Pipit.dmg" ) > "$OUT/Pipit-$VERSION.sha256"
 cat "$OUT/Pipit-$VERSION.sha256"

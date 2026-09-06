@@ -300,7 +300,7 @@ jobs:
         with:
           files: |
             dist/Pipit-${{ steps.version.outputs.version }}.zip
-            dist/Pipit-${{ steps.version.outputs.version }}.dmg
+            dist/Pipit.dmg
             dist/Pipit-${{ steps.version.outputs.version }}.sha256
           tag_name: ${{ steps.version.outputs.tag }}
           draft: true
