@@ -13,9 +13,12 @@ jobs:
       pull-requests: write
     steps:
       - name: Check for a category label
-        uses: mheap/github-action-required-labels@v5
+        uses: mheap/github-action-required-labels@23e10fde7e062233401931a0eece796cd9bf3177 # v5.6.0
         with:
           mode: minimum
           count: 1
           labels: breaking, feature, fix, docs, ci, chore, dependencies, skip-changelog
-          add_comment: true
+          # The check's log names the labels it requires. A comment needs write
+          # access the read-only token on a fork pull request does not have, and
+          # the failed write reddens a check that otherwise passed.
+          add_comment: false

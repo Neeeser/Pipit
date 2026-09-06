@@ -1,8 +1,9 @@
 # Releasing Pipit
 
 A release is one manual workflow run. The release workflow bumps the version,
-tags it, tests the project, signs and notarizes the application, creates ZIP
-and DMG archives, writes SHA-256 checksums, and drafts a GitHub release.
+tests the project, signs and notarizes the application, creates ZIP and DMG
+archives, writes SHA-256 checksums, tags the commit it built, and drafts a
+GitHub release.
 
 ## Requirements
 
@@ -58,28 +59,30 @@ request until one of these labels is on it.
 
 Open Actions > Release > Run workflow on `main`, pick a bump level, and run it.
 The workflow reads `VERSION` through `scripts/bump-version.sh`, writes the
-bumped number back, commits it as `Release <version>`, tags `v<version>`, and
-builds from that commit. The pre-release checkbox forces the pre-release flag.
-A version below 1.0.0 carries it either way, which puts the appcast item on the
-beta channel.
+bumped number into the tree, builds it, and then commits and tags it. The
+pre-release checkbox forces the pre-release flag. A version below 1.0.0 carries
+it either way, which puts the appcast item on the beta channel.
 
 The `level` route needs a `VERSION` to bump from. The first release is cut by
 leaving the level at `none` and typing `0.1.0` into the version field instead.
 From the second release on, the level does the arithmetic.
 
-A run refuses to start when the level and the version are both filled in, when
-neither is, when `VERSION` already holds the computed number, or when the tag
-already exists. It also refuses a level run started from a branch other than
-`main`, because that is where the version commit goes.
+The version lives in three places, and `scripts/bump-version.sh --apply` writes
+all of them: `VERSION`, `MARKETING_VERSION` in `project.yml`, and the
+`Pipit.xcodeproj` it regenerates from `project.yml`.
 
-The bump commit and tag are pushed after the test step passes, so a failing
-test leaves no tag behind. A build that fails later does leave the tag and the
-version commit on `main`. Delete the tag, fix the cause, and run again with an
-explicit version.
+A run refuses when the level and the version are both filled in, when neither
+is, when the version is not `MAJOR.MINOR.PATCH`, when the tag already exists on
+the remote, or when the run was started from a branch other than `main`. Those
+checks all run before the test step.
+
+The version commit and the tag are made only after the tests, the signing, the
+notarization and the packaging have succeeded, so a failed build leaves neither
+behind. Run it again once the cause is fixed.
 
 The version commit is pushed with `GITHUB_TOKEN`, which does not start
-`ci.yml`. The tree it tests is `main` plus one line in `VERSION`, and the
-release job runs the full suite against it first.
+`ci.yml`. The tree it tests is `main` plus the version files, and the release
+job runs the full suite against it first.
 
 Check the arithmetic locally at any time:
 
@@ -91,16 +94,24 @@ Check the arithmetic locally at any time:
 ### Tag by hand instead
 
 A tag push still starts the workflow, which is the fallback when the Actions
-route is unavailable:
+route is unavailable. The version files go through a pull request like any
+other change, and the tag is pushed once it is merged:
+
+```sh
+git switch -c release-1.2.0
+./scripts/bump-version.sh --apply 1.2.0
+./scripts/test.sh
+(cd extension && npm test)
+git commit -am "Release 1.2.0"
+git push -u origin release-1.2.0
+gh pr create --fill --label ci
+```
+
+After the pull request merges:
 
 ```sh
 git switch main
 git pull --ff-only
-printf '1.2.0\n' > VERSION
-./scripts/test.sh
-(cd extension && npm test)
-git commit -am "Release 1.2.0"
-git push
 git tag v1.2.0
 git push origin v1.2.0
 ```

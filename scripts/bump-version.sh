@@ -6,6 +6,9 @@
 # to do with the number. The release workflow calls it to turn a bump level
 # into the version it tags.
 #
+# scripts/bump-version.sh --apply <version> writes that version into the tree:
+# VERSION, MARKETING_VERSION in project.yml, and the generated Xcode project.
+#
 # scripts/bump-version.sh --self-test checks the arithmetic against a table of
 # cases and prints PASS or FAIL for each.
 set -euo pipefail
@@ -67,18 +70,49 @@ self_test() {
     [ "$failures" -eq 0 ]
 }
 
+# Write a version into the tree. VERSION and project.yml are the two files that
+# hold it. Pipit.xcodeproj is generated from project.yml, so it is regenerated
+# here when xcodegen is available and left to the caller when it is not.
+apply_version() {
+    local version="$1"
+    case "$version" in
+        [0-9]*.[0-9]*.[0-9]*) ;;
+        *) echo "version must be MAJOR.MINOR.PATCH, got: $version" >&2; return 1 ;;
+    esac
+    printf '%s\n' "$version" > "$REPO_ROOT/VERSION"
+    local project="$REPO_ROOT/project.yml"
+    if ! grep -q '^ *MARKETING_VERSION:' "$project"; then
+        echo "no MARKETING_VERSION in $project" >&2
+        return 1
+    fi
+    sed -i '' -E "s/^([[:space:]]*MARKETING_VERSION:).*/\\1 \"$version\"/" "$project"
+    if command -v xcodegen >/dev/null 2>&1; then
+        (cd "$REPO_ROOT" && xcodegen generate >/dev/null)
+    else
+        echo "xcodegen is not on the PATH; regenerate Pipit.xcodeproj before committing" >&2
+    fi
+    echo "$version"
+}
+
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
 case "${1-}" in
     --self-test)
         self_test
         ;;
+    --apply)
+        if [ -z "${2-}" ]; then
+            echo "usage: scripts/bump-version.sh --apply <version>" >&2
+            exit 2
+        fi
+        apply_version "$2"
+        ;;
     patch|minor|major)
         current="$(tr -d '[:space:]' <"$REPO_ROOT/VERSION")"
         next_version "$current" "$1"
         ;;
     *)
-        echo "usage: scripts/bump-version.sh <patch|minor|major|--self-test>" >&2
+        echo "usage: scripts/bump-version.sh <patch|minor|major|--apply VERSION|--self-test>" >&2
         exit 2
         ;;
 esac

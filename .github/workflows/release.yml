@@ -43,7 +43,9 @@ jobs:
         # A manual run takes either a bump level or an explicit version. The
         # level route reads VERSION and raises it. The version route names the
         # number outright, which is how the first release is cut. A tag push
-        # takes the version from the tag.
+        # takes the version from the tag. Both manual routes end the same way:
+        # the version goes into the tree, the build runs, and the commit and
+        # the tag are pushed once it has succeeded.
         env:
           # Passed through the environment and validated, never interpolated into
           # the script body.
@@ -51,9 +53,15 @@ jobs:
           INPUT_VERSION: ${{ inputs.version }}
           INPUT_PRERELEASE: ${{ inputs.prerelease }}
           EVENT_NAME: ${{ github.event_name }}
+          BRANCH: ${{ github.ref_name }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
         run: |
-          BUMP=false
+          TAG_PUSH=false
           if [ "$EVENT_NAME" = "workflow_dispatch" ]; then
+            if [ "$BRANCH" != "$DEFAULT_BRANCH" ]; then
+              echo "a release run belongs on $DEFAULT_BRANCH, not $BRANCH" >&2
+              exit 1
+            fi
             LEVEL="$INPUT_LEVEL"
             if [ "$LEVEL" = "none" ]; then
               LEVEL=""
@@ -68,16 +76,22 @@ jobs:
             fi
             if [ -n "$LEVEL" ]; then
               VERSION="$(./scripts/bump-version.sh "$LEVEL")"
-              BUMP=true
             else
               VERSION="$INPUT_VERSION"
             fi
           else
+            TAG_PUSH=true
             VERSION="${GITHUB_REF_NAME#v}"
           fi
-          case "$VERSION" in
-            *[!0-9.]*|"") echo "version must be numeric, got: $VERSION" >&2; exit 1 ;;
-          esac
+          if ! printf '%s' "$VERSION" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$'; then
+            echo "version must be MAJOR.MINOR.PATCH, got: $VERSION" >&2
+            exit 1
+          fi
+          if [ "$TAG_PUSH" = false ] \
+            && git ls-remote --exit-code --tags origin "refs/tags/v$VERSION" >/dev/null 2>&1; then
+            echo "tag v$VERSION already exists" >&2
+            exit 1
+          fi
           # Below 1.0.0 the release is a pre-release whatever the box says, so
           # the appcast item lands on the beta channel.
           PRERELEASE=false
@@ -87,10 +101,21 @@ jobs:
           {
             echo "version=$VERSION"
             echo "tag=v$VERSION"
-            echo "bump=$BUMP"
+            echo "tag_push=$TAG_PUSH"
             echo "prerelease=$PRERELEASE"
           } >> "$GITHUB_OUTPUT"
-          echo "$VERSION" > VERSION
+
+      - name: Install XcodeGen
+        # scripts/bump-version.sh --apply regenerates Pipit.xcodeproj, so the
+        # version commit carries the project the build was made from.
+        run: brew install xcodegen
+
+      - name: Write the version into the tree
+        # VERSION, MARKETING_VERSION in project.yml, and the regenerated
+        # Pipit.xcodeproj. The build below reads them. Nothing is pushed yet.
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: ./scripts/bump-version.sh --apply "$VERSION"
 
       - name: Check the update signing key
         # Sparkle refuses an update whose archive is unsigned, and the archive
@@ -109,40 +134,6 @@ jobs:
         # through it. It rebuilds the dependencies in debug and costs the job
         # around half an hour.
         run: ./scripts/test.sh
-
-      - name: Commit and tag the version bump
-        # The level route owns the version commit. It lands on the branch the
-        # run was started from, which has to be the default branch, and the tag
-        # goes on that commit so the release describes the tree that was built.
-        # A push made with GITHUB_TOKEN does not start ci.yml. That is
-        # acceptable here. This tree is the tested main plus one line in
-        # VERSION, and the test step above ran against it.
-        if: steps.version.outputs.bump == 'true'
-        env:
-          VERSION: ${{ steps.version.outputs.version }}
-          TAG: ${{ steps.version.outputs.tag }}
-          BRANCH: ${{ github.ref_name }}
-          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
-        run: |
-          if [ "$BRANCH" != "$DEFAULT_BRANCH" ]; then
-            echo "a bump level run belongs on $DEFAULT_BRANCH, not $BRANCH" >&2
-            exit 1
-          fi
-          if [ "$(git show "HEAD:VERSION" | tr -d '[:space:]')" = "$VERSION" ]; then
-            echo "VERSION already reads $VERSION; run with an explicit version to rebuild it" >&2
-            exit 1
-          fi
-          if git ls-remote --exit-code --tags origin "refs/tags/$TAG" >/dev/null 2>&1; then
-            echo "tag $TAG already exists" >&2
-            exit 1
-          fi
-          git config user.name 'github-actions[bot]'
-          git config user.email 'github-actions[bot]@users.noreply.github.com'
-          git add VERSION
-          git commit -m "Release $VERSION"
-          git tag "$TAG"
-          git push origin "HEAD:$BRANCH"
-          git push origin "$TAG"
 
       - name: Import the Developer ID certificate
         # Absent secrets are not a failure: the build still produces an ad-hoc
@@ -215,6 +206,31 @@ jobs:
       - name: Remove the signing keychain
         if: always()
         run: security delete-keychain build.keychain || true
+
+      - name: Commit and tag the version
+        # The build has already signed, notarized and packaged, so the tag only
+        # ever names a tree that produced a release. The commit lands on the
+        # default branch and the tag goes on that commit, which is why the
+        # release step needs no target_commitish. A push made with GITHUB_TOKEN
+        # does not start ci.yml. That is acceptable here. This tree is the
+        # tested default branch plus the version files, and the test step above
+        # ran against it. A tag push run skips this step, because its tag
+        # already exists.
+        if: steps.version.outputs.tag_push != 'true'
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+          TAG: ${{ steps.version.outputs.tag }}
+          BRANCH: ${{ github.ref_name }}
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email 'github-actions[bot]@users.noreply.github.com'
+          if ! git diff --quiet HEAD -- VERSION project.yml Pipit.xcodeproj; then
+            git add VERSION project.yml Pipit.xcodeproj
+            git commit -m "Release $VERSION"
+            git push origin "HEAD:$BRANCH"
+          fi
+          git tag "$TAG"
+          git push origin "$TAG"
 
       - name: Publish the release
         # Pinned to a commit: this job holds the signing identity while it runs.

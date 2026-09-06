@@ -98,7 +98,8 @@ targets:
         CODE_SIGN_ENTITLEMENTS: App/Pipit.entitlements
         # Development builds only. A shipped bundle takes its version from
         # VERSION, stamped by scripts/bundle-app.sh.
-        MARKETING_VERSION: "1.0.0"
+        # scripts/bump-version.sh --apply keeps this in step with VERSION.
+        MARKETING_VERSION: "0.1.0"
         CURRENT_PROJECT_VERSION: "1"
         ENABLE_HARDENED_RUNTIME: YES
         GENERATE_INFOPLIST_FILE: NO

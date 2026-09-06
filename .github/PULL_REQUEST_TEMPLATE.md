@@ -14,7 +14,8 @@ description and the tests.
 
 ## Label
 
-Add one label. It decides where this pull request lands in the release notes.
+Add at least one label. It decides where this pull request lands in the
+release notes.
 
 - [ ] `breaking` changes behaviour or storage in a way an existing install notices
 - [ ] `feature` adds a capability a user can see
