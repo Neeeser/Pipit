@@ -196,3 +196,4 @@ The version argument stamps the built manifest, because AMO refuses a version
 it has already signed for this add-on. Pass the release version so each tag
 signs a version of its own. Mozilla reviews self-distributed add-ons after the
 fact and can disable one that breaks their policies.
+
