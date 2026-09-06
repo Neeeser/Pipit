@@ -38,5 +38,20 @@
     <string>Pipit matches recordings to calendar events for titles and attendees.</string>
     <key>NSDocumentsFolderUsageDescription</key>
     <string>Pipit saves your recordings and transcripts here.</string>
+    <!-- Sparkle. The feed is written by the release workflow and served from
+         GitHub Pages. SUPublicEDKey holds the EdDSA public key whose private
+         half signs each archive; the placeholder is replaced once Andrew
+         generates the pair. Automatic checks run daily, but nothing downloads
+         or installs until the user acts on the prompt. -->
+    <key>SUFeedURL</key>
+    <string>https://neeeser.github.io/Pipit/appcast.xml</string>
+    <key>SUPublicEDKey</key>
+    <string>REPLACE_WITH_PUBLIC_KEY</string>
+    <key>SUEnableAutomaticChecks</key>
+    <true/>
+    <key>SUScheduledCheckInterval</key>
+    <integer>86400</integer>
+    <key>SUAllowsAutomaticUpdates</key>
+    <false/>
 </dict>
 </plist>

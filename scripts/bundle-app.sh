@@ -47,6 +47,13 @@ if [ -f "$REPO_ROOT/extension/signed/pipit-sensor.xpi" ]; then
         "$APP_DIR/Contents/Resources/extension/pipit-sensor.xpi"
     echo "==> bundled the signed Firefox add-on"
 fi
+# Sparkle. SwiftPM unpacks the xcframework into
+# .build/artifacts/sparkle/Sparkle/Sparkle.xcframework/macos-arm64_x86_64 and
+# copies the macOS slice to .build/<config>/Sparkle.framework as part of the
+# build, so the per-config path is the one to take. The executable reaches it
+# through the @executable_path/../Frameworks rpath PipitApp links with.
+mkdir -p "$APP_DIR/Contents/Frameworks"
+cp -R "$BIN_DIR/Sparkle.framework" "$APP_DIR/Contents/Frameworks/Sparkle.framework"
 cp "$REPO_ROOT/Assets/Pipit/AppIcons/Pipit.icns" "$APP_DIR/Contents/Resources/Pipit.icns"
 for state in idle recording paused warning; do
     cp "$REPO_ROOT/Assets/Pipit/MenuBar/pipit-$state.png" "$APP_DIR/Contents/Resources/"
@@ -86,6 +93,22 @@ case "$IDENTITY" in
         echo "==> signing with the local identity \"$IDENTITY\""
         ;;
 esac
+# Sparkle's nested code signs first, innermost outwards, then the framework, then
+# the app. --deep is not used: it would re-sign the nested items with the app's
+# identifier and entitlements, which Sparkle's helpers do not accept.
+SPARKLE="$APP_DIR/Contents/Frameworks/Sparkle.framework"
+for nested in \
+    "$SPARKLE/Versions/B/XPCServices/Installer.xpc" \
+    "$SPARKLE/Versions/B/XPCServices/Downloader.xpc" \
+    "$SPARKLE/Versions/B/Autoupdate" \
+    "$SPARKLE/Versions/B/Updater.app" \
+    "$SPARKLE"; do
+    codesign --force --sign "$IDENTITY" \
+        --options runtime \
+        "${TIMESTAMP[@]}" \
+        "$nested"
+done
+
 # A stable identifier is what lets the app recognise its own relay when the relay
 # connects to the sensor socket.
 codesign --force --sign "$IDENTITY" \
