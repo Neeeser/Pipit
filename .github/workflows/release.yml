@@ -131,10 +131,11 @@ jobs:
             echo "prerelease=$PRERELEASE"
           } >> "$GITHUB_OUTPUT"
 
-      - name: Install XcodeGen
+      - name: Install XcodeGen and create-dmg
         # scripts/bump-version.sh --apply regenerates Pipit.xcodeproj, so the
         # version commit carries the project the build was made from.
-        run: brew install xcodegen
+        # create-dmg lays out the installer window in scripts/package.sh.
+        run: brew install xcodegen create-dmg
 
       - name: Write the version into the tree
         # VERSION, MARKETING_VERSION in project.yml, and the regenerated
