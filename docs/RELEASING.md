@@ -68,10 +68,10 @@ Release notes come from merged pull request titles grouped by label, as
 ```sh
 gh label create breaking --color B60205 --description "Changes behaviour or storage in a way an existing install notices." --force
 gh label create feature --color 0E8A16 --description "Adds a capability a user can see." --force
-gh label create fix --color D73A4A --description "Corrects a defect in shipped behaviour." --force
+gh label create fix --color D73A4A --description "Corrects a defect a person using the app hit." --force
 gh label create docs --color 0075CA --description "Changes documentation only." --force
 gh label create ci --color 5319E7 --description "Changes workflows, scripts, or the build itself." --force
-gh label create chore --color FBCA04 --description "Maintenance work with no user-visible effect." --force
+gh label create chore --color FBCA04 --description "Maintenance, packaging, or build work the app does not show." --force
 gh label create dependencies --color 0366D6 --description "Updates a dependency." --force
 gh label create skip-changelog --color E4E669 --description "Keeps this pull request out of the release notes." --force
 ```

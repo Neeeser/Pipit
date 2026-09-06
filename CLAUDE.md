@@ -58,18 +58,27 @@ that ships rather than a second copy of it.
 
 ## Pull requests and release notes
 
-Merged pull request titles become the release notes, grouped by label. Write
-the title as the change a user or contributor sees, in the imperative, for
-example "Offer the folder a meeting was filed in" or "Cache the SwiftPM build
-in CI". A title that names a file, a function, or a mechanism belongs in the
-body. Label every pull request with one of `breaking`, `feature`, `fix`,
-`docs`, `ci`, `chore`, `dependencies`, or `skip-changelog`. Only the first
-three reach the notes.
+Merged pull request titles become the release notes. The label decides
+whether a change is announced, and the title decides how it reads.
 
-Release notes on the GitHub release stay to one or two lines. Say what the
-release is, then let the generated list carry the changes. Signing,
-notarization, and how to install a DMG are implied by a macOS release and
-are not repeated there.
+`feature` and `fix` are for changes a person using Pipit notices. Recording,
+detection, transcription, diarization, speaker names, the meetings window,
+settings, the menu bar, permissions, and updates all qualify. Everything
+about how the app is built, tested, signed, packaged, or released takes `ci`
+or `chore` and never reaches the notes, however much work it was. `docs`,
+`dependencies`, and `skip-changelog` stay out as well.
+
+Write a `feature` or `fix` title as the symptom the person had, not the
+mechanism that changed. "Pick up a speaker who only talks near the end of a
+call" rather than "Widen the diarization interval match window". "Stop the
+menu bar item crashing after a recording is deleted" rather than "Guard the
+nil meeting in MenuBarController". A file, a type, or a function name
+belongs in the body.
+
+The notes on the release page are one or two lines saying what the release
+is. The generated list carries the changes. Signing, notarization, and how
+to install a disk image are implied by a macOS release and are not written
+out.
 
 ## Project constraints
 
