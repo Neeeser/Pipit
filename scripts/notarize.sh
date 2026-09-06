@@ -17,12 +17,13 @@ ARCHIVE="$(mktemp -d)/notarize.zip"
 ditto -c -k --sequesterRsrc --keepParent "$APP" "$ARCHIVE"
 
 echo "==> submitting to the notary service"
-# The password is passed by reference: a command line is visible to any process
-# on the machine, and the submission holds it for the whole wait.
+# The password goes on the command line. The @env: reference form is
+# rejected with a 401 by the notarytool in Xcode 26.3, and the release runs
+# on a single-use runner where no other process reads the command line.
 xcrun notarytool submit "$ARCHIVE" \
     --apple-id "$APPLE_ID" \
     --team-id "$APPLE_TEAM_ID" \
-    --password "@env:APPLE_APP_PASSWORD" \
+    --password "$APPLE_APP_PASSWORD" \
     --wait
 
 echo "==> stapling"
