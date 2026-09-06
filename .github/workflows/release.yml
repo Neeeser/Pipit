@@ -53,7 +53,7 @@ jobs:
         # is reused as compiled rather than rebuilt under a different flag.
         # The gate still holds: ci.yml builds the same tree with the flag on
         # every commit, so a warning never reaches a release untested.
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: .build
           key: spm-${{ runner.os }}-${{ steps.toolchain.outputs.xcode }}-${{ hashFiles('Package.resolved', 'Package.swift') }}
