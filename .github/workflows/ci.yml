@@ -26,6 +26,7 @@ jobs:
       - uses: actions/checkout@v7
 
       - name: Select the newest Xcode on the image
+        id: toolchain
         # The SpeechAnalyzer backend needs the macOS 26 SDK to compile in.
         # The code carries its own compile gate, so an image without a new
         # enough Xcode still builds; it just builds without the Apple engine,
@@ -34,6 +35,25 @@ jobs:
           newest="$(ls -d /Applications/Xcode*.app | sort -V | tail -1)"
           echo "selecting $newest"
           sudo xcode-select -s "$newest"
+          echo "xcode=$(xcodebuild -version | head -1)" >> "$GITHUB_OUTPUT"
+
+      - name: Cache the SwiftPM build directory
+        # .build holds the dependency checkouts, the build artifacts and both
+        # configurations, so nothing is excluded. It runs a few gigabytes.
+        # GitHub evicts by age under the 10 GB repository limit, and a change
+        # to Package.resolved or Package.swift moves the key onto a fresh
+        # entry that the restore-keys prefix still warms from the last one.
+        #
+        # PIPIT_WARNINGS_AS_ERRORS adds -Xswiftc -warnings-as-errors, and an
+        # object compiled without that flag is reused as compiled. That is
+        # fine here: this job sets the flag on every build, so a cache written
+        # by it was compiled with the gate on.
+        uses: actions/cache@v4
+        with:
+          path: .build
+          key: spm-${{ runner.os }}-${{ steps.toolchain.outputs.xcode }}-${{ hashFiles('Package.resolved', 'Package.swift') }}
+          restore-keys: |
+            spm-${{ runner.os }}-${{ steps.toolchain.outputs.xcode }}-
 
       - name: Install SwiftLint and XcodeGen
         run: brew install swiftlint xcodegen

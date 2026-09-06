@@ -30,6 +30,7 @@ jobs:
       - uses: actions/checkout@v7
 
       - name: Select the newest Xcode on the image
+        id: toolchain
         # A release built without the macOS 26 SDK ships without the Apple
         # speech engine: the compile gate keeps such a build correct, but the
         # newest toolchain is what keeps the engine in the product.
@@ -37,6 +38,27 @@ jobs:
           newest="$(ls -d /Applications/Xcode*.app | sort -V | tail -1)"
           echo "selecting $newest"
           sudo xcode-select -s "$newest"
+          echo "xcode=$(xcodebuild -version | head -1)" >> "$GITHUB_OUTPUT"
+
+      - name: Cache the SwiftPM build directory
+        # Shares the key shape with ci.yml, so a release warms from whatever
+        # CI last wrote for this toolchain and resolved dependency set. .build
+        # holds the checkouts, the artifacts and both configurations, so
+        # nothing is excluded. It runs a few gigabytes, and GitHub evicts by
+        # age under the 10 GB repository limit. A change to Package.resolved
+        # or Package.swift moves the key onto a fresh entry, which the
+        # restore-keys prefix still warms from the last one.
+        #
+        # This job does not set PIPIT_WARNINGS_AS_ERRORS, and a cached object
+        # is reused as compiled rather than rebuilt under a different flag.
+        # The gate still holds: ci.yml builds the same tree with the flag on
+        # every commit, so a warning never reaches a release untested.
+        uses: actions/cache@v4
+        with:
+          path: .build
+          key: spm-${{ runner.os }}-${{ steps.toolchain.outputs.xcode }}-${{ hashFiles('Package.resolved', 'Package.swift') }}
+          restore-keys: |
+            spm-${{ runner.os }}-${{ steps.toolchain.outputs.xcode }}-
 
       - name: Resolve the version
         id: version
@@ -128,11 +150,28 @@ jobs:
             exit 1
           fi
 
-      - name: Test before packaging
+      - name: Look for a passing CI run on this commit
+        id: ci
         # The gate is the CI run on main, which tests every commit before it
-        # lands. This step only catches a tag placed on a commit that never went
-        # through it. It rebuilds the dependencies in debug and costs the job
-        # around half an hour.
+        # lands. When that run already passed on this exact commit, the test
+        # step below repeats it and costs the job around half an hour, so it
+        # is skipped. The name must match the job name in ci.yml.
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          tested=false
+          if gh api "repos/${{ github.repository }}/commits/${{ github.sha }}/check-runs" \
+            --jq '.check_runs[] | select(.name == "Build and test" and .conclusion == "success") | .name' \
+            | grep -q .; then
+            tested=true
+          fi
+          echo "CI tested this commit: $tested"
+          echo "tested=$tested" >> "$GITHUB_OUTPUT"
+
+      - name: Test before packaging
+        # Only reached when no passing CI run exists for this commit, which in
+        # practice means a tag pushed by hand onto an untested commit.
+        if: steps.ci.outputs.tested != 'true'
         run: ./scripts/test.sh
 
       - name: Import the Developer ID certificate
