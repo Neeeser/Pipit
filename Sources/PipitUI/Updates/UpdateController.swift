@@ -1,3 +1,4 @@
+import Foundation
 import PipitCore
 import PipitServices
 import Sparkle
@@ -52,13 +53,22 @@ public final class UpdateController: NSObject, SPUUpdaterDelegate {
         controller.updater.checkForUpdates()
     }
 
+    /// The version this copy of the app was built as. Sparkle compares the
+    /// same string when it decides whether a feed item is newer.
+    static var runningVersion: String {
+        Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? ""
+    }
+
     // MARK: - SPUUpdaterDelegate
 
     /// Sparkle calls its delegate on the main thread, so the current setting is
     /// read from the runtime at check time rather than mirrored.
     public nonisolated func allowedChannels(for updater: SPUUpdater) -> Set<String> {
         MainActor.assumeIsolated {
-            UpdateChannels.allowed(receivesBeta: runtime?.settings.receivesBetaUpdates ?? false)
+            UpdateChannels.allowed(
+                receivesBeta: runtime?.settings.receivesBetaUpdates ?? false,
+                appVersion: Self.runningVersion
+            )
         }
     }
 }

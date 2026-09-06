@@ -227,7 +227,16 @@ jobs:
           if ! git diff --quiet HEAD -- VERSION project.yml Pipit.xcodeproj; then
             git add VERSION project.yml Pipit.xcodeproj
             git commit -m "Release $VERSION"
-            git push origin "HEAD:$BRANCH"
+            # A pull request that merged while this job built moved the branch,
+            # and the push would be rejected. Replay the version commit onto
+            # what is there now. A conflict means the merge touched the version
+            # files, so the run stops here and no tag is pushed.
+            if ! git pull --rebase origin "$BRANCH"; then
+              echo "cannot rebase the version commit onto $BRANCH: a change that landed during this run conflicts with VERSION, project.yml or Pipit.xcodeproj. Resolve it and run the release again." >&2
+              git rebase --abort || true
+              exit 1
+            fi
+            git push origin "HEAD:$BRANCH" || git push origin "HEAD:$BRANCH"
           fi
           git tag "$TAG"
           git push origin "$TAG"

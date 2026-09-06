@@ -61,11 +61,19 @@ Open Actions > Release > Run workflow on `main`, pick a bump level, and run it.
 The workflow reads `VERSION` through `scripts/bump-version.sh`, writes the
 bumped number into the tree, builds it, and then commits and tags it. The
 pre-release checkbox forces the pre-release flag. A version below 1.0.0 carries
-it either way, which puts the appcast item on the beta channel.
+it either way, which puts the appcast item on the beta channel. A 0.x build
+reads that channel whatever its beta setting says, so every 0.x install
+receives every 0.x release. The setting starts deciding at 1.0.
+
+Do not merge to `main` while a release run is in progress. The run pushes the
+version commit onto `main` at the end, and a merge that lands first has to be
+rebased onto.
 
 The `level` route needs a `VERSION` to bump from. The first release is cut by
 leaving the level at `none` and typing `0.1.0` into the version field instead.
-From the second release on, the level does the arithmetic.
+That run makes no version commit when `VERSION` and `project.yml` already say
+`0.1.0`, and pushes only the tag. From the second release on, the level does
+the arithmetic.
 
 The version lives in three places, and `scripts/bump-version.sh --apply` writes
 all of them: `VERSION`, `MARKETING_VERSION` in `project.yml`, and the
@@ -79,6 +87,14 @@ checks all run before the test step.
 The version commit and the tag are made only after the tests, the signing, the
 notarization and the packaging have succeeded, so a failed build leaves neither
 behind. Run it again once the cause is fixed.
+
+A failure after the tag is pushed leaves the tag on the remote, and the next
+run refuses a version whose tag exists. Delete the remote tag and run the
+release again:
+
+```sh
+git push origin :refs/tags/v1.2.0
+```
 
 The version commit is pushed with `GITHUB_TOKEN`, which does not start
 `ci.yml`. The tree it tests is `main` plus the version files, and the release
