@@ -87,8 +87,8 @@ The workflow creates a draft GitHub release. Before publishing it:
 
 Publishing the draft starts `.github/workflows/appcast.yml`. It downloads
 `Pipit-1.2.0.zip` from the published release, runs `scripts/make-appcast.sh`,
-and commits `appcast.xml` to `gh-pages`. The feed serves the new version within
-a minute. A draft that is never published, or is discarded, leaves the feed
+and commits `appcast.xml` to `gh-pages`. The feed serves the new version once
+the Pages deployment for that commit finishes. A draft that is never published, or is discarded, leaves the feed
 untouched. Re-run the workflow from the Actions tab with the tag as its input
 if the appcast needs rebuilding.
 
@@ -128,9 +128,12 @@ tar -xJf Sparkle-2.9.6.tar.xz
 
 Put the printed public key into `App/Info.plist` under `SUPublicEDKey`, and the
 one line in `sparkle-private-key.txt` into the `SPARKLE_PRIVATE_KEY` secret.
-Delete the exported file afterwards. `generate_appcast` signs an archive only
-when the app inside it carries `SUPublicEDKey`, so the placeholder value fails
-the release workflow rather than shipping an update Sparkle refuses. Losing the
+Delete the exported file afterwards. `generate_appcast` compares the public key
+in the app against the public half of the private key it is given. On a mismatch
+it warns, leaves `edSignature` empty and exits 0, so `scripts/make-appcast.sh`
+checks the written appcast for that attribute and fails the run itself. The
+release workflow also refuses to build while `App/Info.plist` still holds the
+placeholder key, so an unsignable release never reaches the feed. Losing the
 private key means every installed copy stops updating, so keep a backup outside
 the repository.
 

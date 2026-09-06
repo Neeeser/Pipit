@@ -108,6 +108,17 @@ jobs:
           fi
           ./scripts/sign-extension.sh "$VERSION"
 
+      - name: Check the update signing key
+        # Sparkle refuses an update whose archive is unsigned, and the archive
+        # is signed against the public key inside the app. A release built with
+        # the placeholder ships a copy that can never update itself.
+        run: |
+          KEY="$(/usr/libexec/PlistBuddy -c "Print :SUPublicEDKey" App/Info.plist 2>/dev/null || true)"
+          if [ -z "$KEY" ] || [ "$KEY" = "REPLACE_WITH_PUBLIC_KEY" ]; then
+            echo "App/Info.plist still carries the placeholder SUPublicEDKey. Generate the EdDSA key pair and set the real public key before tagging a release. See docs/RELEASING.md." >&2
+            exit 1
+          fi
+
       - name: Build the app
         env:
           PIPIT_SIGN_IDENTITY: ${{ steps.signing.outputs.identity }}

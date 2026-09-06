@@ -111,9 +111,10 @@ if updated != text:
     open(path, "w", encoding="utf-8").write(updated)
 PYTHON
 
-# An enclosure without a signature is an update Sparkle will refuse. The tool
-# signs only when the app inside the archive carries SUPublicEDKey, so a
-# placeholder key in App/Info.plist fails here rather than at update time.
+# An enclosure without a signature is an update Sparkle will refuse.
+# generate_appcast compares the public key in the app against the public half of
+# the private key it was given. On a mismatch it prints a warning, leaves
+# edSignature empty and still exits 0, so this check is what fails the run.
 if ! grep "$(basename "$ARCHIVE")\"" "$APPCAST_DIR/appcast.xml" | grep -q 'sparkle:edSignature'; then
     echo "appcast has no edSignature: check SUPublicEDKey in the bundled Info.plist" >&2
     exit 1

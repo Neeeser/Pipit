@@ -63,11 +63,11 @@ jobs:
           PRERELEASE: ${{ steps.release.outputs.prerelease }}
         run: |
           if [ -z "$SPARKLE_PRIVATE_KEY" ]; then
-            echo "::warning::No Sparkle private key configured; the appcast was not updated."
+            echo "::warning::No Sparkle private key configured. The appcast was not updated."
             exit 0
           fi
           # The published feed seeds the run so that earlier items survive.
-          # Nothing else goes in this directory: generate_appcast rewrites the
+          # Nothing else goes in this directory. generate_appcast rewrites the
           # download URL of any item whose archive it finds beside the new one.
           rm -rf dist/appcast
           mkdir -p dist/appcast

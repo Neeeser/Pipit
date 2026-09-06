@@ -19,6 +19,10 @@ VERSION="$(cat "$REPO_ROOT/VERSION" 2>/dev/null || echo "0.1.0")"
 BUILD_NUMBER="${PIPIT_BUILD_NUMBER:-1}"
 # Read from the plist so the signing identifier and the bundle cannot drift.
 BUNDLE_ID="$(/usr/libexec/PlistBuddy -c "Print :CFBundleIdentifier" "$REPO_ROOT/App/Info.plist")"
+UPDATE_KEY="$(/usr/libexec/PlistBuddy -c "Print :SUPublicEDKey" "$REPO_ROOT/App/Info.plist" 2>/dev/null || true)"
+if [ -z "$UPDATE_KEY" ] || [ "$UPDATE_KEY" = "REPLACE_WITH_PUBLIC_KEY" ]; then
+    echo "==> warning: App/Info.plist carries the placeholder SUPublicEDKey, so this build cannot install an update. Fine locally, not for a release."
+fi
 APP_DIR="$REPO_ROOT/dist/Pipit.app"
 BIN_DIR="$REPO_ROOT/.build/$CONFIG"
 

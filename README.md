@@ -23,6 +23,8 @@ and drag Pipit into Applications.
 Open Pipit and grant the permissions shown during setup. Pipit then runs from
 the menu bar.
 
+Pipit checks for a new version once a day and installs the update in place.
+
 ## Features
 
 - Detects Slack Huddles, Google Meet, and Zoom calls
