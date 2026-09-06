@@ -897,8 +897,18 @@ public final class PipitRuntime {
     }
 
     /// A human title always wins over every other candidate.
-    public func saveTitle(_ title: String, meetingID: String) {
-        guard let found = repository.findMeeting(id: meetingID, includingMerged: true) else { return }
+    ///
+    /// Returns the folder rename the new title starts, so a caller that draws
+    /// the title can read the meeting again once the folder has stopped moving.
+    /// A read that crossed the rename resolved the meeting to its old folder
+    /// and then found nothing there, and the list went on showing the old title
+    /// until the whole archive was read again.
+    @discardableResult
+    public func saveTitle(_ title: String, meetingID: String) -> Task<Void, Never> {
+        guard let found = repository.findMeeting(id: meetingID, includingMerged: true) else {
+            return Task {}
+        }
+        var rename: Task<Void, Never>?
         do {
             let updated = try found.store.updateMetadata {
                 $0.titles.human = title.isEmpty ? nil : title
@@ -912,7 +922,7 @@ public final class PipitRuntime {
                 currentMeeting?.metadata.id != meetingID
             {
                 let processing = pipeline!
-                Task {
+                rename = Task {
                     await processing.settleFolderName(meetingID: meetingID)
                     await MainActor.run { self.refreshRecentMeetings() }
                 }
@@ -921,6 +931,7 @@ public final class PipitRuntime {
             Log.app.error("title not saved: \(logSafeDescription(error), privacy: .public)")
         }
         refreshRecentMeetings()
+        return rename ?? Task {}
     }
 
     /// Takes the generated title as the user's own.
@@ -929,11 +940,12 @@ public final class PipitRuntime {
     /// what accepting means: it now outranks the huddle or calendar name it was
     /// offered against, and it survives a later re-run of enrichment. The folder
     /// follows, through the same path as any rename.
-    public func acceptTitleSuggestion(meetingID: String) {
+    @discardableResult
+    public func acceptTitleSuggestion(meetingID: String) -> Task<Void, Never> {
         guard let found = repository.findMeeting(id: meetingID, includingMerged: true),
             let suggestion = found.metadata.titleSuggestion
-        else { return }
-        saveTitle(suggestion, meetingID: meetingID)
+        else { return Task {} }
+        return saveTitle(suggestion, meetingID: meetingID)
     }
 
     /// Turns the offer down for good, leaving the generated title on disk.

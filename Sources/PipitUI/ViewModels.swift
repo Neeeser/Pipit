@@ -750,6 +750,17 @@ public final class MeetingReviewModel {
         }
     }
 
+    /// The folder rename a saved title started, if it started one.
+    @ObservationIgnored private var pendingFolderRename: Task<Void, Never>?
+
+    /// Returns once a saved title has finished renaming the meeting's folder.
+    ///
+    /// Reading the meeting again before that finishes can resolve it to the
+    /// folder the rename is moving, which reads back nothing at all.
+    public func settleSavedTitle() async {
+        await pendingFolderRename?.value
+    }
+
     /// Writes the title and notes, each only when the user changed it.
     ///
     /// Reports back when either reached disk, because the meetings list draws
@@ -757,7 +768,7 @@ public final class MeetingReviewModel {
     public func saveEdits() {
         var wrote = false
         if title != lastLoadedTitle {
-            runtime.saveTitle(title, meetingID: meetingID)
+            pendingFolderRename = runtime.saveTitle(title, meetingID: meetingID)
             lastLoadedTitle = title
             wrote = true
         }
@@ -790,7 +801,7 @@ public final class MeetingReviewModel {
         // A debounced write of whatever was in the field is on its way, and it
         // would land after this one with the older text.
         pendingEditSave?.cancel()
-        runtime.acceptTitleSuggestion(meetingID: target)
+        pendingFolderRename = runtime.acceptTitleSuggestion(meetingID: target)
         title = suggestion
         lastLoadedTitle = suggestion
         reload()

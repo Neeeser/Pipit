@@ -659,19 +659,21 @@ struct MeetingsDirectoryTests {
 
 @Suite("MeetingsWindow")
 struct MeetingsWindowTests {
-    /// Waits for work the window model started in the background, for up to ten
-    /// seconds. A test that fails says more than one that hangs.
+    /// Waits for work the window model started in the background, for up to
+    /// thirty seconds. A test that fails says more than one that hangs.
     ///
     /// A passing wait ends as soon as the condition holds, so the budget only
-    /// costs time on a real failure. One second was not enough on a loaded CI
-    /// runner, where a save and the list reload behind it took longer than that
-    /// and the title test failed on three runs out of four.
+    /// costs time on a real failure. Measured against the clock rather than
+    /// counted in sleeps: a sleep of five milliseconds runs long on a loaded CI
+    /// runner, and two thousand of them there were worth well under the ten
+    /// seconds the count was chosen for.
     @MainActor
     private static func waitFor(_ what: String, until condition: () -> Bool) async {
-        for _ in 0..<2_000 {
+        let deadline = Date().addingTimeInterval(30)
+        repeat {
             if condition() { return }
             try? await Task.sleep(for: .milliseconds(5))
-        }
+        } while Date() < deadline
         Issue.record("timed out waiting for \(what)")
     }
 
@@ -1154,10 +1156,9 @@ struct MeetingsWindowTests {
         model.show(meetingID: meeting.id)
         model.detail?.title = "Northwind renewal"
         model.detail?.saveEdits()
+        await model.settleSavedEdits()
 
-        await waitFor("the row to take the new title") {
-            model.rows.first?.title == "Northwind renewal"
-        }
+        #expect(model.rows.first?.title == "Northwind renewal")
     }
 
     /// Return in the title field writes immediately rather than waiting for the
@@ -1175,10 +1176,9 @@ struct MeetingsWindowTests {
         model.show(meetingID: meeting.id)
         model.detail?.title = "Northwind renewal"
         model.detail?.save()
+        await model.settleSavedEdits()
 
-        await waitFor("the row to take the committed title") {
-            model.rows.first?.title == "Northwind renewal"
-        }
+        #expect(model.rows.first?.title == "Northwind renewal")
     }
 
     /// The window keeps its model when it closes, so the pane is still on the
