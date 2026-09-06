@@ -191,6 +191,11 @@ jobs:
           security create-keychain -p actions "$KEYCHAIN"
           security default-keychain -s "$KEYCHAIN"
           security unlock-keychain -p actions "$KEYCHAIN"
+          # A keychain relocks itself after five minutes idle. The release
+          # build takes about that long, so the first codesign call then
+          # waits on an unlock prompt nobody can answer and the job hangs
+          # until its time limit. No timeout keeps it open for the job.
+          security set-keychain-settings "$KEYCHAIN"
           echo "$CERTIFICATE_P12" | base64 --decode > certificate.p12
           security import certificate.p12 -k "$KEYCHAIN" -P "$CERTIFICATE_PASSWORD" \
             -T /usr/bin/codesign
