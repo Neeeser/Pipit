@@ -5,25 +5,36 @@
 #
 # The script builds Pipit once, makes two copies of the bundle, stamps the
 # second one patch higher, signs both, publishes the newer one through an
-# appcast served from 127.0.0.1, installs the older one under ~/PipitUpdateTest
-# and launches it. It passes when the installed bundle's CFBundleVersion has
-# become the newer number.
+# appcast served from 127.0.0.1, installs the older one under a fresh directory
+# in the home folder and launches it. It passes when the installed bundle's
+# CFBundleVersion has become the newer number.
 #
 # Both copies get a throwaway EdDSA public key written into their Info.plist,
 # because App/Info.plist still carries the placeholder key. Rewriting a plist
 # breaks the signature, so the copies are signed after the edit, nested items
-# first, the same order scripts/bundle-app.sh uses.
+# first, the same order scripts/bundle-app.sh uses. The signatures here use
+# --timestamp=none so the run works offline. The shipping recipe in
+# scripts/bundle-app.sh keeps its timestamps.
 #
 # Sparkle requires the installed app and the update to carry the same signing
-# identity. The Developer ID identity is used when the login keychain has one,
-# ad-hoc otherwise, and both copies take the same route either way.
+# identity, so the run needs one: PIPIT_SIGN_IDENTITY, else a Developer ID
+# Application identity, else the local certificate scripts/make-signing-identity.sh
+# creates. An ad-hoc signature cannot satisfy that rule, because its designated
+# requirement is a hash of the bundle it was made from.
 #
-# The copies carry their own bundle identifier, so the user defaults Sparkle
-# reads and its download cache stay away from an installed Pipit. The defaults,
-# the cache and the install directory are removed at the end.
+# The copies run the real application code under a test bundle identifier, so
+# macOS may ask for microphone, accessibility or Documents access for that
+# identifier. Quit an installed Pipit first: both builds register the same
+# native messaging host identifier.
+#
+# The test identifier keeps the user defaults Sparkle reads and its download
+# cache away from an installed Pipit. The defaults, the cache and the install
+# directory are removed at the end.
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+# shellcheck source=scripts/sparkle-version.sh
+source "$REPO_ROOT/scripts/sparkle-version.sh"
 CONFIG="${1:-debug}"
 BUNDLE_ID="$(/usr/libexec/PlistBuddy -c "Print :CFBundleIdentifier" "$REPO_ROOT/App/Info.plist")"
 TEST_BUNDLE_ID="$BUNDLE_ID.updatetest"
@@ -39,26 +50,28 @@ INSTALL_WAIT="${PIPIT_UPDATE_INSTALL_WAIT:-120}"
 
 WORK="$(mktemp -d -t pipit-update)"
 SERVE_DIR="$WORK/feed"
-# The older copy is installed here rather than in the work directory. An app run
-# from the temp directory is sent a quit AppleEvent a fraction of a second after
-# it launches, which cuts the installer off part way through staging and the
-# update is thrown away.
-INSTALL_DIR="$HOME/PipitUpdateTest"
+# The older copy is installed under the home folder rather than in the work
+# directory. An app run from /var/folders is sent a quit AppleEvent a fraction of
+# a second after it launches, which cuts the installer off part way through
+# staging and the update is thrown away. mktemp makes the directory, so the
+# cleanup only ever removes one this run created.
+INSTALL_DIR="$(mktemp -d "$HOME/.pipit-update-test-XXXXXX")"
 LOG_FILE="$WORK/sparkle.log"
 KEY_FILE="$WORK/ed25519.key"
 # The keychain account the throwaway signing key is made under and deleted from.
 KEY_ACCOUNT="pipit-update-test"
 SERVER_PID=""
 LOG_PID=""
-rm -rf "$INSTALL_DIR"
-mkdir -p "$SERVE_DIR" "$INSTALL_DIR"
+mkdir -p "$SERVE_DIR"
 
 cleanup() {
     [ -n "$SERVER_PID" ] && { kill "$SERVER_PID" 2>/dev/null || true; wait "$SERVER_PID" 2>/dev/null || true; }
     [ -n "$LOG_PID" ] && { kill "$LOG_PID" 2>/dev/null || true; wait "$LOG_PID" 2>/dev/null || true; }
     pkill -f "$INSTALL_DIR/Pipit.app" 2>/dev/null || true
     defaults delete "$TEST_BUNDLE_ID" >/dev/null 2>&1 || true
-    security delete-generic-password -a "$KEY_ACCOUNT" >/dev/null 2>&1 || true
+    # A run that died before the export can leave an item behind, and
+    # generate_keys adds a second one rather than replacing it.
+    while security delete-generic-password -a "$KEY_ACCOUNT" >/dev/null 2>&1; do :; done
     rm -rf "$HOME/Library/Caches/$TEST_BUNDLE_ID.sparkle" "$INSTALL_DIR"
     if [ -n "${PIPIT_KEEP_WORK:-}" ]; then
         echo "==> work kept at $WORK"
@@ -116,17 +129,15 @@ echo "==> building Pipit ($CONFIG)"
 # account and deletes that item as soon as the key is exported. Signing keys
 # Andrew generated under the default account are untouched.
 # scripts/make-appcast.sh downloads the same archive and checks the same hash.
-SPARKLE_VERSION="2.9.6"
 SPARKLE_TOOLS_DIR="${SPARKLE_TOOLS_DIR:-$REPO_ROOT/.build/sparkle-$SPARKLE_VERSION}"
 if [ ! -x "$SPARKLE_TOOLS_DIR/bin/generate_keys" ]; then
     echo "==> fetching Sparkle $SPARKLE_VERSION tools"
     mkdir -p "$SPARKLE_TOOLS_DIR"
     TARBALL="$SPARKLE_TOOLS_DIR/Sparkle-$SPARKLE_VERSION.tar.xz"
-    curl -fsSL -o "$TARBALL" \
-        "https://github.com/sparkle-project/Sparkle/releases/download/$SPARKLE_VERSION/Sparkle-$SPARKLE_VERSION.tar.xz"
+    curl -fsSL -o "$TARBALL" "$SPARKLE_URL"
     ACTUAL="$(shasum -a 256 "$TARBALL" | cut -d' ' -f1)"
-    EXPECTED="52bf9e88cdd972fc0c81501377a880e90d47031bd8ca5462488f843e2609e192"
-    [ "$ACTUAL" = "$EXPECTED" ] || fail "Sparkle archive hash mismatch: expected $EXPECTED, got $ACTUAL"
+    [ "$ACTUAL" = "$SPARKLE_SHA256" ] ||
+        fail "Sparkle archive hash mismatch: expected $SPARKLE_SHA256, got $ACTUAL"
     tar -xJf "$TARBALL" -C "$SPARKLE_TOOLS_DIR"
 fi
 
@@ -134,7 +145,7 @@ echo "==> making a throwaway signing key"
 "$SPARKLE_TOOLS_DIR/bin/generate_keys" --account "$KEY_ACCOUNT" >/dev/null
 PUBLIC_KEY="$("$SPARKLE_TOOLS_DIR/bin/generate_keys" --account "$KEY_ACCOUNT" -p)"
 "$SPARKLE_TOOLS_DIR/bin/generate_keys" --account "$KEY_ACCOUNT" -x "$KEY_FILE" >/dev/null
-security delete-generic-password -a "$KEY_ACCOUNT" >/dev/null 2>&1 || true
+while security delete-generic-password -a "$KEY_ACCOUNT" >/dev/null 2>&1; do :; done
 chmod 600 "$KEY_FILE"
 PRIVATE_KEY="$(cat "$KEY_FILE")"
 [ -n "$PUBLIC_KEY" ] || fail "no public key was generated"
@@ -142,12 +153,20 @@ PRIVATE_KEY="$(cat "$KEY_FILE")"
 PORT="$(python3 -c 'import socket;s=socket.socket();s.bind(("127.0.0.1",0));print(s.getsockname()[1]);s.close()')"
 FEED_URL="http://127.0.0.1:$PORT/appcast.xml"
 
+# Sparkle accepts an update only when it carries the same signing identity as
+# the installed app. An ad-hoc signature has no identity to match: its
+# designated requirement is the cdhash of the one bundle it was made from, so
+# the two copies here would never match each other. The run stops instead.
 IDENTITY="${PIPIT_SIGN_IDENTITY:-}"
 if [ -z "$IDENTITY" ]; then
     IDENTITY="$(security find-identity -v -p codesigning 2>/dev/null |
         sed -n 's/.*"\(Developer ID Application:.*\)"/\1/p' | head -1)"
 fi
-IDENTITY="${IDENTITY:--}"
+if [ -z "$IDENTITY" ]; then
+    IDENTITY="$(security find-identity -v -p codesigning 2>/dev/null |
+        sed -n 's/.*"\(Pipit Development\)"/\1/p' | head -1)"
+fi
+[ -n "$IDENTITY" ] || fail "no signing identity: run scripts/make-signing-identity.sh, or set PIPIT_SIGN_IDENTITY"
 echo "==> signing both copies as ${IDENTITY}"
 
 # Both copies point at the local feed and carry the throwaway public key.

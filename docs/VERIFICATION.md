@@ -48,7 +48,7 @@ They do not run in the ordinary suite.
 | Call OpenAI speech endpoints | `PIPIT_LIVE_OPENAI=1 PIPIT_LIVE_FIXTURE=/tmp/pipit-fixture OPENAI_API_KEY=... ./scripts/test.sh --filter LiveOpenAI` |
 | Process a long recording | `PIPIT_LIVE_LONG=1 PIPIT_LIVE_FIXTURE=/tmp/pipit-fixture ./scripts/test.sh` |
 | Run a capture soak | `PIPIT_SOAK_MINUTES=30 ./scripts/test.sh --filter Soak` |
-| Update the application through Sparkle | `./scripts/test-update.sh` |
+| Update the application through Sparkle (needs a signing identity) | `./scripts/test-update.sh` |
 
 Create the local fixture with:
 

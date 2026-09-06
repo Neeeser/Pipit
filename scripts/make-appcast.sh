@@ -34,11 +34,8 @@ BETA_FLAG="${4:-}"
 : "${SPARKLE_PRIVATE_KEY:?SPARKLE_PRIVATE_KEY is required}"
 test -e "$ARCHIVE" || { echo "no such archive: $ARCHIVE" >&2; exit 1; }
 
-# Sparkle 2.9.6, the version Package.swift pins. The hash covers the release
-# archive that carries generate_appcast, generate_keys and sign_update.
-SPARKLE_VERSION="2.9.6"
-SPARKLE_URL="https://github.com/sparkle-project/Sparkle/releases/download/$SPARKLE_VERSION/Sparkle-$SPARKLE_VERSION.tar.xz"
-SPARKLE_SHA256="52bf9e88cdd972fc0c81501377a880e90d47031bd8ca5462488f843e2609e192"
+# shellcheck source=scripts/sparkle-version.sh
+source "$REPO_ROOT/scripts/sparkle-version.sh"
 
 TOOLS_DIR="${SPARKLE_TOOLS_DIR:-$REPO_ROOT/.build/sparkle-$SPARKLE_VERSION}"
 APPCAST_DIR="${APPCAST_DIR:-$REPO_ROOT/dist/appcast}"
