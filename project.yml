@@ -96,9 +96,10 @@ targets:
         PRODUCT_BUNDLE_IDENTIFIER: com.pipit.app
         INFOPLIST_FILE: App/Info.plist
         CODE_SIGN_ENTITLEMENTS: App/Pipit.entitlements
-        # Development builds only. A shipped bundle takes its version from
-        # VERSION, stamped by scripts/bundle-app.sh.
-        # scripts/bump-version.sh --apply keeps this in step with VERSION.
+        # A fallback. The "Stamp the version" phase below replaces both keys in
+        # the built bundle, so these two are what the plist holds only until it
+        # runs. scripts/bump-version.sh --apply keeps MARKETING_VERSION in step
+        # with VERSION anyway, so a build that skips the phase is not wrong.
         MARKETING_VERSION: "0.1.0"
         CURRENT_PROJECT_VERSION: "1"
         ENABLE_HARDENED_RUNTIME: YES
@@ -127,6 +128,25 @@ targets:
         outputFiles:
           - $(BUILT_PRODUCTS_DIR)/$(CONTENTS_FOLDER_PATH)/Resources/extension/firefox/manifest.json
           - $(BUILT_PRODUCTS_DIR)/$(CONTENTS_FOLDER_PATH)/Resources/extension/chrome/manifest.json
+
+      - name: Stamp the version into Info.plist
+        # scripts/app-version.sh prints the short version and the build number,
+        # the same two values scripts/bundle-app.sh writes. An Xcode build and a
+        # scripted bundle then carry the same numbers.
+        #
+        # The phase declares no outputs and turns dependency analysis off, so it
+        # runs on every build. The numbers follow HEAD rather than any file
+        # Xcode could watch. It runs after the resources are copied and before
+        # the bundle is signed, which is where the sensor phase above already
+        # writes into the bundle.
+        shell: /bin/bash
+        basedOnDependencyAnalysis: false
+        script: |
+          set -euo pipefail
+          plist="$TARGET_BUILD_DIR/$INFOPLIST_PATH"
+          { read -r short; read -r build; } < <("$SRCROOT/scripts/app-version.sh")
+          /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString $short" "$plist"
+          /usr/libexec/PlistBuddy -c "Set :CFBundleVersion $build" "$plist"
 
   pipit-nativehost:
     type: tool

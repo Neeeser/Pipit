@@ -5,6 +5,31 @@ tests the project, signs and notarizes the application, creates ZIP and DMG
 archives, writes SHA-256 checksums, tags the commit it built, and drafts a
 GitHub release.
 
+## Version numbers
+
+A bundle carries two numbers. `CFBundleShortVersionString` is what a person
+reads, and `CFBundleVersion` is what Sparkle compares. `scripts/app-version.sh`
+computes both, and every build route stamps what it prints.
+`scripts/bundle-app.sh` writes them into the copied plist, and a run script
+phase in `Pipit.xcodeproj` writes them into the bundle Xcode builds.
+
+`CFBundleVersion` is `git rev-list --count HEAD`, the number of commits behind
+the checkout. It rises with every commit, so any two checkouts are ordered. Both
+workflows check out with `fetch-depth: 0`, because the default shallow checkout
+holds one commit and would number every build 1.
+
+`CFBundleShortVersionString` is the contents of `VERSION` when `PIPIT_RELEASE=1`
+is set, which the release workflow does on its build step. Every other build
+reads `<VERSION>-dev.<short sha>`, such as `0.1.0-dev.2b410e6`. A dirty working
+tree adds nothing, so the sha names the commit the build started from.
+
+Sparkle orders by the build number, so a dev build made after the last release
+sees no update, and one made before it is offered that release.
+
+`MARKETING_VERSION` in `project.yml` is a fallback that the stamping phase
+replaces. `scripts/bump-version.sh --apply` still keeps it in step with
+`VERSION`.
+
 ## Requirements
 
 The release repository needs these GitHub Actions secrets:

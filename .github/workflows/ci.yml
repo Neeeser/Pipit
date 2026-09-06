@@ -24,6 +24,11 @@ jobs:
       PIPIT_WARNINGS_AS_ERRORS: '1'
     steps:
       - uses: actions/checkout@v7
+        with:
+          # The packaging step below stamps the commit count as the build
+          # number, and the default depth of 1 would make it 1. The other jobs
+          # here build no bundle and keep the shallow checkout.
+          fetch-depth: 0
 
       - name: Select the newest Xcode on the image
         id: toolchain

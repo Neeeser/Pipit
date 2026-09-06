@@ -32,6 +32,10 @@ jobs:
       contents: write
     steps:
       - uses: actions/checkout@v7
+        with:
+          # The build number is the commit count, and the default depth of 1
+          # would make every release build number 1.
+          fetch-depth: 0
 
       - name: Select the newest Xcode on the image
         id: toolchain
@@ -240,9 +244,13 @@ jobs:
           ./scripts/sign-extension.sh "$VERSION.$GITHUB_RUN_NUMBER"
 
       - name: Build the app
+        # PIPIT_RELEASE asks scripts/app-version.sh for the plain version from
+        # VERSION. Without it the bundle would read <VERSION>-dev.<short sha>,
+        # which is what every other build carries. The build number comes from
+        # the commit count and needs nothing here.
         env:
           PIPIT_SIGN_IDENTITY: ${{ steps.signing.outputs.identity }}
-          PIPIT_BUILD_NUMBER: ${{ github.run_number }}
+          PIPIT_RELEASE: '1'
         run: ./scripts/bundle-app.sh release
 
       - name: Notarize and staple
