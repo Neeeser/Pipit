@@ -56,6 +56,21 @@ because the test target cannot link an executable target, and because it shares
 `EchoCancellationPass` with the cleaner so that a measurement describes the pass
 that ships rather than a second copy of it.
 
+## Pull requests and release notes
+
+Merged pull request titles become the release notes, grouped by label. Write
+the title as the change a user or contributor sees, in the imperative, for
+example "Offer the folder a meeting was filed in" or "Cache the SwiftPM build
+in CI". A title that names a file, a function, or a mechanism belongs in the
+body. Label every pull request with one of `breaking`, `feature`, `fix`,
+`docs`, `ci`, `chore`, `dependencies`, or `skip-changelog`. Only the first
+three reach the notes.
+
+Release notes on the GitHub release stay to one or two lines. Say what the
+release is, then let the generated list carry the changes. Signing,
+notarization, and how to install a DMG are implied by a macOS release and
+are not repeated there.
+
 ## Project constraints
 
 - Treat source audio, manifests, raw model output, and imported originals as

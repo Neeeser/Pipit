@@ -146,21 +146,10 @@ rebuilds every dependency in debug.
 
 ## Review the draft
 
-The workflow creates a draft GitHub release. Before publishing it:
-
-1. Confirm that the test, signing, notarization, and packaging steps passed.
-2. Compare the ZIP and DMG checksums with `Pipit-1.2.0.sha256`.
-3. Install the DMG on a Mac that did not build it.
-4. Confirm that Gatekeeper accepts the application.
-5. Complete setup and record a short meeting.
-6. Review the generated release notes and publish the draft.
-
-Publishing the draft starts `.github/workflows/appcast.yml`. It downloads
-`Pipit-1.2.0.zip` from the published release, runs `scripts/make-appcast.sh`,
-and commits `appcast.xml` to `gh-pages`. The feed serves the new version once
-the Pages deployment for that commit finishes. A draft that is never published, or is discarded, leaves the feed
-untouched. Re-run the workflow from the Actions tab with the tag as its input
-if the appcast needs rebuilding.
+The workflow opens the release as a draft. The notes are one or two lines
+from the `notes` input, followed by the pull request titles GitHub groups by
+label. Read them, fix a title that reads as a mechanism rather than a
+change, and publish. Publishing is what runs the appcast workflow.
 
 ## Local release build
 
