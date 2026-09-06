@@ -53,6 +53,7 @@ fi
 # build, so the per-config path is the one to take. The executable reaches it
 # through the @executable_path/../Frameworks rpath PipitApp links with.
 mkdir -p "$APP_DIR/Contents/Frameworks"
+[ -d "$BIN_DIR/Sparkle.framework" ] || { echo "no framework at $BIN_DIR/Sparkle.framework. Build first." >&2; exit 1; }
 cp -R "$BIN_DIR/Sparkle.framework" "$APP_DIR/Contents/Frameworks/Sparkle.framework"
 cp "$REPO_ROOT/Assets/Pipit/AppIcons/Pipit.icns" "$APP_DIR/Contents/Resources/Pipit.icns"
 for state in idle recording paused warning; do
@@ -94,7 +95,7 @@ case "$IDENTITY" in
         ;;
 esac
 # Sparkle's nested code signs first, innermost outwards, then the framework, then
-# the app. --deep is not used: it would re-sign the nested items with the app's
+# the app. --deep is not used. It would re-sign the nested items with the app's
 # identifier and entitlements, which Sparkle's helpers do not accept.
 SPARKLE="$APP_DIR/Contents/Frameworks/Sparkle.framework"
 for nested in \

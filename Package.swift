@@ -26,7 +26,7 @@ let package = Package(
         // Sparkle ships the updater as a framework with nested XPC services and
         // an Autoupdate helper. A version change moves that signing layout and
         // changes how the updater behaves, so the version is exact and a bump
-        // is a re-test of the update flow, not a routine update.
+        // is a re-test of the update flow.
         .package(url: "https://github.com/sparkle-project/Sparkle", exact: "2.9.6"),
     ],
     targets: [
