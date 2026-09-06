@@ -167,6 +167,8 @@ APPLE_APP_PASSWORD="app-password" \
 ./scripts/package.sh 1.2.0
 ```
 
+`scripts/package.sh` needs `create-dmg` on the path, which `brew install create-dmg` provides.
+
 `scripts/package.sh` preserves the application signature in both archives.
 
 ## In-app updates
