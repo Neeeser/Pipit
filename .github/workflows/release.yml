@@ -18,6 +18,10 @@ on:
         description: 'Mark the release as a pre-release, which puts the appcast item on the beta channel. A version below 1.0.0 is a pre-release either way'
         type: boolean
         default: false
+      notes:
+        description: "Release notes, one or two lines. Leave empty to write them on the draft."
+        required: false
+        type: string
 
 jobs:
   release:
@@ -304,6 +308,5 @@ jobs:
           # after this body.
           generate_release_notes: true
           body: |
-            ${{ steps.signing.outputs.signed == 'true' && 'Signed with Developer ID and notarized.' || '**Unsigned build.** Gatekeeper will refuse to open it normally. Do not publish this as a public release. See docs/RELEASING.md.' }}
-
-            Install Pipit by opening `Pipit-${{ steps.version.outputs.version }}.dmg` and dragging the app to Applications.
+            ${{ inputs.notes }}
+            ${{ steps.signing.outputs.signed != 'true' && '**Unsigned build.** Gatekeeper refuses it. Do not publish. See docs/RELEASING.md.' || '' }}
