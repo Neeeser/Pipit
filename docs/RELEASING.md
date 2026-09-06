@@ -17,6 +17,7 @@ The release repository needs these GitHub Actions secrets:
 | `APPLE_APP_SPECIFIC_PASSWORD` | App-specific password for notarization |
 | `AMO_JWT_ISSUER` | Mozilla add-on API key, from the AMO credentials page |
 | `AMO_JWT_SECRET` | Mozilla add-on API secret for the same key |
+| `SPARKLE_PRIVATE_KEY` | Base64 EdDSA private key that signs each update archive |
 
 The workflow falls back to ad-hoc signing when the certificate is absent. Do
 not publish an ad-hoc signed build. Gatekeeper will reject it on another Mac.
@@ -65,6 +66,11 @@ Pipit-1.2.0.dmg
 Pipit-1.2.0.sha256
 ```
 
+It then updates `appcast.xml` on the `gh-pages` branch, so installed copies of
+Pipit find the new version. A release started from the Actions tab has a
+pre-release checkbox; it marks the GitHub release and puts the appcast item on
+the beta channel. A version below 1.0.0 goes on the beta channel either way.
+
 ## Review the draft
 
 The workflow creates a draft GitHub release. Before publishing it:
@@ -93,6 +99,34 @@ APPLE_APP_PASSWORD="app-password" \
 ```
 
 `scripts/package.sh` preserves the application signature in both archives.
+
+## In-app updates
+
+Pipit checks `https://neeeser.github.io/Pipit/appcast.xml` once a day. The
+release workflow writes that file with `scripts/make-appcast.sh`, which signs
+each archive with an EdDSA key and commits the result to `gh-pages`.
+
+Generate the key pair once, on the maintainer's Mac. `generate_keys` stores the
+private key in the login keychain and prints the public key:
+
+```sh
+curl -fsSLO https://github.com/sparkle-project/Sparkle/releases/download/2.9.6/Sparkle-2.9.6.tar.xz
+tar -xJf Sparkle-2.9.6.tar.xz
+./bin/generate_keys
+./bin/generate_keys -x sparkle-private-key.txt
+```
+
+Put the printed public key into `App/Info.plist` under `SUPublicEDKey`, and the
+one line in `sparkle-private-key.txt` into the `SPARKLE_PRIVATE_KEY` secret.
+Delete the exported file afterwards. `generate_appcast` signs an archive only
+when the app inside it carries `SUPublicEDKey`, so the placeholder value fails
+the release workflow rather than shipping an update Sparkle refuses. Losing the
+private key means every installed copy stops updating, so keep a backup outside
+the repository.
+
+Enable Pages once, under Settings > Pages: source "Deploy from a branch",
+branch `gh-pages`, folder `/ (root)`. The first release creates the branch. Until
+Pages serves the file the feed 404s and Pipit reports no updates, which is safe.
 
 ## Install route
 

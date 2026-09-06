@@ -100,6 +100,9 @@ Run the full application and extension tests before opening a pull request:
 (cd extension && npm test)
 ```
 
+Run `./scripts/test-update.sh` after changing the updater. It builds two
+versions, serves a local appcast, and checks that the older copy updates itself.
+
 Run `./scripts/check-offline.sh` after changing model installation or code that
 constructs `PipitRuntime`, `SetupModel`, or `LocalModelManager`. It fails if an
 ordinary test starts a model download.

@@ -8,12 +8,16 @@ on:
       version:
         description: 'Version to build, without the leading v'
         required: true
+      prerelease:
+        description: 'Mark the release as a pre-release and publish the appcast item on the beta channel'
+        type: boolean
+        default: false
 
 jobs:
   release:
     name: Build and publish
     runs-on: macos-15
-    timeout-minutes: 45
+    timeout-minutes: 120
     permissions:
       contents: write
     steps:
@@ -47,6 +51,10 @@ jobs:
           echo "$VERSION" > VERSION
 
       - name: Test before packaging
+        # The gate is the CI run on main, which tests every commit before it
+        # lands. This step only catches a tag placed on a commit that never went
+        # through it. It rebuilds the dependencies in debug and costs the job
+        # around half an hour.
         run: ./scripts/test.sh
 
       - name: Import the Developer ID certificate
@@ -130,6 +138,54 @@ jobs:
             dist/Pipit-${{ steps.version.outputs.version }}.dmg
             dist/Pipit-${{ steps.version.outputs.version }}.sha256
           draft: true
+          prerelease: ${{ inputs.prerelease == true }}
           generate_release_notes: true
           body: |
             ${{ steps.signing.outputs.signed == 'true' && 'Signed with Developer ID and notarized.' || '**Unsigned build.** Gatekeeper will refuse to open it normally. Do not publish this as a public release; see docs/RELEASING.md.' }}
+
+      - name: Publish the appcast
+        # Sparkle reads the feed from GitHub Pages, served from the gh-pages
+        # branch. Without the key the release still ships and installed copies
+        # stay on the version they have.
+        env:
+          SPARKLE_PRIVATE_KEY: ${{ secrets.SPARKLE_PRIVATE_KEY }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VERSION: ${{ steps.version.outputs.version }}
+          PRERELEASE: ${{ inputs.prerelease }}
+        run: |
+          if [ -z "$SPARKLE_PRIVATE_KEY" ]; then
+            echo "::warning::No Sparkle private key configured; the appcast was not updated."
+            exit 0
+          fi
+          REMOTE="https://x-access-token:$GH_TOKEN@github.com/$GITHUB_REPOSITORY.git"
+          PAGES="$(mktemp -d)"
+          if ! git clone --branch gh-pages --single-branch "$REMOTE" "$PAGES"; then
+            git clone "$REMOTE" "$PAGES"
+            git -C "$PAGES" checkout --orphan gh-pages
+            git -C "$PAGES" rm -rf . >/dev/null
+          fi
+          # The published feed seeds the run so that earlier items survive.
+          # Nothing else goes in this directory: generate_appcast rewrites the
+          # download URL of any item whose archive it finds beside the new one.
+          rm -rf dist/appcast
+          mkdir -p dist/appcast
+          if [ -f "$PAGES/appcast.xml" ]; then
+            cp "$PAGES/appcast.xml" dist/appcast/appcast.xml
+          fi
+          BETA_ARGS=()
+          if [ "$PRERELEASE" = "true" ]; then
+            BETA_ARGS=(--beta)
+          fi
+          ./scripts/make-appcast.sh "$VERSION" "dist/Pipit-$VERSION.zip" \
+            "https://github.com/$GITHUB_REPOSITORY/releases/download/v$VERSION/" \
+            ${BETA_ARGS[@]+"${BETA_ARGS[@]}"}
+          cp dist/appcast/appcast.xml "$PAGES/appcast.xml"
+          git -C "$PAGES" config user.name 'github-actions[bot]'
+          git -C "$PAGES" config user.email 'github-actions[bot]@users.noreply.github.com'
+          git -C "$PAGES" add appcast.xml
+          if git -C "$PAGES" diff --quiet --cached; then
+            echo "appcast unchanged"
+          else
+            git -C "$PAGES" commit -m "Publish appcast for v$VERSION"
+            git -C "$PAGES" push origin gh-pages
+          fi
