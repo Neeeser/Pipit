@@ -59,7 +59,7 @@ if [ ! -x "$TOOLS_DIR/bin/generate_appcast" ]; then
 fi
 
 KEY_FILE="$(mktemp -t sparkle-key)"
-trap 'rm -f "$KEY_FILE"' EXIT
+trap 'rm -f "$KEY_FILE"' EXIT INT TERM
 chmod 600 "$KEY_FILE"
 printf '%s\n' "$SPARKLE_PRIVATE_KEY" > "$KEY_FILE"
 
@@ -83,7 +83,9 @@ echo "==> generating the appcast"
 # generate_appcast writes a releaseNotesLink only for a notes file sitting next
 # to the archive. Pipit's notes live on the GitHub release page, so the link is
 # added here. The appcast itself carries no signature, only each enclosure does,
-# so editing the file after the tool runs does not invalidate anything.
+# so editing the file after the tool runs does not invalidate anything. That
+# holds only while App/Info.plist sets no appcast signature key. Add one and
+# this edit starts breaking the feed.
 APPCAST="$APPCAST_DIR/appcast.xml" VERSION="$VERSION" NOTES="$RELEASE_NOTES_LINK" python3 - <<'PYTHON'
 import os
 import re

@@ -1,0 +1,101 @@
+name: Appcast
+
+# Sparkle reads the feed from GitHub Pages, served from the gh-pages branch.
+# Publishing a release is what puts a version in the feed, so a draft never
+# reaches users and a discarded draft leaves nothing behind.
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Release tag to publish, such as v1.2.0'
+        required: true
+
+concurrency:
+  group: appcast
+  cancel-in-progress: false
+
+jobs:
+  appcast:
+    name: Publish the appcast
+    runs-on: macos-15
+    timeout-minutes: 30
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Resolve the release
+        id: release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Passed through the environment and validated, never interpolated
+          # into the script body.
+          INPUT_TAG: ${{ inputs.tag }}
+          EVENT_TAG: ${{ github.event.release.tag_name }}
+          EVENT_PRERELEASE: ${{ github.event.release.prerelease }}
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            TAG="$INPUT_TAG"
+            PRERELEASE="$(gh release view "$TAG" --json isPrerelease --jq .isPrerelease)"
+          else
+            TAG="$EVENT_TAG"
+            PRERELEASE="$EVENT_PRERELEASE"
+          fi
+          VERSION="${TAG#v}"
+          case "$VERSION" in
+            *[!0-9.]*|"") echo "version must be numeric, got: $VERSION" >&2; exit 1 ;;
+          esac
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "prerelease=$PRERELEASE" >> "$GITHUB_OUTPUT"
+
+      - name: Publish the appcast
+        # Without the key the release still stands and installed copies stay on
+        # the version they have.
+        env:
+          SPARKLE_PRIVATE_KEY: ${{ secrets.SPARKLE_PRIVATE_KEY }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ steps.release.outputs.tag }}
+          VERSION: ${{ steps.release.outputs.version }}
+          PRERELEASE: ${{ steps.release.outputs.prerelease }}
+        run: |
+          if [ -z "$SPARKLE_PRIVATE_KEY" ]; then
+            echo "::warning::No Sparkle private key configured; the appcast was not updated."
+            exit 0
+          fi
+          # The published feed seeds the run so that earlier items survive.
+          # Nothing else goes in this directory: generate_appcast rewrites the
+          # download URL of any item whose archive it finds beside the new one.
+          rm -rf dist/appcast
+          mkdir -p dist/appcast
+          gh release download "$TAG" --pattern "Pipit-$VERSION.zip" --dir dist
+          REMOTE="https://x-access-token:$GH_TOKEN@github.com/$GITHUB_REPOSITORY.git"
+          PAGES="$(mktemp -d)"
+          if ! git clone --branch gh-pages --single-branch "$REMOTE" "$PAGES"; then
+            git clone "$REMOTE" "$PAGES"
+            git -C "$PAGES" checkout --orphan gh-pages
+            git -C "$PAGES" rm -rf . >/dev/null
+          fi
+          if [ -f "$PAGES/appcast.xml" ]; then
+            cp "$PAGES/appcast.xml" dist/appcast/appcast.xml
+          fi
+          BETA_ARGS=()
+          if [ "$PRERELEASE" = "true" ]; then
+            BETA_ARGS=(--beta)
+          fi
+          ./scripts/make-appcast.sh "$VERSION" "dist/Pipit-$VERSION.zip" \
+            "https://github.com/$GITHUB_REPOSITORY/releases/download/$TAG/" \
+            ${BETA_ARGS[@]+"${BETA_ARGS[@]}"}
+          cp dist/appcast/appcast.xml "$PAGES/appcast.xml"
+          git -C "$PAGES" config user.name 'github-actions[bot]'
+          git -C "$PAGES" config user.email 'github-actions[bot]@users.noreply.github.com'
+          git -C "$PAGES" add appcast.xml
+          if git -C "$PAGES" diff --quiet --cached; then
+            echo "appcast unchanged"
+          else
+            git -C "$PAGES" commit -m "Publish appcast for $TAG"
+            git -C "$PAGES" push origin gh-pages
+          fi

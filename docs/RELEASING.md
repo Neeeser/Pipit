@@ -66,10 +66,13 @@ Pipit-1.2.0.dmg
 Pipit-1.2.0.sha256
 ```
 
-It then updates `appcast.xml` on the `gh-pages` branch, so installed copies of
-Pipit find the new version. A release started from the Actions tab has a
-pre-release checkbox; it marks the GitHub release and puts the appcast item on
-the beta channel. A version below 1.0.0 goes on the beta channel either way.
+A release started from the Actions tab has a pre-release checkbox. Ticking it
+marks the GitHub release as a pre-release and puts the appcast item on the beta
+channel. A version below 1.0.0 goes on the beta channel either way.
+
+The release job builds, tests, notarizes and packages within a 120-minute
+budget. The `swift test` step alone takes around half an hour because it
+rebuilds every dependency in debug.
 
 ## Review the draft
 
@@ -81,6 +84,13 @@ The workflow creates a draft GitHub release. Before publishing it:
 4. Confirm that Gatekeeper accepts the application.
 5. Complete setup and record a short meeting.
 6. Review the generated release notes and publish the draft.
+
+Publishing the draft starts `.github/workflows/appcast.yml`. It downloads
+`Pipit-1.2.0.zip` from the published release, runs `scripts/make-appcast.sh`,
+and commits `appcast.xml` to `gh-pages`. The feed serves the new version within
+a minute. A draft that is never published, or is discarded, leaves the feed
+untouched. Re-run the workflow from the Actions tab with the tag as its input
+if the appcast needs rebuilding.
 
 ## Local release build
 
@@ -124,8 +134,17 @@ the release workflow rather than shipping an update Sparkle refuses. Losing the
 private key means every installed copy stops updating, so keep a backup outside
 the repository.
 
-Enable Pages once, under Settings > Pages: source "Deploy from a branch",
-branch `gh-pages`, folder `/ (root)`. The first release creates the branch.
+The `gh-pages` branch has to exist before Pages can point at it. The first
+published release creates it. To create it by hand instead:
+
+```sh
+git switch --orphan gh-pages
+git commit --allow-empty -m "Start the update feed"
+git push -u origin gh-pages
+```
+
+Then enable Pages once, under Settings > Pages: source "Deploy from a branch",
+branch `gh-pages`, folder `/ (root)`.
 
 ## Install route
 
