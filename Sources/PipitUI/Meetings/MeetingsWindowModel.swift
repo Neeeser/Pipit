@@ -147,6 +147,8 @@ public final class MeetingsWindowModel {
     /// it must not put them back.
     @ObservationIgnored private var droppedWhileReading: Set<String> = []
     @ObservationIgnored private var loadTask: Task<[MeetingRow], Never>?
+    /// The reread that carries the pane's last saved edits into the list.
+    @ObservationIgnored private var savedEditsReachingTheList: Task<Void, Never>?
     /// Counts the changes this window has made to the archive itself, which are
     /// combining, separating, archiving and deleting. A read that started before
     /// one of them holds the archive as it was, and assigning it put the rows
@@ -436,12 +438,24 @@ public final class MeetingsWindowModel {
         // A title or a note written from the pane changes what the list shows.
         // The write happens a moment after typing stops, so the row is read
         // again when it lands rather than when the pane is left.
-        opened.onEditsSaved = { [weak self] in
+        opened.onEditsSaved = { [weak self, weak opened] in
             guard let self else { return }
-            Task { await self.refreshRow(id) }
+            savedEditsReachingTheList = Task {
+                // After the folder rename a saved title starts, never across
+                // it. A read that crossed the rename found the meeting in the
+                // folder it was moving out of and returned nothing, so the row
+                // kept the old title until the archive was read again.
+                await opened?.settleSavedTitle()
+                await self.refreshRow(id)
+            }
         }
         detail = opened
         Task { [weak self] in await self?.detail?.reloadAll() }
+    }
+
+    /// Returns once the pane's last saved edits are in the list.
+    public func settleSavedEdits() async {
+        await savedEditsReachingTheList?.value
     }
 
     /// Reads one meeting again, after processing moved on or somebody changed a
