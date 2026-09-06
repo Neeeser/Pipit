@@ -61,7 +61,6 @@ and exports.
 - [Contributing](CONTRIBUTING.md)
 - [Changelog](CHANGELOG.md)
 - [Security policy](SECURITY.md)
-- [Code of conduct](CODE_OF_CONDUCT.md)
 - [Architecture](docs/ARCHITECTURE.md)
 - [Benchmarks](Benchmarks/README.md)
 - [Verification](docs/VERIFICATION.md)
