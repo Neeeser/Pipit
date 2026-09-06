@@ -1,0 +1,24 @@
+name: PR labels
+
+# Release notes are grouped by label, so every pull request needs one.
+on:
+  pull_request:
+    types: [opened, reopened, labeled, unlabeled, synchronize]
+
+jobs:
+  required-label:
+    name: Require a release-notes label
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: read
+    steps:
+      - name: Check for a category label
+        uses: mheap/github-action-required-labels@23e10fde7e062233401931a0eece796cd9bf3177 # v5.6.0
+        with:
+          mode: minimum
+          count: 1
+          labels: breaking, feature, fix, docs, ci, chore, dependencies, skip-changelog
+          # The check's log names the labels it requires. A comment needs write
+          # access the read-only token on a fork pull request does not have, and
+          # the failed write reddens a check that otherwise passed.
+          add_comment: false

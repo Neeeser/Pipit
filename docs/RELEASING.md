@@ -1,8 +1,9 @@
 # Releasing Pipit
 
-Pipit releases are built from version tags. The release workflow tests the
-project, signs and notarizes the application, creates ZIP and DMG archives,
-writes SHA-256 checksums, and drafts a GitHub release.
+A release is one manual workflow run. The release workflow bumps the version,
+tests the project, signs and notarizes the application, creates ZIP and DMG
+archives, writes SHA-256 checksums, tags the commit it built, and drafts a
+GitHub release.
 
 ## Requirements
 
@@ -34,21 +35,95 @@ The AMO credentials come from
 them ships an app that has no signed add-on, and Firefox users then load a
 temporary add-on that Firefox drops when it quits.
 
-## Prepare the release
+## Labels
 
-Start from an up-to-date `main` branch with a clean working tree. Update
-`VERSION` and run the application and extension tests:
+Release notes come from merged pull request titles grouped by label, as
+`.github/release.yml` maps them. A fork recreates the labels with:
 
 ```sh
-printf '1.2.0\n' > VERSION
-./scripts/test.sh
-(cd extension && npm test)
-git add VERSION
-git commit -m "chore: release 1.2.0"
+gh label create breaking --color B60205 --description "Changes behaviour or storage in a way an existing install notices." --force
+gh label create feature --color 0E8A16 --description "Adds a capability a user can see." --force
+gh label create fix --color D73A4A --description "Corrects a defect in shipped behaviour." --force
+gh label create docs --color 0075CA --description "Changes documentation only." --force
+gh label create ci --color 5319E7 --description "Changes workflows, scripts, or the build itself." --force
+gh label create chore --color FBCA04 --description "Maintenance work with no user-visible effect." --force
+gh label create dependencies --color 0366D6 --description "Updates a dependency." --force
+gh label create skip-changelog --color E4E669 --description "Keeps this pull request out of the release notes." --force
 ```
 
-Push the version commit through the normal pull request process. After it lands
-on `main`, create and push the matching tag:
+`--force` updates a label that already exists, which is how `dependencies`
+keeps working for Dependabot. `.github/workflows/pr-labels.yml` fails a pull
+request until one of these labels is on it.
+
+## Cut the release
+
+Open Actions > Release > Run workflow on `main`, pick a bump level, and run it.
+The workflow reads `VERSION` through `scripts/bump-version.sh`, writes the
+bumped number into the tree, builds it, and then commits and tags it. The
+pre-release checkbox forces the pre-release flag. A version below 1.0.0 carries
+it either way, which puts the appcast item on the beta channel. A 0.x build
+reads that channel whatever its beta setting says, so every 0.x install
+receives every 0.x release. The setting starts deciding at 1.0.
+
+Do not merge to `main` while a release run is in progress. The run pushes the
+version commit onto `main` at the end, and a merge that lands first has to be
+rebased onto.
+
+The `level` route needs a `VERSION` to bump from. The first release is cut by
+leaving the level at `none` and typing `0.1.0` into the version field instead.
+That run makes no version commit when `VERSION` and `project.yml` already say
+`0.1.0`, and pushes only the tag. From the second release on, the level does
+the arithmetic.
+
+The version lives in three places, and `scripts/bump-version.sh --apply` writes
+all of them: `VERSION`, `MARKETING_VERSION` in `project.yml`, and the
+`Pipit.xcodeproj` it regenerates from `project.yml`.
+
+A run refuses when the level and the version are both filled in, when neither
+is, when the version is not `MAJOR.MINOR.PATCH`, when the tag already exists on
+the remote, or when the run was started from a branch other than `main`. Those
+checks all run before the test step.
+
+The version commit and the tag are made only after the tests, the signing, the
+notarization and the packaging have succeeded, so a failed build leaves neither
+behind. Run it again once the cause is fixed.
+
+A failure after the tag is pushed leaves the tag on the remote, and the next
+run refuses a version whose tag exists. Delete the remote tag and run the
+release again:
+
+```sh
+git push origin :refs/tags/v1.2.0
+```
+
+The version commit is pushed with `GITHUB_TOKEN`, which does not start
+`ci.yml`. The tree it tests is `main` plus the version files, and the release
+job runs the full suite against it first.
+
+Check the arithmetic locally at any time:
+
+```sh
+./scripts/bump-version.sh minor
+./scripts/bump-version.sh --self-test
+```
+
+### Tag by hand instead
+
+A tag push still starts the workflow, which is the fallback when the Actions
+route is unavailable. The version files go through a pull request like any
+other change, and the tag is pushed once it is merged:
+
+```sh
+git switch -c release-1.2.0
+./scripts/bump-version.sh --apply 1.2.0
+./scripts/test.sh
+(cd extension && npm test)
+git commit -am "Release 1.2.0"
+git push -u origin release-1.2.0
+gh pr create --fill --label ci
+```
+
+After the pull request merges:
 
 ```sh
 git switch main
@@ -57,18 +132,13 @@ git tag v1.2.0
 git push origin v1.2.0
 ```
 
-The tag starts `.github/workflows/release.yml`. The workflow creates these
-artifacts:
+The workflow creates these artifacts:
 
 ```text
 Pipit-1.2.0.zip
 Pipit-1.2.0.dmg
 Pipit-1.2.0.sha256
 ```
-
-A release started from the Actions tab has a pre-release checkbox. Ticking it
-marks the GitHub release as a pre-release and puts the appcast item on the beta
-channel. A version below 1.0.0 goes on the beta channel either way.
 
 The release job builds, tests, notarizes and packages within a 120-minute
 budget. The `swift test` step alone takes around half an hour because it

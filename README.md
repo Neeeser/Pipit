@@ -60,7 +60,7 @@ and exports.
 ## Documentation
 
 - [Contributing](CONTRIBUTING.md)
-- [Changelog](CHANGELOG.md)
+- [Releases](https://github.com/Neeeser/Pipit/releases)
 - [Security policy](SECURITY.md)
 - [Architecture](docs/ARCHITECTURE.md)
 - [Benchmarks](Benchmarks/README.md)

@@ -17,8 +17,11 @@ struct GeneralSettingsPane: View {
                 }
                 VStack(alignment: .leading, spacing: 2) {
                     Toggle("Receive beta updates", isOn: model.binding(\.receivesBetaUpdates))
-                    Text("Betas carry work that is not finished.")
-                        .font(.caption).foregroundStyle(.secondary)
+                    Text(
+                        "Betas carry work that is not finished. A 0.x build receives "
+                            + "them already. The setting starts deciding at 1.0."
+                    )
+                    .font(.caption).foregroundStyle(.secondary)
                 }
                 Toggle(
                     "Pause automatic detection",

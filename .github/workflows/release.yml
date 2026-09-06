@@ -5,11 +5,17 @@ on:
     tags: ['v*.*.*']
   workflow_dispatch:
     inputs:
+      level:
+        description: 'Bump VERSION by this much and tag the result'
+        type: choice
+        default: none
+        options: [none, patch, minor, major]
       version:
-        description: 'Version to build, without the leading v'
-        required: true
+        description: 'Version to build, without the leading v. Leave empty when a level is given'
+        required: false
+        default: ''
       prerelease:
-        description: 'Mark the release as a pre-release, which puts the appcast item on the beta channel'
+        description: 'Mark the release as a pre-release, which puts the appcast item on the beta channel. A version below 1.0.0 is a pre-release either way'
         type: boolean
         default: false
 
@@ -34,21 +40,93 @@ jobs:
 
       - name: Resolve the version
         id: version
+        # A manual run takes either a bump level or an explicit version. The
+        # level route reads VERSION and raises it. The version route names the
+        # number outright, which is how the first release is cut. A tag push
+        # takes the version from the tag. Both manual routes end the same way:
+        # the version goes into the tree, the build runs, and the commit and
+        # the tag are pushed once it has succeeded.
         env:
           # Passed through the environment and validated, never interpolated into
           # the script body.
+          INPUT_LEVEL: ${{ inputs.level }}
           INPUT_VERSION: ${{ inputs.version }}
+          INPUT_PRERELEASE: ${{ inputs.prerelease }}
+          EVENT_NAME: ${{ github.event_name }}
+          BRANCH: ${{ github.ref_name }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
         run: |
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            VERSION="$INPUT_VERSION"
+          TAG_PUSH=false
+          if [ "$EVENT_NAME" = "workflow_dispatch" ]; then
+            if [ "$BRANCH" != "$DEFAULT_BRANCH" ]; then
+              echo "a release run belongs on $DEFAULT_BRANCH, not $BRANCH" >&2
+              exit 1
+            fi
+            LEVEL="$INPUT_LEVEL"
+            if [ "$LEVEL" = "none" ]; then
+              LEVEL=""
+            fi
+            if [ -n "$LEVEL" ] && [ -n "$INPUT_VERSION" ]; then
+              echo "give a bump level or a version, not both" >&2
+              exit 1
+            fi
+            if [ -z "$LEVEL" ] && [ -z "$INPUT_VERSION" ]; then
+              echo "give a bump level or a version" >&2
+              exit 1
+            fi
+            if [ -n "$LEVEL" ]; then
+              VERSION="$(./scripts/bump-version.sh "$LEVEL")"
+            else
+              VERSION="$INPUT_VERSION"
+            fi
           else
+            TAG_PUSH=true
             VERSION="${GITHUB_REF_NAME#v}"
           fi
-          case "$VERSION" in
-            *[!0-9.]*|"") echo "version must be numeric, got: $VERSION" >&2; exit 1 ;;
-          esac
-          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
-          echo "$VERSION" > VERSION
+          if ! printf '%s' "$VERSION" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$'; then
+            echo "version must be MAJOR.MINOR.PATCH, got: $VERSION" >&2
+            exit 1
+          fi
+          if [ "$TAG_PUSH" = false ] \
+            && git ls-remote --exit-code --tags origin "refs/tags/v$VERSION" >/dev/null 2>&1; then
+            echo "tag v$VERSION already exists" >&2
+            exit 1
+          fi
+          # Below 1.0.0 the release is a pre-release whatever the box says, so
+          # the appcast item lands on the beta channel.
+          PRERELEASE=false
+          if [ "${VERSION%%.*}" = "0" ] || [ "$INPUT_PRERELEASE" = "true" ]; then
+            PRERELEASE=true
+          fi
+          {
+            echo "version=$VERSION"
+            echo "tag=v$VERSION"
+            echo "tag_push=$TAG_PUSH"
+            echo "prerelease=$PRERELEASE"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Install XcodeGen
+        # scripts/bump-version.sh --apply regenerates Pipit.xcodeproj, so the
+        # version commit carries the project the build was made from.
+        run: brew install xcodegen
+
+      - name: Write the version into the tree
+        # VERSION, MARKETING_VERSION in project.yml, and the regenerated
+        # Pipit.xcodeproj. The build below reads them. Nothing is pushed yet.
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: ./scripts/bump-version.sh --apply "$VERSION"
+
+      - name: Check the update signing key
+        # Sparkle refuses an update whose archive is unsigned, and the archive
+        # is signed against the public key inside the app. A release built with
+        # the placeholder ships a copy that can never update itself.
+        run: |
+          KEY="$(/usr/libexec/PlistBuddy -c "Print :SUPublicEDKey" App/Info.plist 2>/dev/null || true)"
+          if [ -z "$KEY" ] || [ "$KEY" = "REPLACE_WITH_PUBLIC_KEY" ]; then
+            echo "App/Info.plist still carries the placeholder SUPublicEDKey. Generate the EdDSA key pair and set the real public key before tagging a release. See docs/RELEASING.md." >&2
+            exit 1
+          fi
 
       - name: Test before packaging
         # The gate is the CI run on main, which tests every commit before it
@@ -108,17 +186,6 @@ jobs:
           fi
           ./scripts/sign-extension.sh "$VERSION"
 
-      - name: Check the update signing key
-        # Sparkle refuses an update whose archive is unsigned, and the archive
-        # is signed against the public key inside the app. A release built with
-        # the placeholder ships a copy that can never update itself.
-        run: |
-          KEY="$(/usr/libexec/PlistBuddy -c "Print :SUPublicEDKey" App/Info.plist 2>/dev/null || true)"
-          if [ -z "$KEY" ] || [ "$KEY" = "REPLACE_WITH_PUBLIC_KEY" ]; then
-            echo "App/Info.plist still carries the placeholder SUPublicEDKey. Generate the EdDSA key pair and set the real public key before tagging a release. See docs/RELEASING.md." >&2
-            exit 1
-          fi
-
       - name: Build the app
         env:
           PIPIT_SIGN_IDENTITY: ${{ steps.signing.outputs.identity }}
@@ -140,6 +207,40 @@ jobs:
         if: always()
         run: security delete-keychain build.keychain || true
 
+      - name: Commit and tag the version
+        # The build has already signed, notarized and packaged, so the tag only
+        # ever names a tree that produced a release. The commit lands on the
+        # default branch and the tag goes on that commit, which is why the
+        # release step needs no target_commitish. A push made with GITHUB_TOKEN
+        # does not start ci.yml. That is acceptable here. This tree is the
+        # tested default branch plus the version files, and the test step above
+        # ran against it. A tag push run skips this step, because its tag
+        # already exists.
+        if: steps.version.outputs.tag_push != 'true'
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+          TAG: ${{ steps.version.outputs.tag }}
+          BRANCH: ${{ github.ref_name }}
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email 'github-actions[bot]@users.noreply.github.com'
+          if ! git diff --quiet HEAD -- VERSION project.yml Pipit.xcodeproj; then
+            git add VERSION project.yml Pipit.xcodeproj
+            git commit -m "Release $VERSION"
+            # A pull request that merged while this job built moved the branch,
+            # and the push would be rejected. Replay the version commit onto
+            # what is there now. A conflict means the merge touched the version
+            # files, so the run stops here and no tag is pushed.
+            if ! git pull --rebase origin "$BRANCH"; then
+              echo "cannot rebase the version commit onto $BRANCH: a change that landed during this run conflicts with VERSION, project.yml or Pipit.xcodeproj. Resolve it and run the release again." >&2
+              git rebase --abort || true
+              exit 1
+            fi
+            git push origin "HEAD:$BRANCH" || git push origin "HEAD:$BRANCH"
+          fi
+          git tag "$TAG"
+          git push origin "$TAG"
+
       - name: Publish the release
         # Pinned to a commit: this job holds the signing identity while it runs.
         uses: softprops/action-gh-release@c95fe1489396fe8a9eb87c0abf8aa5b2ef267fda # v2.2.1
@@ -148,9 +249,13 @@ jobs:
             dist/Pipit-${{ steps.version.outputs.version }}.zip
             dist/Pipit-${{ steps.version.outputs.version }}.dmg
             dist/Pipit-${{ steps.version.outputs.version }}.sha256
-          tag_name: v${{ steps.version.outputs.version }}
+          tag_name: ${{ steps.version.outputs.tag }}
           draft: true
-          prerelease: ${{ inputs.prerelease == true }}
+          prerelease: ${{ steps.version.outputs.prerelease == 'true' }}
+          # GitHub appends the notes it generates from merged pull requests
+          # after this body.
           generate_release_notes: true
           body: |
-            ${{ steps.signing.outputs.signed == 'true' && 'Signed with Developer ID and notarized.' || '**Unsigned build.** Gatekeeper will refuse to open it normally. Do not publish this as a public release; see docs/RELEASING.md.' }}
+            ${{ steps.signing.outputs.signed == 'true' && 'Signed with Developer ID and notarized.' || '**Unsigned build.** Gatekeeper will refuse to open it normally. Do not publish this as a public release. See docs/RELEASING.md.' }}
+
+            Install Pipit by opening `Pipit-${{ steps.version.outputs.version }}.dmg` and dragging the app to Applications.
