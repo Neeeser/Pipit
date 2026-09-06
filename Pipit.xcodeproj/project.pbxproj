@@ -206,6 +206,7 @@
 				A2888C339E70F44221D9289D /* Frameworks */,
 				DA69861DF994E7AE62D80681 /* Embed Dependencies */,
 				B538C45AA53B2AD4F01D9BD5 /* Build and copy the browser sensor */,
+				323284C8A3A210345D390ED5 /* Stamp the version into Info.plist */,
 			);
 			buildRules = (
 			);
@@ -305,6 +306,25 @@
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXShellScriptBuildPhase section */
+		323284C8A3A210345D390ED5 /* Stamp the version into Info.plist */ = {
+			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+			);
+			name = "Stamp the version into Info.plist";
+			outputFileListPaths = (
+			);
+			outputPaths = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/bash;
+			shellScript = "set -euo pipefail\nplist=\"$TARGET_BUILD_DIR/$INFOPLIST_PATH\"\n{ read -r short; read -r build; } < <(\"$SRCROOT/scripts/app-version.sh\")\n/usr/libexec/PlistBuddy -c \"Set :CFBundleShortVersionString $short\" \"$plist\"\n/usr/libexec/PlistBuddy -c \"Set :CFBundleVersion $build\" \"$plist\"\n";
+		};
 		B538C45AA53B2AD4F01D9BD5 /* Build and copy the browser sensor */ = {
 			isa = PBXShellScriptBuildPhase;
 			buildActionMask = 2147483647;

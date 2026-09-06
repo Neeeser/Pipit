@@ -58,8 +58,9 @@ references as a local package. In a clone whose directory is not named `Pipit`,
 `Pipit.xcodeproj/project.pbxproj`, and those two lines must not be committed.
 
 The Xcode build and `scripts/bundle-app.sh` read the same `App/Info.plist` and
-`App/Pipit.entitlements`. A shipped bundle takes its version from `VERSION`,
-which `scripts/bundle-app.sh` stamps into the copied plist.
+`App/Pipit.entitlements`. Both stamp the version and the build number over what
+that plist says, and [releasing](docs/RELEASING.md) explains where the two
+numbers come from and why a local build reads `0.1.0-dev.<sha>`.
 
 ## Targeted checks
 
