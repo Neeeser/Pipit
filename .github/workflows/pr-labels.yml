@@ -1,0 +1,21 @@
+name: PR labels
+
+# Release notes are grouped by label, so every pull request needs one.
+on:
+  pull_request:
+    types: [opened, reopened, labeled, unlabeled, synchronize]
+
+jobs:
+  required-label:
+    name: Require a release-notes label
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write
+    steps:
+      - name: Check for a category label
+        uses: mheap/github-action-required-labels@v5
+        with:
+          mode: minimum
+          count: 1
+          labels: breaking, feature, fix, docs, ci, chore, dependencies, skip-changelog
+          add_comment: true

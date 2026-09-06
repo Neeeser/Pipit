@@ -1,0 +1,21 @@
+changelog:
+  categories:
+    - title: Breaking changes
+      labels:
+        - breaking
+    - title: Features
+      labels:
+        - feature
+    - title: Bug fixes
+      labels:
+        - fix
+  exclude:
+    labels:
+      - docs
+      - ci
+      - chore
+      - dependencies
+      - skip-changelog
+    authors:
+      - dependabot
+      - dependabot[bot]

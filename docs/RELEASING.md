@@ -34,6 +34,26 @@ The AMO credentials come from
 them ships an app that has no signed add-on, and Firefox users then load a
 temporary add-on that Firefox drops when it quits.
 
+## Labels
+
+Release notes come from merged pull request titles grouped by label, as
+`.github/release.yml` maps them. A fork recreates the labels with:
+
+```sh
+gh label create breaking --color B60205 --description "Changes behaviour or storage in a way an existing install notices." --force
+gh label create feature --color 0E8A16 --description "Adds a capability a user can see." --force
+gh label create fix --color D73A4A --description "Corrects a defect in shipped behaviour." --force
+gh label create docs --color 0075CA --description "Changes documentation only." --force
+gh label create ci --color 5319E7 --description "Changes workflows, scripts, or the build itself." --force
+gh label create chore --color FBCA04 --description "Maintenance work with no user-visible effect." --force
+gh label create dependencies --color 0366D6 --description "Updates a dependency." --force
+gh label create skip-changelog --color E4E669 --description "Keeps this pull request out of the release notes." --force
+```
+
+`--force` updates a label that already exists, which is how `dependencies`
+keeps working for Dependabot. `.github/workflows/pr-labels.yml` fails a pull
+request until one of these labels is on it.
+
 ## Prepare the release
 
 Start from an up-to-date `main` branch with a clean working tree. Update

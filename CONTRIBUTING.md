@@ -129,6 +129,13 @@ templates under `.github/ISSUE_TEMPLATE/`. Record a user-visible change in the
 Unreleased section of [CHANGELOG.md](CHANGELOG.md). Report a security problem
 privately instead, through the process in [SECURITY.md](SECURITY.md).
 
+Every pull request carries exactly one of `breaking`, `feature`, `fix`, `docs`,
+`ci`, `chore`, `dependencies`, or `skip-changelog`. GitHub builds the release
+notes from merged pull request titles grouped by that label, so `breaking`,
+`feature`, and `fix` become the headings a reader sees and the rest stay out of
+the notes. The `PR labels` check fails until a label is present and comments on
+the pull request saying so. A maintainer adds the label if you cannot.
+
 Do not commit recordings, API keys, benchmark audio, or meeting content. The
 CI hygiene job rejects audio files and strings shaped like API keys.
 
