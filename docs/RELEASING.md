@@ -125,13 +125,11 @@ private key means every installed copy stops updating, so keep a backup outside
 the repository.
 
 Enable Pages once, under Settings > Pages: source "Deploy from a branch",
-branch `gh-pages`, folder `/ (root)`. The first release creates the branch. Until
-Pages serves the file the feed 404s and Pipit reports no updates, which is safe.
+branch `gh-pages`, folder `/ (root)`. The first release creates the branch.
 
 ## Install route
 
-The disk image on the GitHub release is the install route. A Homebrew cask is a
-future step once the first release is published.
+The disk image on the GitHub release is the install route.
 
 ## Browser extension
 
