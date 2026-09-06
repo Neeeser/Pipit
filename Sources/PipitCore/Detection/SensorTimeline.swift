@@ -155,18 +155,21 @@ public struct RawSensors: Codable, Sendable, Equatable {
     /// turned naming off for every meeting recorded before it.
     public init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
-        version = try container.decodeIfPresent(Int.self, forKey: .version)
+        version =
+            try container.decodeIfPresent(Int.self, forKey: .version)
             ?? RawSensors.currentVersion
         source = try container.decodeIfPresent(String.self, forKey: .source) ?? "unknown"
-        participants = try container.decodeIfPresent(
-            [SensorParticipant].self, forKey: .participants
-        ) ?? []
+        participants =
+            try container.decodeIfPresent(
+                [SensorParticipant].self, forKey: .participants
+            ) ?? []
         turns = try container.decodeIfPresent([SensorTurn].self, forKey: .turns) ?? []
         unmutedIDs = try container.decodeIfPresent([String].self, forKey: .unmutedIDs) ?? []
         // Absent means unknown, which reads as a guess rather than a fact.
-        selfIsAuthoritative = try container.decodeIfPresent(
-            Bool.self, forKey: .selfIsAuthoritative
-        ) ?? false
+        selfIsAuthoritative =
+            try container.decodeIfPresent(
+                Bool.self, forKey: .selfIsAuthoritative
+            ) ?? false
     }
 
     public func participant(_ id: String) -> SensorParticipant? {
@@ -266,7 +269,8 @@ public struct RawSensors: Codable, Sendable, Equatable {
         // evidence of who spoke.
         for turn in turns
         where !selfIDs.contains(turn.participantID)
-            && SensorAttribution.isFloorObservation(turn) {
+            && SensorAttribution.isFloorObservation(turn)
+        {
             byParticipant[turn.participantID, default: []].append(turn)
         }
         var found: Set<String> = []
@@ -324,9 +328,10 @@ public struct RawSensors: Codable, Sendable, Equatable {
             var at = turn.start
             while at < stop {
                 defer { at += window }
-                guard let reading = evidence.reading(
-                    from: at, to: min(at + window, stop), farEndUsable: farEndUsable
-                )
+                guard
+                    let reading = evidence.reading(
+                        from: at, to: min(at + window, stop), farEndUsable: farEndUsable
+                    )
                 else { continue }
                 // A window whose far end reads the silence floor was not
                 // measured against anything, whatever the rest of the series
@@ -339,7 +344,7 @@ public struct RawSensors: Codable, Sendable, Equatable {
                 if farEndUsable, let far = reading.loudestFarDB, far <= floor { continue }
                 measured += 1
                 guard let probability = reading.speechProbability,
-                      probability >= LocalSpeechPolicy.speechProbability
+                    probability >= LocalSpeechPolicy.speechProbability
                 else { continue }
                 carrying += 1
             }

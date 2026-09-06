@@ -66,12 +66,13 @@ public struct SensorPeerVerifier: Sendable {
         } else {
             var paths: Set<String> = [
                 SensorTransport.defaultApplicationSupport
-                    .appendingPathComponent("pipit-nativehost").path,
+                    .appendingPathComponent("pipit-nativehost").path
             ]
             if let bundled = NativeMessagingInstaller.bundledHostURL()?.path { paths.insert(bundled) }
             self.allowedHostPaths = paths
         }
-        self.allowedParentBundleIDs = allowedParentBundleIDs
+        self.allowedParentBundleIDs =
+            allowedParentBundleIDs
             ?? Set(BrowserKind.allCases.flatMap(\.bundleIdentifiers))
     }
 
@@ -79,7 +80,7 @@ public struct SensorPeerVerifier: Sendable {
         var processID: pid_t = 0
         var size = socklen_t(MemoryLayout<pid_t>.size)
         guard getsockopt(descriptor, SOL_LOCAL, LOCAL_PEERPID, &processID, &size) == 0,
-              processID > 0
+            processID > 0
         else { return nil }
         guard let path = executablePath(of: processID) else { return nil }
         let parent = parentProcessID(of: processID)
@@ -109,7 +110,8 @@ public struct SensorPeerVerifier: Sendable {
         // The bundle identifier is the direct answer; the executable path is the
         // fallback for a browser that is running but not registered.
         if let identifier = peer.parentBundleIdentifier,
-           allowedParentBundleIDs.contains(identifier) {
+            allowedParentBundleIDs.contains(identifier)
+        {
             return true
         }
         guard let parentPath = peer.parentPath else { return false }
@@ -164,12 +166,13 @@ enum CodeSignatureCheck {
         guard let token = auditToken(of: descriptor) else { return .unknown }
         guard let code = guest(for: token) else { return .unknown }
 
-        let text = "identifier \"com.pipit.nativehost\""
+        let text =
+            "identifier \"com.pipit.nativehost\""
             + " and anchor apple generic"
             + " and certificate leaf[subject.OU] = \"\(team)\""
         var requirement: SecRequirement?
         guard SecRequirementCreateWithString(text as CFString, [], &requirement) == errSecSuccess,
-              let requirement
+            let requirement
         else { return .unknown }
         return SecCodeCheckValidity(code, [], requirement) == errSecSuccess
             ? .matchesApplication : .mismatched
@@ -181,12 +184,14 @@ enum CodeSignatureCheck {
         guard SecCodeCopySelf([], &code) == errSecSuccess, let code else { return nil }
         var staticCode: SecStaticCode?
         guard SecCodeCopyStaticCode(code, [], &staticCode) == errSecSuccess,
-              let staticCode
+            let staticCode
         else { return nil }
         var information: CFDictionary?
-        guard SecCodeCopySigningInformation(
-            staticCode, SecCSFlags(rawValue: kSecCSSigningInformation), &information
-        ) == errSecSuccess else { return nil }
+        guard
+            SecCodeCopySigningInformation(
+                staticCode, SecCSFlags(rawValue: kSecCSSigningInformation), &information
+            ) == errSecSuccess
+        else { return nil }
         let dictionary = information as? [String: Any]
         let team = dictionary?[kSecCodeInfoTeamIdentifier as String] as? String
         return team?.isEmpty == false ? team : nil

@@ -35,6 +35,32 @@ runs `swift test --no-parallel`. Running `swift test --no-parallel` directly
 works when the repairs are not needed. The suite shares temporary directories
 and process-wide state, so it must not run in parallel.
 
+Xcode runs suites in parallel by default. Give a suite `.serialized` when its
+own tests collide with each other. One test in `CaptureEngineHardening` depends
+on a real-time watchdog and needs the whole run serial, which is why
+`scripts/test.sh` passes `--no-parallel`.
+
+## Open in Xcode
+
+```sh
+open Pipit.xcodeproj
+```
+
+Run the `Pipit` scheme to launch the menu bar app. The test navigator lists the
+package's `PipitTests` suite, subject to the parallel-run caveat above.
+
+`project.yml` is the source for the project, and `xcodegen generate` rewrites
+`Pipit.xcodeproj` from it. Edit `project.yml` and regenerate rather than
+changing target settings in Xcode, because CI regenerates the project and fails
+on a difference. Modules and tests stay in `Package.swift`, which the project
+references as a local package. In a clone whose directory is not named `Pipit`,
+`xcodegen generate` renames that package reference and changes two lines in
+`Pipit.xcodeproj/project.pbxproj`, and those two lines must not be committed.
+
+The Xcode build and `scripts/bundle-app.sh` read the same `App/Info.plist` and
+`App/Pipit.entitlements`. A shipped bundle takes its version from `VERSION`,
+which `scripts/bundle-app.sh` stamps into the copied plist.
+
 ## Targeted checks
 
 List or filter application tests with:
@@ -51,9 +77,14 @@ Run the browser sensor tests after changing `extension/`:
 
 ```sh
 cd extension
+npm ci
+npm run lint
 npm test
 npm run build
 ```
+
+`npm run lint` is ESLint over `shared/` and `test/`, with the same flat config
+CI runs.
 
 To try the changed extension in Firefox, load it as a temporary add-on: open
 `about:debugging#/runtime/this-firefox`, choose Load Temporary Add-on, and select
@@ -88,6 +119,12 @@ relays its events to Pipit.
 Keep each pull request focused on one change. Add a regression test for every
 bug fix and confirm that the test fails before the fix and passes after it.
 Test behavior at the lowest layer that exposes the defect.
+
+GitHub fills the description from `.github/PULL_REQUEST_TEMPLATE.md`, which asks
+for the problem, the change, and the testing. New issues use the bug and feature
+templates under `.github/ISSUE_TEMPLATE/`. Record a user-visible change in the
+Unreleased section of [CHANGELOG.md](CHANGELOG.md). Report a security problem
+privately instead, through the process in [SECURITY.md](SECURITY.md).
 
 Do not commit recordings, API keys, benchmark audio, or meeting content. The
 CI hygiene job rejects audio files and strings shaped like API keys.

@@ -56,7 +56,8 @@ struct TranscriptNavigationTests {
         #expect(walk.targets.map(\.blockID) == [all[3].id, all[3].id, all[3].id])
         #expect(walk.counter == "1 of 3")
         #expect(walk.isSearch)
-        #expect(walk.targets[0].location < walk.targets[1].location
+        #expect(
+            walk.targets[0].location < walk.targets[1].location
                 && walk.targets[1].location < walk.targets[2].location, "in reading order inside the paragraph")
         // The block's own matches, for tinting, and which is current.
         let inBlock = walk.matches(in: all[3].id)

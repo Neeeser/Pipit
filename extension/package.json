@@ -6,6 +6,12 @@
   "description": "Pipit browser sensor for Google Meet and Zoom.",
   "scripts": {
     "test": "node --test test/*.test.js",
+    "lint": "eslint .",
     "build": "./build.sh"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "eslint": "^10.10.0",
+    "globals": "^17.12.0"
   }
 }

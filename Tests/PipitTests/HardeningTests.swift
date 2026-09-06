@@ -103,11 +103,13 @@ private final class EmittingTap: ProcessTapController, @unchecked Sendable {
             // One interleaved stream, which is the tap's own buffer in an
             // aggregate device's list.
             reading = TapCallbackReading(
-                streams: [.init(
-                    channelCount: format.channelCount,
-                    byteCount: Int(buffer.frameLength) * format.channelCount
-                        * MemoryLayout<Float>.size
-                )],
+                streams: [
+                    .init(
+                        channelCount: format.channelCount,
+                        byteCount: Int(buffer.frameLength) * format.channelCount
+                            * MemoryLayout<Float>.size
+                    )
+                ],
                 usedFallback: false
             )
         }
@@ -134,6 +136,12 @@ private final class SilentDelegate: CaptureEngineDelegate, @unchecked Sendable {
     }
 }
 
+// The engine under test polls a real timer, so a test here has to run to the end
+// inside one poll interval. Under `swift test` without `--no-parallel` the whole
+// machine is saturated and a 15 ms test stretches past 8 seconds, which is long
+// enough for the microphone watchdog to rebuild a track the test never touched.
+// `.serialized` does not help. The contention comes from the other 89 suites
+// rather than from this one. Run the suite through `scripts/test.sh`.
 @Suite("CaptureEngineHardening")
 struct CaptureEngineHardeningTests {
     /// Records half a second of tap audio at one amplitude and returns what the
@@ -475,18 +483,20 @@ struct CaptureEngineHardeningTests {
             track: .mic, layout: layout, manifest: manifest, format: format,
             segmentSeconds: 60, clock: clock
         )
-        writer.enqueueSynchronously(AudioBufferPacket(
-            buffer: AudioFixtures.makeTone(seconds: 1, sampleRate: 48_000), hostTime: 0
-        ))
+        writer.enqueueSynchronously(
+            AudioBufferPacket(
+                buffer: AudioFixtures.makeTone(seconds: 1, sampleRate: 48_000), hostTime: 0
+            ))
         #expect(writer.stats.writeFailures > 0, "the failure should be recorded")
 
         // The volume comes back; the next buffer after the retry delay must
         // land on disk.
         try FileManager.default.createDirectory(at: layout.segments, withIntermediateDirectories: true)
         clock.advance(2)
-        writer.enqueueSynchronously(AudioBufferPacket(
-            buffer: AudioFixtures.makeTone(seconds: 1, sampleRate: 48_000), hostTime: 1
-        ))
+        writer.enqueueSynchronously(
+            AudioBufferPacket(
+                buffer: AudioFixtures.makeTone(seconds: 1, sampleRate: 48_000), hostTime: 1
+            ))
         writer.finish(reason: "test")
         manifest.close()
 
@@ -597,7 +607,10 @@ struct DetectionHardeningTests {
                 observation: .unavailable, helperHoldsMicrophone: true,
                 helperProducingOutput: true, at: now
             )
-            if event == .joinedWithoutAccessibility { joined = true; break }
+            if event == .joinedWithoutAccessibility {
+                joined = true
+                break
+            }
         }
         #expect(joined, "audio evidence alone should eventually confirm a huddle")
         #expect(detector.state == .joined)
@@ -609,7 +622,10 @@ struct DetectionHardeningTests {
             if case .left = detector.update(
                 observation: .unavailable, helperHoldsMicrophone: false,
                 helperProducingOutput: false, at: now
-            ) { ended = true; break }
+            ) {
+                ended = true
+                break
+            }
         }
         #expect(ended)
     }
@@ -724,7 +740,7 @@ struct DetectionHardeningTests {
                 bundleIdentifier: "com.example.videochat", processID: 4_242,
                 holdsMicrophone: true, producesOutput: true,
                 isFrontmost: true, windowTitle: "Team call"
-            ),
+            )
         ]
         for _ in 0..<20 {
             now += 0.5
@@ -809,7 +825,7 @@ struct SessionHardeningTests {
                     bundleIdentifier: "com.openai.chat.helper.GPU", processID: 1,
                     holdsMicrophone: true, producesOutput: false,
                     isFrontmost: true, windowTitle: nil
-                ),
+                )
             ],
             at: 100
         )
@@ -999,7 +1015,7 @@ struct SensorTrustTests {
         )
         #expect(
             !FirefoxProfile.hasInstalledAddOn(
-            profilesDirectory: root.appendingPathComponent("missing")
+                profilesDirectory: root.appendingPathComponent("missing")
             ),
             "no Firefox on this Mac reads as no add-on"
         )
@@ -1078,8 +1094,9 @@ struct SensorTrustTests {
 struct LiveCaptureTests {
     @Test(
         "the real engine records both tracks and closes a valid manifest",
-        .enabled(if: ProcessInfo.processInfo.environment["PIPIT_LIVE_CAPTURE"] == "1",
-                 "set PIPIT_LIVE_CAPTURE=1 to record from real hardware")
+        .enabled(
+            if: ProcessInfo.processInfo.environment["PIPIT_LIVE_CAPTURE"] == "1",
+            "set PIPIT_LIVE_CAPTURE=1 to record from real hardware")
     )
     func theRealEngineRecordsBothTracksAndClosesAValidManifest() async throws {
         let root = try TestPaths.makeTemporaryDirectory()
@@ -1147,8 +1164,9 @@ struct LiveCaptureTests {
     // pipeline. Everything below PipitRuntime is the shipping code.
     @Test(
         "a manual recording started through the runtime lands in the archive",
-        .enabled(if: ProcessInfo.processInfo.environment["PIPIT_LIVE_CAPTURE"] == "1",
-                 "set PIPIT_LIVE_CAPTURE=1 to record from real hardware")
+        .enabled(
+            if: ProcessInfo.processInfo.environment["PIPIT_LIVE_CAPTURE"] == "1",
+            "set PIPIT_LIVE_CAPTURE=1 to record from real hardware")
     )
     func aManualRecordingStartedThroughTheRuntimeLandsInTheArchive() async throws {
         let root = try TestPaths.makeTemporaryDirectory()
@@ -1176,7 +1194,7 @@ struct LiveCaptureTests {
         }
         #expect(summaries.count == 1, "one manual recording, one meeting")
         guard let summary = summaries.first,
-              let meeting = repository.findMeeting(id: summary.id)
+            let meeting = repository.findMeeting(id: summary.id)
         else {
             Issue.record("the meeting was never written")
             return
@@ -1228,15 +1246,16 @@ struct SoakTests {
     /// for at all.
     private static var requestedMinutes: Double? {
         guard let text = ProcessInfo.processInfo.environment["PIPIT_SOAK_MINUTES"],
-              let minutes = Double(text), minutes > 0
+            let minutes = Double(text), minutes > 0
         else { return nil }
         return minutes
     }
 
     @Test(
         "capture stays healthy and bounded over a long run",
-        .enabled(if: SoakTests.requestedMinutes != nil,
-                 "set PIPIT_SOAK_MINUTES=30 to run a capture soak")
+        .enabled(
+            if: SoakTests.requestedMinutes != nil,
+            "set PIPIT_SOAK_MINUTES=30 to run a capture soak")
     )
     func captureStaysHealthyAndBoundedOverALongRun() async throws {
         let minutes = try #require(SoakTests.requestedMinutes)

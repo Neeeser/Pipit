@@ -12,62 +12,70 @@ struct ManifestTests {
         let writer = try ManifestWriter(url: url)
 
         let events: [ManifestEvent] = [
-            .sessionStart(.init(
-                meetingID: "2026-08-18-1418-slack-huddle", source: .slackHuddle,
-                segmentSeconds: 30, appVersion: "1.0.0", processID: 1234
-            )),
-            .segmentOpen(.init(
-                track: .mic, index: 1, file: "mic.0001.caf", firstFrameHostTime: 12.5,
-                startFrame: 0, sampleRate: 48_000, channelCount: 1, reason: "start"
-            )),
-            .segmentClose(.init(
-                track: .mic, index: 1, frameCount: 1_440_000, byteCount: 5_760_000,
-                seconds: 30, firstFrameHostTime: 12.5, reason: "rotate"
-            )),
-            .formatChange(.init(
-                track: .mic,
-                from: AudioFormatDescriptor(sampleRate: 48_000, channelCount: 1),
-                to: AudioFormatDescriptor(sampleRate: 16_000, channelCount: 1),
-                reason: "config_change"
-            )),
+            .sessionStart(
+                .init(
+                    meetingID: "2026-08-18-1418-slack-huddle", source: .slackHuddle,
+                    segmentSeconds: 30, appVersion: "1.0.0", processID: 1234
+                )),
+            .segmentOpen(
+                .init(
+                    track: .mic, index: 1, file: "mic.0001.caf", firstFrameHostTime: 12.5,
+                    startFrame: 0, sampleRate: 48_000, channelCount: 1, reason: "start"
+                )),
+            .segmentClose(
+                .init(
+                    track: .mic, index: 1, frameCount: 1_440_000, byteCount: 5_760_000,
+                    seconds: 30, firstFrameHostTime: 12.5, reason: "rotate"
+                )),
+            .formatChange(
+                .init(
+                    track: .mic,
+                    from: AudioFormatDescriptor(sampleRate: 48_000, channelCount: 1),
+                    to: AudioFormatDescriptor(sampleRate: 16_000, channelCount: 1),
+                    reason: "config_change"
+                )),
             .captureRestart(.init(track: .mic, reason: "watchdog", restartCount: 1)),
-            .remoteBind(.init(
-                reason: "session_start",
-                targets: [
-                    .init(
-                        processID: 79_590, bundleIdentifier: "org.mozilla.firefox",
-                        isRunningOutput: true
-                    ),
-                    .init(
-                        processID: 45_082,
-                        bundleIdentifier: "com.tinyspeck.slackmacgap.helper",
-                        isRunningOutput: false
-                    ),
-                ],
-                bindCount: 1,
-                streamCount: 2,
-                tapStreamIndex: 1
-            )),
-            .remoteStream(.init(
-                bindCount: 1,
-                streams: [
-                    .init(channelCount: 8, byteCount: 16_384),
-                    .init(channelCount: 2, byteCount: 4_096),
-                ],
-                usedFallback: true
-            )),
-            .micBind(.init(
-                deviceUID: "BuiltInMicrophoneDevice", deviceName: "MacBook Pro Microphone",
-                deviceSampleRate: 48_000, deviceChannelCount: 1,
-                trackSampleRate: 48_000, trackChannelCount: 3,
-                deviceSelectionStatus: 1_768_843_636, reason: "session_start"
-            )),
+            .remoteBind(
+                .init(
+                    reason: "session_start",
+                    targets: [
+                        .init(
+                            processID: 79_590, bundleIdentifier: "org.mozilla.firefox",
+                            isRunningOutput: true
+                        ),
+                        .init(
+                            processID: 45_082,
+                            bundleIdentifier: "com.tinyspeck.slackmacgap.helper",
+                            isRunningOutput: false
+                        ),
+                    ],
+                    bindCount: 1,
+                    streamCount: 2,
+                    tapStreamIndex: 1
+                )),
+            .remoteStream(
+                .init(
+                    bindCount: 1,
+                    streams: [
+                        .init(channelCount: 8, byteCount: 16_384),
+                        .init(channelCount: 2, byteCount: 4_096),
+                    ],
+                    usedFallback: true
+                )),
+            .micBind(
+                .init(
+                    deviceUID: "BuiltInMicrophoneDevice", deviceName: "MacBook Pro Microphone",
+                    deviceSampleRate: 48_000, deviceChannelCount: 1,
+                    trackSampleRate: 48_000, trackChannelCount: 3,
+                    deviceSelectionStatus: 1_768_843_636, reason: "session_start"
+                )),
             .sourceHealth(.init(track: .remote, state: .idleButBound, detail: nil)),
             .preRollFlushed(.init(track: .mic, frameCount: 720_000, seconds: 15, earliestHostTime: 1.0)),
             .marker(.init(label: "user note")),
-            .crashTailAdopted(.init(
-                track: .mic, index: 2, frameCount: 4_320, byteCount: 17_280, seconds: 0.09
-            )),
+            .crashTailAdopted(
+                .init(
+                    track: .mic, index: 2, frameCount: 4_320, byteCount: 17_280, seconds: 0.09
+                )),
             .sessionEnd(.init(reason: "provider_ended", micSeconds: 30.09, remoteSeconds: 29.5)),
         ]
         for event in events {
@@ -93,12 +101,12 @@ struct ManifestTests {
         // A line as manifests carried it before the tap was selected by
         // index. Neither new field is present.
         let line = """
-        {"ev":"remote_bind","host":100,"t":"2026-08-18T14:18:00.000Z",\
-        "reason":"session_start","bindCount":1,\
-        "targets":[{"processID":45082,\
-        "bundleIdentifier":"com.tinyspeck.slackmacgap.helper",\
-        "isRunningOutput":true}]}
-        """
+            {"ev":"remote_bind","host":100,"t":"2026-08-18T14:18:00.000Z",\
+            "reason":"session_start","bindCount":1,\
+            "targets":[{"processID":45082,\
+            "bundleIdentifier":"com.tinyspeck.slackmacgap.helper",\
+            "isRunningOutput":true}]}
+            """
         try (line + "\n").write(to: url, atomically: true, encoding: .utf8)
 
         let result = try ManifestReader.read(contentsOf: url)
@@ -121,11 +129,11 @@ struct ManifestTests {
         // writes no selection status at all, so the key is absent on
         // almost every mic_bind ever written.
         let line = """
-        {"ev":"mic_bind","host":100,"t":"2026-09-03T14:18:00.000Z",\
-        "deviceUID":"BuiltInMicrophoneDevice","deviceName":"MacBook Pro Microphone",\
-        "deviceSampleRate":48000,"deviceChannelCount":1,\
-        "trackSampleRate":48000,"trackChannelCount":1,"reason":"session_start"}
-        """
+            {"ev":"mic_bind","host":100,"t":"2026-09-03T14:18:00.000Z",\
+            "deviceUID":"BuiltInMicrophoneDevice","deviceName":"MacBook Pro Microphone",\
+            "deviceSampleRate":48000,"deviceChannelCount":1,\
+            "trackSampleRate":48000,"trackChannelCount":1,"reason":"session_start"}
+            """
         try (line + "\n").write(to: url, atomically: true, encoding: .utf8)
 
         let result = try ManifestReader.read(contentsOf: url)
@@ -174,14 +182,21 @@ struct ManifestTests {
         // many segments recorded back to back. Counting segments would
         // call every real meeting discontiguous and silently turn off
         // everything that places itself by a single host-time shift.
-        let rotating = ManifestReader.timeline(from: Self.timelineLines(segments: [
-            (track: .remote, index: 1, rate: 48_000.0, frames: Int64(48_000 * 30),
-             host: 1_000.0),
-            (track: .remote, index: 2, rate: 48_000.0, frames: Int64(48_000 * 30),
-             host: 1_030.0),
-            (track: .remote, index: 3, rate: 48_000.0, frames: Int64(48_000 * 30),
-             host: 1_060.0),
-        ]))
+        let rotating = ManifestReader.timeline(
+            from: Self.timelineLines(segments: [
+                (
+                    track: .remote, index: 1, rate: 48_000.0, frames: Int64(48_000 * 30),
+                    host: 1_000.0
+                ),
+                (
+                    track: .remote, index: 2, rate: 48_000.0, frames: Int64(48_000 * 30),
+                    host: 1_030.0
+                ),
+                (
+                    track: .remote, index: 3, rate: 48_000.0, frames: Int64(48_000 * 30),
+                    host: 1_060.0
+                ),
+            ]))
         #expect(
             rotating.isContiguous(track: .remote),
             "thirty-second rotation is how every meeting is recorded"
@@ -189,12 +204,17 @@ struct ManifestTests {
 
         // A sleep/wake or a tap rebind leaves audio missing, and
         // everything after it sits early on the concatenated timeline.
-        let gapped = ManifestReader.timeline(from: Self.timelineLines(segments: [
-            (track: .remote, index: 1, rate: 48_000.0, frames: Int64(48_000 * 30),
-             host: 1_000.0),
-            (track: .remote, index: 2, rate: 48_000.0, frames: Int64(48_000 * 30),
-             host: 1_050.0),
-        ]))
+        let gapped = ManifestReader.timeline(
+            from: Self.timelineLines(segments: [
+                (
+                    track: .remote, index: 1, rate: 48_000.0, frames: Int64(48_000 * 30),
+                    host: 1_000.0
+                ),
+                (
+                    track: .remote, index: 2, rate: 48_000.0, frames: Int64(48_000 * 30),
+                    host: 1_050.0
+                ),
+            ]))
         #expect(!gapped.isContiguous(track: .remote))
     }
 
@@ -206,20 +226,28 @@ struct ManifestTests {
         // restart record is the only evidence there is.
         func withRestart(at hostTime: Double) -> RecordingTimeline {
             let result = Self.timelineLines(segments: [
-                (track: .remote, index: 1, rate: 48_000.0, frames: Int64(48_000 * 30),
-                 host: 1_000.0),
-                (track: .remote, index: 2, rate: 48_000.0, frames: Int64(48_000 * 30),
-                 host: 1_030.0),
+                (
+                    track: .remote, index: 1, rate: 48_000.0, frames: Int64(48_000 * 30),
+                    host: 1_000.0
+                ),
+                (
+                    track: .remote, index: 2, rate: 48_000.0, frames: Int64(48_000 * 30),
+                    host: 1_030.0
+                ),
             ])
-            return ManifestReader.timeline(from: ManifestReadResult(
-                lines: result.lines + [ManifestLine(
-                    hostTime: hostTime, wallClock: Date(timeIntervalSince1970: hostTime),
-                    event: .captureRestart(.init(
-                        track: .remote, reason: "wake", restartCount: 1
-                    ))
-                )],
-                hasTruncatedTail: false, unrecognisedLines: 0
-            ))
+            return ManifestReader.timeline(
+                from: ManifestReadResult(
+                    lines: result.lines + [
+                        ManifestLine(
+                            hostTime: hostTime, wallClock: Date(timeIntervalSince1970: hostTime),
+                            event: .captureRestart(
+                                .init(
+                                    track: .remote, reason: "wake", restartCount: 1
+                                ))
+                        )
+                    ],
+                    hasTruncatedTail: false, unrecognisedLines: 0
+                ))
         }
 
         #expect(!withRestart(at: 1_045).isContiguous(track: .remote))
@@ -259,14 +287,18 @@ struct ManifestTests {
         defer { try? FileManager.default.removeItem(at: directory) }
         let url = directory.appendingPathComponent("manifest.jsonl")
         let writer = try ManifestWriter(url: url)
-        writer.append(.sessionStart(.init(
-            meetingID: "m", source: .googleMeet, segmentSeconds: 30,
-            appVersion: "1.0.0", processID: 1
-        )))
-        writer.append(.segmentOpen(.init(
-            track: .mic, index: 1, file: "mic.0001.caf", firstFrameHostTime: nil,
-            startFrame: 0, sampleRate: 48_000, channelCount: 1, reason: "start"
-        )))
+        writer.append(
+            .sessionStart(
+                .init(
+                    meetingID: "m", source: .googleMeet, segmentSeconds: 30,
+                    appVersion: "1.0.0", processID: 1
+                )))
+        writer.append(
+            .segmentOpen(
+                .init(
+                    track: .mic, index: 1, file: "mic.0001.caf", firstFrameHostTime: nil,
+                    startFrame: 0, sampleRate: 48_000, channelCount: 1, reason: "start"
+                )))
         writer.close()
 
         // Simulate SIGKILL partway through the next fsync'd line.
@@ -292,23 +324,29 @@ struct ManifestTests {
         defer { try? FileManager.default.removeItem(at: directory) }
         let url = directory.appendingPathComponent("manifest.jsonl")
         let writer = try ManifestWriter(url: url)
-        writer.append(.sessionStart(.init(
-            meetingID: "m", source: .googleMeet, segmentSeconds: 30,
-            appVersion: "1.0.0", processID: 1
-        )))
-        writer.append(.segmentOpen(.init(
-            track: .mic, index: 1, file: "mic.0001.caf", firstFrameHostTime: nil,
-            startFrame: 0, sampleRate: 48_000, channelCount: 1, reason: "start"
-        )))
+        writer.append(
+            .sessionStart(
+                .init(
+                    meetingID: "m", source: .googleMeet, segmentSeconds: 30,
+                    appVersion: "1.0.0", processID: 1
+                )))
+        writer.append(
+            .segmentOpen(
+                .init(
+                    track: .mic, index: 1, file: "mic.0001.caf", firstFrameHostTime: nil,
+                    startFrame: 0, sampleRate: 48_000, channelCount: 1, reason: "start"
+                )))
         writer.close()
         var data = try Data(contentsOf: url)
         data.append(contentsOf: Array(#"{"ev":"segment_close","host":1"#.utf8))
         try data.write(to: url)
 
         let recovery = try ManifestWriter(url: url)
-        recovery.append(.crashTailAdopted(.init(
-            track: .mic, index: 1, frameCount: 480_000, byteCount: 1_920_000, seconds: 10
-        )))
+        recovery.append(
+            .crashTailAdopted(
+                .init(
+                    track: .mic, index: 1, frameCount: 480_000, byteCount: 1_920_000, seconds: 10
+                )))
         recovery.append(.sessionEnd(.init(reason: "recovered", micSeconds: 10, remoteSeconds: 0)))
         recovery.close()
 
@@ -349,15 +387,17 @@ struct ManifestTests {
     @Test("an adopted crash tail contributes its real duration")
     func anAdoptedCrashTailContributesItsRealDuration() async throws {
         var lines = Self.timelineLines(segments: [
-            (track: .mic, index: 1, rate: 48_000.0, frames: Int64(48_000 * 30)),
+            (track: .mic, index: 1, rate: 48_000.0, frames: Int64(48_000 * 30))
         ]).lines
-        lines.append(ManifestLine(
-            hostTime: 40, wallClock: Date(timeIntervalSince1970: 40),
-            event: .segmentOpen(.init(
-                track: .mic, index: 2, file: "mic.0002.caf", firstFrameHostTime: nil,
-                startFrame: 1_440_000, sampleRate: 48_000, channelCount: 1, reason: "rotate"
+        lines.append(
+            ManifestLine(
+                hostTime: 40, wallClock: Date(timeIntervalSince1970: 40),
+                event: .segmentOpen(
+                    .init(
+                        track: .mic, index: 2, file: "mic.0002.caf", firstFrameHostTime: nil,
+                        startFrame: 1_440_000, sampleRate: 48_000, channelCount: 1, reason: "rotate"
+                    ))
             ))
-        ))
         var timeline = ManifestReader.timeline(
             from: ManifestReadResult(lines: lines, hasTruncatedTail: true, unrecognisedLines: 0)
         )
@@ -367,12 +407,14 @@ struct ManifestTests {
             "expected \(30.0) ± \(0.001), got \(timeline.duration(track: .mic))"
         )
 
-        lines.append(ManifestLine(
-            hostTime: 41, wallClock: Date(timeIntervalSince1970: 41),
-            event: .crashTailAdopted(.init(
-                track: .mic, index: 2, frameCount: 4_320, byteCount: 17_280, seconds: 0.09
+        lines.append(
+            ManifestLine(
+                hostTime: 41, wallClock: Date(timeIntervalSince1970: 41),
+                event: .crashTailAdopted(
+                    .init(
+                        track: .mic, index: 2, frameCount: 4_320, byteCount: 17_280, seconds: 0.09
+                    ))
             ))
-        ))
         timeline = ManifestReader.timeline(
             from: ManifestReadResult(lines: lines, hasTruncatedTail: true, unrecognisedLines: 0)
         )
@@ -390,32 +432,37 @@ struct ManifestTests {
         var lines: [ManifestLine] = [
             ManifestLine(
                 hostTime: 0, wallClock: Date(timeIntervalSince1970: 0),
-                event: .sessionStart(.init(
-                    meetingID: "meeting", source: .googleMeet, segmentSeconds: 30,
-                    appVersion: "1.0.0", processID: 1
-                ))
-            ),
+                event: .sessionStart(
+                    .init(
+                        meetingID: "meeting", source: .googleMeet, segmentSeconds: 30,
+                        appVersion: "1.0.0", processID: 1
+                    ))
+            )
         ]
         var host = 1.0
         for segment in segments {
-            lines.append(ManifestLine(
-                hostTime: host, wallClock: Date(timeIntervalSince1970: host),
-                event: .segmentOpen(.init(
-                    track: segment.track, index: segment.index,
-                    file: String(format: "%@.%04d.caf", segment.track.segmentPrefix, segment.index),
-                    firstFrameHostTime: host, startFrame: 0,
-                    sampleRate: segment.rate, channelCount: 1, reason: "rotate"
+            lines.append(
+                ManifestLine(
+                    hostTime: host, wallClock: Date(timeIntervalSince1970: host),
+                    event: .segmentOpen(
+                        .init(
+                            track: segment.track, index: segment.index,
+                            file: String(format: "%@.%04d.caf", segment.track.segmentPrefix, segment.index),
+                            firstFrameHostTime: host, startFrame: 0,
+                            sampleRate: segment.rate, channelCount: 1, reason: "rotate"
+                        ))
                 ))
-            ))
             host += 1
-            lines.append(ManifestLine(
-                hostTime: host, wallClock: Date(timeIntervalSince1970: host),
-                event: .segmentClose(.init(
-                    track: segment.track, index: segment.index, frameCount: segment.frames,
-                    byteCount: segment.frames * 4, seconds: Double(segment.frames) / segment.rate,
-                    firstFrameHostTime: host, reason: "rotate"
+            lines.append(
+                ManifestLine(
+                    hostTime: host, wallClock: Date(timeIntervalSince1970: host),
+                    event: .segmentClose(
+                        .init(
+                            track: segment.track, index: segment.index, frameCount: segment.frames,
+                            byteCount: segment.frames * 4, seconds: Double(segment.frames) / segment.rate,
+                            firstFrameHostTime: host, reason: "rotate"
+                        ))
                 ))
-            ))
             host += 1
         }
         return ManifestReadResult(lines: lines, hasTruncatedTail: false, unrecognisedLines: 0)
@@ -429,36 +476,41 @@ struct ManifestTests {
         var lines: [ManifestLine] = [
             ManifestLine(
                 hostTime: 0, wallClock: Date(timeIntervalSince1970: 0),
-                event: .sessionStart(.init(
-                    meetingID: "meeting", source: .googleMeet, segmentSeconds: 30,
-                    appVersion: "1.0.0", processID: 1
-                ))
-            ),
+                event: .sessionStart(
+                    .init(
+                        meetingID: "meeting", source: .googleMeet, segmentSeconds: 30,
+                        appVersion: "1.0.0", processID: 1
+                    ))
+            )
         ]
         for segment in segments {
-            lines.append(ManifestLine(
-                hostTime: segment.host, wallClock: Date(timeIntervalSince1970: segment.host),
-                event: .segmentOpen(.init(
-                    track: segment.track, index: segment.index,
-                    file: String(format: "%@.%04d.caf", segment.track.segmentPrefix, segment.index),
-                    // Nil, the way the writer records it: the host time is only
-                    // known once a buffer has arrived, so the close record
-                    // carries it. Seeding it here would let the gap check pass
-                    // on a value production never has.
-                    firstFrameHostTime: nil, startFrame: 0,
-                    sampleRate: segment.rate, channelCount: 1, reason: "rotate"
+            lines.append(
+                ManifestLine(
+                    hostTime: segment.host, wallClock: Date(timeIntervalSince1970: segment.host),
+                    event: .segmentOpen(
+                        .init(
+                            track: segment.track, index: segment.index,
+                            file: String(format: "%@.%04d.caf", segment.track.segmentPrefix, segment.index),
+                            // Nil, the way the writer records it: the host time is only
+                            // known once a buffer has arrived, so the close record
+                            // carries it. Seeding it here would let the gap check pass
+                            // on a value production never has.
+                            firstFrameHostTime: nil, startFrame: 0,
+                            sampleRate: segment.rate, channelCount: 1, reason: "rotate"
+                        ))
                 ))
-            ))
             let seconds = Double(segment.frames) / segment.rate
-            lines.append(ManifestLine(
-                hostTime: segment.host + seconds,
-                wallClock: Date(timeIntervalSince1970: segment.host + seconds),
-                event: .segmentClose(.init(
-                    track: segment.track, index: segment.index, frameCount: segment.frames,
-                    byteCount: segment.frames * 4, seconds: seconds,
-                    firstFrameHostTime: segment.host, reason: "rotate"
+            lines.append(
+                ManifestLine(
+                    hostTime: segment.host + seconds,
+                    wallClock: Date(timeIntervalSince1970: segment.host + seconds),
+                    event: .segmentClose(
+                        .init(
+                            track: segment.track, index: segment.index, frameCount: segment.frames,
+                            byteCount: segment.frames * 4, seconds: seconds,
+                            firstFrameHostTime: segment.host, reason: "rotate"
+                        ))
                 ))
-            ))
         }
         return ManifestReadResult(lines: lines, hasTruncatedTail: false, unrecognisedLines: 0)
     }

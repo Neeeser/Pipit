@@ -128,9 +128,11 @@ extension PipitRuntime {
             throw MeetingFolderError.folderUnreadable(name: name)
         }
         return try entries.filter(\.hasDirectoryPath).map { entry in
-            guard let metadata = try? MeetingStore(
-                layout: MeetingLayout(root: entry)
-            ).readMetadata() else {
+            guard
+                let metadata = try? MeetingStore(
+                    layout: MeetingLayout(root: entry)
+                ).readMetadata()
+            else {
                 throw MeetingFolderError.folderUnreadable(name: name)
             }
             return metadata.id
@@ -240,9 +242,11 @@ extension PipitRuntime {
         let facts = MeetingFacts(metadata: found.metadata)
         let archive = repository.listMeetings().compactMap { summary -> MeetingFacts? in
             guard summary.id != meetingID else { return nil }
-            guard let metadata = try? MeetingStore(
-                layout: MeetingLayout(root: summary.directory)
-            ).readMetadata() else { return nil }
+            guard
+                let metadata = try? MeetingStore(
+                    layout: MeetingLayout(root: summary.directory)
+                ).readMetadata()
+            else { return nil }
             return MeetingFacts(metadata: metadata)
         }
         return RecurringSeries.propose(for: facts, among: archive)
@@ -266,16 +270,18 @@ extension PipitRuntime {
     public func meetingsMatching(_ rule: FolderRule) -> Int {
         guard !rule.isEmpty else { return 0 }
         return repository.listMeetings().count { summary in
-            guard let metadata = try? MeetingStore(
-                layout: MeetingLayout(root: summary.directory)
-            ).readMetadata() else { return false }
+            guard
+                let metadata = try? MeetingStore(
+                    layout: MeetingLayout(root: summary.directory)
+                ).readMetadata()
+            else { return false }
             return rule.matches(MeetingFacts(metadata: metadata))
         }
     }
 
     public func revealFolder(_ name: String) {
         NSWorkspace.shared.activateFileViewerSelecting([
-            repository.archive.folderDirectory(name),
+            repository.archive.folderDirectory(name)
         ])
     }
 }

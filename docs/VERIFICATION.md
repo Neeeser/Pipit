@@ -163,7 +163,6 @@ These paths still need direct observation:
   was. A device whose microphone is not its loudest channel would record the
   wrong one
 - A signed and notarized build installed on a clean Mac
-- Installation and removal through the published Homebrew cask
 - Calendar matching against a real calendar
 - Voice recognition across real meetings recorded weeks apart
 - A dropped and rejoined call stored as one logical meeting on hardware

@@ -26,9 +26,11 @@ struct RecurringSeriesTests {
     @Test("thirteen meetings with one title propose a title and provider rule")
     func thirteenMeetingsWithOneTitleProposeATitleAndProviderRule() async throws {
         let archive = Self.standups + [Self.facts("Tudor Meeting 2", at: 13 * 60 + 30)]
-        guard let proposal = RecurringSeries.propose(
-            for: Self.facts("Northwind Daily"), among: archive
-        ) else {
+        guard
+            let proposal = RecurringSeries.propose(
+                for: Self.facts("Northwind Daily"), among: archive
+            )
+        else {
             Issue.record("nothing proposed")
             return
         }
@@ -43,9 +45,11 @@ struct RecurringSeriesTests {
 
     @Test("the slot clause covers every time they actually started")
     func theSlotClauseCoversEveryTimeTheyActuallyStarted() async throws {
-        guard let proposal = RecurringSeries.propose(
-            for: Self.facts("Northwind Daily"), among: Self.standups
-        ) else {
+        guard
+            let proposal = RecurringSeries.propose(
+                for: Self.facts("Northwind Daily"), among: Self.standups
+            )
+        else {
             Issue.record("nothing proposed")
             return
         }
@@ -70,10 +74,12 @@ struct RecurringSeriesTests {
             copy.calendarSeriesID = "series-abc"
             return copy
         }
-        guard let proposal = RecurringSeries.propose(
-            for: Self.facts("Standup", provider: .googleMeet, series: "series-abc"),
-            among: archive
-        ) else {
+        guard
+            let proposal = RecurringSeries.propose(
+                for: Self.facts("Standup", provider: .googleMeet, series: "series-abc"),
+                among: archive
+            )
+        else {
             Issue.record("nothing proposed")
             return
         }
@@ -99,9 +105,11 @@ struct RecurringSeriesTests {
             if index == 0 { copy.participantNames.append("Visitor") }
             return copy
         }
-        guard let proposal = RecurringSeries.propose(
-            for: Self.facts("Northwind Daily"), among: archive
-        ) else {
+        guard
+            let proposal = RecurringSeries.propose(
+                for: Self.facts("Northwind Daily"), among: archive
+            )
+        else {
             Issue.record("nothing proposed")
             return
         }

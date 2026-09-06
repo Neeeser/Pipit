@@ -44,7 +44,8 @@ public struct AudioCompactor: Sendable {
     public static func hasWork(store: MeetingStore, metadata: MeetingMetadata) -> Bool {
         guard metadata.processing.state == .complete else { return false }
         let fileManager = FileManager.default
-        let hasSegments = fileManager.fileExists(atPath: store.layout.segments.path)
+        let hasSegments =
+            fileManager.fileExists(atPath: store.layout.segments.path)
             || fileManager.fileExists(atPath: store.layout.legacySegments.path)
         if metadata.audioArchive == nil {
             return hasSegments
@@ -66,9 +67,11 @@ public struct AudioCompactor: Sendable {
         let timeline = try store.readTimeline()
 
         if metadata.audioArchive == nil {
-            guard let archive = try writeArchives(
-                store: store, metadata: metadata, timeline: timeline
-            ) else {
+            guard
+                let archive = try writeArchives(
+                    store: store, metadata: metadata, timeline: timeline
+                )
+            else {
                 removeEmptySegmentsDirectory(store: store)
                 return .nothingToDo
             }
@@ -134,9 +137,11 @@ public struct AudioCompactor: Sendable {
         let fileManager = FileManager.default
         let covered = coveredSegmentFiles(archive: archive, timeline: timeline)
         for directory in [store.layout.segments, store.layout.legacySegments] {
-            guard let contents = try? fileManager.contentsOfDirectory(
-                at: directory, includingPropertiesForKeys: nil
-            ) else { continue }
+            guard
+                let contents = try? fileManager.contentsOfDirectory(
+                    at: directory, includingPropertiesForKeys: nil
+                )
+            else { continue }
             if contents.isEmpty { return true }
             if contents.contains(where: { covered.contains($0.lastPathComponent) }) { return true }
         }
@@ -203,14 +208,16 @@ public struct AudioCompactor: Sendable {
             // Frame count and seconds both come from the decoded file, so the
             // synthetic segment a reader gets can never disagree with the
             // duration recorded here.
-            archive.setTrack(track, to: AudioArchive.Track(
-                file: store.layout.trackArchiveFileName(track: track),
-                sampleRate: info.sampleRate,
-                channelCount: info.channelCount,
-                frameCount: info.frameCount,
-                seconds: info.seconds,
-                firstFrameHostTime: location.segments.compactMap(\.resolvedFirstFrameHostTime).first
-            ))
+            archive.setTrack(
+                track,
+                to: AudioArchive.Track(
+                    file: store.layout.trackArchiveFileName(track: track),
+                    sampleRate: info.sampleRate,
+                    channelCount: info.channelCount,
+                    frameCount: info.frameCount,
+                    seconds: info.seconds,
+                    firstFrameHostTime: location.segments.compactMap(\.resolvedFirstFrameHostTime).first
+                ))
             wroteAnything = true
         }
         return wroteAnything ? archive : nil
@@ -238,8 +245,9 @@ public struct AudioCompactor: Sendable {
                     retryable: true
                 )
             }
-            guard abs(info.seconds - record.seconds)
-                <= max(0.5, min(record.seconds * 0.01, 2.0))
+            guard
+                abs(info.seconds - record.seconds)
+                    <= max(0.5, min(record.seconds * 0.01, 2.0))
             else {
                 throw ProcessingError.localProcessingFailed(
                     reason: "recorded archive for \(track.segmentPrefix) decoded "
@@ -278,9 +286,11 @@ public struct AudioCompactor: Sendable {
     private func removeEmptySegmentsDirectory(store: MeetingStore) {
         let fileManager = FileManager.default
         for directory in [store.layout.segments, store.layout.legacySegments] {
-            guard let contents = try? fileManager.contentsOfDirectory(
-                at: directory, includingPropertiesForKeys: nil
-            ), contents.isEmpty else { continue }
+            guard
+                let contents = try? fileManager.contentsOfDirectory(
+                    at: directory, includingPropertiesForKeys: nil
+                ), contents.isEmpty
+            else { continue }
             try? fileManager.removeItem(at: directory)
         }
     }
@@ -299,9 +309,11 @@ public struct AudioCompactor: Sendable {
         let covered = coveredSegmentFiles(archive: archive, timeline: timeline)
 
         for directory in [store.layout.segments, store.layout.legacySegments] {
-            guard let contents = try? fileManager.contentsOfDirectory(
-                at: directory, includingPropertiesForKeys: nil
-            ) else { continue }
+            guard
+                let contents = try? fileManager.contentsOfDirectory(
+                    at: directory, includingPropertiesForKeys: nil
+                )
+            else { continue }
             for file in contents where covered.contains(file.lastPathComponent) {
                 do {
                     try fileManager.removeItem(at: file)
@@ -310,9 +322,10 @@ public struct AudioCompactor: Sendable {
                 }
                 removedAnything = true
             }
-            let remaining = (try? fileManager.contentsOfDirectory(
-                at: directory, includingPropertiesForKeys: nil
-            )) ?? []
+            let remaining =
+                (try? fileManager.contentsOfDirectory(
+                    at: directory, includingPropertiesForKeys: nil
+                )) ?? []
             if remaining.isEmpty {
                 try? fileManager.removeItem(at: directory)
             } else {
@@ -324,7 +337,8 @@ public struct AudioCompactor: Sendable {
 
         // The old mixdown goes only once its replacement is listenable.
         if fileManager.fileExists(atPath: store.layout.legacyMixedAudio.path),
-           fileManager.fileExists(atPath: store.layout.recordingAudio.path) {
+            fileManager.fileExists(atPath: store.layout.recordingAudio.path)
+        {
             do {
                 try fileManager.removeItem(at: store.layout.legacyMixedAudio)
             } catch {

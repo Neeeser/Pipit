@@ -185,7 +185,8 @@ struct ImportedRecordingDateTests {
             "the QuickTime shape"
         )
         #expect(
-            RecordedDatePolicy.parseMetadataDate("2026-08-15T09:12:33.500Z") == Date(timeIntervalSince1970: date("2026-08-15 09:12:33").timeIntervalSince1970 + 0.5),
+            RecordedDatePolicy.parseMetadataDate("2026-08-15T09:12:33.500Z")
+                == Date(timeIntervalSince1970: date("2026-08-15 09:12:33").timeIntervalSince1970 + 0.5),
             "fractional seconds"
         )
         #expect(
@@ -238,8 +239,10 @@ struct MeetingSourceTests {
         guard let colour = rep.colorAt(x: x, y: y)?.usingColorSpace(.deviceRGB) else {
             return (-1, -1, -1)
         }
-        return (Double(colour.redComponent), Double(colour.greenComponent),
-                Double(colour.blueComponent))
+        return (
+            Double(colour.redComponent), Double(colour.greenComponent),
+            Double(colour.blueComponent)
+        )
     }
 
     @Test("a source filter holds one kind of recording")
@@ -503,9 +506,11 @@ struct MeetingsDirectoryTests {
             rows, now: now, calendar: calendar
         )
         #expect(
-            sections.map(\.title) == ["Today", "Yesterday", "Earlier this month",
-             MeetingsDirectoryFilter.sectionTitle(
-                 for: date("2026-07-31 16:00:00"), now: now, calendar: calendar)]
+            sections.map(\.title) == [
+                "Today", "Yesterday", "Earlier this month",
+                MeetingsDirectoryFilter.sectionTitle(
+                    for: date("2026-07-31 16:00:00"), now: now, calendar: calendar),
+            ]
         )
         #expect(sections.first?.rows.map(\.id) == ["a"])
         #expect(sections.last?.rows.map(\.id) == ["d"])
@@ -527,9 +532,11 @@ struct MeetingsDirectoryTests {
     func theUnnamedFilterIsTheListOfMeetingsStillAskingForAName() async throws {
         let now = date("2026-08-24 15:00:00")
         let rows = [
-            row("a", title: "Named throughout", at: now,
+            row(
+                "a", title: "Named throughout", at: now,
                 speakers: [("Marlow", 1), ("Bryn", 2)]),
-            row("b", title: "One voice left", at: now,
+            row(
+                "b", title: "One voice left", at: now,
                 speakers: [("Marlow", 1), (nil, nil)]),
             row("c", title: "Nobody named", at: now, speakers: [(nil, nil), (nil, nil)]),
         ]
@@ -549,7 +556,8 @@ struct MeetingsDirectoryTests {
         let rows = [
             row("a", title: "Fine", at: now),
             row("b", title: "Failed", at: now, state: .failed),
-            row("c", title: "Cut short and unfinished", at: now,
+            row(
+                "c", title: "Cut short and unfinished", at: now,
                 state: .transcribing, interrupted: true),
             row("d", title: "Rejoined and processed", at: now, interrupted: true),
             row("e", title: "Still working", at: now, state: .transcribing),
@@ -569,7 +577,8 @@ struct MeetingsDirectoryTests {
         let now = date("2026-08-24 15:00:00")
         let rows = [
             row("a", title: "Kept", at: now, speakers: [(nil, nil)]),
-            row("b", title: "Put down", at: now, state: .failed,
+            row(
+                "b", title: "Put down", at: now, state: .failed,
                 speakers: [(nil, nil)], archived: true),
         ]
         func visible(_ filter: MeetingsFilter) -> [String] {
@@ -689,15 +698,16 @@ struct MeetingsWindowTests {
                 $0.durationSeconds = 600
                 $0.processing = ProcessingStatus(state: .complete, updatedAt: at)
             }
-            try store.writeCanonicalTranscript(CanonicalTranscript(
-                generatedAt: at,
-                utterances: [
-                    Utterance(
-                        id: "\(text)-1", start: 0, end: 30, track: .remote, rawSpeakerLabel: nil,
-                        speakerKey: "remote-001_speaker_00", text: text, chunkID: "c", model: "m"
-                    ),
-                ]
-            ))
+            try store.writeCanonicalTranscript(
+                CanonicalTranscript(
+                    generatedAt: at,
+                    utterances: [
+                        Utterance(
+                            id: "\(text)-1", start: 0, end: 30, track: .remote, rawSpeakerLabel: nil,
+                            speakerKey: "remote-001_speaker_00", text: text, chunkID: "c", model: "m"
+                        )
+                    ]
+                ))
         }
         // Both halves number their speakers from zero, and only the first has a
         // name for its own.
@@ -718,12 +728,13 @@ struct MeetingsWindowTests {
         let root = try TestPaths.makeTemporaryDirectory()
         defer { try? FileManager.default.removeItem(at: root) }
         let meeting = try RuntimeFixtures.makeMeeting(root: root, clusters: ["remote-001_speaker_00"])
-        try meeting.store.writeSpeakerSuggestions(SpeakerSuggestionSet(suggestions: [
-            SpeakerNameSuggestion(
-                label: "remote-001_speaker_00", name: "Nadia Quist", confidence: 0.91,
-                quote: "Nadia, what did the renewal come back at?", atSeconds: 12
-            ),
-        ]))
+        try meeting.store.writeSpeakerSuggestions(
+            SpeakerSuggestionSet(suggestions: [
+                SpeakerNameSuggestion(
+                    label: "remote-001_speaker_00", name: "Nadia Quist", confidence: 0.91,
+                    quote: "Nadia, what did the renewal come back at?", atSeconds: 12
+                )
+            ]))
 
         let runtime = RuntimeFixtures.makeRuntime(root: root)
         let model = MeetingsWindowModel(runtime: runtime)
@@ -765,12 +776,13 @@ struct MeetingsWindowTests {
         let root = try TestPaths.makeTemporaryDirectory()
         defer { try? FileManager.default.removeItem(at: root) }
         let meeting = try RuntimeFixtures.makeMeeting(root: root, clusters: ["remote-001_speaker_00"])
-        try meeting.store.writeSpeakerSuggestions(SpeakerSuggestionSet(suggestions: [
-            SpeakerNameSuggestion(
-                label: "remote-001_speaker_00", name: "Nadia Quist", confidence: 0.91,
-                quote: "Nadia, what did the renewal come back at?", atSeconds: 12
-            ),
-        ]))
+        try meeting.store.writeSpeakerSuggestions(
+            SpeakerSuggestionSet(suggestions: [
+                SpeakerNameSuggestion(
+                    label: "remote-001_speaker_00", name: "Nadia Quist", confidence: 0.91,
+                    quote: "Nadia, what did the renewal come back at?", atSeconds: 12
+                )
+            ]))
 
         let runtime = RuntimeFixtures.makeRuntime(root: root)
         let model = MeetingsWindowModel(runtime: runtime)
@@ -817,12 +829,13 @@ struct MeetingsWindowTests {
         )
         // Only the second half has anything to propose, so the pill under test
         // can only have come from the folded recording.
-        try second.store.writeSpeakerSuggestions(SpeakerSuggestionSet(suggestions: [
-            SpeakerNameSuggestion(
-                label: "remote-001_speaker_00", name: "Nadia Quist", confidence: 0.91,
-                quote: "Nadia, what did the renewal come back at?", atSeconds: 12
-            ),
-        ]))
+        try second.store.writeSpeakerSuggestions(
+            SpeakerSuggestionSet(suggestions: [
+                SpeakerNameSuggestion(
+                    label: "remote-001_speaker_00", name: "Nadia Quist", confidence: 0.91,
+                    quote: "Nadia, what did the renewal come back at?", atSeconds: 12
+                )
+            ]))
 
         let runtime = RuntimeFixtures.makeRuntime(root: root)
         runtime.combine(meetingID: second.id, into: first.id, reason: "a test")
@@ -860,12 +873,13 @@ struct MeetingsWindowTests {
         let root = try TestPaths.makeTemporaryDirectory()
         defer { try? FileManager.default.removeItem(at: root) }
         let meeting = try RuntimeFixtures.makeMeeting(root: root, clusters: ["remote-001_speaker_00"])
-        try meeting.store.writeSpeakerSuggestions(SpeakerSuggestionSet(suggestions: [
-            SpeakerNameSuggestion(
-                label: "remote-001_speaker_00", name: "Nadia Quist", confidence: 0.91,
-                quote: "Nadia, what did the renewal come back at?", atSeconds: 12
-            ),
-        ]))
+        try meeting.store.writeSpeakerSuggestions(
+            SpeakerSuggestionSet(suggestions: [
+                SpeakerNameSuggestion(
+                    label: "remote-001_speaker_00", name: "Nadia Quist", confidence: 0.91,
+                    quote: "Nadia, what did the renewal come back at?", atSeconds: 12
+                )
+            ]))
 
         let runtime = RuntimeFixtures.makeRuntime(root: root)
         let model = MeetingsWindowModel(runtime: runtime)
@@ -885,9 +899,11 @@ struct MeetingsWindowTests {
             (try? meeting.store.readSpeakerMap())?.entries["remote-001_speaker_00"] != nil
         }
         await model.detail?.reloadSpeakers()
-        guard let chip = model.detail?.speakerRows.first(where: {
-            $0.clusterID == "remote-001_speaker_00"
-        }) else {
+        guard
+            let chip = model.detail?.speakerRows.first(where: {
+                $0.clusterID == "remote-001_speaker_00"
+            })
+        else {
             Issue.record("the named cluster is not in the speaker strip")
             return
         }
@@ -1188,14 +1204,17 @@ struct MeetingsWindowTests {
         try? await Task.sleep(for: .milliseconds(50))
         #expect(model.detail?.transcript == nil, "nothing transcribed yet")
 
-        try created.store.writeCanonicalTranscript(CanonicalTranscript(
-            generatedAt: started,
-            utterances: [Utterance(
-                id: "u0", start: 0, end: 4, track: .remote,
-                rawSpeakerLabel: "remote-001_speaker_00", speakerKey: "remote-001_speaker_00",
-                text: "so the northwind renewal", chunkID: "c1", model: "m"
-            )]
-        ))
+        try created.store.writeCanonicalTranscript(
+            CanonicalTranscript(
+                generatedAt: started,
+                utterances: [
+                    Utterance(
+                        id: "u0", start: 0, end: 4, track: .remote,
+                        rawSpeakerLabel: "remote-001_speaker_00", speakerKey: "remote-001_speaker_00",
+                        text: "so the northwind renewal", chunkID: "c1", model: "m"
+                    )
+                ]
+            ))
         await model.reload()
 
         #expect(model.detail?.combinedLines.count == 1)
@@ -1337,9 +1356,11 @@ struct MeetingsWindowTests {
         await waitFor("the pane to read both halves") {
             (model.detail?.combinedLines.count ?? 0) > 1 && !(model.detail?.speakerRows.isEmpty ?? true)
         }
-        guard let row = model.detail?.speakerRows.first(where: {
-            $0.clusterID == "remote-001_speaker_00"
-        }) else {
+        guard
+            let row = model.detail?.speakerRows.first(where: {
+                $0.clusterID == "remote-001_speaker_00"
+            })
+        else {
             Issue.record("the cluster is not in the speaker strip")
             return
         }
@@ -1434,14 +1455,15 @@ struct MeetingsWindowTests {
         }
         // Another speaker between them, so the first line is a turn of its own
         // and can be corrected without taking the third line with it.
-        try created.store.writeCanonicalTranscript(CanonicalTranscript(
-            generatedAt: started,
-            utterances: [
-                line("u0", "remote-001_speaker_00", 0, 8),
-                line("u1", "remote-001_speaker_01", 10, 18),
-                line("u2", "remote-001_speaker_00", 20, 28),
-            ]
-        ))
+        try created.store.writeCanonicalTranscript(
+            CanonicalTranscript(
+                generatedAt: started,
+                utterances: [
+                    line("u0", "remote-001_speaker_00", 0, 8),
+                    line("u1", "remote-001_speaker_01", 10, 18),
+                    line("u2", "remote-001_speaker_00", 20, 28),
+                ]
+            ))
 
         let model = MeetingsWindowModel(runtime: RuntimeFixtures.makeRuntime(root: root))
         await model.reload()
@@ -1451,9 +1473,9 @@ struct MeetingsWindowTests {
         }
         let blocks = CombinedLineBlock.blocks(from: model.detail?.combinedLines ?? [])
         guard let first = blocks.first,
-              let row = model.detail?.speakerRows.first(where: {
-                  $0.clusterID == "remote-001_speaker_00"
-              })
+            let row = model.detail?.speakerRows.first(where: {
+                $0.clusterID == "remote-001_speaker_00"
+            })
         else {
             Issue.record("the meeting did not read back as three turns")
             return
@@ -1645,13 +1667,14 @@ struct MeetingsWindowTests {
                 speakerKey: key, text: "the northwind renewal", chunkID: "c1", model: "m"
             )
         }
-        try created.store.writeCanonicalTranscript(CanonicalTranscript(
-            generatedAt: started,
-            utterances: [
-                line("u0", "remote-001_speaker_00", 0, 8),
-                line("u1", "remote-001_speaker_01", 8, 8.2),
-            ]
-        ))
+        try created.store.writeCanonicalTranscript(
+            CanonicalTranscript(
+                generatedAt: started,
+                utterances: [
+                    line("u0", "remote-001_speaker_00", 0, 8),
+                    line("u1", "remote-001_speaker_01", 8, 8.2),
+                ]
+            ))
         var map = SpeakerMap()
         map.assign("Bryn Halloway", to: "remote-001_speaker_00", identityID: IdentityID(7))
         try created.store.writeSpeakerMap(map)
@@ -1767,9 +1790,11 @@ struct MeetingsWindowTests {
         await waitFor("the pane to read the folded half") {
             !(model.detail?.speakerRows.isEmpty ?? true)
         }
-        guard let row = model.detail?.speakerRows.first(where: {
-            $0.clusterID == "remote-001_speaker_00"
-        }) else {
+        guard
+            let row = model.detail?.speakerRows.first(where: {
+                $0.clusterID == "remote-001_speaker_00"
+            })
+        else {
             Issue.record("the cluster is not in the speaker strip")
             return
         }
@@ -1825,10 +1850,11 @@ struct MeetingsWindowTests {
                 "remote-001_speaker_00", "remote-001_speaker_01", "remote-001_speaker_02",
             ]
         )
-        try meeting.store.writeSpeakerMap(sensorNamedMap(
-            ["remote-001_speaker_00", "remote-001_speaker_01", "remote-001_speaker_02"],
-            as: "Bryn Callister", account: "U06"
-        ))
+        try meeting.store.writeSpeakerMap(
+            sensorNamedMap(
+                ["remote-001_speaker_00", "remote-001_speaker_01", "remote-001_speaker_02"],
+                as: "Bryn Callister", account: "U06"
+            ))
 
         let model = MeetingsWindowModel(runtime: RuntimeFixtures.makeRuntime(root: root))
         await model.reload()
@@ -1861,10 +1887,11 @@ struct MeetingsWindowTests {
         let meeting = try RuntimeFixtures.makeMeeting(
             root: root, clusters: ["remote-001_speaker_00", "remote-001_speaker_01"]
         )
-        try meeting.store.writeSpeakerMap(sensorNamedMap(
-            ["remote-001_speaker_00", "remote-001_speaker_01"],
-            as: "Bryn Callister", account: "U06"
-        ))
+        try meeting.store.writeSpeakerMap(
+            sensorNamedMap(
+                ["remote-001_speaker_00", "remote-001_speaker_01"],
+                as: "Bryn Callister", account: "U06"
+            ))
 
         let model = MeetingsWindowModel(runtime: RuntimeFixtures.makeRuntime(root: root))
         await model.reload()
@@ -1912,25 +1939,27 @@ struct MeetingsWindowTests {
         )
         // The linked cluster speaks for two seconds and the roster-named one for
         // sixty, so the long key leads the group.
-        try meeting.store.writeCanonicalTranscript(CanonicalTranscript(
-            generatedAt: Date(timeIntervalSince1970: 1_787_070_000),
-            utterances: [
-                Utterance(
-                    id: "u0", start: 0, end: 2, track: .remote,
-                    rawSpeakerLabel: "remote-001_speaker_00", speakerKey: "remote-001_speaker_00",
-                    text: "the northwind renewal", chunkID: "c1", model: "m"
-                ),
-                Utterance(
-                    id: "u1", start: 10, end: 70, track: .remote,
-                    rawSpeakerLabel: "remote-001_speaker_01", speakerKey: "remote-001_speaker_01",
-                    text: "the northwind renewal", chunkID: "c1", model: "m"
-                ),
-            ]
-        ))
-        try meeting.store.writeSpeakerMap(sensorNamedMap(
-            ["remote-001_speaker_00", "remote-001_speaker_01"],
-            as: "Bryn Callister", account: "U06"
-        ))
+        try meeting.store.writeCanonicalTranscript(
+            CanonicalTranscript(
+                generatedAt: Date(timeIntervalSince1970: 1_787_070_000),
+                utterances: [
+                    Utterance(
+                        id: "u0", start: 0, end: 2, track: .remote,
+                        rawSpeakerLabel: "remote-001_speaker_00", speakerKey: "remote-001_speaker_00",
+                        text: "the northwind renewal", chunkID: "c1", model: "m"
+                    ),
+                    Utterance(
+                        id: "u1", start: 10, end: 70, track: .remote,
+                        rawSpeakerLabel: "remote-001_speaker_01", speakerKey: "remote-001_speaker_01",
+                        text: "the northwind renewal", chunkID: "c1", model: "m"
+                    ),
+                ]
+            ))
+        try meeting.store.writeSpeakerMap(
+            sensorNamedMap(
+                ["remote-001_speaker_00", "remote-001_speaker_01"],
+                as: "Bryn Callister", account: "U06"
+            ))
 
         let runtime = RuntimeFixtures.makeRuntime(root: root)
         let model = MeetingsWindowModel(runtime: runtime)
@@ -1993,9 +2022,11 @@ struct MeetingsWindowTests {
         await waitFor("the pane to read both halves") {
             (model.detail?.speakerRows.count ?? 0) == 2
         }
-        guard let after = model.detail?.speakerRows.first(where: {
-            $0.recordingID != conversation
-        }) else {
+        guard
+            let after = model.detail?.speakerRows.first(where: {
+                $0.recordingID != conversation
+            })
+        else {
             Issue.record("the voice heard after the rejoin has no chip")
             return
         }
@@ -2004,7 +2035,7 @@ struct MeetingsWindowTests {
         model.assignCluster(after, toNewPerson: "Nadia Quist")
 
         guard let logical = repository.logicalMeeting(id: conversation),
-              let continuation = logical.continuations.first
+            let continuation = logical.continuations.first
         else {
             Issue.record("the conversation lost its second half")
             return
@@ -2317,7 +2348,7 @@ struct MeetingsWindowTests {
         let root = try TestPaths.makeTemporaryDirectory()
         let (repository, meetingID) = try makeRejoinedCall(root: root)
         guard let logical = repository.logicalMeeting(id: meetingID),
-              let continuation = logical.continuations.first
+            let continuation = logical.continuations.first
         else {
             Issue.record("the call was not recorded in two halves")
             return
@@ -2325,9 +2356,11 @@ struct MeetingsWindowTests {
         let locked = continuation.store.layout.root
         // Locked the way the Finder locks a file, which is the ordinary reason
         // a folder will not move.
-        let unlock = { try? FileManager.default.setAttributes(
-            [.immutable: false], ofItemAtPath: locked.path
-        ) }
+        let unlock = {
+            try? FileManager.default.setAttributes(
+                [.immutable: false], ofItemAtPath: locked.path
+            )
+        }
         defer { try? FileManager.default.removeItem(at: root) }
         defer { unlock() }
         try FileManager.default.setAttributes([.immutable: true], ofItemAtPath: locked.path)
@@ -2607,9 +2640,10 @@ struct MeetingsWindowTests {
             other.contains("would not move") && !other.contains("being recorded"),
             "a folder that would not move is not a recording. got \(other)"
         )
-        let both = try #require(MeetingsWindowModel.problemText( recording: "Standup", failed: ["Design review"]))
+        let both = try #require(MeetingsWindowModel.problemText(recording: "Standup", failed: ["Design review"]))
         #expect(both.contains("Standup") && both.contains("Design review"))
-        let volume = try #require(MeetingsWindowModel.problemText( recording: nil, failed: [], noTrash: ["Design review"]))
+        let volume = try #require(
+            MeetingsWindowModel.problemText(recording: nil, failed: [], noTrash: ["Design review"]))
         #expect(
             volume.contains("volume with no Trash"),
             "a share with no Trash is not a fault on one meeting. got \(volume)"

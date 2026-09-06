@@ -141,14 +141,18 @@ struct TranscriptAssemblerTests {
     func overlappingChunksDoNotDuplicateTheSentenceTheyShare() async throws {
         // The last sentence of chunk one is repeated at the start of chunk
         // two, which is exactly what the 8 s overlap produces.
-        let first = chunk(id: "remote_chunk_001", track: .remote, offset: 0, segments: [
-            RawTranscriptSegment(start: 0, end: 3, text: "Let's start with retrieval.", speaker: "A"),
-            RawTranscriptSegment(start: 4, end: 8, text: "The second pass is the slow one.", speaker: "B"),
-        ])
-        let second = chunk(id: "remote_chunk_002", track: .remote, offset: 4, segments: [
-            RawTranscriptSegment(start: 0, end: 4, text: "The second pass is the slow one.", speaker: "A"),
-            RawTranscriptSegment(start: 5, end: 9, text: "Agreed, let's cache it.", speaker: "B"),
-        ])
+        let first = chunk(
+            id: "remote_chunk_001", track: .remote, offset: 0,
+            segments: [
+                RawTranscriptSegment(start: 0, end: 3, text: "Let's start with retrieval.", speaker: "A"),
+                RawTranscriptSegment(start: 4, end: 8, text: "The second pass is the slow one.", speaker: "B"),
+            ])
+        let second = chunk(
+            id: "remote_chunk_002", track: .remote, offset: 4,
+            segments: [
+                RawTranscriptSegment(start: 0, end: 4, text: "The second pass is the slow one.", speaker: "A"),
+                RawTranscriptSegment(start: 5, end: 9, text: "Agreed, let's cache it.", speaker: "B"),
+            ])
         let transcript = TranscriptAssembler().assemble(
             raw: RawTranscript(chunks: [first, second]),
             micTrackIsLocalUser: true,
@@ -172,15 +176,18 @@ struct TranscriptAssemblerTests {
         var segments: [RawTranscriptSegment] = []
         for index in 0..<12 {
             let start = Double(index) * 6.5
-            segments.append(RawTranscriptSegment(
-                start: start, end: start + 6,
-                text: "Sentence number \(index) of a long stretch.", speaker: nil
-            ))
+            segments.append(
+                RawTranscriptSegment(
+                    start: start, end: start + 6,
+                    text: "Sentence number \(index) of a long stretch.", speaker: nil
+                ))
         }
         let mic = chunk(id: "mic_chunk_001", track: .mic, offset: 0, segments: segments)
-        let remote = chunk(id: "remote_chunk_001", track: .remote, offset: 0, segments: [
-            RawTranscriptSegment(start: 35, end: 38, text: "A short remote reply.", speaker: "00"),
-        ])
+        let remote = chunk(
+            id: "remote_chunk_001", track: .remote, offset: 0,
+            segments: [
+                RawTranscriptSegment(start: 35, end: 38, text: "A short remote reply.", speaker: "00")
+            ])
         let transcript = TranscriptAssembler().assemble(
             raw: RawTranscript(chunks: [mic, remote]),
             micTrackIsLocalUser: true,
@@ -201,11 +208,13 @@ struct TranscriptAssemblerTests {
     func aPhraseRepeatedInsideOneChunkIsKept() async throws {
         // De-duplication exists for the overlap between chunks. A speaker
         // who repeats themselves inside a single chunk said it twice.
-        let only = chunk(id: "remote_chunk_001", track: .remote, offset: 0, segments: [
-            RawTranscriptSegment(start: 0, end: 2, text: "Yes, exactly.", speaker: "A"),
-            RawTranscriptSegment(start: 4, end: 8, text: "So the index is the slow part.", speaker: "B"),
-            RawTranscriptSegment(start: 9, end: 11, text: "Yes, exactly.", speaker: "A"),
-        ])
+        let only = chunk(
+            id: "remote_chunk_001", track: .remote, offset: 0,
+            segments: [
+                RawTranscriptSegment(start: 0, end: 2, text: "Yes, exactly.", speaker: "A"),
+                RawTranscriptSegment(start: 4, end: 8, text: "So the index is the slow part.", speaker: "B"),
+                RawTranscriptSegment(start: 9, end: 11, text: "Yes, exactly.", speaker: "A"),
+            ])
         let transcript = TranscriptAssembler().assemble(
             raw: RawTranscript(chunks: [only]),
             micTrackIsLocalUser: true,
@@ -233,12 +242,16 @@ struct TranscriptAssemblerTests {
 
     @Test("timestamps stay monotonic across chunks")
     func timestampsStayMonotonicAcrossChunks() async throws {
-        let first = chunk(id: "remote_chunk_001", track: .remote, offset: 0, segments: [
-            RawTranscriptSegment(start: 10, end: 12, text: "One.", speaker: "A"),
-        ])
-        let second = chunk(id: "remote_chunk_002", track: .remote, offset: 600, segments: [
-            RawTranscriptSegment(start: 5, end: 7, text: "Two.", speaker: "A"),
-        ])
+        let first = chunk(
+            id: "remote_chunk_001", track: .remote, offset: 0,
+            segments: [
+                RawTranscriptSegment(start: 10, end: 12, text: "One.", speaker: "A")
+            ])
+        let second = chunk(
+            id: "remote_chunk_002", track: .remote, offset: 600,
+            segments: [
+                RawTranscriptSegment(start: 5, end: 7, text: "Two.", speaker: "A")
+            ])
         let transcript = TranscriptAssembler().assemble(
             raw: RawTranscript(chunks: [first, second]),
             micTrackIsLocalUser: true,
@@ -252,13 +265,17 @@ struct TranscriptAssemblerTests {
 
     @Test("the microphone track is the local user and is never diarized")
     func theMicrophoneTrackIsTheLocalUserAndIsNeverDiarized() async throws {
-        let mic = chunk(id: "mic_chunk_001", track: .mic, offset: 0, segments: [
-            RawTranscriptSegment(start: 1, end: 3, text: "I think we change retrieval.", speaker: nil),
-        ])
-        let remote = chunk(id: "remote_chunk_001", track: .remote, offset: 0, segments: [
-            RawTranscriptSegment(start: 4, end: 6, text: "Yeah, on the second pass.", speaker: "A"),
-            RawTranscriptSegment(start: 8, end: 10, text: "Would that affect latency?", speaker: "B"),
-        ])
+        let mic = chunk(
+            id: "mic_chunk_001", track: .mic, offset: 0,
+            segments: [
+                RawTranscriptSegment(start: 1, end: 3, text: "I think we change retrieval.", speaker: nil)
+            ])
+        let remote = chunk(
+            id: "remote_chunk_001", track: .remote, offset: 0,
+            segments: [
+                RawTranscriptSegment(start: 4, end: 6, text: "Yeah, on the second pass.", speaker: "A"),
+                RawTranscriptSegment(start: 8, end: 10, text: "Would that affect latency?", speaker: "B"),
+            ])
         let transcript = TranscriptAssembler().assemble(
             raw: RawTranscript(chunks: [mic, remote]),
             micTrackIsLocalUser: true,
@@ -384,10 +401,12 @@ struct TranscriptAssemblerTests {
         let first = RawTranscriptChunk(
             id: "remote_chunk_001", track: .remote, timelineOffset: 0,
             durationSeconds: 35, model: "cohere", responseFormat: "local_words",
-            segments: [segment(
-                spoken.enumerated().map { word($1, at: Double($0) * 0.5, offset: 0) },
-                speaker: "A"
-            )]
+            segments: [
+                segment(
+                    spoken.enumerated().map { word($1, at: Double($0) * 0.5, offset: 0) },
+                    speaker: "A"
+                )
+            ]
         )
         // The next one starts at 12 s and hears one word of the eight
         // seconds they share, then nothing until 22 s.
@@ -432,11 +451,13 @@ struct TranscriptAssemblerTests {
             RawTranscriptChunk(
                 id: id, track: .remote, timelineOffset: offset,
                 durationSeconds: 35, model: "cohere", responseFormat: "local_words",
-                segments: [RawTranscriptSegment(
-                    start: words[0].start, end: words[words.count - 1].end,
-                    text: words.map(\.text).joined().trimmingCharacters(in: .whitespaces),
-                    speaker: speaker, words: words
-                )]
+                segments: [
+                    RawTranscriptSegment(
+                        start: words[0].start, end: words[words.count - 1].end,
+                        text: words.map(\.text).joined().trimmingCharacters(in: .whitespaces),
+                        speaker: speaker, words: words
+                    )
+                ]
             )
         }
         func timed(_ range: Range<Int>, offset: Double) -> [RawTranscriptWord] {
@@ -498,10 +519,12 @@ struct TranscriptAssemblerTests {
         let first = RawTranscriptChunk(
             id: "remote_chunk_001", track: .remote, timelineOffset: 0,
             durationSeconds: 35, model: "cohere", responseFormat: "local_words",
-            segments: [segment(
-                spoken.enumerated().map { word($1, at: Double($0) * 0.5, offset: 0) },
-                speaker: "A"
-            )]
+            segments: [
+                segment(
+                    spoken.enumerated().map { word($1, at: Double($0) * 0.5, offset: 0) },
+                    speaker: "A"
+                )
+            ]
         )
         // The same eight words the first chunk spreads over 12 to 15.5 s,
         // all reported at 13 s, and then a gap until 20.5 s.
@@ -547,10 +570,12 @@ struct TranscriptAssemblerTests {
         let first = RawTranscriptChunk(
             id: "remote_chunk_001", track: .remote, timelineOffset: 0,
             durationSeconds: 35, model: "cohere", responseFormat: "local_words",
-            segments: [RawTranscriptSegment(
-                start: aligned[0].start, end: aligned[aligned.count - 1].end,
-                text: spoken.joined(separator: " "), speaker: "A", words: aligned
-            )]
+            segments: [
+                RawTranscriptSegment(
+                    start: aligned[0].start, end: aligned[aligned.count - 1].end,
+                    text: spoken.joined(separator: " "), speaker: "A", words: aligned
+                )
+            ]
         )
         // The next chunk covers 12 s to 47 s and its alignment refused:
         // one wordless segment over the whole chunk, opening on the
@@ -559,9 +584,11 @@ struct TranscriptAssemblerTests {
         let second = RawTranscriptChunk(
             id: "remote_chunk_002", track: .remote, timelineOffset: 12,
             durationSeconds: 35, model: "cohere", responseFormat: "local_text",
-            segments: [RawTranscriptSegment(
-                start: 0, end: 35, text: refusedText, speaker: nil, words: nil
-            )]
+            segments: [
+                RawTranscriptSegment(
+                    start: 0, end: 35, text: refusedText, speaker: nil, words: nil
+                )
+            ]
         )
 
         let transcript = TranscriptAssembler().assemble(
@@ -589,25 +616,30 @@ struct TranscriptAssemblerTests {
         let first = RawTranscriptChunk(
             id: "remote_chunk_001", track: .remote, timelineOffset: 0,
             durationSeconds: 35, model: "cohere", responseFormat: "local_text",
-            segments: [RawTranscriptSegment(
-                start: 0, end: 35, text: spoken.joined(separator: " "),
-                speaker: nil, words: nil
-            )]
+            segments: [
+                RawTranscriptSegment(
+                    start: 0, end: 35, text: spoken.joined(separator: " "),
+                    speaker: nil, words: nil
+                )
+            ]
         )
         // Aligned words from 23 s, so twelve seconds of what the refused
         // chunk already carries arrive again with timings on them, and
         // two words it missed arrive with them.
-        let aligned = [word("delta0", at: 23.6, offset: 23), word("delta1", at: 23.8, offset: 23)]
+        let aligned =
+            [word("delta0", at: 23.6, offset: 23), word("delta1", at: 23.8, offset: 23)]
             + (48..<70).map { word(spoken[$0], at: Double($0) * 0.5, offset: 23) }
             + continued.enumerated().map { word($1, at: 35 + Double($0) * 0.5, offset: 23) }
         let second = RawTranscriptChunk(
             id: "remote_chunk_002", track: .remote, timelineOffset: 23,
             durationSeconds: 35, model: "cohere", responseFormat: "local_words",
-            segments: [RawTranscriptSegment(
-                start: aligned[0].start, end: aligned[aligned.count - 1].end,
-                text: aligned.map(\.text).joined().trimmingCharacters(in: .whitespaces),
-                speaker: "B", words: aligned
-            )]
+            segments: [
+                RawTranscriptSegment(
+                    start: aligned[0].start, end: aligned[aligned.count - 1].end,
+                    text: aligned.map(\.text).joined().trimmingCharacters(in: .whitespaces),
+                    speaker: "B", words: aligned
+                )
+            ]
         )
 
         let transcript = TranscriptAssembler().assemble(
@@ -655,11 +687,13 @@ struct TranscriptAssemblerTests {
             RawTranscriptChunk(
                 id: id, track: .remote, timelineOffset: offset,
                 durationSeconds: 35, model: "cohere", responseFormat: "local_words",
-                segments: [RawTranscriptSegment(
-                    start: words[0].start, end: words[words.count - 1].end,
-                    text: words.map(\.text).joined().trimmingCharacters(in: .whitespaces),
-                    speaker: speaker, words: words
-                )]
+                segments: [
+                    RawTranscriptSegment(
+                        start: words[0].start, end: words[words.count - 1].end,
+                        text: words.map(\.text).joined().trimmingCharacters(in: .whitespaces),
+                        speaker: speaker, words: words
+                    )
+                ]
             )
         }
         let first = timed(
@@ -680,10 +714,12 @@ struct TranscriptAssemblerTests {
         let third = RawTranscriptChunk(
             id: "remote_chunk_003", track: .remote, timelineOffset: 40,
             durationSeconds: 35, model: "cohere", responseFormat: "local_text",
-            segments: [RawTranscriptSegment(
-                start: 0, end: 35, text: sentence.joined(separator: " "),
-                speaker: nil, words: nil
-            )]
+            segments: [
+                RawTranscriptSegment(
+                    start: 0, end: 35, text: sentence.joined(separator: " "),
+                    speaker: nil, words: nil
+                )
+            ]
         )
 
         let transcript = TranscriptAssembler().assemble(
@@ -707,20 +743,24 @@ struct TranscriptAssemblerTests {
         // chunk-scoped labels anyway. The run comes from a different
         // producer than the words, so it is the answer the user asked
         // for and it wins on the first pass.
-        var words = chunk(id: "mic_chunk_001", track: .mic, offset: 0, segments: [
-            RawTranscriptSegment(start: 0, end: 4, text: "One two.", speaker: "spk_0"),
-            RawTranscriptSegment(start: 6, end: 9, text: "Three four.", speaker: "spk_1"),
-        ])
+        var words = chunk(
+            id: "mic_chunk_001", track: .mic, offset: 0,
+            segments: [
+                RawTranscriptSegment(start: 0, end: 4, text: "One two.", speaker: "spk_0"),
+                RawTranscriptSegment(start: 6, end: 9, text: "Three four.", speaker: "spk_1"),
+            ])
         words.model = "gpt-4o-transcribe-diarize"
         func run(backend: String) -> RawDiarization {
-            RawDiarization(runs: [DiarizationRun(
-                id: "run-local", track: .mic, backend: backend,
-                producedAt: Date(timeIntervalSince1970: 0), timelineOffset: 0,
-                intervals: [
-                    DiarizationInterval(start: 0, end: 5, clusterID: "S1"),
-                    DiarizationInterval(start: 5, end: 10, clusterID: "S2"),
-                ]
-            )])
+            RawDiarization(runs: [
+                DiarizationRun(
+                    id: "run-local", track: .mic, backend: backend,
+                    producedAt: Date(timeIntervalSince1970: 0), timelineOffset: 0,
+                    intervals: [
+                        DiarizationInterval(start: 0, end: 5, clusterID: "S1"),
+                        DiarizationInterval(start: 5, end: 10, clusterID: "S2"),
+                    ]
+                )
+            ])
         }
 
         let local = TranscriptAssembler().assemble(
@@ -747,10 +787,12 @@ struct TranscriptAssemblerTests {
 
     @Test("an in-person recording keeps the raw labels on its only track")
     func anInPersonRecordingKeepsTheRawLabelsOnItsOnlyTrack() async throws {
-        let mic = chunk(id: "mic_chunk_001", track: .mic, offset: 0, segments: [
-            RawTranscriptSegment(start: 1, end: 3, text: "Morning.", speaker: "A"),
-            RawTranscriptSegment(start: 4, end: 6, text: "Morning to you.", speaker: "B"),
-        ])
+        let mic = chunk(
+            id: "mic_chunk_001", track: .mic, offset: 0,
+            segments: [
+                RawTranscriptSegment(start: 1, end: 3, text: "Morning.", speaker: "A"),
+                RawTranscriptSegment(start: 4, end: 6, text: "Morning to you.", speaker: "B"),
+            ])
         let transcript = TranscriptAssembler().assemble(
             raw: RawTranscript(chunks: [mic]),
             micTrackIsLocalUser: false,
@@ -763,12 +805,14 @@ struct TranscriptAssemblerTests {
 
     @Test("consecutive segments from one speaker read as one turn")
     func consecutiveSegmentsFromOneSpeakerReadAsOneTurn() async throws {
-        let remote = chunk(id: "remote_chunk_001", track: .remote, offset: 0, segments: [
-            RawTranscriptSegment(start: 0, end: 0.4, text: "Hey,", speaker: "A"),
-            RawTranscriptSegment(start: 0.5, end: 0.9, text: "Marlow,", speaker: "A"),
-            RawTranscriptSegment(start: 1.0, end: 1.6, text: "Bryn here.", speaker: "A"),
-            RawTranscriptSegment(start: 4.0, end: 5.0, text: "This is Owen.", speaker: "B"),
-        ])
+        let remote = chunk(
+            id: "remote_chunk_001", track: .remote, offset: 0,
+            segments: [
+                RawTranscriptSegment(start: 0, end: 0.4, text: "Hey,", speaker: "A"),
+                RawTranscriptSegment(start: 0.5, end: 0.9, text: "Marlow,", speaker: "A"),
+                RawTranscriptSegment(start: 1.0, end: 1.6, text: "Bryn here.", speaker: "A"),
+                RawTranscriptSegment(start: 4.0, end: 5.0, text: "This is Owen.", speaker: "B"),
+            ])
         let transcript = TranscriptAssembler().assemble(
             raw: RawTranscript(chunks: [remote]),
             micTrackIsLocalUser: true,
@@ -785,9 +829,11 @@ struct TranscriptAssemblerTests {
     @Test("renaming a speaker changes the rendering, not the raw data")
     func renamingASpeakerChangesTheRenderingNotTheRawData() async throws {
         let raw = RawTranscript(chunks: [
-            chunk(id: "remote_chunk_001", track: .remote, offset: 0, segments: [
-                RawTranscriptSegment(start: 0, end: 2, text: "Bryn here.", speaker: "A"),
-            ]),
+            chunk(
+                id: "remote_chunk_001", track: .remote, offset: 0,
+                segments: [
+                    RawTranscriptSegment(start: 0, end: 2, text: "Bryn here.", speaker: "A")
+                ])
         ])
         let transcript = TranscriptAssembler().assemble(
             raw: raw, micTrackIsLocalUser: true, generatedAt: Date(timeIntervalSince1970: 0)

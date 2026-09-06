@@ -1,5 +1,5 @@
-import Foundation
 import FluidAudio
+import Foundation
 import PipitCore
 
 /// Silero VAD behind the voice activity protocol.

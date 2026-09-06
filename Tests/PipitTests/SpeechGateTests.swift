@@ -157,9 +157,11 @@ struct SpeechGatePolicyTests {
 struct SpeechGateEvidenceTests {
     @Test("a reading covers the whole span, not the window its start lands in")
     func aReadingCoversTheWholeSpanNotTheWindowItsStartLandsIn() async throws {
-        let evidence = evidence(seconds: 60, spans: [
-            Span(start: 10, end: 11, mic: -12, far: -50, probability: 0.99),
-        ])
+        let evidence = evidence(
+            seconds: 60,
+            spans: [
+                Span(start: 10, end: 11, mic: -12, far: -50, probability: 0.99)
+            ])
         let reading = try #require(evidence.reading(from: 9.5, to: 11.5))
         #expect(
             abs(reading.loudestLocalDB - -12) <= 0.001,
@@ -189,10 +191,10 @@ struct SpeechGateEvidenceTests {
         // Every meeting measured before the series was removed carries
         // it. The file has to decode, and the series is left unread.
         let json = """
-        {"version":1,"levelWindowSeconds":0.25,"speechWindowSeconds":0.256,
-         "micLevels":[-20,-21],"remoteLevels":[-30,-31],"micSpeech":[90,91],
-         "micEchoReturnLoss":[4,5],"detector":"silero"}
-        """
+            {"version":1,"levelWindowSeconds":0.25,"speechWindowSeconds":0.256,
+             "micLevels":[-20,-21],"remoteLevels":[-30,-31],"micSpeech":[90,91],
+             "micEchoReturnLoss":[4,5],"detector":"silero"}
+            """
         let decoded = try JSONDecoder().decode(SpeechEvidence.self, from: Data(json.utf8))
         #expect(decoded.micLevels == [-20, -21])
         #expect(decoded.remoteLevels == [-30, -31])
@@ -243,28 +245,34 @@ struct SpeechGateAssemblyTests {
         // five were rendered under the user's name. The microphone is
         // the cleaned one, so the fabricated spans sit over audio the
         // detector does not call speech.
-        let raw = RawTranscript(chunks: [chunk([
-            (24.95, 27.25, "Hey, Rowan, how's it going?"),
-            (213.01, 217.61, "I'll send a video in the slack later today"),
-            (445.97, 446.42, "We'll be right back."),
-            (703.86, 704.20, "Thanks for watching!"),
-            (839.25, 840.75, "to see if we can get this done."),
-            (971.19, 972.89, "This is my brother,"),
-        ])])
+        let raw = RawTranscript(chunks: [
+            chunk([
+                (24.95, 27.25, "Hey, Rowan, how's it going?"),
+                (213.01, 217.61, "I'll send a video in the slack later today"),
+                (445.97, 446.42, "We'll be right back."),
+                (703.86, 704.20, "Thanks for watching!"),
+                (839.25, 840.75, "to see if we can get this done."),
+                (971.19, 972.89, "This is my brother,"),
+            ])
+        ])
         let transcript = TranscriptAssembler().assemble(
             raw: raw, diarization: RawDiarization(),
-            speech: evidence(seconds: 1000, spans: [
-                Span(start: 24.95, end: 27.25, mic: -15, far: -58, probability: 1.0),
-                Span(start: 213.01, end: 217.61, mic: -11, far: -23, probability: 1.0),
-                Span(start: 445.97, end: 446.42, mic: -47, far: -17, probability: 0.21),
-                Span(start: 703.86, end: 704.20, mic: -49, far: -26, probability: 0.12),
-                Span(start: 839.25, end: 840.75, mic: -38, far: -23, probability: 0.00),
-                Span(start: 971.19, end: 972.89, mic: -35, far: -21, probability: 0.30),
-            ]),
+            speech: evidence(
+                seconds: 1000,
+                spans: [
+                    Span(start: 24.95, end: 27.25, mic: -15, far: -58, probability: 1.0),
+                    Span(start: 213.01, end: 217.61, mic: -11, far: -23, probability: 1.0),
+                    Span(start: 445.97, end: 446.42, mic: -47, far: -17, probability: 0.21),
+                    Span(start: 703.86, end: 704.20, mic: -49, far: -26, probability: 0.12),
+                    Span(start: 839.25, end: 840.75, mic: -38, far: -23, probability: 0.00),
+                    Span(start: 971.19, end: 972.89, mic: -35, far: -21, probability: 0.30),
+                ]),
             micTrackIsLocalUser: true, generatedAt: Date(timeIntervalSince1970: 0)
         )
         #expect(
-            transcript.utterances.map(\.text) == ["Hey, Rowan, how's it going?", "I'll send a video in the slack later today"],
+            transcript.utterances.map(\.text) == [
+                "Hey, Rowan, how's it going?", "I'll send a video in the slack later today",
+            ],
             "only the two turns the user spoke"
         )
     }
@@ -279,16 +287,20 @@ struct SpeechGateAssemblyTests {
             id: "remote_chunk_001", track: .remote, timelineOffset: 0,
             durationSeconds: 1000, model: "gpt-4o-transcribe-diarize",
             responseFormat: "diarized_json",
-            segments: [RawTranscriptSegment(
-                start: 100, end: 104, text: "so what I would do is run three nodes", speaker: "A"
-            )]
+            segments: [
+                RawTranscriptSegment(
+                    start: 100, end: 104, text: "so what I would do is run three nodes", speaker: "A"
+                )
+            ]
         )
         let local = chunk([(101, 103, "so what I would do is run three nodes")])
         let transcript = TranscriptAssembler().assemble(
             raw: RawTranscript(chunks: [remote, local]), diarization: RawDiarization(),
-            speech: evidence(seconds: 1000, spans: [
-                Span(start: 101, end: 103, mic: -20, far: -18, probability: 0.97),
-            ]),
+            speech: evidence(
+                seconds: 1000,
+                spans: [
+                    Span(start: 101, end: 103, mic: -20, far: -18, probability: 0.97)
+                ]),
             micTrackIsLocalUser: true, generatedAt: Date(timeIntervalSince1970: 0)
         )
         #expect(transcript.utterances.filter { $0.track == .mic }.count == 1)
@@ -298,9 +310,11 @@ struct SpeechGateAssemblyTests {
     func aMeetingWithNoEvidenceAssemblesExactlyAsItDidBefore() async throws {
         // Every meeting already on disk. Measuring nothing must not
         // read as measuring silence.
-        let raw = RawTranscript(chunks: [chunk([
-            (445.97, 446.42, "We'll be right back."),
-        ])])
+        let raw = RawTranscript(chunks: [
+            chunk([
+                (445.97, 446.42, "We'll be right back.")
+            ])
+        ])
         let transcript = TranscriptAssembler().assemble(
             raw: raw, diarization: RawDiarization(), speech: nil,
             micTrackIsLocalUser: true, generatedAt: Date(timeIntervalSince1970: 0)
@@ -318,15 +332,19 @@ struct SpeechGateAssemblyTests {
             id: "remote_chunk_001", track: .remote, timelineOffset: 0,
             durationSeconds: 1000, model: "gpt-4o-transcribe-diarize",
             responseFormat: "diarized_json",
-            segments: [RawTranscriptSegment(
-                start: 445.97, end: 446.42, text: "So that is the plan for Pure.", speaker: "A"
-            )]
+            segments: [
+                RawTranscriptSegment(
+                    start: 445.97, end: 446.42, text: "So that is the plan for Pure.", speaker: "A"
+                )
+            ]
         )
         let transcript = TranscriptAssembler().assemble(
             raw: RawTranscript(chunks: [remote]), diarization: RawDiarization(),
-            speech: evidence(seconds: 1000, spans: [
-                Span(start: 445.97, end: 446.42, mic: -47, far: -17, probability: 0.21),
-            ]),
+            speech: evidence(
+                seconds: 1000,
+                spans: [
+                    Span(start: 445.97, end: 446.42, mic: -47, far: -17, probability: 0.21)
+                ]),
             micTrackIsLocalUser: true, generatedAt: Date(timeIntervalSince1970: 0)
         )
         #expect(transcript.utterances.count == 1, "the far end keeps its words")
@@ -428,10 +446,10 @@ struct SpeechGateMeasurementTests {
 
         let backend = FakeAIBackend()
         backend.transcriptionSegments = [
-            RawTranscriptSegment(start: 0, end: 2, text: "I think we change retrieval.", speaker: nil),
+            RawTranscriptSegment(start: 0, end: 2, text: "I think we change retrieval.", speaker: nil)
         ]
         backend.diarizationSegments = [
-            RawTranscriptSegment(start: 0, end: 2, text: "Bryn here, agreed.", speaker: "A"),
+            RawTranscriptSegment(start: 0, end: 2, text: "Bryn here, agreed.", speaker: "A")
         ]
         let pipeline = PipelineFixtures.makePipeline(
             repository: meeting.repository, backend: backend
@@ -455,10 +473,10 @@ struct SpeechGateMeasurementTests {
         let meeting = try PipelineFixtures.makeRecordedMeeting(root: root)
         let backend = FakeAIBackend()
         backend.transcriptionSegments = [
-            RawTranscriptSegment(start: 0, end: 2, text: "I think we change retrieval.", speaker: nil),
+            RawTranscriptSegment(start: 0, end: 2, text: "I think we change retrieval.", speaker: nil)
         ]
         backend.diarizationSegments = [
-            RawTranscriptSegment(start: 0, end: 2, text: "Bryn here, agreed.", speaker: "A"),
+            RawTranscriptSegment(start: 0, end: 2, text: "Bryn here, agreed.", speaker: "A")
         ]
         let pipeline = PipelineFixtures.makePipeline(
             repository: meeting.repository, backend: backend
@@ -469,13 +487,15 @@ struct SpeechGateMeasurementTests {
 
         // A rebuild reads the file rather than measuring again: the
         // levels it assembles against are the ones already on disk.
-        let stamp = try FileManager.default.attributesOfItem(
-            atPath: meeting.store.layout.speechEvidence.path
-        )[.modificationDate] as? Date
+        let stamp =
+            try FileManager.default.attributesOfItem(
+                atPath: meeting.store.layout.speechEvidence.path
+            )[.modificationDate] as? Date
         try await pipeline.rebuildTranscript(meetingID: meeting.metadata.id)
-        let after = try FileManager.default.attributesOfItem(
-            atPath: meeting.store.layout.speechEvidence.path
-        )[.modificationDate] as? Date
+        let after =
+            try FileManager.default.attributesOfItem(
+                atPath: meeting.store.layout.speechEvidence.path
+            )[.modificationDate] as? Date
         #expect(after == stamp, "the rebuild rewrote nothing")
 
         let importedRoot = try TestPaths.makeTemporaryDirectory()

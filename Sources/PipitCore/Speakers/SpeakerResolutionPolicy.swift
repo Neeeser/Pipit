@@ -256,9 +256,10 @@ extension SpeakerResolutionPolicy {
         case .person:
             let requiredMargin = best.isExpectedParticipant ? expectedParticipantMargin : namedHighMargin
             if best.score >= namedHighScore,
-               clearsMargin(required: requiredMargin),
-               !concurrent.contains(best.identityID),
-               speechSeconds >= namedHighSpeechSeconds {
+                clearsMargin(required: requiredMargin),
+                !concurrent.contains(best.identityID),
+                speechSeconds >= namedHighSpeechSeconds
+            {
                 return SpeakerResolution(
                     outcome: .assign(best.identityID), band: .high, best: best,
                     runnerUp: runnerUp, margin: margin, suggestions: [],
@@ -267,9 +268,10 @@ extension SpeakerResolutionPolicy {
             }
         case .anonymous:
             if best.score >= anonymousLinkScore,
-               clearsMargin(required: anonymousLinkMargin),
-               !concurrent.contains(best.identityID),
-               speechSeconds >= anonymousLinkSpeechSeconds {
+                clearsMargin(required: anonymousLinkMargin),
+                !concurrent.contains(best.identityID),
+                speechSeconds >= anonymousLinkSpeechSeconds
+            {
                 return SpeakerResolution(
                     outcome: .seenBefore(best.identityID), band: .high, best: best,
                     runnerUp: runnerUp, margin: margin, suggestions: [],

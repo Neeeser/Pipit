@@ -193,7 +193,8 @@ public struct MeetingDetailView: View {
     /// are the same fact.
     @ViewBuilder private var folderMenu: some View {
         let current = model.rows.first { $0.id == detail.meetingID }?.summary.folderName
-        let tint = current
+        let tint =
+            current
             .flatMap { name in model.folderRows.first { $0.name == name } }
             .map { FolderTint.color($0.folder.tintIndex) }
         Menu {
@@ -565,7 +566,8 @@ public struct MeetingDetailView: View {
 
                 SectionCard(
                     title: "Expected participants",
-                    subtitle: "Relaxes the margin a saved voice needs. It never forces a name onto a speaker who did not match."
+                    subtitle:
+                        "Relaxes the margin a saved voice needs. It never forces a name onto a speaker who did not match."
                 ) {
                     VStack(alignment: .leading, spacing: 8) {
                         ForEach(detail.expectedParticipants, id: \.self) { name in
@@ -675,7 +677,9 @@ struct SuggestionPills: View {
                 .font(.caption2)
                 .foregroundStyle(.secondary)
             HStack(spacing: 2) {
-                Button { model.acceptSuggestion(row) } label: {
+                Button {
+                    model.acceptSuggestion(row)
+                } label: {
                     Image(systemName: "checkmark")
                         .font(.system(size: 10, weight: .bold))
                         .foregroundStyle(.white)
@@ -685,7 +689,9 @@ struct SuggestionPills: View {
                 .buttonStyle(.plain)
                 .help("Name \(row.speakerLabel) as \(row.suggestion.name)")
 
-                Button { model.dismissSuggestion(row) } label: {
+                Button {
+                    model.dismissSuggestion(row)
+                } label: {
                     Image(systemName: "xmark")
                         .font(.system(size: 9, weight: .bold))
                         .foregroundStyle(.secondary)
@@ -781,7 +787,9 @@ struct SpeakerChips: View {
             // walk is on, so a second click steps to their next turn. The
             // name's own click still assigns, as before.
             if showsArrow {
-                Button { detail.jump(to: row) } label: {
+                Button {
+                    detail.jump(to: row)
+                } label: {
                     Image(systemName: "arrow.down")
                         .font(.system(size: 9, weight: .bold))
                         .foregroundStyle(walking ? Color.white : Color.primary)

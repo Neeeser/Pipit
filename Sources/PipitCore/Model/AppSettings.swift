@@ -550,7 +550,7 @@ public struct SettingsStore: Sendable {
 
     public func load() -> AppSettings {
         guard let data = try? Data(contentsOf: url),
-              let settings = try? ArchiveCoding.decode(AppSettings.self, from: data, path: url.path)
+            let settings = try? ArchiveCoding.decode(AppSettings.self, from: data, path: url.path)
         else { return AppSettings() }
         return settings
     }
@@ -571,9 +571,10 @@ extension AppSettings {
     /// bench, which still exercise the combinations directly; this runs when
     /// settings are saved, so a stale pairing normalizes on the next change.
     public mutating func coupleDiarization() {
-        processing.diarization = ProcessingSettings.transcriptionCoversDiarization(
-            transcription: processing.transcription, model: models.transcription
-        ) ? .openAI : .local
+        processing.diarization =
+            ProcessingSettings.transcriptionCoversDiarization(
+                transcription: processing.transcription, model: models.transcription
+            ) ? .openAI : .local
         if processing.diarization == .openAI {
             models.diarization = models.transcription
         }

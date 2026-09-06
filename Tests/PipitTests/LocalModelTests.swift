@@ -196,10 +196,12 @@ struct LocalModelTests {
         var deviations: [Double] = []
         for (aligned, reference) in zip(alignedWords, referenceWords)
         where aligned.text.trimmingCharacters(in: .whitespaces).lowercased()
-            == reference.text.trimmingCharacters(in: .whitespaces).lowercased() {
+            == reference.text.trimmingCharacters(in: .whitespaces).lowercased()
+        {
             deviations.append(abs(aligned.start - reference.start))
         }
-        let mean = deviations.isEmpty
+        let mean =
+            deviations.isEmpty
             ? .infinity : deviations.reduce(0, +) / Double(deviations.count)
         #expect(
             mean < 0.5,

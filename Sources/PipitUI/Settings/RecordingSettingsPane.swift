@@ -75,20 +75,23 @@ struct RecordingSettingsPane: View {
         _ title: String, choices: [Double], keyPath: WritableKeyPath<AppSettings, Double>
     ) -> some View {
         LabeledContent(title) {
-            Picker("", selection: Binding(
-                get: {
-                    let stored = runtime.settings[keyPath: keyPath]
-                    // A value from a hand-edited file has no row of its own. The
-                    // nearest choice is what the picker shows, and choosing
-                    // anything writes a value from the list.
-                    return choices.min { abs($0 - stored) < abs($1 - stored) } ?? stored
-                },
-                set: { newValue in
-                    var settings = runtime.settings
-                    settings[keyPath: keyPath] = newValue
-                    runtime.update(settings: settings)
-                }
-            )) {
+            Picker(
+                "",
+                selection: Binding(
+                    get: {
+                        let stored = runtime.settings[keyPath: keyPath]
+                        // A value from a hand-edited file has no row of its own. The
+                        // nearest choice is what the picker shows, and choosing
+                        // anything writes a value from the list.
+                        return choices.min { abs($0 - stored) < abs($1 - stored) } ?? stored
+                    },
+                    set: { newValue in
+                        var settings = runtime.settings
+                        settings[keyPath: keyPath] = newValue
+                        runtime.update(settings: settings)
+                    }
+                )
+            ) {
                 ForEach(choices, id: \.self) { seconds in
                     Text("\(Int(seconds)) seconds").tag(seconds)
                 }
@@ -102,14 +105,17 @@ struct RecordingSettingsPane: View {
         _ title: String, keyPath: WritableKeyPath<ProviderPolicies, ProviderPolicy>
     ) -> some View {
         LabeledContent(title) {
-            Picker("", selection: Binding(
-                get: { runtime.settings.providers[keyPath: keyPath].autoStart },
-                set: { newValue in
-                    var settings = runtime.settings
-                    settings.providers[keyPath: keyPath].autoStart = newValue
-                    runtime.update(settings: settings)
-                }
-            )) {
+            Picker(
+                "",
+                selection: Binding(
+                    get: { runtime.settings.providers[keyPath: keyPath].autoStart },
+                    set: { newValue in
+                        var settings = runtime.settings
+                        settings.providers[keyPath: keyPath].autoStart = newValue
+                        runtime.update(settings: settings)
+                    }
+                )
+            ) {
                 Text("Always record").tag(ProviderPolicy.AutoStart.always)
                 Text("Ask").tag(ProviderPolicy.AutoStart.ask)
                 Text("Never").tag(ProviderPolicy.AutoStart.never)

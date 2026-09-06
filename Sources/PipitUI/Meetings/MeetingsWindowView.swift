@@ -76,9 +76,12 @@ public struct MeetingsWindowView: View {
                     searchField
                     modeSwitch
                 }
-                Picker("", selection: Binding(
-                    get: { model.filter }, set: { model.filter = $0 }
-                )) {
+                Picker(
+                    "",
+                    selection: Binding(
+                        get: { model.filter }, set: { model.filter = $0 }
+                    )
+                ) {
                     ForEach(MeetingsFilter.allCases) { Text($0.label).tag($0) }
                 }
                 .pickerStyle(.segmented)
@@ -115,9 +118,12 @@ public struct MeetingsWindowView: View {
     /// segmented row: the four filters below already own that row, and they
     /// apply to both views.
     private var modeSwitch: some View {
-        Picker("", selection: Binding(
-            get: { model.mode }, set: { model.show($0) }
-        )) {
+        Picker(
+            "",
+            selection: Binding(
+                get: { model.mode }, set: { model.show($0) }
+            )
+        ) {
             ForEach(MeetingsListMode.allCases) { mode in
                 Image(systemName: mode.symbol).tag(mode)
                     .help(mode.label)
@@ -212,10 +218,12 @@ public struct MeetingsWindowView: View {
             // measured not to fire for the Delete key at all while this one
             // receives it as "\u{7F}".
             .onKeyPress { press in
-                guard SearchFieldKey.dropsHeldSource(
-                    characters: press.characters, query: model.query,
-                    hasSource: model.sourceFilter != nil
-                ) else { return .ignored }
+                guard
+                    SearchFieldKey.dropsHeldSource(
+                        characters: press.characters, query: model.query,
+                        hasSource: model.sourceFilter != nil
+                    )
+                else { return .ignored }
                 model.sourceFilter = nil
                 return .handled
             }

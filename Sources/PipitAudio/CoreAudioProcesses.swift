@@ -106,9 +106,11 @@ public enum CoreAudioSystem {
     }
 
     public static func defaultOutputDeviceUID() -> String? {
-        guard let device = uint32(
-            AudioObjectID(kAudioObjectSystemObject), address(kAudioHardwarePropertyDefaultOutputDevice)
-        ) else { return nil }
+        guard
+            let device = uint32(
+                AudioObjectID(kAudioObjectSystemObject), address(kAudioHardwarePropertyDefaultOutputDevice)
+            )
+        else { return nil }
         return deviceUID(device)
     }
 

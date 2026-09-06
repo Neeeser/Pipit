@@ -61,7 +61,10 @@ public struct AudioSpan: Codable, Sendable, Equatable, Hashable, Comparable {
         for cut in union(removed) {
             var next: [AudioSpan] = []
             for span in out {
-                guard span.overlaps(cut) else { next.append(span); continue }
+                guard span.overlaps(cut) else {
+                    next.append(span)
+                    continue
+                }
                 if span.start < cut.start { next.append(AudioSpan(start: span.start, end: cut.start)) }
                 if cut.end < span.end { next.append(AudioSpan(start: cut.end, end: span.end)) }
             }

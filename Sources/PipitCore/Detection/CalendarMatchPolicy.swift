@@ -56,12 +56,14 @@ public enum CalendarMatchPolicy {
         var reasons: [String] = []
 
         if let providerMeetingID, !providerMeetingID.isEmpty,
-           candidate.haystack.localizedCaseInsensitiveContains(providerMeetingID) {
+            candidate.haystack.localizedCaseInsensitiveContains(providerMeetingID)
+        {
             score += 0.7
             reasons.append("meeting ID in the invitation")
         }
         if let meetingURL, let host = URLComponents(string: meetingURL)?.host,
-           candidate.haystack.localizedCaseInsensitiveContains(host) {
+            candidate.haystack.localizedCaseInsensitiveContains(host)
+        {
             score += 0.15
             reasons.append("provider link in the invitation")
         }
@@ -70,7 +72,8 @@ public enum CalendarMatchPolicy {
         // is, so timing tells us nothing about it. An invitation naming this
         // meeting still does, which is why this is checked after the link and
         // not before.
-        let isBlock = candidate.isAllDay
+        let isBlock =
+            candidate.isAllDay
             || candidate.durationSeconds > longestNamingEventSeconds
         if isBlock {
             guard score > 0 else { return nil }
@@ -102,10 +105,12 @@ public enum CalendarMatchPolicy {
     ) -> Scored? {
         var best: Scored?
         for candidate in candidates {
-            guard let scored = score(
-                candidate, startedAt: startedAt, endedAt: endedAt,
-                meetingURL: meetingURL, providerMeetingID: providerMeetingID
-            ) else { continue }
+            guard
+                let scored = score(
+                    candidate, startedAt: startedAt, endedAt: endedAt,
+                    meetingURL: meetingURL, providerMeetingID: providerMeetingID
+                )
+            else { continue }
             if scored.score > (best?.score ?? 0) { best = scored }
         }
         guard let best, best.score >= minimumScore else { return nil }

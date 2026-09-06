@@ -105,10 +105,12 @@ public enum RecordedDatePolicy {
             // still see the characters before the point the search resumed
             // from. Without them, resuming inside a run of digits reads the
             // tail of that run as a year.
-            guard let match = pattern.firstMatch(
-                in: stem, options: [.withTransparentBounds, .withoutAnchoringBounds],
-                range: NSRange(location: from, length: length - from)
-            ) else { return nil }
+            guard
+                let match = pattern.firstMatch(
+                    in: stem, options: [.withTransparentBounds, .withoutAnchoringBounds],
+                    range: NSRange(location: from, length: length - from)
+                )
+            else { return nil }
             // One character past the start of this candidate, rather than past
             // the whole span it matched. A run of digits matches the time group
             // as well and takes the date after it into the match.
@@ -138,10 +140,12 @@ public enum RecordedDatePolicy {
             // a duration where a time would sit, and "2026-08-15 47-12" is
             // still the fifteenth: 47 hours rolls the date two days forward and
             // the day check then threw the whole name away.
-            if hour != nil, let date = resolve(
-                year: year, month: month, day: day, hour: 12, minute: 0, second: 0,
-                calendar: calendar
-            ) {
+            if hour != nil,
+                let date = resolve(
+                    year: year, month: month, day: day, hour: 12, minute: 0, second: 0,
+                    calendar: calendar
+                )
+            {
                 return date
             }
         }
@@ -164,8 +168,8 @@ public enum RecordedDatePolicy {
         components.minute = minute
         components.second = second
         guard let date = calendar.date(from: components),
-              calendar.dateComponents([.year, .month, .day], from: date)
-                  == DateComponents(year: year, month: month, day: day)
+            calendar.dateComponents([.year, .month, .day], from: date)
+                == DateComponents(year: year, month: month, day: day)
         else { return nil }
         return date
     }

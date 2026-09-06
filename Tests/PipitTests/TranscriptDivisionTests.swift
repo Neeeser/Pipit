@@ -27,7 +27,8 @@ private func line(
 }
 
 private func cut(at seconds: Double, track: CaptureTrack = .remote, chunk: String? = "c1")
-    -> LineCut {
+    -> LineCut
+{
     LineCut(track: track, atSeconds: seconds, chunkID: chunk, createdAt: Date())
 }
 
@@ -57,9 +58,11 @@ struct TranscriptDivisionTests {
         let original = line()
         let pieces = LineDivision.divide(original, at: [cut(at: 2)])
         #expect(pieces[0].id != pieces[1].id, "two lines, two identities")
-        #expect(pieces[1].id == Utterance.identifier(
-                chunkID: "c1", track: .remote, start: pieces[1].start, end: pieces[1].end
-            ), "derived from where the piece sits, like any other line")
+        #expect(
+            pieces[1].id
+                == Utterance.identifier(
+                    chunkID: "c1", track: .remote, start: pieces[1].start, end: pieces[1].end
+                ), "derived from where the piece sits, like any other line")
         #expect(pieces.map(\.speakerKey) == [original.speakerKey, original.speakerKey])
         #expect(pieces.map(\.chunkID) == ["c1", "c1"])
         #expect(pieces[1].words?.count == 2, "each piece keeps its own words")
@@ -183,9 +186,11 @@ struct TranscriptParagraphTests {
         for span in spans {
             #expect(span.location + span.length <= nsText.length, "inside the paragraph")
         }
-        #expect(nsText.substring(with: NSRange(
-            location: spans[5].location, length: spans[5].length
-        )) == "ship")
+        #expect(
+            nsText.substring(
+                with: NSRange(
+                    location: spans[5].location, length: spans[5].length
+                )) == "ship")
         #expect(
             abs(spans[5].startSeconds - 5) <= 0.001,
             "expected \(5) ± \(0.001), got \(spans[5].startSeconds) — the second line's own time"
@@ -194,10 +199,12 @@ struct TranscriptParagraphTests {
 
     @Test("a line without timings contributes one span covering it")
     func aLineWithoutTimingsContributesOneSpanCoveringIt() async throws {
-        let block = CombinedLineBlock(lines: [CombinedLine(
-            recordingID: "rec", utterance: line(timed: false), speakerName: "Dara",
-            timelineStart: 0
-        )])
+        let block = CombinedLineBlock(lines: [
+            CombinedLine(
+                recordingID: "rec", utterance: line(timed: false), speakerName: "Dara",
+                timelineStart: 0
+            )
+        ])
         let (text, spans) = block.paragraph()
         #expect(spans.count == 1)
         #expect(spans[0].length == (text as NSString).length)
@@ -240,29 +247,33 @@ struct TranscriptSeamTests {
         let first = RawTranscriptChunk(
             id: "remote_chunk_001", track: .remote, timelineOffset: 0, durationSeconds: 20,
             model: "test", responseFormat: "json",
-            segments: [RawTranscriptSegment(
-                start: 0, end: 6, text: "so the plan is we ship on friday", speaker: "A",
-                words: [
-                    word(" so", 0, 0.4), word(" the", 0.5, 0.8), word(" plan", 0.9, 1.3),
-                    word(" is", 1.4, 1.7), word(" we", 3.0, 3.3),
-                    word(" ship", 3.4, 3.8), word(" on", 3.9, 4.1),
-                    word(" friday", 4.2, 4.8),
-                ]
-            )]
+            segments: [
+                RawTranscriptSegment(
+                    start: 0, end: 6, text: "so the plan is we ship on friday", speaker: "A",
+                    words: [
+                        word(" so", 0, 0.4), word(" the", 0.5, 0.8), word(" plan", 0.9, 1.3),
+                        word(" is", 1.4, 1.7), word(" we", 3.0, 3.3),
+                        word(" ship", 3.4, 3.8), word(" on", 3.9, 4.1),
+                        word(" friday", 4.2, 4.8),
+                    ]
+                )
+            ]
         )
         let second = RawTranscriptChunk(
             id: "remote_chunk_002", track: .remote, timelineOffset: 3, durationSeconds: 20,
             model: "test", responseFormat: "json",
-            segments: [RawTranscriptSegment(
-                start: 0, end: 5, text: "we ship on friday unless qa says otherwise",
-                speaker: "A",
-                words: [
-                    word(" we", 0, 0.3), word(" ship", 0.4, 0.8), word(" on", 0.9, 1.1),
-                    word(" friday", 1.2, 1.8), word(" unless", 2.0, 2.4),
-                    word(" qa", 2.5, 2.8), word(" says", 2.9, 3.2),
-                    word(" otherwise", 3.3, 3.9),
-                ]
-            )]
+            segments: [
+                RawTranscriptSegment(
+                    start: 0, end: 5, text: "we ship on friday unless qa says otherwise",
+                    speaker: "A",
+                    words: [
+                        word(" we", 0, 0.3), word(" ship", 0.4, 0.8), word(" on", 0.9, 1.1),
+                        word(" friday", 1.2, 1.8), word(" unless", 2.0, 2.4),
+                        word(" qa", 2.5, 2.8), word(" says", 2.9, 3.2),
+                        word(" otherwise", 3.3, 3.9),
+                    ]
+                )
+            ]
         )
         let transcript = TranscriptAssembler().assemble(
             raw: RawTranscript(chunks: [first, second]),
@@ -309,24 +320,28 @@ struct TranscriptSeamTests {
         let first = RawTranscriptChunk(
             id: "remote_chunk_001", track: .remote, timelineOffset: 0, durationSeconds: 20,
             model: "test", responseFormat: "json",
-            segments: [RawTranscriptSegment(
-                start: 0, end: 3, text: "well that is fine", speaker: "A",
-                words: [
-                    word(" well", 0, 0.4), word(" that", 0.5, 0.9),
-                    word(" is", 1.0, 1.2), word(" fine", 1.3, 1.8),
-                ]
-            )]
+            segments: [
+                RawTranscriptSegment(
+                    start: 0, end: 3, text: "well that is fine", speaker: "A",
+                    words: [
+                        word(" well", 0, 0.4), word(" that", 0.5, 0.9),
+                        word(" is", 1.0, 1.2), word(" fine", 1.3, 1.8),
+                    ]
+                )
+            ]
         )
         let second = RawTranscriptChunk(
             id: "remote_chunk_002", track: .remote, timelineOffset: 4, durationSeconds: 20,
             model: "test", responseFormat: "json",
-            segments: [RawTranscriptSegment(
-                start: 0, end: 3, text: "is fine by me honestly", speaker: "A",
-                words: [
-                    word(" is", 0, 0.3), word(" fine", 0.4, 0.9), word(" by", 1.0, 1.2),
-                    word(" me", 1.3, 1.5), word(" honestly", 1.6, 2.2),
-                ]
-            )]
+            segments: [
+                RawTranscriptSegment(
+                    start: 0, end: 3, text: "is fine by me honestly", speaker: "A",
+                    words: [
+                        word(" is", 0, 0.3), word(" fine", 0.4, 0.9), word(" by", 1.0, 1.2),
+                        word(" me", 1.3, 1.5), word(" honestly", 1.6, 2.2),
+                    ]
+                )
+            ]
         )
         let transcript = TranscriptAssembler().assemble(
             raw: RawTranscript(chunks: [first, second]),
@@ -372,10 +387,12 @@ struct TranscriptSeamTests {
         let chunk = RawTranscriptChunk(
             id: "remote_chunk_002", track: .remote, timelineOffset: 60, durationSeconds: 20,
             model: "test", responseFormat: "json",
-            segments: [RawTranscriptSegment(
-                start: 1, end: 3, text: "we ship friday", speaker: "A",
-                words: [word(" we", 1, 1.4), word(" ship", 1.5, 1.9), word(" friday", 2.0, 2.6)]
-            )]
+            segments: [
+                RawTranscriptSegment(
+                    start: 1, end: 3, text: "we ship friday", speaker: "A",
+                    words: [word(" we", 1, 1.4), word(" ship", 1.5, 1.9), word(" friday", 2.0, 2.6)]
+                )
+            ]
         )
         let transcript = TranscriptAssembler().assemble(
             raw: RawTranscript(chunks: [chunk]),

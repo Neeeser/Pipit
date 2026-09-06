@@ -10,7 +10,12 @@ let package = Package(
         .executable(name: "Pipit", targets: ["PipitApp"]),
         .executable(name: "pipit-nativehost", targets: ["PipitNativeHost"]),
         .executable(name: "pipit-eval", targets: ["PipitEval"]),
+        // The three libraries the application links. The Xcode target in
+        // project.yml compiles Sources/PipitApp and links these, so it builds
+        // the same modules `swift build` does.
         .library(name: "PipitCore", targets: ["PipitCore"]),
+        .library(name: "PipitServices", targets: ["PipitServices"]),
+        .library(name: "PipitUI", targets: ["PipitUI"]),
     ],
     // Pinned to the exact versions the local-processing and speaker-scale probes
     // measured. A newer revision changes transcription and embedding behaviour,

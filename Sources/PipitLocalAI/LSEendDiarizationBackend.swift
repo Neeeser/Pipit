@@ -47,7 +47,8 @@ public struct LSEendDiarizationBackend: DiarizationBackend {
         segments: [(speaker: Int, start: Double, end: Double, activity: Double)],
         configuration: [String: String]
     ) -> DiarizationOutput {
-        let intervals = segments
+        let intervals =
+            segments
             .map {
                 DiarizationInterval(
                     start: $0.start, end: $0.end,
@@ -115,11 +116,12 @@ extension LocalModelManager {
             var segments: [(speaker: Int, start: Double, end: Double, activity: Double)] = []
             for (index, speaker) in timeline.speakers {
                 for segment in speaker.finalizedSegments {
-                    segments.append((
-                        speaker: index,
-                        start: Double(segment.startTime), end: Double(segment.endTime),
-                        activity: Double(segment.activity)
-                    ))
+                    segments.append(
+                        (
+                            speaker: index,
+                            start: Double(segment.startTime), end: Double(segment.endTime),
+                            activity: Double(segment.activity)
+                        ))
                 }
             }
             progress(1)

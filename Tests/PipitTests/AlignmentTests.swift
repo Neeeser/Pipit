@@ -19,13 +19,14 @@ struct ForcedAlignmentTests {
     func wordsLandOnTheFramesThatSpokeThem() async throws {
         // Vocabulary: 0,1,2 are tokens, 3 is blank. "ab" = [0,1], "c" = [2].
         let logProbs = Self.peaked([0, 0, 3, 1, 3, 2, 2, 3, 3], vocabularySize: 4)
-        let words = try #require(CtcForcedAlignment.align(
-            logProbs: logProbs, frameDuration: 0.1, blankId: 3,
-            words: [
-                CtcForcedAlignment.TokenizedWord(text: "ab", tokens: [0, 1]),
-                CtcForcedAlignment.TokenizedWord(text: "c", tokens: [2]),
-            ]
-        ))
+        let words = try #require(
+            CtcForcedAlignment.align(
+                logProbs: logProbs, frameDuration: 0.1, blankId: 3,
+                words: [
+                    CtcForcedAlignment.TokenizedWord(text: "ab", tokens: [0, 1]),
+                    CtcForcedAlignment.TokenizedWord(text: "c", tokens: [2]),
+                ]
+            ))
         #expect(words.map(\.text) == ["ab", "c"])
         #expect(abs(words[0].start - 0.0) <= 0.001, "expected \(0.0) ± \(0.001), got \(words[0].start)")
         #expect(
@@ -43,10 +44,11 @@ struct ForcedAlignmentTests {
     func aRepeatedTokenForcesABlankBetweenOccurrences() async throws {
         // "aa" as [0, 0] needs blank-separated occurrences: 0, blank, 0.
         let logProbs = Self.peaked([0, 3, 0, 3], vocabularySize: 4)
-        let words = try #require(CtcForcedAlignment.align(
-            logProbs: logProbs, frameDuration: 0.1, blankId: 3,
-            words: [CtcForcedAlignment.TokenizedWord(text: "aa", tokens: [0, 0])]
-        ))
+        let words = try #require(
+            CtcForcedAlignment.align(
+                logProbs: logProbs, frameDuration: 0.1, blankId: 3,
+                words: [CtcForcedAlignment.TokenizedWord(text: "aa", tokens: [0, 0])]
+            ))
         #expect(abs(words[0].start - 0.0) <= 0.001, "expected \(0.0) ± \(0.001), got \(words[0].start)")
         #expect(abs(words[0].end - 0.3) <= 0.001, "expected \(0.3) ± \(0.001), got \(words[0].end)")
     }
@@ -54,7 +56,8 @@ struct ForcedAlignmentTests {
     @Test("too few frames for the transcript refuses instead of inventing")
     func tooFewFramesForTheTranscriptRefusesInsteadOfInventing() async throws {
         let logProbs = Self.peaked([0], vocabularySize: 4)
-        #expect(CtcForcedAlignment.align(
+        #expect(
+            CtcForcedAlignment.align(
                 logProbs: logProbs, frameDuration: 0.1, blankId: 3,
                 words: [CtcForcedAlignment.TokenizedWord(text: "abc", tokens: [0, 1, 2])]
             ) == nil, "one frame cannot carry three tokens")
@@ -63,7 +66,8 @@ struct ForcedAlignmentTests {
     @Test("an oversized trellis refuses instead of exhausting memory")
     func anOversizedTrellisRefusesInsteadOfExhaustingMemory() async throws {
         let logProbs = Self.peaked(Array(repeating: 0, count: 50), vocabularySize: 4)
-        #expect(CtcForcedAlignment.align(
+        #expect(
+            CtcForcedAlignment.align(
                 logProbs: logProbs, frameDuration: 0.1, blankId: 3,
                 words: [CtcForcedAlignment.TokenizedWord(text: "a", tokens: [0])],
                 maximumCells: 100
@@ -79,9 +83,10 @@ struct ForcedAlignmentTests {
         ]
         for offset in 0..<4 {
             let start = 2.5 + Double(offset) * 0.08
-            words.append(CtcForcedAlignment.AlignedWord(
-                text: "crammed\(offset)", start: start, end: start + 0.08
-            ))
+            words.append(
+                CtcForcedAlignment.AlignedWord(
+                    text: "crammed\(offset)", start: start, end: start + 0.08
+                ))
         }
         words.append(CtcForcedAlignment.AlignedWord(text: "fine", start: 6.0, end: 6.5))
 
@@ -117,7 +122,8 @@ struct ForcedAlignmentTests {
 
     @Test("empty input aligns to nothing")
     func emptyInputAlignsToNothing() async throws {
-        #expect(CtcForcedAlignment.align(
+        #expect(
+            CtcForcedAlignment.align(
                 logProbs: Self.peaked([3, 3], vocabularySize: 4), frameDuration: 0.1,
                 blankId: 3, words: []
             )?.count == 0, "no words is a valid, empty alignment")

@@ -57,19 +57,20 @@ struct LiveSlackHuddleTests {
         for tick in 0..<4 {
             let observation = reader.read()
             guard !observation.tiles.isEmpty else { continue }
-            recorder.record(SensorReading(
-                source: "slack-huddle-ax", provider: .slack,
-                at: Double(tick) * 0.5,
-                participants: observation.tiles.map {
-                    SensorParticipant(
-                        id: $0.userID, displayName: $0.displayName, isSelf: $0.isSelf
+            recorder.record(
+                SensorReading(
+                    source: "slack-huddle-ax", provider: .slack,
+                    at: Double(tick) * 0.5,
+                    participants: observation.tiles.map {
+                        SensorParticipant(
+                            id: $0.userID, displayName: $0.displayName, isSelf: $0.isSelf
+                        )
+                    },
+                    speakingID: observation.tiles.first(where: \.isSpeaking)?.userID,
+                    unmutedIDs: Set(
+                        observation.tiles.filter { $0.isMuted == false }.map(\.userID)
                     )
-                },
-                speakingID: observation.tiles.first(where: \.isSpeaking)?.userID,
-                unmutedIDs: Set(
-                    observation.tiles.filter { $0.isMuted == false }.map(\.userID)
-                )
-            ))
+                ))
         }
         // Origin zero: this test folds readings that were stamped from
         // zero, so the shift is a no-op and the fold is what is under test.

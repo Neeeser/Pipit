@@ -88,7 +88,9 @@ struct Arguments {
             case "--audio": audio.append(URL(fileURLWithPath: value))
             case "--fa": if let scaling = Double(value) { acousticScalings.append(scaling) }
             case "--speakers": speakerCount = Int(value)
-            case "--engine": engine = value; engines.append(value)
+            case "--engine":
+                engine = value
+                engines.append(value)
             case "--transcript": transcript = URL(fileURLWithPath: value)
             case "--meeting": meeting = URL(fileURLWithPath: value)
             case "--json": json = URL(fileURLWithPath: value)
@@ -144,7 +146,8 @@ func peakResidentBytes() -> UInt64 {
 func megabytes(_ bytes: UInt64) -> String { String(format: "%.0f MB", Double(bytes) / 1_048_576) }
 
 func usage() -> Never {
-    note("""
+    note(
+        """
         usage:
           pipit-eval asr      --audio FILE [--engine whisper|parakeet|cohere]
           pipit-eval align    --audio FILE --transcript FILE
@@ -229,7 +232,8 @@ case "align":
 case "diarize":
     guard let audio = arguments.audio.first else { usage() }
     _ = try await manager.install(units: [.diarizer])
-    let scalings = arguments.acousticScalings.isEmpty
+    let scalings =
+        arguments.acousticScalings.isEmpty
         ? [LocalDiarizationTuning.libraryDefaultWarmStartFa, LocalDiarizationTuning.warmStartFa]
         : arguments.acousticScalings
     let seconds = MonoAudioDecoder.durationSeconds(audio)
@@ -246,16 +250,18 @@ case "diarize":
         byScaling[scaling] = output
         let speech = output.intervals.reduce(0) { $0 + $1.duration }
         let longest = output.clusters.map(\.speechSeconds).max() ?? 0
-        print(String(
-            format: "  %-6.2f %8d   %8d   %6.1fs   %5.1f   %5.1fs",
-            scaling, output.speakerCount, output.intervals.count, speech,
-            seconds / max(elapsed, 0.001), longest
-        ))
+        print(
+            String(
+                format: "  %-6.2f %8d   %8d   %6.1fs   %5.1f   %5.1fs",
+                scaling, output.speakerCount, output.intervals.count, speech,
+                seconds / max(elapsed, 0.001), longest
+            ))
     }
     // How differently the two configurations attributed the same timeline. A
     // large disagreement is the point of the comparison, not a fault.
     if scalings.count == 2,
-       let first = byScaling[scalings[0]], let second = byScaling[scalings[1]] {
+        let first = byScaling[scalings[0]], let second = byScaling[scalings[1]]
+    {
         // Frames first, then the mapping that explains most of them. Choosing
         // each cluster's counterpart on first sight credited that frame whatever
         // it was, and never checked the mapping was one-to-one, so two clusters
@@ -281,7 +287,8 @@ case "diarize":
         var taken: Set<String> = []
         let ranked = frames.sorted { ($0.value.values.max() ?? 0) > ($1.value.values.max() ?? 0) }
         for (_, counterparts) in ranked {
-            let best = counterparts
+            let best =
+                counterparts
                 .filter { !taken.contains($0.key) }
                 .max { $0.value < $1.value }
             guard let best else { continue }
@@ -289,10 +296,11 @@ case "diarize":
             agreed += best.value
         }
         print("")
-        print(String(
-            format: "  frames both labelled: %.0fs, consistent mapping on %.1f%%",
-            compared, compared > 0 ? agreed / compared * 100 : 0
-        ))
+        print(
+            String(
+                format: "  frames both labelled: %.0fs, consistent mapping on %.1f%%",
+                compared, compared > 0 ? agreed / compared * 100 : 0
+            ))
     }
     print("")
     print("  production default is Fa=\(LocalDiarizationTuning.warmStartFa)")
@@ -308,10 +316,11 @@ case "identity":
             continue
         }
         vectors.append((file.deletingPathExtension().lastPathComponent, sample.vector))
-        print(String(
-            format: "%-28s %6.1fs speech", (file.lastPathComponent as NSString).utf8String!,
-            sample.speechSeconds
-        ))
+        print(
+            String(
+                format: "%-28s %6.1fs speech", (file.lastPathComponent as NSString).utf8String!,
+                sample.speechSeconds
+            ))
     }
     guard vectors.count > 1 else { break }
     print("")
@@ -320,20 +329,23 @@ case "identity":
         for inner in (outer + 1)..<vectors.count {
             let score = VoiceVector.cosine(vectors[outer].1, vectors[inner].1)
             let policy = SpeakerResolutionPolicy.shipping
-            let verdict = score >= policy.namedHighScore
+            let verdict =
+                score >= policy.namedHighScore
                 ? "would name"
                 : (score >= policy.mediumScore ? "would suggest" : "unknown")
-            print(String(
-                format: "  %-20s %-20s %.3f  %@",
-                (vectors[outer].0 as NSString).utf8String!,
-                (vectors[inner].0 as NSString).utf8String!, score, verdict
-            ))
+            print(
+                String(
+                    format: "  %-20s %-20s %.3f  %@",
+                    (vectors[outer].0 as NSString).utf8String!,
+                    (vectors[inner].0 as NSString).utf8String!, score, verdict
+                ))
         }
     }
     print("")
-    print("  thresholds: name at >= \(SpeakerResolutionPolicy.shipping.namedHighScore) with margin"
-        + " >= \(SpeakerResolutionPolicy.shipping.namedHighMargin) and"
-        + " >= \(Int(SpeakerResolutionPolicy.shipping.namedHighSpeechSeconds))s of speech")
+    print(
+        "  thresholds: name at >= \(SpeakerResolutionPolicy.shipping.namedHighScore) with margin"
+            + " >= \(SpeakerResolutionPolicy.shipping.namedHighMargin) and"
+            + " >= \(Int(SpeakerResolutionPolicy.shipping.namedHighSpeechSeconds))s of speech")
 
 case "voices":
     let store = try SpeakerStore(
@@ -348,10 +360,11 @@ case "voices":
     print("")
     let profiles = try await store.searchableProfiles(model: .fluidAudioOffline)
     for profile in profiles.sorted(by: { $0.identity.resolvedName < $1.identity.resolvedName }) {
-        print(String(
-            format: "  %-24s %@", (profile.identity.resolvedName as NSString).utf8String!,
-            profile.status.summary
-        ))
+        print(
+            String(
+                format: "  %-24s %@", (profile.identity.resolvedName as NSString).utf8String!,
+                profile.status.summary
+            ))
     }
     // The measurement that matters at scale: how close the two nearest profiles
     // are, because that is the margin an automatic name has to clear.
@@ -366,10 +379,11 @@ case "voices":
     }
     if worst.score > 0 {
         print("")
-        print(String(
-            format: "closest pair      %@ and %@ at %.3f",
-            worst.pair.0, worst.pair.1, worst.score
-        ))
+        print(
+            String(
+                format: "closest pair      %@ and %@ at %.3f",
+                worst.pair.0, worst.pair.1, worst.score
+            ))
     }
 
 case "gate":
@@ -391,7 +405,8 @@ case "reprocess":
     guard let folder = arguments.meeting else { usage() }
     let code = await ReprocessCommand.run(
         meeting: folder, applicationSupport: arguments.applicationSupport,
-        backups: arguments.backups ?? arguments.applicationSupport
+        backups: arguments.backups
+            ?? arguments.applicationSupport
             .appendingPathComponent("Backups", isDirectory: true),
         recognize: arguments.recognize
     )

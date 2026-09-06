@@ -62,14 +62,16 @@ public enum RuntimeFixtures {
     public static func makeRuntime(root: URL, backend: (any AIBackend)? = nil) -> PipitRuntime {
         NSApplication.shared.setActivationPolicy(.prohibited)
         let trash = trashDirectory(under: root)
-        let runtime = PipitRuntime(settingsDirectory: root, backend: backend, trash: { folder in
-            try FileManager.default.createDirectory(
-                at: trash, withIntermediateDirectories: true
-            )
-            try FileManager.default.moveItem(
-                at: folder, to: trash.appendingPathComponent(folder.lastPathComponent)
-            )
-        })
+        let runtime = PipitRuntime(
+            settingsDirectory: root, backend: backend,
+            trash: { folder in
+                try FileManager.default.createDirectory(
+                    at: trash, withIntermediateDirectories: true
+                )
+                try FileManager.default.moveItem(
+                    at: folder, to: trash.appendingPathComponent(folder.lastPathComponent)
+                )
+            })
         var settings = runtime.settings
         settings.storageRootPath = root.appendingPathComponent("Meetings").path
         runtime.update(settings: settings)

@@ -1,8 +1,8 @@
 import AppKit
 import ApplicationServices
-import os
 import Foundation
 import PipitCore
+import os
 
 /// Minimal accessibility reading, bounded so a 500 ms poll stays cheap.
 public enum AccessibilityBridge {
@@ -35,7 +35,7 @@ public enum AccessibilityBridge {
 
     static func string(_ element: AXUIElement, _ name: String) -> String? {
         guard let value = attribute(element, name) else { return nil }
-        if CFGetTypeID(value) == CFStringGetTypeID() { return (value as! CFString) as String }
+        if CFGetTypeID(value) == CFStringGetTypeID(), let text = value as? String { return text }
         if let number = value as? NSNumber { return number.stringValue }
         // AXDOMClassList arrives as an array of class names.
         if let list = value as? [Any] { return list.map { "\($0)" }.joined(separator: ",") }
@@ -248,8 +248,10 @@ public struct SlackAccessibilityReader: Sendable {
         let budgetPerWindow = 20_000
 
         for window in windows {
-            guard AccessibilityBridge.string(window, kAXRoleAttribute as String)
-                == (kAXWindowRole as String) else { continue }
+            guard
+                AccessibilityBridge.string(window, kAXRoleAttribute as String)
+                    == (kAXWindowRole as String)
+            else { continue }
             if pass.title == nil {
                 pass.title = AccessibilityBridge.string(window, kAXTitleAttribute as String)
             }
@@ -265,17 +267,21 @@ public struct SlackAccessibilityReader: Sendable {
                 pass.visitedNodes += 1
                 let haystack = "\(node.description) \(node.title)".lowercased()
                 if haystack.contains("leave huddle") { pass.hasLeave = true }
-                if haystack.contains("unmute microphone") { pass.muted = true }
-                else if haystack.contains("mute microphone") { pass.muted = false }
+                if haystack.contains("unmute microphone") {
+                    pass.muted = true
+                } else if haystack.contains("mute microphone") {
+                    pass.muted = false
+                }
 
                 guard wantsTiles,
-                      let userID = SlackHuddleTileParser.userID(from: node.domIdentifier)
+                    let userID = SlackHuddleTileParser.userID(from: node.domIdentifier)
                 else { return true }
-                found.append((
-                    element: element, userID: userID,
-                    isSelf: SlackHuddleTileParser.isSelf(node.domIdentifier),
-                    description: node.description
-                ))
+                found.append(
+                    (
+                        element: element, userID: userID,
+                        isSelf: SlackHuddleTileParser.isSelf(node.domIdentifier),
+                        description: node.description
+                    ))
                 // A tile's state lives in its own subtree, read below, so the
                 // outer walk does not descend into it.
                 return false

@@ -144,7 +144,8 @@ public enum LocalModelUnit: String, Codable, CaseIterable, Sendable {
             }
         }
         if !settings.processing.usesLocalTranscription,
-            AIModelSettings.transcriptionTiming(for: settings.models.transcription) == .text {
+            AIModelSettings.transcriptionTiming(for: settings.models.transcription) == .text
+        {
             units.insert(.ctcAligner)
         }
         return units

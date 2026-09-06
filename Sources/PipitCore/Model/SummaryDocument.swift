@@ -44,7 +44,8 @@ public struct SummaryDocument: Sendable, Equatable {
         // in a sentence, "## Notes were taken by Bryn", is a summary.
         let afterNotesHeading = text.dropFirst(Self.notesHeading.count)
         if text.hasPrefix(Self.notesHeading),
-           afterNotesHeading.isEmpty || afterNotesHeading.first?.isNewline == true {
+            afterNotesHeading.isEmpty || afterNotesHeading.first?.isNewline == true
+        {
             generatedNotes = Self.clean(afterNotesHeading)
             if generatedNotes?.isEmpty == true { generatedNotes = nil }
             return

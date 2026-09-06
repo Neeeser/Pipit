@@ -289,7 +289,8 @@ public final class SetupModel {
             // network, a rate limit or OpenAI itself, none of which say anything
             // about the key, and none of which should strand a setup done on a
             // train.
-            keyState = error.isRetryable
+            keyState =
+                error.isRetryable
                 ? .unreachable(error.userMessage) : .rejected(error.userMessage)
         } catch {
             keyState = .unreachable("Could not reach OpenAI")

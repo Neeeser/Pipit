@@ -31,7 +31,8 @@ public enum FirefoxProfile {
             )
         else { return false }
         return profiles.contains { profile in
-            let addOn = profile
+            let addOn =
+                profile
                 .appendingPathComponent("extensions")
                 .appendingPathComponent("\(extensionID).xpi")
             return manager.fileExists(atPath: addOn.path)

@@ -174,9 +174,10 @@ public struct SlackHuddleDetector: Sendable {
             // sustained two-way audio is the best evidence available. Missing a
             // huddle entirely is the worse outcome.
             if observation.accessibilityUnavailable,
-               helperProducingOutput,
-               let since = candidateSince,
-               now - since >= configuration.audioOnlyPromotionSeconds {
+                helperProducingOutput,
+                let since = candidateSince,
+                now - since >= configuration.audioOnlyPromotionSeconds
+            {
                 state = .joined
                 consecutiveMisses = 0
                 missingSince = nil
@@ -296,7 +297,8 @@ public enum SlackWindowTitle {
         var conversation = conversationPart
         var kind = Parsed.Kind.unknown
         if let open = conversationPart.lastIndex(of: "("), let close = conversationPart.lastIndex(of: ")"),
-           open < close {
+            open < close
+        {
             let label = String(conversationPart[conversationPart.index(after: open)..<close]).lowercased()
             kind = label == "dm" ? .directMessage : (label == "channel" ? .channel : .unknown)
             conversation = String(conversationPart[conversationPart.startIndex..<open])
@@ -308,7 +310,7 @@ public enum SlackWindowTitle {
         // Naming nothing lets the last real conversation stand.
         let name = conversation.trimmingCharacters(in: .whitespaces)
         guard !name.isEmpty,
-              let first = name.unicodeScalars.first, !Self.separators.contains(first)
+            let first = name.unicodeScalars.first, !Self.separators.contains(first)
         else { return nil }
         return Parsed(
             conversation: conversation, kind: kind, workspace: workspace, isHuddlePreview: false

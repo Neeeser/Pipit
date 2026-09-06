@@ -26,10 +26,12 @@ public enum AudioConcatenation {
         guard let first = files.first else { throw AudioConcatenationError.nothingToJoin }
         let readers = try files.map { try AVAudioFile(forReading: $0) }
         let format = try AVAudioFile(forReading: first).processingFormat
-        guard readers.allSatisfy({
-            $0.processingFormat.sampleRate == format.sampleRate
-                && $0.processingFormat.channelCount == format.channelCount
-        }) else { throw AudioConcatenationError.formatMismatch }
+        guard
+            readers.allSatisfy({
+                $0.processingFormat.sampleRate == format.sampleRate
+                    && $0.processingFormat.channelCount == format.channelCount
+            })
+        else { throw AudioConcatenationError.formatMismatch }
 
         try? FileManager.default.removeItem(at: destination)
         let writer = try AVAudioFile(
@@ -41,9 +43,11 @@ public enum AudioConcatenation {
         // waits.
         let blockFrames: AVAudioFrameCount = 16_384
         for reader in readers {
-            guard let buffer = AVAudioPCMBuffer(
-                pcmFormat: reader.processingFormat, frameCapacity: blockFrames
-            ) else { continue }
+            guard
+                let buffer = AVAudioPCMBuffer(
+                    pcmFormat: reader.processingFormat, frameCapacity: blockFrames
+                )
+            else { continue }
             while reader.framePosition < reader.length {
                 try reader.read(into: buffer, frameCount: blockFrames)
                 guard buffer.frameLength > 0 else { break }

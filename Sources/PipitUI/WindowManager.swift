@@ -174,9 +174,11 @@ public final class WindowManager {
         let window = makeWindow(
             title: "Pipit Setup",
             size: NSSize(width: 760, height: 580),
-            content: SetupWizardView(model: model, onFinish: { [weak self] in
-                self?.closeSetup()
-            })
+            content: SetupWizardView(
+                model: model,
+                onFinish: { [weak self] in
+                    self?.closeSetup()
+                })
         )
         // An ordinary window level, deliberately.
         //
@@ -309,18 +311,20 @@ public final class WindowManager {
         let model = meetingsModel ?? MeetingsWindowModel(runtime: runtime)
         model.onOpenSettings = { [weak self] in self?.showSettings() }
         meetingsModel = model
-        let window = meetingsWindow ?? {
-            let created = makeWindow(
-                title: "Meetings",
-                size: NSSize(width: 1_120, height: 720),
-                content: MeetingsWindowView(model: model)
-            )
-            created.setFrameAutosaveName("PipitMeetings")
-            created.isReleasedWhenClosed = false
-            meetingsWindow = created
-            installFindShortcut(for: created)
-            return created
-        }()
+        let window =
+            meetingsWindow
+            ?? {
+                let created = makeWindow(
+                    title: "Meetings",
+                    size: NSSize(width: 1_120, height: 720),
+                    content: MeetingsWindowView(model: model)
+                )
+                created.setFrameAutosaveName("PipitMeetings")
+                created.isReleasedWhenClosed = false
+                meetingsWindow = created
+                installFindShortcut(for: created)
+                return created
+            }()
         // Reloaded on every open, because meetings recorded since the last one
         // are not in the list this window is holding.
         Task { @MainActor in
@@ -352,7 +356,8 @@ public final class WindowManager {
             let escape: UInt16 = 53
             if event.keyCode == escape,
                 modifiers.isDisjoint(with: [.command, .option, .control, .shift]),
-                detail.navigation != nil || detail.isSearching {
+                detail.navigation != nil || detail.isSearching
+            {
                 detail.endNavigation()
                 return nil
             }
@@ -422,8 +427,9 @@ public final class WindowManager {
         }
         closePermissionNotice()
         let model = PermissionNoticeModel(runtime: runtime, notice: notice)
-        let size = notice.single.map { $0.acceptsDroppedApplication }
-            == true ? NSSize(width: 520, height: 470) : NSSize(width: 460, height: 220)
+        let size =
+            notice.single.map { $0.acceptsDroppedApplication }
+                == true ? NSSize(width: 520, height: 470) : NSSize(width: 460, height: 220)
         let window = makeWindow(
             title: notice.title,
             size: size,

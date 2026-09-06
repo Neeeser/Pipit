@@ -135,12 +135,13 @@ public struct ChunkPlanner: Sendable {
         for index in 0..<(boundaries.count - 1) {
             let rawStart = boundaries[index]
             let start = index == 0 ? rawStart : max(0, rawStart - configuration.overlapSeconds)
-            plans.append(ChunkPlan(
-                index: index + 1,
-                start: start,
-                end: boundaries[index + 1],
-                overlapEnd: index == 0 ? 0 : rawStart
-            ))
+            plans.append(
+                ChunkPlan(
+                    index: index + 1,
+                    start: start,
+                    end: boundaries[index + 1],
+                    overlapEnd: index == 0 ? 0 : rawStart
+                ))
         }
         return plans
     }

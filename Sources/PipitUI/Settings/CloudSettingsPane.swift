@@ -66,14 +66,17 @@ struct CloudSettingsPane: View {
         let isPreset = AIModelSettings.metadataChoices.contains(current)
         return LabeledContent("Metadata") {
             VStack(alignment: .trailing, spacing: 2) {
-                Picker("", selection: Binding(
-                    get: { isPreset ? current : Self.customModelTag },
-                    set: { newValue in
-                        var settings = runtime.settings
-                        settings.models.metadata = newValue == Self.customModelTag ? "" : newValue
-                        runtime.update(settings: settings)
-                    }
-                )) {
+                Picker(
+                    "",
+                    selection: Binding(
+                        get: { isPreset ? current : Self.customModelTag },
+                        set: { newValue in
+                            var settings = runtime.settings
+                            settings.models.metadata = newValue == Self.customModelTag ? "" : newValue
+                            runtime.update(settings: settings)
+                        }
+                    )
+                ) {
                     ForEach(AIModelSettings.metadataChoices, id: \.self) { choice in
                         Text(choice).tag(choice)
                     }
@@ -82,14 +85,17 @@ struct CloudSettingsPane: View {
                 .labelsHidden()
                 .frame(width: 240)
                 if !isPreset {
-                    TextField("model identifier", text: Binding(
-                        get: { runtime.settings.models.metadata },
-                        set: { newValue in
-                            var settings = runtime.settings
-                            settings.models.metadata = newValue
-                            runtime.update(settings: settings)
-                        }
-                    ))
+                    TextField(
+                        "model identifier",
+                        text: Binding(
+                            get: { runtime.settings.models.metadata },
+                            set: { newValue in
+                                var settings = runtime.settings
+                                settings.models.metadata = newValue
+                                runtime.update(settings: settings)
+                            }
+                        )
+                    )
                     .frame(width: 240)
                 }
                 Text("Titles, summaries, speaker suggestions")
@@ -101,13 +107,15 @@ struct CloudSettingsPane: View {
     private func enrichmentToggle(
         _ title: String, keyPath: WritableKeyPath<EnrichmentSettings, Bool>
     ) -> some View {
-        Toggle(title, isOn: Binding(
-            get: { runtime.settings.enrichment[keyPath: keyPath] },
-            set: { newValue in
-                var settings = runtime.settings
-                settings.enrichment[keyPath: keyPath] = newValue
-                runtime.update(settings: settings)
-            }
-        ))
+        Toggle(
+            title,
+            isOn: Binding(
+                get: { runtime.settings.enrichment[keyPath: keyPath] },
+                set: { newValue in
+                    var settings = runtime.settings
+                    settings.enrichment[keyPath: keyPath] = newValue
+                    runtime.update(settings: settings)
+                }
+            ))
     }
 }

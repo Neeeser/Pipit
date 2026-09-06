@@ -44,10 +44,12 @@ struct MeetingFolderNameTests {
 
     @Test("midnight and noon read as 12")
     func midnightAndNoonReadAs12() async throws {
-        #expect(MeetingFolderName.stamp(
+        #expect(
+            MeetingFolderName.stamp(
                 Self.date(year: 2026, month: 1, day: 1, hour: 0, minute: 5)
             ) == "Jan 01, 12:05 AM")
-        #expect(MeetingFolderName.stamp(
+        #expect(
+            MeetingFolderName.stamp(
                 Self.date(year: 2026, month: 12, day: 31, hour: 12, minute: 0)
             ) == "Dec 31, 12:00 PM")
     }

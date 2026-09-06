@@ -11,7 +11,8 @@ import Testing
 /// The whole local path, with the models replaced and everything else real.
 @Suite("LocalPipeline")
 struct LocalPipelineTests {
-    private static func embeddings(cluster: String, seed: Int, spans: [(Double, Double)]) -> [DiarizationChunkEmbedding] {
+    private static func embeddings(cluster: String, seed: Int, spans: [(Double, Double)]) -> [DiarizationChunkEmbedding]
+    {
         spans.map {
             DiarizationChunkEmbedding(
                 clusterID: cluster, start: $0.0, end: $0.1,
@@ -24,9 +25,11 @@ struct LocalPipelineTests {
     /// handed rather than trust the name it came under.
     private static func samples(ofFile url: URL) throws -> [Float] {
         let file = try AVAudioFile(forReading: url)
-        guard file.length > 0, let buffer = AVAudioPCMBuffer(
-            pcmFormat: file.processingFormat, frameCapacity: AVAudioFrameCount(file.length)
-        ) else { return [] }
+        guard file.length > 0,
+            let buffer = AVAudioPCMBuffer(
+                pcmFormat: file.processingFormat, frameCapacity: AVAudioFrameCount(file.length)
+            )
+        else { return [] }
         try file.read(into: buffer)
         guard let data = buffer.floatChannelData else { return [] }
         return Array(UnsafeBufferPointer(start: data[0], count: Int(buffer.frameLength)))
@@ -105,7 +108,7 @@ struct LocalPipelineTests {
                     RawTranscriptWord(start: 3.6, end: 3.8, text: " do"),
                     RawTranscriptWord(start: 3.9, end: 4.2, text: " not"),
                 ]
-            ),
+            )
         ])
         let diarizer = StubLocalDiarizer(
             intervals: [
@@ -170,13 +173,14 @@ struct LocalPipelineTests {
         // a full-length track, because the aggregate device is clocked
         // by its output sub-device rather than by the tap. The series is
         // there and every window of it reads the floor.
-        try meeting.store.writeSpeechEvidence(SpeechEvidence(
-            levelWindowSeconds: 0.25, speechWindowSeconds: 0.25,
-            micLevels: [Int8](repeating: -20, count: 24),
-            remoteLevels: [Int8](repeating: -120, count: 24),
-            micSpeech: [Int8](repeating: 95, count: 24),
-            detector: "silero"
-        ))
+        try meeting.store.writeSpeechEvidence(
+            SpeechEvidence(
+                levelWindowSeconds: 0.25, speechWindowSeconds: 0.25,
+                micLevels: [Int8](repeating: -20, count: 24),
+                remoteLevels: [Int8](repeating: -120, count: 24),
+                micSpeech: [Int8](repeating: 95, count: 24),
+                detector: "silero"
+            ))
 
         let transcriber = StubLocalTranscriber(segments: [
             RawTranscriptSegment(
@@ -190,7 +194,7 @@ struct LocalPipelineTests {
                     RawTranscriptWord(start: 3.6, end: 3.8, text: " do"),
                     RawTranscriptWord(start: 3.9, end: 4.2, text: " not"),
                 ]
-            ),
+            )
         ])
         let diarizer = StubLocalDiarizer(
             intervals: [
@@ -259,36 +263,39 @@ struct LocalPipelineTests {
         // has no runner-up to clear.
         let bob = try await store.createPerson(name: "Bob")
         for (person, seed) in [(me, 41), (bob, 92)] {
-            _ = try await store.enrol(VoiceEnrollmentCandidate(
-                identityID: person.id,
-                vector: SpeakerFixtures.vector(seed: seed),
-                model: .fluidAudioOffline, speechSeconds: 60, qualityScore: 1,
-                source: .humanConfirmedUtterances,
-                evidence: VoiceEvidenceFixture.evidence(
-                    meeting: "m0", seconds: 60, source: .humanConfirmedUtterances,
-                    start: seed == 41 ? 0 : 600
-                )
-            ))
+            _ = try await store.enrol(
+                VoiceEnrollmentCandidate(
+                    identityID: person.id,
+                    vector: SpeakerFixtures.vector(seed: seed),
+                    model: .fluidAudioOffline, speechSeconds: 60, qualityScore: 1,
+                    source: .humanConfirmedUtterances,
+                    evidence: VoiceEvidenceFixture.evidence(
+                        meeting: "m0", seconds: 60, source: .humanConfirmedUtterances,
+                        start: seed == 41 ? 0 : 600
+                    )
+                ))
         }
 
-        try meeting.store.writeSpeechEvidence(SpeechEvidence(
-            levelWindowSeconds: 0.25, speechWindowSeconds: 0.25,
-            micLevels: [Int8](repeating: -20, count: 240),
-            remoteLevels: [Int8](repeating: -120, count: 240),
-            micSpeech: [Int8](repeating: 95, count: 240),
-            detector: "silero"
-        ))
+        try meeting.store.writeSpeechEvidence(
+            SpeechEvidence(
+                levelWindowSeconds: 0.25, speechWindowSeconds: 0.25,
+                micLevels: [Int8](repeating: -20, count: 240),
+                remoteLevels: [Int8](repeating: -120, count: 240),
+                micSpeech: [Int8](repeating: 95, count: 240),
+                detector: "silero"
+            ))
         // The roster lit Ada's tile for the whole stretch the local
         // user was speaking, which is what naming the cluster after
         // Ada looks like from the outside.
-        try meeting.store.writeRawSensors(RawSensors(
-            source: "google-meet",
-            participants: [
-                SensorParticipant(id: "d1", displayName: "Ada"),
-                SensorParticipant(id: "d2", displayName: "Marlow", isSelf: true),
-            ],
-            turns: [SensorTurn(start: 0, end: 50, participantID: "d1")]
-        ))
+        try meeting.store.writeRawSensors(
+            RawSensors(
+                source: "google-meet",
+                participants: [
+                    SensorParticipant(id: "d1", displayName: "Ada"),
+                    SensorParticipant(id: "d2", displayName: "Marlow", isSelf: true),
+                ],
+                turns: [SensorTurn(start: 0, end: 50, participantID: "d1")]
+            ))
 
         let words = (0..<50).map {
             RawTranscriptWord(start: Double($0), end: Double($0) + 0.5, text: " word")
@@ -297,7 +304,7 @@ struct LocalPipelineTests {
             RawTranscriptSegment(
                 start: 0, end: 50, text: words.map(\.text).joined(), speaker: nil,
                 words: words
-            ),
+            )
         ])
         let diarizer = StubLocalDiarizer(
             intervals: [DiarizationInterval(start: 0, end: 50, clusterID: "S1")],
@@ -335,18 +342,19 @@ struct LocalPipelineTests {
         let root = try TestPaths.makeTemporaryDirectory()
         defer { try? FileManager.default.removeItem(at: root) }
         let meeting = try PipelineFixtures.makeRecordedMeeting(root: root, seconds: 6)
-        try meeting.store.writeSpeechEvidence(SpeechEvidence(
-            levelWindowSeconds: 0.25, speechWindowSeconds: 0.25,
-            micLevels: [Int8](repeating: -20, count: 24),
-            remoteLevels: [Int8](repeating: -18, count: 24),
-            micSpeech: [Int8](repeating: 95, count: 24),
-            detector: "silero"
-        ))
+        try meeting.store.writeSpeechEvidence(
+            SpeechEvidence(
+                levelWindowSeconds: 0.25, speechWindowSeconds: 0.25,
+                micLevels: [Int8](repeating: -20, count: 24),
+                remoteLevels: [Int8](repeating: -18, count: 24),
+                micSpeech: [Int8](repeating: 95, count: 24),
+                detector: "silero"
+            ))
         let transcriber = StubLocalTranscriber(segments: [
             RawTranscriptSegment(
                 start: 0, end: 5, text: "we ship friday", speaker: nil,
                 words: [RawTranscriptWord(start: 0.0, end: 0.3, text: " we")]
-            ),
+            )
         ])
         let diarizer = StubLocalDiarizer(
             intervals: [DiarizationInterval(start: 0, end: 2, clusterID: "S1")],
@@ -394,7 +402,7 @@ struct LocalPipelineTests {
                     RawTranscriptWord(start: 3.6, end: 3.8, text: " do"),
                     RawTranscriptWord(start: 3.9, end: 4.2, text: " not"),
                 ]
-            ),
+            )
         ])
         let diarizer = StubLocalDiarizer(
             intervals: [
@@ -454,7 +462,7 @@ struct LocalPipelineTests {
 
         let backend = FakeAIBackend()
         backend.diarizationSegments = [
-            RawTranscriptSegment(start: 0, end: 1.5, text: "Theirs.", speaker: "A"),
+            RawTranscriptSegment(start: 0, end: 1.5, text: "Theirs.", speaker: "A")
         ]
         // Chunked, the way Cohere is: a request limit under the
         // meeting's own length.
@@ -470,7 +478,7 @@ struct LocalPipelineTests {
                     RawTranscriptWord(start: 0.5, end: 0.8, text: " ship"),
                     RawTranscriptWord(start: 0.9, end: 1.2, text: " friday"),
                 ]
-            ),
+            )
         ])
 
         var settings = AppSettings()
@@ -537,29 +545,32 @@ struct LocalPipelineTests {
 
         // What the interrupted local pass left behind.
         var raw = try meeting.store.readRawTranscript()
-        raw.chunks.append(RawTranscriptChunk(
-            id: "remote_chunk_001", track: .remote, timelineOffset: 0,
-            durationSeconds: 6, model: "stub-cohere", responseFormat: "local_text",
-            segments: [RawTranscriptSegment(
-                start: 0, end: 2, text: "we ship friday", speaker: nil,
-                words: [
-                    RawTranscriptWord(start: 0.0, end: 0.4, text: " we"),
-                    RawTranscriptWord(start: 0.5, end: 0.8, text: " ship"),
-                    RawTranscriptWord(start: 0.9, end: 1.2, text: " friday"),
-                ]
-            )],
-            purpose: .words
-        ))
+        raw.chunks.append(
+            RawTranscriptChunk(
+                id: "remote_chunk_001", track: .remote, timelineOffset: 0,
+                durationSeconds: 6, model: "stub-cohere", responseFormat: "local_text",
+                segments: [
+                    RawTranscriptSegment(
+                        start: 0, end: 2, text: "we ship friday", speaker: nil,
+                        words: [
+                            RawTranscriptWord(start: 0.0, end: 0.4, text: " we"),
+                            RawTranscriptWord(start: 0.5, end: 0.8, text: " ship"),
+                            RawTranscriptWord(start: 0.9, end: 1.2, text: " friday"),
+                        ]
+                    )
+                ],
+                purpose: .words
+            ))
         try meeting.store.writeRawTranscript(raw)
 
         let backend = FakeAIBackend()
         // The microphone track is transcribed in the cloud on this
         // route; an empty answer for audible audio is a failure now.
         backend.transcriptionSegments = [
-            RawTranscriptSegment(start: 0, end: 2, text: "Mine.", speaker: nil),
+            RawTranscriptSegment(start: 0, end: 2, text: "Mine.", speaker: nil)
         ]
         backend.diarizationSegments = [
-            RawTranscriptSegment(start: 0, end: 1.5, text: "Theirs.", speaker: "A"),
+            RawTranscriptSegment(start: 0, end: 1.5, text: "Theirs.", speaker: "A")
         ]
         var settings = AppSettings()
         settings.processing.transcription = .openAI
@@ -614,13 +625,14 @@ struct LocalPipelineTests {
         let meeting = try PipelineFixtures.makeRecordedMeeting(root: root, seconds: 6)
 
         // What five of ES2003a's sixteen chunks returned, verbatim.
-        let loop = "The world is a very important part of the world. And I think "
+        let loop =
+            "The world is a very important part of the world. And I think "
             + "that's what we need to do in terms of the world, and it's not just "
             + "about the world, but also about the world, and we need to be able to "
             + "make sure that there are people who are not going to be able to do "
             + "that. So, I think that's what we need to do in terms of the world."
         let transcriber = StubLocalTranscriber(segments: [
-            RawTranscriptSegment(start: 0, end: 5, text: loop, speaker: nil, words: nil),
+            RawTranscriptSegment(start: 0, end: 5, text: loop, speaker: nil, words: nil)
         ])
         let diarizer = StubLocalDiarizer(
             intervals: [DiarizationInterval(start: 0, end: 5, clusterID: "S1")],
@@ -780,7 +792,7 @@ struct LocalPipelineTests {
                         RawTranscriptWord(start: 3.6, end: 3.8, text: " do"),
                         RawTranscriptWord(start: 3.9, end: 4.2, text: " not"),
                     ]
-                ),
+                )
             ]),
             diarizer: StubLocalDiarizer(
                 intervals: [
@@ -840,7 +852,7 @@ struct LocalPipelineTests {
                         RawTranscriptWord(start: 0.4, end: 0.8, text: " ship"),
                         RawTranscriptWord(start: 0.9, end: 1.4, text: " friday"),
                     ]
-                ),
+                )
             ]),
             diarizer: StubLocalDiarizer(
                 intervals: [DiarizationInterval(start: 0, end: 2, clusterID: "S1")],
@@ -892,7 +904,7 @@ struct LocalPipelineTests {
                 RawTranscriptSegment(
                     start: 0, end: 5, text: "hello", speaker: nil,
                     words: [RawTranscriptWord(start: 0, end: 1, text: " hello")]
-                ),
+                )
             ]),
             diarizer: StubLocalDiarizer(
                 intervals: [DiarizationInterval(start: 0, end: 5, clusterID: "S1")],
@@ -928,9 +940,11 @@ struct LocalPipelineTests {
         for file in files {
             let url = meeting.store.layout.root.appendingPathComponent(file)
             var isDirectory: ObjCBool = false
-            guard FileManager.default.fileExists(
-                atPath: url.path, isDirectory: &isDirectory
-            ), !isDirectory.boolValue else { continue }
+            guard
+                FileManager.default.fileExists(
+                    atPath: url.path, isDirectory: &isDirectory
+                ), !isDirectory.boolValue
+            else { continue }
             guard let text = try? String(contentsOf: url, encoding: .utf8) else { continue }
             for key in ["\"vector\"", "\"embedding\"", "\"centroid\"", "\"embedding256\""] {
                 #expect(
@@ -949,7 +963,7 @@ struct LocalPipelineTests {
 
         let backend = FakeAIBackend()
         backend.transcriptionSegments = [
-            RawTranscriptSegment(start: 0, end: 2, text: "Mine.", speaker: nil),
+            RawTranscriptSegment(start: 0, end: 2, text: "Mine.", speaker: nil)
         ]
         backend.diarizationSegments = [
             RawTranscriptSegment(start: 0, end: 2, text: "Theirs.", speaker: "A"),
@@ -1001,10 +1015,10 @@ struct LocalPipelineTests {
 
         let backend = FakeAIBackend()
         backend.transcriptionSegments = [
-            RawTranscriptSegment(start: 0, end: 2, text: "Mine.", speaker: nil),
+            RawTranscriptSegment(start: 0, end: 2, text: "Mine.", speaker: nil)
         ]
         backend.diarizationSegments = [
-            RawTranscriptSegment(start: 0, end: 2, text: "Theirs.", speaker: "A"),
+            RawTranscriptSegment(start: 0, end: 2, text: "Theirs.", speaker: "A")
         ]
         var settings = AppSettings()
         settings.processing.transcription = .openAI
@@ -1028,7 +1042,10 @@ struct LocalPipelineTests {
                 },
                 embeddings: RefusingEmbeddingExtractor(),
                 speakers: SpeakerRecognitionService(store: store),
-                prepareLocalModels: { installs.enter(); installs.leave() },
+                prepareLocalModels: {
+                    installs.enter()
+                    installs.leave()
+                },
                 requireLocalModels: { throw LocalModelError.notInstalled }
             ),
             scratch: ProcessingScratch(root: root.appendingPathComponent("scratch")),
@@ -1064,7 +1081,7 @@ struct LocalPipelineTests {
                 RawTranscriptSegment(
                     start: 0, end: 5, text: "we ship friday", speaker: nil,
                     words: [RawTranscriptWord(start: 0, end: 2, text: " we ship friday")]
-                ),
+                )
             ]),
             diarizer: StubLocalDiarizer(
                 intervals: [DiarizationInterval(start: 0, end: 5, clusterID: "S1")],
@@ -1125,7 +1142,7 @@ struct LocalPipelineTests {
                 RawTranscriptSegment(
                     start: 0, end: 5, text: "we ship friday", speaker: nil,
                     words: [RawTranscriptWord(start: 0, end: 2, text: " we ship friday")]
-                ),
+                )
             ]),
             diarizer: StubLocalDiarizer(
                 intervals: [DiarizationInterval(start: 0, end: 5, clusterID: "S1")],
@@ -1190,7 +1207,7 @@ struct LocalPipelineTests {
                 RawTranscriptSegment(
                     start: 0, end: 5, text: "we ship friday", speaker: nil,
                     words: [RawTranscriptWord(start: 0, end: 2, text: " we ship friday")]
-                ),
+                )
             ]),
             diarizer: StubLocalDiarizer(
                 intervals: [DiarizationInterval(start: 0, end: 5, clusterID: "S1")],
@@ -1300,7 +1317,7 @@ struct LocalPipelineTests {
                 RawTranscriptSegment(
                     start: 0, end: 5, text: "we ship friday", speaker: nil,
                     words: [RawTranscriptWord(start: 0, end: 2, text: " we ship friday")]
-                ),
+                )
             ]),
             diarizer: StubLocalDiarizer(
                 intervals: [DiarizationInterval(start: 0, end: 5, clusterID: "S1")],
@@ -1373,7 +1390,7 @@ struct LocalPipelineTests {
                 RawTranscriptSegment(
                     start: 0, end: 5, text: "we ship friday", speaker: nil,
                     words: [RawTranscriptWord(start: 0, end: 2, text: " we ship friday")]
-                ),
+                )
             ]),
             diarizer: StubLocalDiarizer(
                 intervals: [DiarizationInterval(start: 0, end: 5, clusterID: "S1")],
@@ -1419,7 +1436,7 @@ struct LocalPipelineTests {
                 RawTranscriptSegment(
                     start: 0, end: 5, text: "we ship friday", speaker: nil,
                     words: [RawTranscriptWord(start: 0, end: 2, text: " we ship friday")]
-                ),
+                )
             ]),
             diarizer: StubLocalDiarizer(
                 intervals: [DiarizationInterval(start: 0, end: 5, clusterID: "S1")],
@@ -1453,7 +1470,7 @@ struct LocalPipelineTests {
                 RawTranscriptSegment(
                     start: 0, end: 5, text: "we ship friday", speaker: nil,
                     words: [RawTranscriptWord(start: 0, end: 2, text: " we ship friday")]
-                ),
+                )
             ]),
             diarizer: StubLocalDiarizer(
                 intervals: [DiarizationInterval(start: 0, end: 5, clusterID: "S1")],
@@ -1479,7 +1496,7 @@ struct LocalPipelineTests {
             SpeakerSuggestion(
                 label: target, name: "Nadia Quist", confidence: 0.93,
                 quote: "Nadia, what did it come back at?", atSeconds: 3
-            ),
+            )
         ]
         // "Leave unnamed" on the chip, which is what clears a key.
         map.assign("", to: target)
@@ -1508,7 +1525,7 @@ struct LocalPipelineTests {
             SpeakerSuggestion(
                 label: "remote-001_speaker_00", name: "Nadia Quist",
                 confidence: 0.93, quote: "Nadia, what did it come back at?", atSeconds: 3
-            ),
+            )
         ]
 
         let pipeline = PipelineFixtures.makePipeline(
@@ -1517,7 +1534,7 @@ struct LocalPipelineTests {
                 RawTranscriptSegment(
                     start: 0, end: 5, text: "we ship friday", speaker: nil,
                     words: [RawTranscriptWord(start: 0, end: 2, text: " we ship friday")]
-                ),
+                )
             ]),
             diarizer: StubLocalDiarizer(
                 intervals: [DiarizationInterval(start: 0, end: 5, clusterID: "S1")],
@@ -1570,7 +1587,7 @@ struct LocalPipelineTests {
                 RawTranscriptSegment(
                     start: 0, end: 5, text: "we ship friday", speaker: nil,
                     words: [RawTranscriptWord(start: 0, end: 2, text: " we ship friday")]
-                ),
+                )
             ]),
             diarizer: StubLocalDiarizer(
                 intervals: [DiarizationInterval(start: 0, end: 5, clusterID: "S1")],
@@ -1615,7 +1632,7 @@ struct LocalPipelineTests {
                 RawTranscriptSegment(
                     start: 0, end: 5, text: "we ship friday", speaker: nil,
                     words: [RawTranscriptWord(start: 0, end: 2, text: " we ship friday")]
-                ),
+                )
             ]),
             diarizer: StubLocalDiarizer(
                 intervals: [DiarizationInterval(start: 0, end: 5, clusterID: "S1")],
@@ -1658,7 +1675,7 @@ struct LocalPipelineTests {
                 RawTranscriptSegment(
                     start: 0, end: 5, text: "we ship friday", speaker: nil,
                     words: [RawTranscriptWord(start: 0, end: 2, text: " we ship friday")]
-                ),
+                )
             ]),
             diarizer: StubLocalDiarizer(
                 intervals: [DiarizationInterval(start: 0, end: 5, clusterID: "S1")],
@@ -1696,7 +1713,7 @@ struct LocalPipelineTests {
                 RawTranscriptSegment(
                     start: 0, end: 5, text: "we ship friday", speaker: nil,
                     words: [RawTranscriptWord(start: 0, end: 2, text: " we ship friday")]
-                ),
+                )
             ]),
             diarizer: StubLocalDiarizer(
                 intervals: [DiarizationInterval(start: 0, end: 5, clusterID: "S1")],
@@ -1759,13 +1776,13 @@ struct LocalPipelineTests {
         cloud.diarizationSegments = [
             RawTranscriptSegment(
                 start: 0, end: 5, text: "CLOUD WORDS", speaker: "A", words: nil
-            ),
+            )
         ]
         let local = StubLocalTranscriber(segments: [
             RawTranscriptSegment(
                 start: 0, end: 5, text: "local words", speaker: nil,
                 words: [RawTranscriptWord(start: 0, end: 2, text: " local words")]
-            ),
+            )
         ])
 
         let pipeline = ProcessingPipeline(
@@ -1939,7 +1956,7 @@ struct LocalPipelineTests {
                 RawTranscriptSegment(
                     start: 0, end: 5, text: "we ship friday", speaker: nil,
                     words: [RawTranscriptWord(start: 0, end: 2, text: " we ship friday")]
-                ),
+                )
             ]),
             diarizer: StubLocalDiarizer(
                 intervals: [DiarizationInterval(start: 0, end: 5, clusterID: "S1")],
@@ -1993,7 +2010,7 @@ struct LocalPipelineTests {
                 RawTranscriptSegment(
                     start: 0, end: 5, text: "second half", speaker: nil,
                     words: [RawTranscriptWord(start: 0, end: 2, text: " second half")]
-                ),
+                )
             ]),
             diarizer: StubLocalDiarizer(
                 intervals: [DiarizationInterval(start: 0, end: 5, clusterID: "S1")],
@@ -2031,14 +2048,15 @@ struct LocalPipelineTests {
         // The run is what says which audio the cluster covers, and a
         // confirmation records that rather than the label, so without it
         // there is nothing to learn from and nothing to take back.
-        try meeting.store.writeRawDiarization(RawDiarization(runs: [
-            DiarizationRun(
-                id: "remote-001", track: .remote, backend: "test",
-                producedAt: Date(), timelineOffset: 0,
-                clusters: [DiarizationCluster(id: "speaker_00", speechSeconds: 200)],
-                intervals: [DiarizationInterval(start: 0, end: 200, clusterID: "speaker_00")]
-            ),
-        ]))
+        try meeting.store.writeRawDiarization(
+            RawDiarization(runs: [
+                DiarizationRun(
+                    id: "remote-001", track: .remote, backend: "test",
+                    producedAt: Date(), timelineOffset: 0,
+                    clusters: [DiarizationCluster(id: "speaker_00", speechSeconds: 200)],
+                    intervals: [DiarizationInterval(start: 0, end: 200, clusterID: "speaker_00")]
+                )
+            ]))
         try await store.recordOccurrence(
             meetingID: meeting.metadata.id, clusterID: key, track: .remote,
             speechSeconds: 200, embedding: SpeakerFixtures.vector(seed: 84),
@@ -2085,11 +2103,12 @@ struct LocalPipelineTests {
         let meeting = try PipelineFixtures.makeRecordedMeeting(root: root, seconds: 6)
         let (store, storeRoot) = try SpeakerFixtures.makeStore()
         defer { try? FileManager.default.removeItem(at: storeRoot) }
-        try meeting.store.writeRawSensors(RawSensors(
-            source: "slack-huddle-ax",
-            participants: [SensorParticipant(id: "U123", displayName: "Bryn")],
-            turns: [SensorTurn(start: 0, end: 30, participantID: "U123")]
-        ))
+        try meeting.store.writeRawSensors(
+            RawSensors(
+                source: "slack-huddle-ax",
+                participants: [SensorParticipant(id: "U123", displayName: "Bryn")],
+                turns: [SensorTurn(start: 0, end: 30, participantID: "U123")]
+            ))
         let pipeline = PipelineFixtures.makePipeline(
             repository: meeting.repository, backend: FakeAIBackend(),
             transcriber: StubLocalTranscriber(segments: []),
@@ -2129,16 +2148,17 @@ struct LocalPipelineTests {
         // talking in it looks like.
         let halves = [(alice, 0.0), (bob, 600.0)]
         for (person, offset) in halves {
-            _ = try await store.enrol(VoiceEnrollmentCandidate(
-                identityID: person.id,
-                vector: SpeakerFixtures.vector(seed: offset == 0 ? 91 : 92),
-                model: .fluidAudioOffline, speechSeconds: 60, qualityScore: 1,
-                source: .humanConfirmedUtterances,
-                evidence: VoiceEvidenceFixture.evidence(
-                    meeting: "m1", seconds: 60,
-                    source: .humanConfirmedUtterances, start: offset
-                )
-            ))
+            _ = try await store.enrol(
+                VoiceEnrollmentCandidate(
+                    identityID: person.id,
+                    vector: SpeakerFixtures.vector(seed: offset == 0 ? 91 : 92),
+                    model: .fluidAudioOffline, speechSeconds: 60, qualityScore: 1,
+                    source: .humanConfirmedUtterances,
+                    evidence: VoiceEvidenceFixture.evidence(
+                        meeting: "m1", seconds: 60,
+                        source: .humanConfirmedUtterances, start: offset
+                    )
+                ))
         }
         for (person, _) in halves {
             #expect(
@@ -2180,12 +2200,14 @@ struct LocalPipelineTests {
         defer { try? FileManager.default.removeItem(at: storeRoot) }
 
         let alice = try await store.createPerson(name: "Alice")
-        _ = try await store.enrol(VoiceEnrollmentCandidate(
-            identityID: alice.id, vector: SpeakerFixtures.vector(seed: 95),
-            model: .fluidAudioOffline, speechSeconds: 90, qualityScore: 1,
-            source: .humanConfirmedUtterances,
-            evidence: VoiceEvidenceFixture.evidence(meeting: meeting.metadata.id, seconds: 90, source: .humanConfirmedUtterances)
-        ))
+        _ = try await store.enrol(
+            VoiceEnrollmentCandidate(
+                identityID: alice.id, vector: SpeakerFixtures.vector(seed: 95),
+                model: .fluidAudioOffline, speechSeconds: 90, qualityScore: 1,
+                source: .humanConfirmedUtterances,
+                evidence: VoiceEvidenceFixture.evidence(
+                    meeting: meeting.metadata.id, seconds: 90, source: .humanConfirmedUtterances)
+            ))
 
         let key = "remote-001_speaker_00"
         var map = SpeakerMap()
@@ -2238,14 +2260,17 @@ struct LocalPipelineTests {
             displayName: "Marlow", origin: .deterministic
         )
         try meeting.store.writeSpeakerMap(map)
-        try meeting.store.writeCanonicalTranscript(CanonicalTranscript(
-            generatedAt: Date(timeIntervalSince1970: 1_787_070_000),
-            utterances: [Utterance(
-                id: "u0", start: 0, end: 30, track: .mic, rawSpeakerLabel: nil,
-                speakerKey: SpeakerLabel.localUser, text: "sounds right to me",
-                chunkID: "c1", model: "m"
-            )]
-        ))
+        try meeting.store.writeCanonicalTranscript(
+            CanonicalTranscript(
+                generatedAt: Date(timeIntervalSince1970: 1_787_070_000),
+                utterances: [
+                    Utterance(
+                        id: "u0", start: 0, end: 30, track: .mic, rawSpeakerLabel: nil,
+                        speakerKey: SpeakerLabel.localUser, text: "sounds right to me",
+                        chunkID: "c1", model: "m"
+                    )
+                ]
+            ))
 
         var settings = AppSettings()
         settings.processing.localUserIdentityID = me.id
@@ -2281,14 +2306,17 @@ struct LocalPipelineTests {
             displayName: "Nadia", origin: .human
         )
         try meeting.store.writeSpeakerMap(map)
-        try meeting.store.writeCanonicalTranscript(CanonicalTranscript(
-            generatedAt: Date(timeIntervalSince1970: 1_787_070_000),
-            utterances: [Utterance(
-                id: "u0", start: 0, end: 30, track: .mic, rawSpeakerLabel: nil,
-                speakerKey: SpeakerLabel.localUser, text: "sounds right to me",
-                chunkID: "c1", model: "m"
-            )]
-        ))
+        try meeting.store.writeCanonicalTranscript(
+            CanonicalTranscript(
+                generatedAt: Date(timeIntervalSince1970: 1_787_070_000),
+                utterances: [
+                    Utterance(
+                        id: "u0", start: 0, end: 30, track: .mic, rawSpeakerLabel: nil,
+                        speakerKey: SpeakerLabel.localUser, text: "sounds right to me",
+                        chunkID: "c1", model: "m"
+                    )
+                ]
+            ))
 
         var settings = AppSettings()
         settings.processing.localUserIdentityID = me.id
@@ -2327,14 +2355,17 @@ struct LocalPipelineTests {
             displayName: "Marlow", origin: .deterministic, identityID: me.id
         )
         try meeting.store.writeSpeakerMap(map)
-        try meeting.store.writeCanonicalTranscript(CanonicalTranscript(
-            generatedAt: Date(timeIntervalSince1970: 1_787_070_000),
-            utterances: [Utterance(
-                id: "u0", start: 0, end: 30, track: .mic, rawSpeakerLabel: nil,
-                speakerKey: SpeakerLabel.localUser, text: "sounds right to me",
-                chunkID: "c1", model: "m"
-            )]
-        ))
+        try meeting.store.writeCanonicalTranscript(
+            CanonicalTranscript(
+                generatedAt: Date(timeIntervalSince1970: 1_787_070_000),
+                utterances: [
+                    Utterance(
+                        id: "u0", start: 0, end: 30, track: .mic, rawSpeakerLabel: nil,
+                        speakerKey: SpeakerLabel.localUser, text: "sounds right to me",
+                        chunkID: "c1", model: "m"
+                    )
+                ]
+            ))
         #expect(try await store.meetingCount(for: me.id) == 0)
 
         let pipeline = PipelineFixtures.makePipeline(
@@ -2368,14 +2399,17 @@ struct LocalPipelineTests {
             displayName: "Marlow", origin: .deterministic, identityID: me.id
         )
         try meeting.store.writeSpeakerMap(map)
-        try meeting.store.writeCanonicalTranscript(CanonicalTranscript(
-            generatedAt: Date(timeIntervalSince1970: 1_787_070_000),
-            utterances: [Utterance(
-                id: "u0", start: 0, end: 30, track: .mic, rawSpeakerLabel: nil,
-                speakerKey: SpeakerLabel.localUser, text: "sounds right to me",
-                chunkID: "c1", model: "m"
-            )]
-        ))
+        try meeting.store.writeCanonicalTranscript(
+            CanonicalTranscript(
+                generatedAt: Date(timeIntervalSince1970: 1_787_070_000),
+                utterances: [
+                    Utterance(
+                        id: "u0", start: 0, end: 30, track: .mic, rawSpeakerLabel: nil,
+                        speakerKey: SpeakerLabel.localUser, text: "sounds right to me",
+                        chunkID: "c1", model: "m"
+                    )
+                ]
+            ))
 
         var settings = AppSettings()
         settings.processing.localUserIdentityID = me.id
@@ -2538,12 +2572,12 @@ struct LocalPipelineTests {
                 let stub = StubLocalTranscriber(segments: [
                     RawTranscriptSegment(
                         start: 0, end: 5, text: "we ship friday", speaker: nil
-                    ),
+                    )
                 ])
                 stub.micSegments = [
                     RawTranscriptSegment(
                         start: 0, end: 4, text: "sounds right to me", speaker: nil
-                    ),
+                    )
                 ]
                 return stub
             }(),
@@ -2592,16 +2626,19 @@ struct LocalPipelineTests {
         defer { try? FileManager.default.removeItem(at: storeRoot) }
 
         let me = try await store.createPerson(name: "Marlow", isLocalUser: true)
-        _ = try await store.enrol(VoiceEnrollmentCandidate(
-            identityID: me.id, vector: SpeakerFixtures.vector(seed: 99),
-            model: .fluidAudioOffline, speechSeconds: 200, qualityScore: 1,
-            source: .micTrackDeterministic,
-            evidence: [VoiceEvidence(
-                meetingID: meeting.metadata.id, track: .mic,
-                spans: [AudioSpan(start: 0, end: 200)],
-                confirmation: .micTrackDeterministic
-            )]
-        ))
+        _ = try await store.enrol(
+            VoiceEnrollmentCandidate(
+                identityID: me.id, vector: SpeakerFixtures.vector(seed: 99),
+                model: .fluidAudioOffline, speechSeconds: 200, qualityScore: 1,
+                source: .micTrackDeterministic,
+                evidence: [
+                    VoiceEvidence(
+                        meetingID: meeting.metadata.id, track: .mic,
+                        spans: [AudioSpan(start: 0, end: 200)],
+                        confirmation: .micTrackDeterministic
+                    )
+                ]
+            ))
         #expect(
             try await store.profileStatus(of: me.id, model: .fluidAudioOffline).sampleCount == 1
         )
@@ -2637,20 +2674,21 @@ struct LocalPipelineTests {
         defer { try? FileManager.default.removeItem(at: root) }
         let meeting = try PipelineFixtures.makeRecordedMeeting(root: root, seconds: 6)
 
-        try meeting.store.writeRawTranscript(RawTranscript(chunks: [
-            RawTranscriptChunk(
-                id: "remote_0000", track: .remote, timelineOffset: 0,
-                durationSeconds: 6, model: "gpt-cloud-transcribe",
-                responseFormat: "json",
-                segments: [
-                    RawTranscriptSegment(
-                        start: 0, end: 5, text: "the cloud already said this",
-                        speaker: nil
-                    ),
-                ],
-                purpose: .words
-            ),
-        ]))
+        try meeting.store.writeRawTranscript(
+            RawTranscript(chunks: [
+                RawTranscriptChunk(
+                    id: "remote_0000", track: .remote, timelineOffset: 0,
+                    durationSeconds: 6, model: "gpt-cloud-transcribe",
+                    responseFormat: "json",
+                    segments: [
+                        RawTranscriptSegment(
+                            start: 0, end: 5, text: "the cloud already said this",
+                            speaker: nil
+                        )
+                    ],
+                    purpose: .words
+                )
+            ]))
 
         let settings: AppSettings = {
             var value = AppSettings()
@@ -2670,7 +2708,7 @@ struct LocalPipelineTests {
                     start: 0, end: 5, text: "and whisper says it differently",
                     speaker: nil,
                     words: [RawTranscriptWord(start: 0, end: 2, text: " and")]
-                ),
+                )
             ]),
             diarizer: StubLocalDiarizer(intervals: [], chunkEmbeddings: []),
             speakers: nil, settings: settings,
@@ -2708,25 +2746,27 @@ struct LocalPipelineTests {
 
         // What a cloud pass leaves behind: words carrying their own
         // labels, and a run derived from them.
-        try meeting.store.writeRawTranscript(RawTranscript(chunks: [
-            RawTranscriptChunk(
-                id: "remote_0000", track: .remote, timelineOffset: 0,
-                durationSeconds: 6, model: "cloud", responseFormat: "json",
-                segments: [
-                    RawTranscriptSegment(start: 0, end: 3, text: "first", speaker: "A"),
-                    RawTranscriptSegment(start: 3, end: 6, text: "second", speaker: "A"),
-                ],
-                purpose: .words
-            ),
-        ]))
-        try meeting.store.writeRawDiarization(RawDiarization(runs: [
-            DiarizationRun(
-                id: "remote-001", track: .remote, backend: "cloud",
-                producedAt: Date(), timelineOffset: 0,
-                clusters: [DiarizationCluster(id: "A", speechSeconds: 6)],
-                intervals: [DiarizationInterval(start: 0, end: 6, clusterID: "A")]
-            ),
-        ]))
+        try meeting.store.writeRawTranscript(
+            RawTranscript(chunks: [
+                RawTranscriptChunk(
+                    id: "remote_0000", track: .remote, timelineOffset: 0,
+                    durationSeconds: 6, model: "cloud", responseFormat: "json",
+                    segments: [
+                        RawTranscriptSegment(start: 0, end: 3, text: "first", speaker: "A"),
+                        RawTranscriptSegment(start: 3, end: 6, text: "second", speaker: "A"),
+                    ],
+                    purpose: .words
+                )
+            ]))
+        try meeting.store.writeRawDiarization(
+            RawDiarization(runs: [
+                DiarizationRun(
+                    id: "remote-001", track: .remote, backend: "cloud",
+                    producedAt: Date(), timelineOffset: 0,
+                    clusters: [DiarizationCluster(id: "A", speechSeconds: 6)],
+                    intervals: [DiarizationInterval(start: 0, end: 6, clusterID: "A")]
+                )
+            ]))
 
         let assembler = TranscriptAssembler()
         let before = assembler.assemble(
@@ -2741,18 +2781,19 @@ struct LocalPipelineTests {
 
         // A local re-analysis splits it in two.
         var diarization = try meeting.store.readRawDiarization()
-        diarization.setActive(DiarizationRun(
-            id: "remote-002", track: .remote, backend: "fluidaudio",
-            producedAt: Date(), timelineOffset: 0,
-            clusters: [
-                DiarizationCluster(id: "S1", speechSeconds: 3),
-                DiarizationCluster(id: "S2", speechSeconds: 3),
-            ],
-            intervals: [
-                DiarizationInterval(start: 0, end: 3, clusterID: "S1"),
-                DiarizationInterval(start: 3, end: 6, clusterID: "S2"),
-            ]
-        ))
+        diarization.setActive(
+            DiarizationRun(
+                id: "remote-002", track: .remote, backend: "fluidaudio",
+                producedAt: Date(), timelineOffset: 0,
+                clusters: [
+                    DiarizationCluster(id: "S1", speechSeconds: 3),
+                    DiarizationCluster(id: "S2", speechSeconds: 3),
+                ],
+                intervals: [
+                    DiarizationInterval(start: 0, end: 3, clusterID: "S1"),
+                    DiarizationInterval(start: 3, end: 6, clusterID: "S2"),
+                ]
+            ))
         try meeting.store.writeRawDiarization(diarization)
 
         let after = assembler.assemble(
@@ -2780,14 +2821,15 @@ struct LocalPipelineTests {
         defer { try? FileManager.default.removeItem(at: storeRoot) }
 
         let key = "remote-001_speaker_00"
-        try meeting.store.writeRawDiarization(RawDiarization(runs: [
-            DiarizationRun(
-                id: "remote-001", track: .remote, backend: "test",
-                producedAt: Date(), timelineOffset: 0,
-                clusters: [DiarizationCluster(id: "speaker_00", speechSeconds: 300)],
-                intervals: [DiarizationInterval(start: 0, end: 300, clusterID: "speaker_00")]
-            ),
-        ]))
+        try meeting.store.writeRawDiarization(
+            RawDiarization(runs: [
+                DiarizationRun(
+                    id: "remote-001", track: .remote, backend: "test",
+                    producedAt: Date(), timelineOffset: 0,
+                    clusters: [DiarizationCluster(id: "speaker_00", speechSeconds: 300)],
+                    intervals: [DiarizationInterval(start: 0, end: 300, clusterID: "speaker_00")]
+                )
+            ]))
         try await store.recordOccurrence(
             meetingID: meeting.metadata.id, clusterID: key, track: .remote,
             speechSeconds: 300, embedding: SpeakerFixtures.vector(seed: 97),
@@ -2815,16 +2857,19 @@ struct LocalPipelineTests {
             at: Date()
         )
         try meeting.store.writeSpeakerMap(map)
-        _ = try await store.enrol(VoiceEnrollmentCandidate(
-            identityID: bob.id, vector: SpeakerFixtures.vector(seed: 98),
-            model: .fluidAudioOffline, speechSeconds: 80, qualityScore: 1,
-            source: .humanConfirmedUtterances,
-            evidence: [VoiceEvidence(
-                meetingID: meeting.metadata.id, track: .remote,
-                spans: [AudioSpan(start: 100, end: 180)],
-                confirmation: .humanConfirmedUtterances
-            )]
-        ))
+        _ = try await store.enrol(
+            VoiceEnrollmentCandidate(
+                identityID: bob.id, vector: SpeakerFixtures.vector(seed: 98),
+                model: .fluidAudioOffline, speechSeconds: 80, qualityScore: 1,
+                source: .humanConfirmedUtterances,
+                evidence: [
+                    VoiceEvidence(
+                        meetingID: meeting.metadata.id, track: .remote,
+                        spans: [AudioSpan(start: 100, end: 180)],
+                        confirmation: .humanConfirmedUtterances
+                    )
+                ]
+            ))
 
         let pipeline = PipelineFixtures.makePipeline(
             repository: meeting.repository, backend: FakeAIBackend(),
@@ -2834,7 +2879,7 @@ struct LocalPipelineTests {
             settings: AppSettings(),
             scratchRoot: root.appendingPathComponent("scratch")
         )
-        let alice = try #require(await pipeline.applySpeakerName( "Alice", to: key, meetingID: meeting.metadata.id))
+        let alice = try #require(await pipeline.applySpeakerName("Alice", to: key, meetingID: meeting.metadata.id))
         #expect(
             try await store.profileStatus(
                 of: bob.id, model: .fluidAudioOffline
@@ -2866,16 +2911,19 @@ struct LocalPipelineTests {
         let alice = try await store.createPerson(name: "Alice")
         // Alice's confirmed cluster covers the whole meeting, including
         // the line about to be corrected away and back.
-        _ = try await store.enrol(VoiceEnrollmentCandidate(
-            identityID: alice.id, vector: SpeakerFixtures.vector(seed: 96),
-            model: .fluidAudioOffline, speechSeconds: 60, qualityScore: 1,
-            source: .humanConfirmedCluster,
-            evidence: [VoiceEvidence(
-                meetingID: meeting.metadata.id, track: .remote,
-                spans: [AudioSpan(start: 0, end: 60)],
-                confirmation: .humanConfirmedCluster, clusterID: key
-            )]
-        ))
+        _ = try await store.enrol(
+            VoiceEnrollmentCandidate(
+                identityID: alice.id, vector: SpeakerFixtures.vector(seed: 96),
+                model: .fluidAudioOffline, speechSeconds: 60, qualityScore: 1,
+                source: .humanConfirmedCluster,
+                evidence: [
+                    VoiceEvidence(
+                        meetingID: meeting.metadata.id, track: .remote,
+                        spans: [AudioSpan(start: 0, end: 60)],
+                        confirmation: .humanConfirmedCluster, clusterID: key
+                    )
+                ]
+            ))
         var map = SpeakerMap()
         map.assign("Alice", to: key, identityID: alice.id)
         try meeting.store.writeSpeakerMap(map)
@@ -2910,16 +2958,19 @@ struct LocalPipelineTests {
         )
 
         // Alice is enrolled again, and the correction is undone.
-        _ = try await store.enrol(VoiceEnrollmentCandidate(
-            identityID: alice.id, vector: SpeakerFixtures.vector(seed: 96),
-            model: .fluidAudioOffline, speechSeconds: 60, qualityScore: 1,
-            source: .humanConfirmedCluster,
-            evidence: [VoiceEvidence(
-                meetingID: meeting.metadata.id, track: .remote,
-                spans: [AudioSpan(start: 0, end: 60)],
-                confirmation: .humanConfirmedCluster, clusterID: key
-            )]
-        ))
+        _ = try await store.enrol(
+            VoiceEnrollmentCandidate(
+                identityID: alice.id, vector: SpeakerFixtures.vector(seed: 96),
+                model: .fluidAudioOffline, speechSeconds: 60, qualityScore: 1,
+                source: .humanConfirmedCluster,
+                evidence: [
+                    VoiceEvidence(
+                        meetingID: meeting.metadata.id, track: .remote,
+                        spans: [AudioSpan(start: 0, end: 60)],
+                        confirmation: .humanConfirmedCluster, clusterID: key
+                    )
+                ]
+            ))
         try await pipeline.applyUtteranceSpeaker(
             "", utteranceIDs: ["u1"], meetingID: meeting.metadata.id
         )
@@ -3043,7 +3094,7 @@ struct LocalPipelineTests {
             RawTranscriptSegment(
                 start: 0, end: 5, text: "we ship friday", speaker: nil,
                 words: [RawTranscriptWord(start: 0, end: 0.3, text: " we")]
-            ),
+            )
         ])
         transcriber.copyAudioTo = root.appendingPathComponent("handed")
         let diarizer = StubLocalDiarizer(
@@ -3108,10 +3159,11 @@ struct LocalPipelineTests {
             track: .mic, metadata: meeting.metadata,
             timeline: try meeting.store.readTimeline()
         )
-        let stale = try #require(try ProcessingScratch(root: scratchRoot).trackAudio(
-            meetingID: meeting.metadata.id, track: .mic, segments: recording.segments,
-            segmentsDirectory: recording.directory
-        ))
+        let stale = try #require(
+            try ProcessingScratch(root: scratchRoot).trackAudio(
+                meetingID: meeting.metadata.id, track: .mic, segments: recording.segments,
+                segmentsDirectory: recording.directory
+            ))
         #expect(
             FileManager.default.fileExists(atPath: stale.path),
             "the earlier run's export is there to be picked up"
@@ -3121,7 +3173,7 @@ struct LocalPipelineTests {
             RawTranscriptSegment(
                 start: 0, end: 5, text: "we ship friday", speaker: nil,
                 words: [RawTranscriptWord(start: 0, end: 0.3, text: " we")]
-            ),
+            )
         ])
         transcriber.copyAudioTo = root.appendingPathComponent("handed")
         let diarizer = StubLocalDiarizer(
@@ -3184,19 +3236,20 @@ struct LocalPipelineTests {
         // every window, which is what the recording measures and the
         // cleaned track does not.
         let windows = 120
-        try meeting.store.writeSpeechEvidence(SpeechEvidence(
-            levelWindowSeconds: 0.25, speechWindowSeconds: 0.25,
-            micLevels: [Int8](repeating: -20, count: windows),
-            remoteLevels: [Int8](repeating: -18, count: windows),
-            micSpeech: [Int8](repeating: 95, count: windows),
-            detector: "measured-on-the-recording"
-        ))
+        try meeting.store.writeSpeechEvidence(
+            SpeechEvidence(
+                levelWindowSeconds: 0.25, speechWindowSeconds: 0.25,
+                micLevels: [Int8](repeating: -20, count: windows),
+                remoteLevels: [Int8](repeating: -18, count: windows),
+                micSpeech: [Int8](repeating: 95, count: windows),
+                detector: "measured-on-the-recording"
+            ))
 
         let transcriber = StubLocalTranscriber(segments: [
             RawTranscriptSegment(
                 start: 0, end: 5, text: "we ship friday", speaker: nil,
                 words: [RawTranscriptWord(start: 0, end: 0.3, text: " we")]
-            ),
+            )
         ])
         let diarizer = StubLocalDiarizer(
             intervals: [DiarizationInterval(start: 0, end: 2, clusterID: "S1")],
@@ -3279,7 +3332,7 @@ struct LocalPipelineTests {
             RawTranscriptSegment(
                 start: 0, end: 5, text: "we ship friday", speaker: nil,
                 words: [RawTranscriptWord(start: 0, end: 0.3, text: " we")]
-            ),
+            )
         ])
         let diarizer = StubLocalDiarizer(
             intervals: [DiarizationInterval(start: 0, end: 2, clusterID: "S1")],
@@ -3327,7 +3380,7 @@ struct LocalPipelineTests {
             RawTranscriptSegment(
                 start: 0, end: 5, text: "we ship friday", speaker: nil,
                 words: [RawTranscriptWord(start: 0, end: 0.3, text: " we")]
-            ),
+            )
         ])
         let diarizer = StubLocalDiarizer(
             intervals: [DiarizationInterval(start: 0, end: 2, clusterID: "S1")],

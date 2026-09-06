@@ -23,8 +23,8 @@ public struct WindowTitleReader: Sendable {
         var result: [String: [String]] = [:]
         for window in windows {
             guard let owner = window[kCGWindowOwnerName as String] as? String,
-                  let name = window[kCGWindowName as String] as? String,
-                  !name.isEmpty
+                let name = window[kCGWindowName as String] as? String,
+                !name.isEmpty
             else { continue }
             result[owner, default: []].append(name)
         }
@@ -37,8 +37,8 @@ public struct WindowTitleReader: Sendable {
         var result: [String: String] = [:]
         for application in NSWorkspace.shared.runningApplications {
             guard let identifier = application.bundleIdentifier,
-                  let name = application.localizedName,
-                  let windows = titles[name], let first = windows.first
+                let name = application.localizedName,
+                let windows = titles[name], let first = windows.first
             else { continue }
             result[identifier] = first
         }
@@ -53,9 +53,9 @@ public struct WindowTitleReader: Sendable {
         var result: [String: [String]] = [:]
         for window in windows {
             guard let owner = window[kCGWindowOwnerName as String] as? String,
-                  owners.contains(owner),
-                  let name = window[kCGWindowName as String] as? String,
-                  !name.isEmpty
+                owners.contains(owner),
+                let name = window[kCGWindowName as String] as? String,
+                !name.isEmpty
             else { continue }
             result[owner, default: []].append(name)
         }
@@ -110,12 +110,14 @@ public final class PowerEventObserver: @unchecked Sendable {
         self.onWake = onWake
         self.onSleep = onSleep
         let center = NSWorkspace.shared.notificationCenter
-        observers.append(center.addObserver(
-            forName: NSWorkspace.didWakeNotification, object: nil, queue: nil
-        ) { _ in onWake() })
-        observers.append(center.addObserver(
-            forName: NSWorkspace.willSleepNotification, object: nil, queue: nil
-        ) { _ in onSleep() })
+        observers.append(
+            center.addObserver(
+                forName: NSWorkspace.didWakeNotification, object: nil, queue: nil
+            ) { _ in onWake() })
+        observers.append(
+            center.addObserver(
+                forName: NSWorkspace.willSleepNotification, object: nil, queue: nil
+            ) { _ in onSleep() })
     }
 
     deinit {

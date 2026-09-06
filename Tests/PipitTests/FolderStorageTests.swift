@@ -34,7 +34,8 @@ struct FolderStorageTests {
         let folder = try store.create(name: "Northwind Daily", about: "The weekday standup")
         #expect(folder.name == "Northwind Daily")
         #expect(store.exists("Northwind Daily"))
-        let manifest = root
+        let manifest =
+            root
             .appendingPathComponent("Folders/Northwind Daily/folder.json")
         #expect(FileManager.default.fileExists(atPath: manifest.path))
         #expect(store.folder(named: "Northwind Daily")?.about == "The weekday standup")
@@ -157,9 +158,11 @@ struct FolderStorageTests {
             return
         }
         _ = try found.store.updateMetadata { $0.titles.human = "Northwind Daily" }
-        guard let settled = repository.settleFolderName(
-            for: repository.findMeeting(id: created.id)!.metadata
-        ) else {
+        guard
+            let settled = repository.settleFolderName(
+                for: repository.findMeeting(id: created.id)!.metadata
+            )
+        else {
             Issue.record("nothing settled")
             return
         }

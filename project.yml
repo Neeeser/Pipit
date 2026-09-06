@@ -1,0 +1,150 @@
+# The source for Pipit.xcodeproj. Regenerate with `xcodegen generate` after
+# every edit and commit the result. CI regenerates and fails on a difference.
+#
+# The Xcode project is a shell over the SwiftPM package. Package.swift owns the
+# modules and the tests. Two targets live here, the application bundle and the
+# native messaging host, because neither is a bundle SwiftPM can produce.
+name: Pipit
+
+options:
+  bundleIdPrefix: com.pipit
+  deploymentTarget:
+    macOS: "15.0"
+  createIntermediateGroups: true
+  groupSortPosition: top
+
+packages:
+  Pipit:
+    path: .
+
+settings:
+  base:
+    SWIFT_VERSION: "6.0"
+    SWIFT_STRICT_CONCURRENCY: complete
+    MACOSX_DEPLOYMENT_TARGET: "15.0"
+    ALWAYS_SEARCH_USER_PATHS: NO
+    CLANG_ENABLE_OBJC_ARC: YES
+    # Left empty so a clone builds without a team. Xcode fills it in for a
+    # signed local run, and the release build is signed by scripts/bundle-app.sh.
+    DEVELOPMENT_TEAM: ""
+    CODE_SIGN_STYLE: Automatic
+
+targets:
+  Pipit:
+    type: application
+    platform: macOS
+    sources:
+      - path: Sources/PipitApp
+      # Carried in the navigator, not compiled. XcodeGen's `info` and
+      # `entitlements` keys would rewrite these two files on every generate,
+      # so the paths are given as build settings instead.
+      - path: App/Info.plist
+        buildPhase: none
+      - path: App/Pipit.entitlements
+        buildPhase: none
+      # Listed one by one because MenuBarController loads the images by name
+      # from the top level of Contents/Resources, and the `-source` originals
+      # must not ship.
+      - path: Assets/Pipit/AppIcons/Pipit.icns
+        buildPhase: resources
+      - path: Assets/Pipit/MenuBar/pipit-idle.png
+        buildPhase: resources
+      - path: Assets/Pipit/MenuBar/pipit-idle@2x.png
+        buildPhase: resources
+      - path: Assets/Pipit/MenuBar/pipit-recording.png
+        buildPhase: resources
+      - path: Assets/Pipit/MenuBar/pipit-recording@2x.png
+        buildPhase: resources
+      - path: Assets/Pipit/MenuBar/pipit-paused.png
+        buildPhase: resources
+      - path: Assets/Pipit/MenuBar/pipit-paused@2x.png
+        buildPhase: resources
+      - path: Assets/Pipit/MenuBar/pipit-warning.png
+        buildPhase: resources
+      - path: Assets/Pipit/MenuBar/pipit-warning@2x.png
+        buildPhase: resources
+    dependencies:
+      - package: Pipit
+        product: PipitUI
+      - package: Pipit
+        product: PipitServices
+      - package: Pipit
+        product: PipitCore
+      # The host lands in Contents/MacOS next to the app executable, the path
+      # the browser installer copies it from. scripts/bundle-app.sh puts it in
+      # the same place.
+      - target: pipit-nativehost
+        embed: true
+        link: false
+        copy:
+          destination: executables
+    settings:
+      base:
+        PRODUCT_NAME: Pipit
+        PRODUCT_BUNDLE_IDENTIFIER: com.pipit.app
+        INFOPLIST_FILE: App/Info.plist
+        CODE_SIGN_ENTITLEMENTS: App/Pipit.entitlements
+        # Development builds only. A shipped bundle takes its version from
+        # VERSION, stamped by scripts/bundle-app.sh.
+        MARKETING_VERSION: "1.0.0"
+        CURRENT_PROJECT_VERSION: "1"
+        ENABLE_HARDENED_RUNTIME: YES
+        GENERATE_INFOPLIST_FILE: NO
+        COMBINE_HIDPI_IMAGES: NO
+    postBuildScripts:
+      - name: Build and copy the browser sensor
+        # extension/build.sh writes the loadable Firefox and Chrome directories.
+        # The app reads them from Contents/Resources/extension to install the
+        # sensor, so an Xcode build carries the same files the script bundles.
+        script: |
+          set -euo pipefail
+          "$SRCROOT/extension/build.sh" >/dev/null
+          resources="$BUILT_PRODUCTS_DIR/$CONTENTS_FOLDER_PATH/Resources"
+          mkdir -p "$resources"
+          rm -rf "$resources/extension"
+          cp -R "$SRCROOT/extension/dist" "$resources/extension"
+        inputFiles:
+          - $(SRCROOT)/extension/build.sh
+          - $(SRCROOT)/extension/shared/provider.js
+          - $(SRCROOT)/extension/shared/content.js
+          - $(SRCROOT)/extension/shared/relay.js
+          - $(SRCROOT)/extension/shared/background.js
+          - $(SRCROOT)/extension/firefox/manifest.json
+          - $(SRCROOT)/extension/chrome/manifest.json
+        outputFiles:
+          - $(BUILT_PRODUCTS_DIR)/$(CONTENTS_FOLDER_PATH)/Resources/extension/firefox/manifest.json
+          - $(BUILT_PRODUCTS_DIR)/$(CONTENTS_FOLDER_PATH)/Resources/extension/chrome/manifest.json
+
+  pipit-nativehost:
+    type: tool
+    platform: macOS
+    sources:
+      - path: Sources/PipitNativeHost
+    dependencies:
+      - package: Pipit
+        product: PipitCore
+    settings:
+      base:
+        PRODUCT_NAME: pipit-nativehost
+        # The app recognises its own relay by this identifier when the relay
+        # connects to the sensor socket.
+        PRODUCT_BUNDLE_IDENTIFIER: com.pipit.nativehost
+        ENABLE_HARDENED_RUNTIME: YES
+
+schemes:
+  Pipit:
+    build:
+      targets:
+        Pipit: all
+    run:
+      config: Debug
+    test:
+      config: Debug
+      targets:
+        - package: Pipit/PipitTests
+    profile:
+      config: Release
+    analyze:
+      config: Debug
+    archive:
+      config: Release

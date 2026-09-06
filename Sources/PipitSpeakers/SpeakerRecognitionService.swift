@@ -189,15 +189,18 @@ public actor SpeakerRecognitionService {
         now: Date
     ) async throws -> ResolvedCluster {
         let probe = VoiceVector.l2Normalized(cluster.centroid)
-        let candidates: [SpeakerCandidate] = probe.isEmpty ? [] : profiles.map { profile in
-            SpeakerCandidate(
-                identityID: profile.identity.id,
-                kind: profile.identity.kind,
-                displayName: profile.identity.resolvedName,
-                score: VoiceVector.cosine(probe, profile.centroid),
-                isExpectedParticipant: expectedParticipants.contains(profile.identity.id)
-            )
-        }
+        let candidates: [SpeakerCandidate] =
+            probe.isEmpty
+            ? []
+            : profiles.map { profile in
+                SpeakerCandidate(
+                    identityID: profile.identity.id,
+                    kind: profile.identity.kind,
+                    displayName: profile.identity.resolvedName,
+                    score: VoiceVector.cosine(probe, profile.centroid),
+                    isExpectedParticipant: expectedParticipants.contains(profile.identity.id)
+                )
+            }
         let resolution = policy.resolve(
             candidates: candidates, speechSeconds: cluster.speechSeconds,
             concurrent: concurrent(with: cluster, claimed: claimed)
@@ -229,7 +232,8 @@ public actor SpeakerRecognitionService {
             // nobody knows who it is. Below the bar it stays a speaker number in
             // this meeting and leaves nothing behind.
             if settings.rememberRecurringVoices, !probe.isEmpty,
-               policy.qualifiesForAnonymousProfile(speechSeconds: cluster.speechSeconds) {
+                policy.qualifiesForAnonymousProfile(speechSeconds: cluster.speechSeconds)
+            {
                 switch try await sameMeetingCandidate(
                     meetingID: meetingID, cluster: cluster, probe: probe,
                     model: model, claimed: claimed
@@ -254,9 +258,11 @@ public actor SpeakerRecognitionService {
                             speechSeconds: cluster.speechSeconds,
                             qualityScore: cluster.quality,
                             source: .anonymousSeed,
-                            evidence: [cluster.evidence(
-                                meetingID: meetingID, confirmation: .anonymousSeed
-                            )]
+                            evidence: [
+                                cluster.evidence(
+                                    meetingID: meetingID, confirmation: .anonymousSeed
+                                )
+                            ]
                         ),
                         now: now
                     )
@@ -365,9 +371,9 @@ public actor SpeakerRecognitionService {
     private func existingLink(meetingID: String, clusterID: String) async throws -> Identity? {
         let occurrences = try await store.occurrences(meetingID: meetingID)
         guard let occurrence = occurrences.first(where: { $0.clusterID == clusterID }),
-              let identityID = occurrence.resolvedIdentityID,
-              let identity = try await store.current(identityID),
-              identity.kind == .anonymous
+            let identityID = occurrence.resolvedIdentityID,
+            let identity = try await store.current(identityID),
+            identity.kind == .anonymous
         else { return nil }
         return identity
     }
@@ -413,13 +419,17 @@ public actor SpeakerRecognitionService {
                 // list at all, so no two entries share a family.
                 if other.identity.id == profile.identity.id { continue }
                 if other.identity.kind == .anonymous,
-                   sameMeetingSiblings(own, meetings[other.identity.id] ?? []) { continue }
-                candidates.append(SpeakerCandidate(
-                    identityID: other.identity.id,
-                    kind: other.identity.kind,
-                    displayName: other.identity.resolvedName,
-                    score: VoiceVector.cosine(probe, other.centroid)
-                ))
+                    sameMeetingSiblings(own, meetings[other.identity.id] ?? [])
+                {
+                    continue
+                }
+                candidates.append(
+                    SpeakerCandidate(
+                        identityID: other.identity.id,
+                        kind: other.identity.kind,
+                        displayName: other.identity.resolvedName,
+                        score: VoiceVector.cosine(probe, other.centroid)
+                    ))
             }
 
             let resolution = policy.resolve(
@@ -432,13 +442,14 @@ public actor SpeakerRecognitionService {
             // Widening to the suggestion band means accepting `.suggest` too,
             // and showing `resolution.band` beside each row.
             guard resolution.outcome.isAutomatic,
-                  let matchID = resolution.outcome.identityID,
-                  let match = try await store.current(matchID)
+                let matchID = resolution.outcome.identityID,
+                let match = try await store.current(matchID)
             else { continue }
-            results.append(UnnamedVoiceMatch(
-                voice: profile.identity, match: match, resolution: resolution,
-                speechSeconds: profile.speechSeconds
-            ))
+            results.append(
+                UnnamedVoiceMatch(
+                    voice: profile.identity, match: match, resolution: resolution,
+                    speechSeconds: profile.speechSeconds
+                ))
         }
         return results
     }
@@ -549,10 +560,12 @@ public actor SpeakerRecognitionService {
                 speechSeconds: seconds,
                 qualityScore: quality,
                 source: .humanConfirmedUtterances,
-                evidence: [VoiceEvidence(
-                    meetingID: meetingID, track: track, spans: spans,
-                    confirmation: .humanConfirmedUtterances
-                )]
+                evidence: [
+                    VoiceEvidence(
+                        meetingID: meetingID, track: track, spans: spans,
+                        confirmation: .humanConfirmedUtterances
+                    )
+                ]
             ),
             now: now
         )
@@ -604,10 +617,12 @@ public actor SpeakerRecognitionService {
                 speechSeconds: speechSeconds,
                 qualityScore: quality,
                 source: .micTrackDeterministic,
-                evidence: [VoiceEvidence(
-                    meetingID: meetingID, track: .mic, spans: spans,
-                    confirmation: .micTrackDeterministic
-                )]
+                evidence: [
+                    VoiceEvidence(
+                        meetingID: meetingID, track: .mic, spans: spans,
+                        confirmation: .micTrackDeterministic
+                    )
+                ]
             ),
             now: now
         )
@@ -629,9 +644,11 @@ public actor SpeakerRecognitionService {
         let others = try await store.occurrences(meetingID: meetingID)
             .filter { $0.track != .mic }
         for occurrence in others {
-            guard let other = try await store.occurrenceEmbedding(
-                meetingID: meetingID, clusterID: occurrence.clusterID, model: model
-            ) else { continue }
+            guard
+                let other = try await store.occurrenceEmbedding(
+                    meetingID: meetingID, clusterID: occurrence.clusterID, model: model
+                )
+            else { continue }
             comparable += 1
             let score = VoiceVector.cosine(probe, other)
             if score >= policy.anonymousLinkScore, score > (closest?.score ?? 0) {

@@ -65,7 +65,8 @@ public final class ManifestWriter: Sendable {
             let written = data.withUnsafeBytes { buffer -> Int in
                 var offset = 0
                 while offset < buffer.count {
-                    let result = write(state.descriptor, buffer.baseAddress!.advanced(by: offset), buffer.count - offset)
+                    let result = write(
+                        state.descriptor, buffer.baseAddress!.advanced(by: offset), buffer.count - offset)
                     if result <= 0 {
                         if errno == EINTR { continue }
                         return offset

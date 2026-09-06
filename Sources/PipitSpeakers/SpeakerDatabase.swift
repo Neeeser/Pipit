@@ -125,9 +125,10 @@ final class SpeakerDatabase {
     /// their names and their history stay; the unretractable vectors go, and the
     /// profiles rebuild from what is confirmed next.
     private func adoptEvidenceTables() throws {
-        let present = try scalarInt(
-            "SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = 'voice_evidence';"
-        ) ?? 0
+        let present =
+            try scalarInt(
+                "SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = 'voice_evidence';"
+            ) ?? 0
         guard present == 0 else { return }
         try execute(Self.evidenceTables)
         try execute("DELETE FROM voice_embedding;")
@@ -428,7 +429,7 @@ final class SpeakerDatabase {
 
         func blob(_ index: Int32) -> Data? {
             guard sqlite3_column_type(statement, index) != SQLITE_NULL,
-                  let pointer = sqlite3_column_blob(statement, index)
+                let pointer = sqlite3_column_blob(statement, index)
             else { return nil }
             return Data(bytes: pointer, count: Int(sqlite3_column_bytes(statement, index)))
         }

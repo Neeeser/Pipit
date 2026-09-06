@@ -412,8 +412,10 @@ struct PeopleDirectoryFilterTests {
         ]
         #expect(
             PeopleDirectoryFilter.sections(entries).map(\.title)
-                == ["Acme", PeopleDirectoryFilter.noOrganizationTitle,
-                    PeopleDirectoryFilter.unnamedTitle]
+                == [
+                    "Acme", PeopleDirectoryFilter.noOrganizationTitle,
+                    PeopleDirectoryFilter.unnamedTitle,
+                ]
         )
     }
 
@@ -594,26 +596,30 @@ private func makeRenderedMeeting(
     // Raw words and diarization on disk, so a rebuild has something to
     // re-assemble from and the test is not passing on an early return.
     var raw = try meeting.store.readRawTranscript()
-    raw.chunks.append(RawTranscriptChunk(
-        id: "remote_chunk_001", track: .remote, timelineOffset: 0,
-        durationSeconds: 6, model: "stub", responseFormat: "local_text",
-        segments: [RawTranscriptSegment(
-            start: 0, end: 2, text: "we ship friday", speaker: nil,
-            words: [
-                RawTranscriptWord(start: 0.0, end: 0.4, text: " we"),
-                RawTranscriptWord(start: 0.5, end: 0.8, text: " ship"),
-                RawTranscriptWord(start: 0.9, end: 1.2, text: " friday"),
-            ]
-        )],
-        purpose: .words
-    ))
+    raw.chunks.append(
+        RawTranscriptChunk(
+            id: "remote_chunk_001", track: .remote, timelineOffset: 0,
+            durationSeconds: 6, model: "stub", responseFormat: "local_text",
+            segments: [
+                RawTranscriptSegment(
+                    start: 0, end: 2, text: "we ship friday", speaker: nil,
+                    words: [
+                        RawTranscriptWord(start: 0.0, end: 0.4, text: " we"),
+                        RawTranscriptWord(start: 0.5, end: 0.8, text: " ship"),
+                        RawTranscriptWord(start: 0.9, end: 1.2, text: " friday"),
+                    ]
+                )
+            ],
+            purpose: .words
+        ))
     try meeting.store.writeRawTranscript(raw)
     var diarization = try meeting.store.readRawDiarization()
-    diarization.setActive(DiarizationRun(
-        id: "run-remote", track: .remote, backend: "stub",
-        producedAt: Date(timeIntervalSince1970: 0), timelineOffset: 0,
-        intervals: [DiarizationInterval(start: 0, end: 2, clusterID: "A")]
-    ))
+    diarization.setActive(
+        DiarizationRun(
+            id: "run-remote", track: .remote, backend: "stub",
+            producedAt: Date(timeIntervalSince1970: 0), timelineOffset: 0,
+            intervals: [DiarizationInterval(start: 0, end: 2, clusterID: "A")]
+        ))
     try meeting.store.writeRawDiarization(diarization)
 
     let bryn = try await store.createPerson(name: "Bryn")
@@ -625,10 +631,11 @@ private func makeRenderedMeeting(
         humanVerified: true, wasExpectedParticipant: false
     )
 
-    try meeting.store.writeCanonicalTranscript(CanonicalTranscript(
-        generatedAt: Date(timeIntervalSince1970: 1_700_000_000),
-        utterances: [PeopleFixtures.utterance("remote-001_speaker_00", "We ship Friday.", at: 0)]
-    ))
+    try meeting.store.writeCanonicalTranscript(
+        CanonicalTranscript(
+            generatedAt: Date(timeIntervalSince1970: 1_700_000_000),
+            utterances: [PeopleFixtures.utterance("remote-001_speaker_00", "We ship Friday.", at: 0)]
+        ))
     var map = SpeakerMap()
     map.assign("Bryn", to: "remote-001_speaker_00", identityID: bryn.id)
     try meeting.store.writeSpeakerMap(map)

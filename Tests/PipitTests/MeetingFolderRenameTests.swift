@@ -96,7 +96,8 @@ struct MeetingFolderRenameTests {
         #expect(first?.lastPathComponent == "Retro (Aug 20, 3:14 PM)")
         #expect(second?.lastPathComponent == "Retro (Aug 20, 3:14 PM)")
 
-        let month = root
+        let month =
+            root
             .appendingPathComponent("2026", isDirectory: true)
             .appendingPathComponent("08", isDirectory: true)
         let entries = try FileManager.default.contentsOfDirectory(
@@ -220,7 +221,8 @@ struct MeetingFolderRenameTests {
         _ = try Self.complete(created.store)
 
         repository.settleFolderNames()
-        #expect(repository.findMeeting(id: created.metadata.id)?
+        #expect(
+            repository.findMeeting(id: created.metadata.id)?
                 .store.layout.root.lastPathComponent == "Board prep (Aug 20, 3:14 PM)")
     }
 
@@ -306,7 +308,8 @@ struct MeetingFolderRenameTests {
         _ = try created.store.updateMetadata { $0.titles.ai = "Board prep" }
 
         repository.settleFolderNames()
-        #expect(repository.findMeeting(id: created.metadata.id)?
+        #expect(
+            repository.findMeeting(id: created.metadata.id)?
                 .store.layout.root.lastPathComponent == "Manual recording (Aug 20, 3:14 PM)")
     }
 

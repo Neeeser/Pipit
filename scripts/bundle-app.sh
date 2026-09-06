@@ -1,8 +1,9 @@
 #!/bin/bash
 # Assembles Pipit.app from the SwiftPM products.
 #
-# This machine has Command Line Tools only, so there is no xcodebuild and no
-# Xcode project; the bundle is built here instead. Signing is ad-hoc by default,
+# This is the route CI and the release workflow take, so it needs no Xcode
+# project and no xcodebuild. App/Info.plist and App/Pipit.entitlements are the
+# same two files Pipit.xcodeproj builds against. Signing is ad-hoc by default,
 # which is enough to hold TCC grants for one build. Set PIPIT_SIGN_IDENTITY to
 # a Developer ID Application identity for a distributable build.
 #
@@ -16,7 +17,8 @@ source "$REPO_ROOT/scripts/spm-env.sh"
 CONFIG="${1:-release}"
 VERSION="$(cat "$REPO_ROOT/VERSION" 2>/dev/null || echo "0.1.0")"
 BUILD_NUMBER="${PIPIT_BUILD_NUMBER:-1}"
-BUNDLE_ID="com.pipit.app"
+# Read from the plist so the signing identifier and the bundle cannot drift.
+BUNDLE_ID="$(/usr/libexec/PlistBuddy -c "Print :CFBundleIdentifier" "$REPO_ROOT/App/Info.plist")"
 APP_DIR="$REPO_ROOT/dist/Pipit.app"
 BIN_DIR="$REPO_ROOT/.build/$CONFIG"
 
@@ -51,60 +53,11 @@ for state in idle recording paused warning; do
     cp "$REPO_ROOT/Assets/Pipit/MenuBar/pipit-$state@2x.png" "$APP_DIR/Contents/Resources/"
 done
 
-cat > "$APP_DIR/Contents/Info.plist" <<PLIST
-<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<plist version="1.0">
-<dict>
-    <key>CFBundleName</key>
-    <string>Pipit</string>
-    <key>CFBundleDisplayName</key>
-    <string>Pipit</string>
-    <key>CFBundleIdentifier</key>
-    <string>$BUNDLE_ID</string>
-    <key>CFBundleExecutable</key>
-    <string>Pipit</string>
-    <key>CFBundleIconFile</key>
-    <string>Pipit.icns</string>
-    <key>CFBundlePackageType</key>
-    <string>APPL</string>
-    <key>CFBundleShortVersionString</key>
-    <string>$VERSION</string>
-    <key>CFBundleVersion</key>
-    <string>$BUILD_NUMBER</string>
-    <key>LSMinimumSystemVersion</key>
-    <string>15.0</string>
-    <key>LSUIElement</key>
-    <true/>
-    <key>NSHumanReadableCopyright</key>
-    <string>Pipit</string>
-    <key>NSMicrophoneUsageDescription</key>
-    <string>Pipit records your side of meetings.</string>
-    <key>NSCalendarsUsageDescription</key>
-    <string>Pipit matches recordings to calendar events for titles and attendees.</string>
-    <key>NSCalendarsFullAccessUsageDescription</key>
-    <string>Pipit matches recordings to calendar events for titles and attendees.</string>
-    <key>NSDocumentsFolderUsageDescription</key>
-    <string>Pipit saves your recordings and transcripts here.</string>
-</dict>
-</plist>
-PLIST
-
-cat > "$REPO_ROOT/dist/Pipit.entitlements" <<'ENTITLEMENTS'
-<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<plist version="1.0">
-<dict>
-    <!-- Mandatory under the hardened runtime. Without it the microphone request
-         is denied instantly with no dialog, which looks exactly like a user
-         denial and is easy to misdiagnose. -->
-    <key>com.apple.security.device.audio-input</key>
-    <true/>
-    <key>com.apple.security.personal-information.calendars</key>
-    <true/>
-</dict>
-</plist>
-ENTITLEMENTS
+# The version keys are the only two the build stamps. Everything else in the
+# bundle plist is what App/Info.plist says.
+cp "$REPO_ROOT/App/Info.plist" "$APP_DIR/Contents/Info.plist"
+/usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString $VERSION" "$APP_DIR/Contents/Info.plist"
+/usr/libexec/PlistBuddy -c "Set :CFBundleVersion $BUILD_NUMBER" "$APP_DIR/Contents/Info.plist"
 
 # The identity, in order: the one named in the environment, the local
 # development certificate `scripts/make-signing-identity.sh` creates, then
@@ -143,7 +96,7 @@ codesign --force --sign "$IDENTITY" \
 codesign --force --sign "$IDENTITY" \
     --identifier "$BUNDLE_ID" \
     --options runtime \
-    --entitlements "$REPO_ROOT/dist/Pipit.entitlements" \
+    --entitlements "$REPO_ROOT/App/Pipit.entitlements" \
     "${TIMESTAMP[@]}" \
     "$APP_DIR"
 

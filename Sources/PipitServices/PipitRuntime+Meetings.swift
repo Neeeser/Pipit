@@ -35,9 +35,9 @@ extension PipitRuntime {
         let repository = self.repository
         return await Task.detached(priority: .userInitiated) {
             guard let logical = repository.logicalMeeting(id: id),
-                  let summary = repository.summary(
-                      forDirectory: logical.primary.store.layout.root
-                  )
+                let summary = repository.summary(
+                    forDirectory: logical.primary.store.layout.root
+                )
             else { return nil }
             return Self.row(
                 summary: summary,
@@ -86,11 +86,13 @@ extension PipitRuntime {
                 .sorted { $0.key < $1.key }
             // The clusters the caller passed belong to the recording the pane
             // is keyed on, which is the first. The rest are read.
-            let keys = (index == 0 ? clusters : nil)
+            let keys =
+                (index == 0 ? clusters : nil)
                 ?? ((try? store.readTranscriptSpeakers()) ?? [])
-            speakers.append(contentsOf: MeetingsDirectoryFilter.speakers(
-                clusters: keys, named: named, recordingIndex: index
-            ))
+            speakers.append(
+                contentsOf: MeetingsDirectoryFilter.speakers(
+                    clusters: keys, named: named, recordingIndex: index
+                ))
             let text = store.readNotes()
             if !text.isEmpty { notes.append(text) }
         }
@@ -100,7 +102,7 @@ extension PipitRuntime {
         let offered = stores.first.flatMap { store -> FolderSuggestion? in
             guard summary.folderName == nil else { return nil }
             guard let metadata = try? store.readMetadata(),
-                  metadata.acceptsFolderSuggestion
+                metadata.acceptsFolderSuggestion
             else { return nil }
             return store.readFolderSuggestion()
         }

@@ -116,11 +116,12 @@ enum EchoCommand {
     /// decibel figure, because a removal of zero decibels is a different
     /// finding from having had nothing to remove.
     private static func printNoReference(_ reason: EchoMeasurement.MissingReference) {
-        let explanation = switch reason {
-        case .oneTrack: "one track holds everyone, so there is no separate far end"
-        case .notRecorded: "no far-end track was recorded"
-        case .recordedSilence: "the far-end track was recorded and holds silence"
-        }
+        let explanation =
+            switch reason {
+            case .oneTrack: "one track holds everyone, so there is no separate far end"
+            case .notRecorded: "no far-end track was recorded"
+            case .recordedSilence: "the far-end track was recorded and holds silence"
+            }
         print("no reference    \(explanation)")
         print("")
         print("  Nothing was measured. There was no far end to subtract, and this")
@@ -130,47 +131,57 @@ enum EchoCommand {
     private static func printReport(_ report: EchoMeasurement.Report) {
         let offset = String(format: "%+.2f", report.referenceOffsetSeconds)
         let source = report.referenceOffsetIsOverride ? "given by hand" : "from the manifest"
-        print(String(
-            format: "duration        %.1fs in %d windows of %.2fs",
-            report.seconds, report.windowCount, report.windowSeconds
-        ))
+        print(
+            String(
+                format: "duration        %.1fs in %d windows of %.2fs",
+                report.seconds, report.windowCount, report.windowSeconds
+            ))
         print("reference       far end moved \(offset)s onto the microphone's clock, \(source)")
-        print(String(
-            format: "far end         above %.1f dBFS in %d windows, %.1f%% of the meeting",
-            report.farEndFloorDBFS, report.farEndActiveWindows, report.farEndDutyCycle * 100
-        ))
+        print(
+            String(
+                format: "far end         above %.1f dBFS in %d windows, %.1f%% of the meeting",
+                report.farEndFloorDBFS, report.farEndActiveWindows, report.farEndDutyCycle * 100
+            ))
         printMicrophoneFloor(report)
         print("")
-        print("  " + left("window class", 13) + right("windows", 8) + right("seconds", 9)
-            + right("mic before", 12) + right("mic after", 12) + right("change", 12))
+        print(
+            "  " + left("window class", 13) + right("windows", 8) + right("seconds", 9)
+                + right("mic before", 12) + right("mic after", 12) + right("change", 12))
         for summary in report.classes {
             print(levelRow(summary))
         }
         print("")
         print("per-window change, dB")
-        print("  " + left("window class", 13) + right("median", 9) + right("p95", 9)
-            + right("worst", 9) + right("gain", 9)
-            + right("windows over \(fixed(report.notableLossDB)) dB", 24))
+        print(
+            "  " + left("window class", 13) + right("median", 9) + right("p95", 9)
+                + right("worst", 9) + right("gain", 9)
+                + right("windows over \(fixed(report.notableLossDB)) dB", 24))
         for summary in report.classes {
             print(distributionRow(summary))
         }
         print("")
-        let median = report.reportedEnhancementMedianDB.map { "\(fixed($0)) dB" }
+        let median =
+            report.reportedEnhancementMedianDB.map { "\(fixed($0)) dB" }
             ?? "no far-end-active window"
         print("reported        \(median) median enhancement, which nothing is decided on")
         if let harmMedian = report.userHarmMedianDB, let harmShare = report.userHarmShare {
-            print(String(
-                format: "user alone      lost %.1f dB at the median, %.0f%% of %d windows over %.0f dB",
-                harmMedian, harmShare * 100, report.userWindowsJudged, report.harmNotableLossDB
-            ))
+            print(
+                String(
+                    format: "user alone      lost %.1f dB at the median, %.0f%% of %d windows over %.0f dB",
+                    harmMedian, harmShare * 100, report.userWindowsJudged, report.harmNotableLossDB
+                ))
         } else {
-            print("user alone      \(report.userWindowsJudged) windows, under the \(report.minimumUserWindows) a judgement needs")
+            print(
+                "user alone      \(report.userWindowsJudged) windows, under the \(report.minimumUserWindows) a judgement needs"
+            )
         }
-        print(String(
-            format: "limits          %.1f dB median, %.0f%% over %.0f dB, judged on at least %d far-end-active windows",
-            report.harmMedianLimitDB, report.harmShareLimit * 100, report.harmNotableLossDB,
-            report.minimumActiveWindows
-        ))
+        print(
+            String(
+                format:
+                    "limits          %.1f dB median, %.0f%% over %.0f dB, judged on at least %d far-end-active windows",
+                report.harmMedianLimitDB, report.harmShareLimit * 100, report.harmNotableLossDB,
+                report.minimumActiveWindows
+            ))
         print("decision        \(report.decision.rawValue)")
         print("                \(report.decisionReason)")
         print("")
@@ -194,12 +205,14 @@ enum EchoCommand {
             return
         }
         if report.microphoneFloorDBFS > report.farEndFloorDBFS {
-            print("microphone      above \(floor) dBFS, from a quietest twentieth of "
-                + "\(fixed(quiet)) dBFS")
+            print(
+                "microphone      above \(floor) dBFS, from a quietest twentieth of "
+                    + "\(fixed(quiet)) dBFS")
         } else {
             print("microphone      above \(floor) dBFS, the far end's floor. The quietest")
-            print("                twentieth of this recording sits under it, at "
-                + "\(fixed(quiet)) dBFS")
+            print(
+                "                twentieth of this recording sits under it, at "
+                    + "\(fixed(quiet)) dBFS")
         }
     }
 
@@ -209,8 +222,9 @@ enum EchoCommand {
         // decibels for one would read as full scale, and printing a zero
         // change would read as a canceller that did nothing.
         guard let before = summary.microphoneBeforeDBFS,
-              let after = summary.microphoneAfterDBFS,
-              let change = summary.changeDB else {
+            let after = summary.microphoneAfterDBFS,
+            let change = summary.changeDB
+        else {
             return head + right("-", 9) + right("-", 12) + right("-", 12) + right("-", 12)
         }
         return head
@@ -223,7 +237,8 @@ enum EchoCommand {
     private static func distributionRow(_ summary: EchoMeasurement.ClassSummary) -> String {
         let head = "  " + left(label(summary.windowClass), 13)
         guard let median = summary.medianChangeDB, let p95 = summary.p95ChangeDB,
-              let worst = summary.worstChangeDB, let gain = summary.largestGainDB else {
+            let worst = summary.worstChangeDB, let gain = summary.largestGainDB
+        else {
             return head + right("-", 9) + right("-", 9) + right("-", 9) + right("-", 9)
                 + right("\(summary.windowsOverLossThreshold)", 24)
         }

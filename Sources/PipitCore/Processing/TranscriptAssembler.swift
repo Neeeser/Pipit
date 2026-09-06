@@ -180,10 +180,12 @@ public struct TranscriptAssembler: Sendable {
             // with a cloud diarizer still keep their embedded labels, because
             // there the run carries the same producer as the words.
             let activeRun = diarization.activeRun(track: track)
-            let separateDiarizer = activeRun.map { run in
-                !chunks.contains { $0.model == run.backend }
-            } ?? false
-            let attributed = (treatAsLocalUser || (carriesSpeakers && !reanalysed && !separateDiarizer))
+            let separateDiarizer =
+                activeRun.map { run in
+                    !chunks.contains { $0.model == run.backend }
+                } ?? false
+            let attributed =
+                (treatAsLocalUser || (carriesSpeakers && !reanalysed && !separateDiarizer))
                 ? chunks
                 : attribute(
                     chunks, using: activeRun,
@@ -338,14 +340,18 @@ public struct TranscriptAssembler: Sendable {
             guard !currentWords.isEmpty else { return }
             let text = currentWords.map(\.text).joined()
                 .trimmingCharacters(in: .whitespaces)
-            guard !text.isEmpty else { currentWords = []; return }
-            pieces.append(RawTranscriptSegment(
-                start: currentWords[0].start,
-                end: currentWords[currentWords.count - 1].end,
-                text: text,
-                speaker: currentSpeaker,
-                words: currentWords
-            ))
+            guard !text.isEmpty else {
+                currentWords = []
+                return
+            }
+            pieces.append(
+                RawTranscriptSegment(
+                    start: currentWords[0].start,
+                    end: currentWords[currentWords.count - 1].end,
+                    text: text,
+                    speaker: currentSpeaker,
+                    words: currentWords
+                ))
             currentWords = []
         }
 
@@ -453,9 +459,11 @@ public struct TranscriptAssembler: Sendable {
                 }
             }
             let gone = dropped[index] ?? []
-            kept.append(contentsOf: tokens
-                .filter { !gone.contains($0.address) }
-                .map { KeptToken(chunk: index, token: $0) })
+            kept.append(
+                contentsOf:
+                    tokens
+                    .filter { !gone.contains($0.address) }
+                    .map { KeptToken(chunk: index, token: $0) })
             kept.sort { $0.token.start < $1.token.start }
             // The audio a chunk covers, whether or not its words survived it.
             covered = max(covered, tokens.map(\.end).max() ?? -.infinity)
@@ -477,13 +485,14 @@ public struct TranscriptAssembler: Sendable {
         for (segmentIndex, segment) in chunk.segments.enumerated() {
             if let words = segment.words, !words.isEmpty {
                 for (wordIndex, word) in words.enumerated() {
-                    tokens.append(Token(
-                        address: TokenAddress(segment: segmentIndex, index: wordIndex),
-                        start: chunk.timelineOffset + word.start,
-                        end: chunk.timelineOffset + word.end,
-                        key: normalisedUnit(word.text),
-                        timed: true
-                    ))
+                    tokens.append(
+                        Token(
+                            address: TokenAddress(segment: segmentIndex, index: wordIndex),
+                            start: chunk.timelineOffset + word.start,
+                            end: chunk.timelineOffset + word.end,
+                            key: normalisedUnit(word.text),
+                            timed: true
+                        ))
                 }
                 continue
             }
@@ -498,12 +507,13 @@ public struct TranscriptAssembler: Sendable {
             let step = span / Double(texts.count)
             for (textIndex, text) in texts.enumerated() {
                 let start = chunk.timelineOffset + segment.start + step * Double(textIndex)
-                tokens.append(Token(
-                    address: TokenAddress(segment: segmentIndex, index: textIndex),
-                    start: start, end: start + step,
-                    key: normalisedUnit(text),
-                    timed: false
-                ))
+                tokens.append(
+                    Token(
+                        address: TokenAddress(segment: segmentIndex, index: textIndex),
+                        start: start, end: start + step,
+                        key: normalisedUnit(text),
+                        timed: false
+                    ))
             }
         }
         tokens.sort { lhs, rhs in
@@ -653,10 +663,11 @@ public struct TranscriptAssembler: Sendable {
         from chunk: RawTranscriptChunk, treatAsLocalUser: Bool, speech: SpeechEvidence?
     ) -> [Utterance] {
         var result: [Utterance] = []
-        var current: (
-            start: Double, end: Double, speaker: String?, text: String,
-            words: [RawTranscriptWord], timed: Bool
-        )?
+        var current:
+            (
+                start: Double, end: Double, speaker: String?, text: String,
+                words: [RawTranscriptWord], timed: Bool
+            )?
 
         func flush() {
             guard let group = current, !group.text.trimmingCharacters(in: .whitespaces).isEmpty else {
@@ -666,7 +677,8 @@ public struct TranscriptAssembler: Sendable {
             let rawLabel = group.speaker.map {
                 SpeakerLabel.namespaced(chunkID: chunk.id, rawLabel: $0)
             }
-            let speakerKey = treatAsLocalUser
+            let speakerKey =
+                treatAsLocalUser
                 ? SpeakerLabel.localUser
                 : (rawLabel ?? SpeakerLabel.unattributed(track: chunk.track))
             // Two turns of one chunk that round to the same millisecond would
@@ -682,40 +694,43 @@ public struct TranscriptAssembler: Sendable {
             var collisions = 0
             while result.contains(where: { $0.id == identifier }) {
                 collisions += 1
-                identifier = Utterance.identifier(
-                    chunkID: chunk.id, track: chunk.track,
-                    start: chunk.timelineOffset + group.start,
-                    end: chunk.timelineOffset + group.end
-                ) + "-\(collisions)"
+                identifier =
+                    Utterance.identifier(
+                        chunkID: chunk.id, track: chunk.track,
+                        start: chunk.timelineOffset + group.start,
+                        end: chunk.timelineOffset + group.end
+                    ) + "-\(collisions)"
             }
-            result.append(Utterance(
-                id: identifier,
-                start: chunk.timelineOffset + group.start,
-                end: chunk.timelineOffset + group.end,
-                track: chunk.track,
-                rawSpeakerLabel: treatAsLocalUser ? nil : rawLabel,
-                speakerKey: speakerKey,
-                text: group.text.trimmingCharacters(in: .whitespaces),
-                chunkID: chunk.id,
-                model: chunk.model,
-                // On the meeting timeline, like the line's own start and end.
-                // A division of this line is compared against corrections and
-                // diarization intervals, which are all in those coordinates.
-                //
-                // Present only when every segment in the turn was timed. A
-                // dividing line's text is rebuilt from its words, so a partial
-                // list would delete the untimed half of the turn from the
-                // panel, the markdown and everything derived from them. A
-                // decoder does return a segment with no word alignment, and a
-                // text-only backend's chunk has none at all.
-                words: group.timed ? group.words.map {
-                    RawTranscriptWord(
-                        start: chunk.timelineOffset + $0.start,
-                        end: chunk.timelineOffset + $0.end,
-                        text: $0.text, probability: $0.probability
-                    )
-                } : nil
-            ))
+            result.append(
+                Utterance(
+                    id: identifier,
+                    start: chunk.timelineOffset + group.start,
+                    end: chunk.timelineOffset + group.end,
+                    track: chunk.track,
+                    rawSpeakerLabel: treatAsLocalUser ? nil : rawLabel,
+                    speakerKey: speakerKey,
+                    text: group.text.trimmingCharacters(in: .whitespaces),
+                    chunkID: chunk.id,
+                    model: chunk.model,
+                    // On the meeting timeline, like the line's own start and end.
+                    // A division of this line is compared against corrections and
+                    // diarization intervals, which are all in those coordinates.
+                    //
+                    // Present only when every segment in the turn was timed. A
+                    // dividing line's text is rebuilt from its words, so a partial
+                    // list would delete the untimed half of the turn from the
+                    // panel, the markdown and everything derived from them. A
+                    // decoder does return a segment with no word alignment, and a
+                    // text-only backend's chunk has none at all.
+                    words: group.timed
+                        ? group.words.map {
+                            RawTranscriptWord(
+                                start: chunk.timelineOffset + $0.start,
+                                end: chunk.timelineOffset + $0.end,
+                                text: $0.text, probability: $0.probability
+                            )
+                        } : nil
+                ))
             current = nil
         }
 
@@ -730,24 +745,26 @@ public struct TranscriptAssembler: Sendable {
             let start = chunk.timelineOffset + segment.start
             let end = chunk.timelineOffset + segment.end
             if let reading = speech?.reading(from: start, to: end, farEndUsable: farEndUsable),
-               LocalSpeechPolicy.decide(text: text, reading: reading) == .notSpoken {
+                LocalSpeechPolicy.decide(text: text, reading: reading) == .notSpoken
+            {
                 continue
             }
-                if var group = current,
-                   group.speaker == segment.speaker,
-                   segment.start - group.end <= configuration.utteranceGapSeconds,
-                   segment.end - group.start <= configuration.maxUtteranceSeconds {
-                    group.end = max(group.end, segment.end)
-                    group.text += group.text.isEmpty ? text : " \(text)"
-                    group.words += segment.words ?? []
-                    group.timed = group.timed && !(segment.words ?? []).isEmpty
-                    current = group
-                } else {
-                    flush()
-                    current = (
-                        segment.start, segment.end, segment.speaker, text,
-                        segment.words ?? [], !(segment.words ?? []).isEmpty
-                    )
+            if var group = current,
+                group.speaker == segment.speaker,
+                segment.start - group.end <= configuration.utteranceGapSeconds,
+                segment.end - group.start <= configuration.maxUtteranceSeconds
+            {
+                group.end = max(group.end, segment.end)
+                group.text += group.text.isEmpty ? text : " \(text)"
+                group.words += segment.words ?? []
+                group.timed = group.timed && !(segment.words ?? []).isEmpty
+                current = group
+            } else {
+                flush()
+                current = (
+                    segment.start, segment.end, segment.speaker, text,
+                    segment.words ?? [], !(segment.words ?? []).isEmpty
+                )
             }
         }
         flush()
@@ -867,8 +884,9 @@ public struct TranscriptAssembler: Sendable {
             // Repeats inside one chunk are speech, not overlap. A speaker who says
             // "yes, exactly" twice in a minute keeps both.
             guard existing.chunkID != candidate.chunkID else { continue }
-            guard abs(existing.start - candidate.start) <= configuration.duplicateSearchSeconds
-                || rangesOverlap(existing, candidate)
+            guard
+                abs(existing.start - candidate.start) <= configuration.duplicateSearchSeconds
+                    || rangesOverlap(existing, candidate)
             else { continue }
             if TextSimilarity.score(existing.text, candidate.text) >= configuration.duplicateSimilarity {
                 return true
@@ -876,8 +894,9 @@ public struct TranscriptAssembler: Sendable {
             // A chunk boundary can split one turn so that the later chunk repeats
             // only the tail of it.
             if existing.text.count > candidate.text.count,
-               candidate.text.count >= 12,
-               existing.text.lowercased().contains(candidate.text.lowercased()) {
+                candidate.text.count >= 12,
+                existing.text.lowercased().contains(candidate.text.lowercased())
+            {
                 return true
             }
         }
@@ -960,12 +979,14 @@ public struct TranscriptRenderer: Sendable {
         for participant in informative {
             var line = "- **\(participant.name)**"
             if let organization = participant.organization?
-                .trimmingCharacters(in: .whitespacesAndNewlines), !organization.isEmpty {
+                .trimmingCharacters(in: .whitespacesAndNewlines), !organization.isEmpty
+            {
                 line += " · \(organization)"
             }
             lines.append(line)
             if let notes = participant.notes?.trimmingCharacters(in: .whitespacesAndNewlines),
-               !notes.isEmpty {
+                !notes.isEmpty
+            {
                 // Indented under the name so a multi-line note stays inside the
                 // list item instead of ending it.
                 for note in notes.split(separator: "\n", omittingEmptySubsequences: false) {

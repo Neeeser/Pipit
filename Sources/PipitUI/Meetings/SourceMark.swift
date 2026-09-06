@@ -68,11 +68,13 @@ public enum SourceMark {
     ///
     /// Nil when the icon is empty or has no plate to seed from.
     public static func plateRemoved(_ image: NSImage, raster: Int = 256) -> NSImage? {
-        guard let rep = NSBitmapImageRep(
-            bitmapDataPlanes: nil, pixelsWide: raster, pixelsHigh: raster,
-            bitsPerSample: 8, samplesPerPixel: 4, hasAlpha: true, isPlanar: false,
-            colorSpaceName: .deviceRGB, bytesPerRow: raster * 4, bitsPerPixel: 32
-        ) else { return nil }
+        guard
+            let rep = NSBitmapImageRep(
+                bitmapDataPlanes: nil, pixelsWide: raster, pixelsHigh: raster,
+                bitsPerSample: 8, samplesPerPixel: 4, hasAlpha: true, isPlanar: false,
+                colorSpaceName: .deviceRGB, bytesPerRow: raster * 4, bitsPerPixel: 32
+            )
+        else { return nil }
         NSGraphicsContext.saveGraphicsState()
         NSGraphicsContext.current = NSGraphicsContext(bitmapImageRep: rep)
         image.draw(in: NSRect(x: 0, y: 0, width: raster, height: raster))
@@ -81,8 +83,10 @@ public enum SourceMark {
 
         func pixel(_ x: Int, _ y: Int) -> (r: Double, g: Double, b: Double, a: Double) {
             let offset = y * rep.bytesPerRow + x * 4
-            return (Double(data[offset]) / 255, Double(data[offset + 1]) / 255,
-                    Double(data[offset + 2]) / 255, Double(data[offset + 3]) / 255)
+            return (
+                Double(data[offset]) / 255, Double(data[offset + 1]) / 255,
+                Double(data[offset + 2]) / 255, Double(data[offset + 3]) / 255
+            )
         }
         // Colour as well as alpha. The buffer is premultiplied, so a pixel left
         // white with alpha zero is not transparent white, it is invalid, and
@@ -104,7 +108,8 @@ public enum SourceMark {
         var seeds: [(Int, Int)] = []
         var samples: [(Double, Double, Double)] = []
         for (fx, fy) in onThePlate {
-            let x = Int(fx * Double(raster - 1)), y = Int(fy * Double(raster - 1))
+            let x = Int(fx * Double(raster - 1))
+            let y = Int(fy * Double(raster - 1))
             let sample = pixel(x, y)
             guard sample.a > 0.5 else { continue }
             seeds.append((x, y))
@@ -125,11 +130,15 @@ public enum SourceMark {
         while let (x, y) = queue.popLast() {
             clear(x, y)
             for (dx, dy) in [(1, 0), (-1, 0), (0, 1), (0, -1)] {
-                let nx = x + dx, ny = y + dy
+                let nx = x + dx
+                let ny = y + dy
                 guard nx >= 0, nx < raster, ny >= 0, ny < raster, !seen[ny * raster + nx]
                 else { continue }
                 let sample = pixel(nx, ny)
-                guard sample.a > 0.02 else { seen[ny * raster + nx] = true; continue }
+                guard sample.a > 0.02 else {
+                    seen[ny * raster + nx] = true
+                    continue
+                }
                 let distance = max(
                     abs(sample.r - plate.0), max(abs(sample.g - plate.1), abs(sample.b - plate.2))
                 )
@@ -151,7 +160,8 @@ public enum SourceMark {
         while let (x, y) = edge.popLast() {
             clear(x, y)
             for (dx, dy) in [(1, 0), (-1, 0), (0, 1), (0, -1)] {
-                let nx = x + dx, ny = y + dy
+                let nx = x + dx
+                let ny = y + dy
                 guard nx >= 0, nx < raster, ny >= 0, ny < raster, !outside[ny * raster + nx]
                 else { continue }
                 guard pixel(nx, ny).a < 0.92 else { continue }

@@ -160,14 +160,16 @@ public final class TranscriptTextView: NSTextView {
         let item = NSMenuItem(title: title, action: nil, keyEquivalent: "")
         let submenu = NSMenu()
         for person in people {
-            submenu.addItem(ClosureMenuItem(title: person.identity.resolvedName) {
-                [weak self] in self?.onAction?(action, person)
-            })
+            submenu.addItem(
+                ClosureMenuItem(title: person.identity.resolvedName) {
+                    [weak self] in self?.onAction?(action, person)
+                })
         }
         if !people.isEmpty { submenu.addItem(.separator()) }
-        submenu.addItem(ClosureMenuItem(title: "Someone else…") {
-            [weak self] in self?.onSomeoneElse?(action)
-        })
+        submenu.addItem(
+            ClosureMenuItem(title: "Someone else…") {
+                [weak self] in self?.onSomeoneElse?(action)
+            })
         item.submenu = submenu
         menu.insertItem(item, at: 0)
         menu.insertItem(.separator(), at: 1)
@@ -198,16 +200,19 @@ public final class TranscriptTextView: NSTextView {
     /// over the pair would be backwards.
     public func selectedRanges(_ range: NSRange) -> [SelectedLineRange] {
         var out: [SelectedLineRange] = []
-        for span in spans where span.location < range.location + range.length
-            && range.location < span.location + span.length {
+        for span in spans
+        where span.location < range.location + range.length
+            && range.location < span.location + span.length
+        {
             if let at = out.firstIndex(where: { $0.utteranceID == span.utteranceID }) {
                 out[at].startSeconds = min(out[at].startSeconds, span.startSeconds)
                 out[at].endSeconds = max(out[at].endSeconds, span.endSeconds)
             } else {
-                out.append(SelectedLineRange(
-                    utteranceID: span.utteranceID,
-                    startSeconds: span.startSeconds, endSeconds: span.endSeconds
-                ))
+                out.append(
+                    SelectedLineRange(
+                        utteranceID: span.utteranceID,
+                        startSeconds: span.startSeconds, endSeconds: span.endSeconds
+                    ))
             }
         }
         return out

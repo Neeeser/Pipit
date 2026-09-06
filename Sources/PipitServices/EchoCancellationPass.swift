@@ -103,11 +103,14 @@ public struct EchoCancellationPass {
         }
         let blocksPerWindow = windowFrames / block
 
-        guard let microphoneReader = TimelineTrackReader(
-            location: microphone, format: readFormat, offsetSeconds: 0
-        ), let referenceReader = TimelineTrackReader(
-            location: reference, format: readFormat, offsetSeconds: referenceOffset
-        ) else {
+        guard
+            let microphoneReader = TimelineTrackReader(
+                location: microphone, format: readFormat, offsetSeconds: 0
+            ),
+            let referenceReader = TimelineTrackReader(
+                location: reference, format: readFormat, offsetSeconds: referenceOffset
+            )
+        else {
             throw ProcessingError.audioUnreadable(path: microphone.directory.lastPathComponent)
         }
 
@@ -150,16 +153,17 @@ public struct EchoCancellationPass {
             samplesInWindow += block
             blocksInWindow += 1
             if blocksInWindow == blocksPerWindow {
-                result.windows.append(Window(
-                    farEndDBFS: decibels(squares: farEndSquares, count: samplesInWindow),
-                    echoRemovedDB: canceller.echoRemovedDB,
-                    microphoneBeforeDBFS: decibels(
-                        squares: micBeforeSquares, count: samplesInWindow
-                    ),
-                    microphoneAfterDBFS: decibels(
-                        squares: micAfterSquares, count: samplesInWindow
-                    )
-                ))
+                result.windows.append(
+                    Window(
+                        farEndDBFS: decibels(squares: farEndSquares, count: samplesInWindow),
+                        echoRemovedDB: canceller.echoRemovedDB,
+                        microphoneBeforeDBFS: decibels(
+                            squares: micBeforeSquares, count: samplesInWindow
+                        ),
+                        microphoneAfterDBFS: decibels(
+                            squares: micAfterSquares, count: samplesInWindow
+                        )
+                    ))
                 blocksInWindow = 0
                 farEndSquares = 0
                 micBeforeSquares = 0
@@ -181,9 +185,11 @@ public struct EchoCancellationPass {
     /// either, so the answer is the same. What it saves is cancelling and
     /// encoding a two-hour meeting against silence before saying so.
     static func referenceHoldsAudio(_ location: TrackAudioLocation) throws -> Bool {
-        guard let reader = TimelineTrackReader(
-            location: location, format: readFormat, offsetSeconds: 0
-        ) else { return false }
+        guard
+            let reader = TimelineTrackReader(
+                location: location, format: readFormat, offsetSeconds: 0
+            )
+        else { return false }
         let window = Int((windowSeconds * readFormat.sampleRate).rounded())
         while true {
             let samples = try reader.next(count: window)
@@ -274,7 +280,8 @@ public struct EchoCancellationPass {
         let harm = user.map { $0.microphoneBeforeDBFS - $0.microphoneAfterDBFS }
         let judgeable = user.count >= minimumUserWindows
         let harmMedian = judgeable ? percentile(harm, 0.5) : nil
-        let harmShare = judgeable
+        let harmShare =
+            judgeable
             ? Double(harm.filter { $0 > notableLossDB }.count) / Double(harm.count) : nil
         func judgement(_ outcome: CleaningOutcome, _ reason: String) -> Judgement {
             Judgement(
@@ -291,7 +298,8 @@ public struct EchoCancellationPass {
             )
         }
         if let harmMedian, let harmShare,
-           harmMedian > harmMedianLimitDB || harmShare > harmShareLimit {
+            harmMedian > harmMedianLimitDB || harmShare > harmShareLimit
+        {
             return judgement(
                 .bypassedNoEchoPath,
                 "the user's own windows lost \(fixed(harmMedian)) dB at the median, and "
@@ -299,7 +307,8 @@ public struct EchoCancellationPass {
                     + "\(fixed(notableLossDB)) dB, over \(user.count) windows"
             )
         }
-        let held = harmMedian.map { "lost \(fixed($0)) dB at the median" }
+        let held =
+            harmMedian.map { "lost \(fixed($0)) dB at the median" }
             ?? "held too few windows to judge"
         return judgement(
             .cleaned,

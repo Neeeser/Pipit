@@ -250,7 +250,8 @@ public enum MeetingsDirectoryFilter {
         func qualified(_ key: String) -> String {
             recordingIndex == 0 ? key : "\(recordingIndex)/\(key)"
         }
-        let keys = clusters
+        let keys =
+            clusters
             .filter { !$0.key.hasSuffix(SpeakerLabel.unattributed) }
             .filter { $0.isAudible || byKey[$0.key] != nil }
             .map(\.key)
@@ -288,12 +289,13 @@ public enum MeetingsDirectoryFilter {
         let byKey = Dictionary(
             speakers.map { ($0.key, $0) }, uniquingKeysWith: { first, _ in first }
         )
-        let groups = SpeakerGrouping.groups(speakers.map {
-            SpeakerGroupMember(
-                key: $0.key, displayName: $0.displayName, identityID: $0.identityID,
-                participantID: $0.participantID
-            )
-        })
+        let groups = SpeakerGrouping.groups(
+            speakers.map {
+                SpeakerGroupMember(
+                    key: $0.key, displayName: $0.displayName, identityID: $0.identityID,
+                    participantID: $0.participantID
+                )
+            })
         return groups.compactMap { group -> MeetingRowSpeaker? in
             let members = group.compactMap { byKey[$0.key] }
             guard var leader = members.first(where: \.isNamed) ?? members.first else { return nil }
@@ -329,7 +331,8 @@ public enum MeetingsDirectoryFilter {
         now: Date = Date(),
         calendar: Calendar = .current
     ) -> [MeetingsSection] {
-        let visible = rows
+        let visible =
+            rows
             .filter {
                 filter.admits($0) && admits($0, source: source)
                     && matches($0, query: query, transcript: transcripts[$0.id])
@@ -374,7 +377,8 @@ public enum MeetingsDirectoryFilter {
         // system clock and would ignore the date it was handed.
         if calendar.isDate(date, inSameDayAs: now) || date > now { return "Today" }
         if let yesterday = calendar.date(byAdding: .day, value: -1, to: now),
-            calendar.isDate(date, inSameDayAs: yesterday) {
+            calendar.isDate(date, inSameDayAs: yesterday)
+        {
             return "Yesterday"
         }
         if calendar.isDate(date, equalTo: now, toGranularity: .month) { return "Earlier this month" }

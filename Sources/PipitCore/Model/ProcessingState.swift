@@ -138,13 +138,15 @@ public struct ProcessingStatus: Codable, Sendable, Equatable {
         updatedAt = try container.decode(Date.self, forKey: .updatedAt)
         attempts = try container.decodeIfPresent([String: Int].self, forKey: .attempts) ?? [:]
         lastFailure = try container.decodeIfPresent(ProcessingFailure.self, forKey: .lastFailure)
-        completedStages = try container.decodeIfPresent(
-            [ProcessingState].self, forKey: .completedStages
-        ) ?? []
+        completedStages =
+            try container.decodeIfPresent(
+                [ProcessingState].self, forKey: .completedStages
+            ) ?? []
         failedStage = try container.decodeIfPresent(ProcessingState.self, forKey: .failedStage)
-        skippedForMissingKey = try container.decodeIfPresent(
-            Bool.self, forKey: .skippedForMissingKey
-        ) ?? false
+        skippedForMissingKey =
+            try container.decodeIfPresent(
+                Bool.self, forKey: .skippedForMissingKey
+            ) ?? false
     }
 
     public func hasCompleted(_ stage: ProcessingState) -> Bool {

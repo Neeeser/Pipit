@@ -79,25 +79,28 @@ struct SpeakerAttributionTests {
         let chunk = RawTranscriptChunk(
             id: "remote_full", track: .remote, timelineOffset: 0, durationSeconds: 20,
             model: "whisperkit", responseFormat: "local_words",
-            segments: [RawTranscriptSegment(
-                start: 0, end: 8, text: "yes exactly no i disagree", speaker: nil,
-                words: [
-                    word(" yes", 0.0, 0.5), word(" exactly", 0.6, 1.2),
-                    word(" no", 5.0, 5.3), word(" i", 5.4, 5.6),
-                    word(" disagree", 5.7, 6.4),
-                ]
-            )]
+            segments: [
+                RawTranscriptSegment(
+                    start: 0, end: 8, text: "yes exactly no i disagree", speaker: nil,
+                    words: [
+                        word(" yes", 0.0, 0.5), word(" exactly", 0.6, 1.2),
+                        word(" no", 5.0, 5.3), word(" i", 5.4, 5.6),
+                        word(" disagree", 5.7, 6.4),
+                    ]
+                )
+            ]
         )
         var diarization = RawDiarization()
-        diarization.setActive(DiarizationRun(
-            id: "remote-001", track: .remote, backend: "fluidaudio-offline-0.15.6",
-            producedAt: Date(), timelineOffset: 0,
-            clusters: [
-                DiarizationCluster(id: "S1", speechSeconds: 2),
-                DiarizationCluster(id: "S2", speechSeconds: 2),
-            ],
-            intervals: [interval(0, 2, "S1"), interval(4.8, 7, "S2")]
-        ))
+        diarization.setActive(
+            DiarizationRun(
+                id: "remote-001", track: .remote, backend: "fluidaudio-offline-0.15.6",
+                producedAt: Date(), timelineOffset: 0,
+                clusters: [
+                    DiarizationCluster(id: "S1", speechSeconds: 2),
+                    DiarizationCluster(id: "S2", speechSeconds: 2),
+                ],
+                intervals: [interval(0, 2, "S1"), interval(4.8, 7, "S2")]
+            ))
 
         let transcript = TranscriptAssembler().assemble(
             raw: RawTranscript(chunks: [chunk]), diarization: diarization,
@@ -126,11 +129,12 @@ struct SpeakerAttributionTests {
             ]
         )
         var diarization = RawDiarization()
-        diarization.setActive(DiarizationRun(
-            id: "remote-001", track: .remote, backend: "gpt-4o-transcribe-diarize",
-            producedAt: Date(), timelineOffset: 0,
-            intervals: [interval(0, 7, "everything-is-one-speaker")]
-        ))
+        diarization.setActive(
+            DiarizationRun(
+                id: "remote-001", track: .remote, backend: "gpt-4o-transcribe-diarize",
+                producedAt: Date(), timelineOffset: 0,
+                intervals: [interval(0, 7, "everything-is-one-speaker")]
+            ))
         let transcript = TranscriptAssembler().assemble(
             raw: RawTranscript(chunks: [chunk]), diarization: diarization,
             micTrackIsLocalUser: false, generatedAt: Date()
@@ -145,23 +149,26 @@ struct SpeakerAttributionTests {
         let chunk = RawTranscriptChunk(
             id: "remote_full", track: .remote, timelineOffset: 0, durationSeconds: 20,
             model: "whisperkit", responseFormat: "local_words",
-            segments: [RawTranscriptSegment(
-                start: 0, end: 6, text: "so the plan yeah is to ship", speaker: nil,
-                words: [
-                    word(" so", 0.0, 0.3), word(" the", 0.4, 0.6), word(" plan", 0.7, 1.0),
-                    // Spoken over the speaker, so the diarizer dropped it.
-                    word(" yeah", 3.0, 3.2),
-                    word(" is", 5.1, 5.3), word(" to", 5.4, 5.5), word(" ship", 5.6, 5.9),
-                ]
-            )]
+            segments: [
+                RawTranscriptSegment(
+                    start: 0, end: 6, text: "so the plan yeah is to ship", speaker: nil,
+                    words: [
+                        word(" so", 0.0, 0.3), word(" the", 0.4, 0.6), word(" plan", 0.7, 1.0),
+                        // Spoken over the speaker, so the diarizer dropped it.
+                        word(" yeah", 3.0, 3.2),
+                        word(" is", 5.1, 5.3), word(" to", 5.4, 5.5), word(" ship", 5.6, 5.9),
+                    ]
+                )
+            ]
         )
         var diarization = RawDiarization()
-        diarization.setActive(DiarizationRun(
-            id: "remote-001", track: .remote, backend: "fluidaudio-offline-0.15.6",
-            producedAt: Date(), timelineOffset: 0,
-            clusters: [DiarizationCluster(id: "S1", speechSeconds: 5)],
-            intervals: [interval(0, 1.2, "S1"), interval(5.0, 6.0, "S1")]
-        ))
+        diarization.setActive(
+            DiarizationRun(
+                id: "remote-001", track: .remote, backend: "fluidaudio-offline-0.15.6",
+                producedAt: Date(), timelineOffset: 0,
+                clusters: [DiarizationCluster(id: "S1", speechSeconds: 5)],
+                intervals: [interval(0, 1.2, "S1"), interval(5.0, 6.0, "S1")]
+            ))
         let transcript = TranscriptAssembler().assemble(
             raw: RawTranscript(chunks: [chunk]), diarization: diarization,
             micTrackIsLocalUser: false, generatedAt: Date()
@@ -188,25 +195,28 @@ struct SpeakerAttributionTests {
         let chunk = RawTranscriptChunk(
             id: "remote_full", track: .remote, timelineOffset: 0, durationSeconds: 20,
             model: "fluidaudio-parakeet-tdt-v3", responseFormat: "local_words",
-            segments: [RawTranscriptSegment(
-                start: 0, end: 6, text: "okay okay great we can build it", speaker: nil,
-                words: [
-                    // The diarizer's interval starts at 3.0, so these
-                    // three fall outside every interval it produced.
-                    word(" okay", 0.0, 0.4), word(" okay", 0.5, 0.9),
-                    word(" great", 1.0, 1.4),
-                    word(" we", 3.1, 3.3), word(" can", 3.4, 3.6),
-                    word(" build", 3.7, 4.0), word(" it", 4.1, 4.3),
-                ]
-            )]
+            segments: [
+                RawTranscriptSegment(
+                    start: 0, end: 6, text: "okay okay great we can build it", speaker: nil,
+                    words: [
+                        // The diarizer's interval starts at 3.0, so these
+                        // three fall outside every interval it produced.
+                        word(" okay", 0.0, 0.4), word(" okay", 0.5, 0.9),
+                        word(" great", 1.0, 1.4),
+                        word(" we", 3.1, 3.3), word(" can", 3.4, 3.6),
+                        word(" build", 3.7, 4.0), word(" it", 4.1, 4.3),
+                    ]
+                )
+            ]
         )
         var diarization = RawDiarization()
-        diarization.setActive(DiarizationRun(
-            id: "remote-001", track: .remote, backend: "fluidaudio-offline-0.15.6",
-            producedAt: Date(), timelineOffset: 0,
-            clusters: [DiarizationCluster(id: "S1", speechSeconds: 5)],
-            intervals: [interval(3.0, 6.0, "S1")]
-        ))
+        diarization.setActive(
+            DiarizationRun(
+                id: "remote-001", track: .remote, backend: "fluidaudio-offline-0.15.6",
+                producedAt: Date(), timelineOffset: 0,
+                clusters: [DiarizationCluster(id: "S1", speechSeconds: 5)],
+                intervals: [interval(3.0, 6.0, "S1")]
+            ))
         let transcript = TranscriptAssembler().assemble(
             raw: RawTranscript(chunks: [chunk]), diarization: diarization,
             micTrackIsLocalUser: false, generatedAt: Date()
@@ -230,18 +240,21 @@ struct SpeakerAttributionTests {
         let chunk = RawTranscriptChunk(
             id: "remote_full", track: .remote, timelineOffset: 0, durationSeconds: 20,
             model: "fluidaudio-parakeet-tdt-v3", responseFormat: "local_words",
-            segments: [RawTranscriptSegment(
-                start: 0, end: 2, text: "okay", speaker: nil,
-                words: [word(" okay", 0.0, 0.4)]
-            )]
+            segments: [
+                RawTranscriptSegment(
+                    start: 0, end: 2, text: "okay", speaker: nil,
+                    words: [word(" okay", 0.0, 0.4)]
+                )
+            ]
         )
         var diarization = RawDiarization()
-        diarization.setActive(DiarizationRun(
-            id: "remote-001", track: .remote, backend: "fluidaudio-offline-0.15.6",
-            producedAt: Date(), timelineOffset: 0,
-            clusters: [DiarizationCluster(id: "S1", speechSeconds: 5)],
-            intervals: [interval(40, 46, "S1")]
-        ))
+        diarization.setActive(
+            DiarizationRun(
+                id: "remote-001", track: .remote, backend: "fluidaudio-offline-0.15.6",
+                producedAt: Date(), timelineOffset: 0,
+                clusters: [DiarizationCluster(id: "S1", speechSeconds: 5)],
+                intervals: [interval(40, 46, "S1")]
+            ))
         let transcript = TranscriptAssembler().assemble(
             raw: RawTranscript(chunks: [chunk]), diarization: diarization,
             micTrackIsLocalUser: false, generatedAt: Date()
@@ -691,29 +704,36 @@ struct SpeakerCorrectionsTests {
 
     @Test("words no interval claimed are not filed under a real cluster")
     func wordsNoIntervalClaimedAreNotFiledUnderARealCluster() async throws {
-        let raw = RawTranscript(chunks: [RawTranscriptChunk(
-            id: "remote_full", track: .remote, timelineOffset: 0, durationSeconds: 10,
-            model: "whisper", responseFormat: "verbose_json",
-            segments: [RawTranscriptSegment(
-                start: 0, end: 6, text: "yeah we ship friday", speaker: nil,
-                words: [
-                    // Dropped by the diarizer: 0.8s before the first interval.
-                    RawTranscriptWord(start: 0.0, end: 0.2, text: " yeah"),
-                    RawTranscriptWord(start: 1.2, end: 1.6, text: " we"),
-                    RawTranscriptWord(start: 1.7, end: 2.1, text: " ship"),
-                    RawTranscriptWord(start: 2.2, end: 2.8, text: " friday"),
+        let raw = RawTranscript(chunks: [
+            RawTranscriptChunk(
+                id: "remote_full", track: .remote, timelineOffset: 0, durationSeconds: 10,
+                model: "whisper", responseFormat: "verbose_json",
+                segments: [
+                    RawTranscriptSegment(
+                        start: 0, end: 6, text: "yeah we ship friday", speaker: nil,
+                        words: [
+                            // Dropped by the diarizer: 0.8s before the first interval.
+                            RawTranscriptWord(start: 0.0, end: 0.2, text: " yeah"),
+                            RawTranscriptWord(start: 1.2, end: 1.6, text: " we"),
+                            RawTranscriptWord(start: 1.7, end: 2.1, text: " ship"),
+                            RawTranscriptWord(start: 2.2, end: 2.8, text: " friday"),
+                        ]
+                    )
                 ]
-            )]
-        )])
+            )
+        ])
         var diarization = RawDiarization()
-        diarization.setActive(DiarizationRun(
-            id: "remote-001", track: .remote, backend: "fluidaudio",
-            producedAt: Date(), timelineOffset: 0, configuration: [:],
-            clusters: [DiarizationCluster(id: "remote-001_speaker_00", speechSeconds: 5)],
-            intervals: [DiarizationInterval(
-                start: 1.0, end: 6.0, clusterID: "remote-001_speaker_00"
-            )]
-        ))
+        diarization.setActive(
+            DiarizationRun(
+                id: "remote-001", track: .remote, backend: "fluidaudio",
+                producedAt: Date(), timelineOffset: 0, configuration: [:],
+                clusters: [DiarizationCluster(id: "remote-001_speaker_00", speechSeconds: 5)],
+                intervals: [
+                    DiarizationInterval(
+                        start: 1.0, end: 6.0, clusterID: "remote-001_speaker_00"
+                    )
+                ]
+            ))
 
         let transcript = TranscriptAssembler().assemble(
             raw: raw, diarization: diarization,

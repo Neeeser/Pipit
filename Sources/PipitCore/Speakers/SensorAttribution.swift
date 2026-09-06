@@ -263,9 +263,10 @@ public enum SensorAttribution {
     public static func speakerEntries(
         sensors: RawSensors
     ) -> [(key: String, assignment: SpeakerAssignment)] {
-        let kept = Set(wordIntervals(sensors: sensors).compactMap {
-            SpeakerLabel.sensorParticipantID(from: $0.clusterID)
-        })
+        let kept = Set(
+            wordIntervals(sensors: sensors).compactMap {
+                SpeakerLabel.sensorParticipantID(from: $0.clusterID)
+            })
         return kept.sorted().compactMap { id in
             guard let name = sensors.participant(id)?.personName else { return nil }
             return (
@@ -358,12 +359,13 @@ public enum SensorAttribution {
             // came second. Dropping their turns instead would have made the
             // runner-up zero and let second place win outright.
             guard !selfIDs.contains(winner.key) else { continue }
-            matches.append(Match(
-                clusterID: clusterID,
-                participantID: winner.key,
-                displayName: sensors.participant(winner.key)?.personName,
-                coverage: min(1, winner.value / seconds)
-            ))
+            matches.append(
+                Match(
+                    clusterID: clusterID,
+                    participantID: winner.key,
+                    displayName: sensors.participant(winner.key)?.personName,
+                    coverage: min(1, winner.value / seconds)
+                ))
         }
         matches.sort { $0.clusterID < $1.clusterID }
         return Result(matches: matches, coverage: coverage)
@@ -412,18 +414,19 @@ extension SensorAttribution {
                 let seconds = run.intervals
                     .filter { $0.clusterID == match.clusterID }
                     .reduce(0) { $0 + $1.duration }
-                out.append((
-                    key: SpeakerLabel.namespaced(chunkID: run.id, rawLabel: match.clusterID),
-                    assignment: SpeakerAssignment(
-                        displayName: name,
-                        origin: .sensor,
-                        confidence: match.coverage,
-                        participantID: match.participantID,
-                        provenance: SpeakerProvenance(
-                            source: .sensor, score: match.coverage, speechSeconds: seconds
+                out.append(
+                    (
+                        key: SpeakerLabel.namespaced(chunkID: run.id, rawLabel: match.clusterID),
+                        assignment: SpeakerAssignment(
+                            displayName: name,
+                            origin: .sensor,
+                            confidence: match.coverage,
+                            participantID: match.participantID,
+                            provenance: SpeakerProvenance(
+                                source: .sensor, score: match.coverage, speechSeconds: seconds
+                            )
                         )
-                    )
-                ))
+                    ))
             }
         }
         return out

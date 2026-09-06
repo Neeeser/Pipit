@@ -171,7 +171,7 @@ function meetLineName(raw) {
   }
   // A cut lands mid-phrase often enough that the punctuation leading into it
   // survives: "Bob (Presenting)" would otherwise read "Bob (".
-  const name = line.slice(0, cut).replace(/[\s(\[{,\-\u2013\u2014]+$/, '').trim();
+  const name = line.slice(0, cut).replace(/[\s([{,\-\u2013\u2014]+$/, '').trim();
   return name ? name.slice(0, 80) : undefined;
 }
 

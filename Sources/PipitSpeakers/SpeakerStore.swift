@@ -225,9 +225,10 @@ public actor SpeakerStore {
     /// Numbers are handed out at promotion, not at creation, so a user never
     /// sees gaps left by candidates that were heard once and expired.
     private func assignAnonymousNumber(_ id: IdentityID) throws {
-        let next = (try database.scalarInt(
-            "SELECT COALESCE(MAX(anonymous_number), 0) FROM identity"
-        ) ?? 0) + 1
+        let next =
+            (try database.scalarInt(
+                "SELECT COALESCE(MAX(anonymous_number), 0) FROM identity"
+            ) ?? 0) + 1
         try database.run(
             "UPDATE identity SET anonymous_number = ? WHERE id = ? AND anonymous_number IS NULL",
             [.int(next), .int64(id.rawValue)]
@@ -614,16 +615,17 @@ public actor SpeakerStore {
             return .failure(.identityMissing)
         }
         guard candidate.speechSeconds >= policy.enrolmentSpeechSeconds else {
-            return .failure(.tooLittleSpeech(
-                seconds: candidate.speechSeconds, required: policy.enrolmentSpeechSeconds
-            ))
+            return .failure(
+                .tooLittleSpeech(
+                    seconds: candidate.speechSeconds, required: policy.enrolmentSpeechSeconds
+                ))
         }
         // A vector whose audio cannot be named again can never be retracted, and
         // a vector that cannot be retracted is what turns one wrong answer into a
         // permanent one. One recording per row, because the centroid stands for
         // one session and `recording_count` counts sessions.
         guard let meetingID = candidate.meetingID,
-              candidate.evidence.allSatisfy({ $0.meetingID == meetingID })
+            candidate.evidence.allSatisfy({ $0.meetingID == meetingID })
         else { return .failure(.unusableEvidence) }
 
         try database.transaction {
@@ -825,12 +827,13 @@ public actor SpeakerStore {
             [.text(retraction.meetingID), .text(retraction.track.rawValue)]
         ) { row in
             guard let owner = row.optionalInt64(3) else { return }
-            candidates.append(Candidate(
-                evidenceID: row.int64(0),
-                embeddingID: row.optionalInt64(1),
-                pendingID: row.optionalInt64(2),
-                owner: owner
-            ))
+            candidates.append(
+                Candidate(
+                    evidenceID: row.int64(0),
+                    embeddingID: row.optionalInt64(1),
+                    pendingID: row.optionalInt64(2),
+                    owner: owner
+                ))
         }
         let wanted = candidates.filter { !exempt.contains($0.owner) }
         guard !wanted.isEmpty else { return [] }
@@ -854,13 +857,14 @@ public actor SpeakerStore {
             let spans = standing[candidate.evidenceID] ?? []
             guard AudioSpan.intersect(spans, retraction.spans) > 0 else { continue }
             let remaining = AudioSpan.subtracting(retraction.spans, from: spans)
-            out.append(ContradictedRow(
-                evidenceID: candidate.evidenceID,
-                embeddingID: candidate.embeddingID,
-                pendingID: candidate.pendingID,
-                owner: candidate.owner,
-                retract: AudioSpan.totalDuration(remaining) < policy.enrolmentSpeechSeconds
-            ))
+            out.append(
+                ContradictedRow(
+                    evidenceID: candidate.evidenceID,
+                    embeddingID: candidate.embeddingID,
+                    pendingID: candidate.pendingID,
+                    owner: candidate.owner,
+                    retract: AudioSpan.totalDuration(remaining) < policy.enrolmentSpeechSeconds
+                ))
         }
         return out
     }
@@ -981,14 +985,18 @@ public actor SpeakerStore {
             ids.map { SQLValue.int64($0) }
         ) { row in
             guard let owner = row.optionalInt64(0),
-                  let track = CaptureTrack(rawValue: row.text(3)),
-                  let source = VoiceEnrollmentSource(rawValue: row.text(4))
+                let track = CaptureTrack(rawValue: row.text(3)),
+                let source = VoiceEnrollmentSource(rawValue: row.text(4))
             else { return }
-            rows.append((owner, row.int64(1), VoiceEvidence(
-                meetingID: row.text(2), track: track, spans: [],
-                confirmation: source, isHumanVerified: row.bool(5),
-                analysisID: row.optionalText(6), clusterID: row.optionalText(7)
-            )))
+            rows.append(
+                (
+                    owner, row.int64(1),
+                    VoiceEvidence(
+                        meetingID: row.text(2), track: track, spans: [],
+                        confirmation: source, isHumanVerified: row.bool(5),
+                        analysisID: row.optionalText(6), clusterID: row.optionalText(7)
+                    )
+                ))
         }
         guard !rows.isEmpty else { return [:] }
         var spans: [Int64: [AudioSpan]] = [:]
@@ -1037,11 +1045,12 @@ public actor SpeakerStore {
             """,
             bindings
         ) { row in
-            rows.append((
-                row.int64(0), IdentityID(row.int64(1)),
-                EmbeddingModelIdentifier(rawValue: row.text(2), dimension: row.int(7)),
-                row.double(3), row.double(4), row.bool(5), row.date(6)
-            ))
+            rows.append(
+                (
+                    row.int64(0), IdentityID(row.int64(1)),
+                    EmbeddingModelIdentifier(rawValue: row.text(2), dimension: row.int(7)),
+                    row.double(3), row.double(4), row.bool(5), row.date(6)
+                ))
         }
         let evidence = try loadEvidence(column: "voice_embedding_id", ids: rows.map(\.0))
         return rows.map {
@@ -1120,7 +1129,7 @@ public actor SpeakerStore {
         // every later correction pays for a re-embed that cannot land.
         guard candidate.vector.count == candidate.model.dimension else { return }
         guard let meetingID = candidate.meetingID,
-              candidate.evidence.allSatisfy({ $0.meetingID == meetingID })
+            candidate.evidence.allSatisfy({ $0.meetingID == meetingID })
         else { return }
         guard let identity = try current(candidate.identityID) else { return }
         // One row per meeting. The caller re-embeds the whole confirmed set each
@@ -1793,7 +1802,8 @@ public actor SpeakerStore {
             }
         }
         try database.query("SELECT COUNT(*) FROM voice_embedding") { stats.embeddings = $0.int(0) }
-        stats.storageBytes = (try? FileManager.default.attributesOfItem(atPath: database.url.path)[.size] as? Int64) ?? 0
+        stats.storageBytes =
+            (try? FileManager.default.attributesOfItem(atPath: database.url.path)[.size] as? Int64) ?? 0
         return stats
     }
 

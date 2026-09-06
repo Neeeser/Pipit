@@ -48,10 +48,11 @@ public struct DiarizationInterval: Codable, Sendable, Equatable {
                 pieces = next
             }
             for piece in pieces where piece.end > piece.start {
-                out.append(DiarizationInterval(
-                    start: piece.start, end: piece.end,
-                    clusterID: interval.clusterID, quality: interval.quality
-                ))
+                out.append(
+                    DiarizationInterval(
+                        start: piece.start, end: piece.end,
+                        clusterID: interval.clusterID, quality: interval.quality
+                    ))
             }
         }
         return out

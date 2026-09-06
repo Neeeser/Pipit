@@ -138,8 +138,11 @@ public struct PeoplePickerView: View {
                 if !row.detail.isEmpty {
                     Text(row.detail)
                         .font(.caption2)
-                        .foregroundStyle(selected ? AnyShapeStyle(.white.opacity(0.7))
-                            : AnyShapeStyle(.secondary))
+                        .foregroundStyle(
+                            selected
+                                ? AnyShapeStyle(.white.opacity(0.7))
+                                : AnyShapeStyle(.secondary)
+                        )
                         .lineLimit(1)
                 }
             }
@@ -208,7 +211,8 @@ public struct PeoplePickerView: View {
     /// pressing Return is how they get created.
     private func commit() {
         if let highlight = model.highlight,
-           let row = sections.flatMap(\.rows).first(where: { $0.id == highlight }) {
+            let row = sections.flatMap(\.rows).first(where: { $0.id == highlight })
+        {
             onPick(row.entry)
             return
         }

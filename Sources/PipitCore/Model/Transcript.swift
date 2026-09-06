@@ -235,7 +235,8 @@ public enum SpeakerLabel {
         if trimmed.hasPrefix("speaker_") { return String(trimmed.dropFirst("speaker_".count)) }
         // "S1", "S2": the offline diarizer's own cluster names, one-based.
         if trimmed.count >= 2, let first = trimmed.first, first.isLetter,
-           let index = Int(trimmed.dropFirst()), index >= 1 {
+            let index = Int(trimmed.dropFirst()), index >= 1
+        {
             return String(format: "%02d", index - 1)
         }
         if trimmed.count == 1, let scalar = trimmed.unicodeScalars.first, scalar.properties.isAlphabetic {

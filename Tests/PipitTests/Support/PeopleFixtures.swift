@@ -27,17 +27,18 @@ public enum PeopleFixtures {
         var map = SpeakerMap()
         map.assign("Ellis", to: "remote-001_speaker_00", identityID: identityID)
         try meeting.store.writeSpeakerMap(map)
-        try meeting.store.writeCanonicalTranscript(CanonicalTranscript(
-            generatedAt: started,
-            utterances: turns.enumerated().map { index, turn in
-                Utterance(
-                    id: "u\(index)", start: turn.0, end: turn.1, track: .remote,
-                    rawSpeakerLabel: "remote-001_speaker_00",
-                    speakerKey: "remote-001_speaker_00",
-                    text: "the northwind renewal", chunkID: "c1", model: "m"
-                )
-            }
-        ))
+        try meeting.store.writeCanonicalTranscript(
+            CanonicalTranscript(
+                generatedAt: started,
+                utterances: turns.enumerated().map { index, turn in
+                    Utterance(
+                        id: "u\(index)", start: turn.0, end: turn.1, track: .remote,
+                        rawSpeakerLabel: "remote-001_speaker_00",
+                        speakerKey: "remote-001_speaker_00",
+                        text: "the northwind renewal", chunkID: "c1", model: "m"
+                    )
+                }
+            ))
         if writingAudio {
             try Data([0x00]).write(to: meeting.store.layout.recordingAudio)
         }

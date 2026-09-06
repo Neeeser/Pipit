@@ -86,7 +86,8 @@ public enum SpeakerAlignment {
                         best = interval.clusterID
                     }
                 } else {
-                    let gap = interval.start > span.end
+                    let gap =
+                        interval.start > span.end
                         ? interval.start - span.end
                         : span.start - interval.end
                     if gap >= 0, gap < nearestGap {

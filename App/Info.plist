@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>CFBundleName</key>
+    <string>Pipit</string>
+    <key>CFBundleDisplayName</key>
+    <string>Pipit</string>
+    <key>CFBundleIdentifier</key>
+    <string>com.pipit.app</string>
+    <key>CFBundleExecutable</key>
+    <string>Pipit</string>
+    <key>CFBundleIconFile</key>
+    <string>Pipit.icns</string>
+    <key>CFBundlePackageType</key>
+    <string>APPL</string>
+    <!-- Xcode substitutes these two from MARKETING_VERSION and
+         CURRENT_PROJECT_VERSION. scripts/bundle-app.sh overwrites them with
+         PlistBuddy from VERSION and PIPIT_BUILD_NUMBER, so a shipped bundle
+         carries the version in VERSION. -->
+    <key>CFBundleShortVersionString</key>
+    <string>$(MARKETING_VERSION)</string>
+    <key>CFBundleVersion</key>
+    <string>$(CURRENT_PROJECT_VERSION)</string>
+    <key>LSMinimumSystemVersion</key>
+    <string>15.0</string>
+    <!-- Pipit has no main window and no Dock slot by default. The Dock slot is
+         a setting the app applies at launch. -->
+    <key>LSUIElement</key>
+    <true/>
+    <key>NSHumanReadableCopyright</key>
+    <string>Pipit</string>
+    <key>NSMicrophoneUsageDescription</key>
+    <string>Pipit records your side of meetings.</string>
+    <key>NSCalendarsUsageDescription</key>
+    <string>Pipit matches recordings to calendar events for titles and attendees.</string>
+    <key>NSCalendarsFullAccessUsageDescription</key>
+    <string>Pipit matches recordings to calendar events for titles and attendees.</string>
+    <key>NSDocumentsFolderUsageDescription</key>
+    <string>Pipit saves your recordings and transcripts here.</string>
+</dict>
+</plist>

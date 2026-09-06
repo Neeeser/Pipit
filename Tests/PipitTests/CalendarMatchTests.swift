@@ -53,11 +53,12 @@ struct CalendarMatchTests {
     func theRealMeetingStillWinsAgainstTheBlockItSitsInside() async throws {
         let shift = Self.candidate("12-5", offsetMinutes: -120, durationMinutes: 300)
         let standup = Self.candidate("Platform standup", offsetMinutes: 0, durationMinutes: 30)
-        let match = try #require(CalendarMatchPolicy.best(
-            among: [shift, standup], startedAt: Self.start,
-            endedAt: Self.start.addingTimeInterval(1_500),
-            meetingURL: nil, providerMeetingID: nil
-        ))
+        let match = try #require(
+            CalendarMatchPolicy.best(
+                among: [shift, standup], startedAt: Self.start,
+                endedAt: Self.start.addingTimeInterval(1_500),
+                meetingURL: nil, providerMeetingID: nil
+            ))
         #expect(match.candidate.title == "Platform standup")
     }
 
@@ -66,11 +67,12 @@ struct CalendarMatchTests {
         // Joining late is ordinary, and the recording then covers a
         // fraction of the event. Timing is still what identifies it.
         let review = Self.candidate("Design review", offsetMinutes: -25, durationMinutes: 30)
-        let match = try #require(CalendarMatchPolicy.best(
-            among: [review], startedAt: Self.start,
-            endedAt: Self.start.addingTimeInterval(300),
-            meetingURL: nil, providerMeetingID: nil
-        ))
+        let match = try #require(
+            CalendarMatchPolicy.best(
+                among: [review], startedAt: Self.start,
+                endedAt: Self.start.addingTimeInterval(300),
+                meetingURL: nil, providerMeetingID: nil
+            ))
         #expect(match.candidate.title == "Design review")
     }
 
@@ -82,11 +84,12 @@ struct CalendarMatchTests {
             "Onboarding workshop", offsetMinutes: -60, durationMinutes: 480,
             haystack: "https://meet.google.com/abc-defg-hij"
         )
-        let match = try #require(CalendarMatchPolicy.best(
-            among: [workshop], startedAt: Self.start,
-            endedAt: Self.start.addingTimeInterval(1_800),
-            meetingURL: nil, providerMeetingID: "abc-defg-hij"
-        ))
+        let match = try #require(
+            CalendarMatchPolicy.best(
+                among: [workshop], startedAt: Self.start,
+                endedAt: Self.start.addingTimeInterval(1_800),
+                meetingURL: nil, providerMeetingID: "abc-defg-hij"
+            ))
         #expect(match.candidate.title == "Onboarding workshop")
         #expect(match.score >= 0.7, "the invitation is decisive on its own")
     }

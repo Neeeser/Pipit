@@ -23,7 +23,10 @@ struct BackendSettingsTests {
             var reads = 0
             var value = "sk-first"
             func apiKey() throws -> String {
-                lock.lock(); reads += 1; let v = value; lock.unlock()
+                lock.lock()
+                reads += 1
+                let v = value
+                lock.unlock()
                 return v
             }
             var isKnownAbsent: Bool { false }
@@ -488,7 +491,7 @@ struct ProcessingGateTests {
                         RawTranscriptSegment(
                             start: 0, end: 5, text: "hello", speaker: nil,
                             words: [RawTranscriptWord(start: 0, end: 1, text: " hello")]
-                        ),
+                        )
                     ])
                 },
                 diarization: { _, _ in

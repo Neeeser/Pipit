@@ -129,9 +129,10 @@ struct CompactionTests {
             FileManager.default.fileExists(atPath: store.layout.segments.path),
             "the segments stay the source"
         )
-        let leftovers = (try? FileManager.default.contentsOfDirectory(
-            at: store.layout.trackArchiveDirectory, includingPropertiesForKeys: nil
-        )) ?? []
+        let leftovers =
+            (try? FileManager.default.contentsOfDirectory(
+                at: store.layout.trackArchiveDirectory, includingPropertiesForKeys: nil
+            )) ?? []
         #expect(
             leftovers.filter { $0.lastPathComponent.contains("partial") } == [],
             "no partial file is left behind"
@@ -150,7 +151,8 @@ struct CompactionTests {
         let meeting = try MicrophoneCleaningFixtures.makeCallOnSpeakers(root: root)
         let store = meeting.store
         var metadata = meeting.metadata
-        #expect(try MicrophoneCleaner().clean(
+        #expect(
+            try MicrophoneCleaner().clean(
                 store: store, metadata: &metadata, timeline: try store.readTimeline()
             ) == CleaningOutcome.cleaned)
 
@@ -200,9 +202,11 @@ struct CompactionTests {
             FileManager.default.fileExists(atPath: store.layout.cleanedMicFile.path),
             "compaction left the cleaned track alone"
         )
-        #expect(store.trackAudioLocation(track: .mic, metadata: archived, timeline: timeline)
+        #expect(
+            store.trackAudioLocation(track: .mic, metadata: archived, timeline: timeline)
                 .segments.first?.file == "mic.cleaned.m4a")
-        #expect(store.rawTrackAudioLocation(track: .mic, metadata: archived, timeline: timeline)
+        #expect(
+            store.rawTrackAudioLocation(track: .mic, metadata: archived, timeline: timeline)
                 .segments.first?.file == "mic.m4a")
     }
 
@@ -451,7 +455,8 @@ struct CompactionTests {
         do { _ = try AudioCompactor().compact(store: store) } catch { thrown = error }
         #expect(thrown != nil, "verification refuses the corrupt archive")
         if let processing = thrown as? ProcessingError,
-           case let .localProcessingFailed(_, retryable) = processing {
+            case .localProcessingFailed(_, let retryable) = processing
+        {
             #expect(retryable, "the segments are still there, so a later run can rebuild")
         } else {
             Issue.record("expected localProcessingFailed, got \(String(describing: thrown))")
@@ -470,10 +475,12 @@ struct CompactionTests {
             titles: TitleCandidates(timestampFallback: "offset"), now: started
         )
         let manifest = try ManifestWriter(url: created.store.layout.manifest)
-        manifest.append(.sessionStart(.init(
-            meetingID: created.metadata.id, source: .manual, segmentSeconds: 30,
-            appVersion: "test", processID: 1
-        )))
+        manifest.append(
+            .sessionStart(
+                .init(
+                    meetingID: created.metadata.id, source: .manual, segmentSeconds: 30,
+                    appVersion: "test", processID: 1
+                )))
         let writer = SegmentWriter(
             track: .mic, layout: created.store.layout, manifest: manifest,
             format: AVAudioFormat(standardFormatWithSampleRate: 48_000, channels: 1)!,
@@ -482,12 +489,14 @@ struct CompactionTests {
         // One second of silence, then two of tone. AAC encoder priming that
         // leaked into the timeline would shift the onset by ~0.13 s, which
         // every word timing and diarization boundary would inherit.
-        writer.enqueueSynchronously(AudioBufferPacket(
-            buffer: AudioFixtures.makeTone(seconds: 1, sampleRate: 48_000, amplitude: 0), hostTime: 100
-        ))
-        writer.enqueueSynchronously(AudioBufferPacket(
-            buffer: AudioFixtures.makeTone(seconds: 2, sampleRate: 48_000), hostTime: 101
-        ))
+        writer.enqueueSynchronously(
+            AudioBufferPacket(
+                buffer: AudioFixtures.makeTone(seconds: 1, sampleRate: 48_000, amplitude: 0), hostTime: 100
+            ))
+        writer.enqueueSynchronously(
+            AudioBufferPacket(
+                buffer: AudioFixtures.makeTone(seconds: 2, sampleRate: 48_000), hostTime: 101
+            ))
         writer.finish(reason: "test")
         manifest.append(.sessionEnd(.init(reason: "test", micSeconds: 3, remoteSeconds: 0)))
         manifest.close()

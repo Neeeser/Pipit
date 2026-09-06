@@ -1,10 +1,10 @@
 import AVFoundation
 import Foundation
-import Synchronization
 import PipitAudio
 import PipitCore
 import PipitIntegrations
 import PipitServices
+import Synchronization
 import Testing
 
 @Suite("ProcessingPipeline")
@@ -259,7 +259,8 @@ struct PipelineTests {
         // meeting reporting success. How many chunks loop varies from
         // run to run; that any of them do is what this measures.
         // The paragraph, verbatim.
-        let loop = "The world is a very important part of the world. And I think "
+        let loop =
+            "The world is a very important part of the world. And I think "
             + "that's what we need to do in terms of the world, and it's not just "
             + "about the world, but also about the world, and we need to be able to "
             + "make sure that there are people who are not going to be able to do "
@@ -314,7 +315,8 @@ struct PipelineTests {
         // The eleven ES2003a chunks that hold speech score between
         // 0.00 and 0.03, so a chunk that says one thing twice is
         // still a chunk of speech and is kept.
-        let spoken = ((0..<100).map { "word\($0)" }
+        let spoken =
+            ((0..<100).map { "word\($0)" }
             + (0..<8).map { "word\($0)" }).joined(separator: " ")
         #expect(
             DegenerateTranscriptPolicy.repeatedShare(of: spoken) < 0.2,
@@ -344,12 +346,14 @@ struct PipelineTests {
         // on a remote track clears forty words easily. So a chunk is
         // measured only where its vocabulary is wide enough that the
         // repetition cannot be explained by how few words it holds.
-        let fabricated = "The world is a very important part of the world. And I think "
+        let fabricated =
+            "The world is a very important part of the world. And I think "
             + "that's what we need to do in terms of the world, and it's not just "
             + "about the world, but also about the world, and we need to be able to "
             + "make sure that there are people who are not going to be able to do "
             + "that. So, I think that's what we need to do in terms of the world."
-        let dialogue = "Okay so the remote control needs to be cheap, right, but we "
+        let dialogue =
+            "Okay so the remote control needs to be cheap, right, but we "
             + "also said it should look modern. I think if we go with the rubber "
             + "buttons we can keep the cost down. Mm-hmm. And what about the "
             + "display, do we need one at all? Well, the marketing report said "
@@ -402,10 +406,10 @@ struct PipelineTests {
 
         let backend = FakeAIBackend()
         backend.transcriptionSegments = [
-            RawTranscriptSegment(start: 0, end: 2, text: "Mine.", speaker: nil),
+            RawTranscriptSegment(start: 0, end: 2, text: "Mine.", speaker: nil)
         ]
         backend.diarizationSegments = [
-            RawTranscriptSegment(start: 0, end: 2, text: "Theirs.", speaker: "A"),
+            RawTranscriptSegment(start: 0, end: 2, text: "Theirs.", speaker: "A")
         ]
         let pipeline = PipelineFixtures.makePipeline(repository: meeting.repository, backend: backend)
         await pipeline.process(meetingID: meeting.metadata.id)
@@ -428,16 +432,16 @@ struct PipelineTests {
 
         let backend = FakeAIBackend()
         backend.transcriptionSegments = [
-            RawTranscriptSegment(start: 0, end: 2, text: "I think we change retrieval.", speaker: nil),
+            RawTranscriptSegment(start: 0, end: 2, text: "I think we change retrieval.", speaker: nil)
         ]
         backend.diarizationSegments = [
-            RawTranscriptSegment(start: 0, end: 2, text: "Bryn here, agreed.", speaker: "A"),
+            RawTranscriptSegment(start: 0, end: 2, text: "Bryn here, agreed.", speaker: "A")
         ]
         backend.suggestions = [
             SpeakerSuggestion(
                 label: "remote_chunk_001_speaker_00", name: "Bryn",
                 confidence: 0.98, quote: "Bryn here, agreed.", atSeconds: 0
-            ),
+            )
         ]
 
         let pipeline = PipelineFixtures.makePipeline(repository: meeting.repository, backend: backend)
@@ -521,10 +525,10 @@ struct PipelineTests {
         let backend = FakeAIBackend()
         backend.failNextTranscription = .rateLimited(retryAfter: 30)
         backend.transcriptionSegments = [
-            RawTranscriptSegment(start: 0, end: 2, text: "Back again.", speaker: nil),
+            RawTranscriptSegment(start: 0, end: 2, text: "Back again.", speaker: nil)
         ]
         backend.diarizationSegments = [
-            RawTranscriptSegment(start: 0, end: 2, text: "Welcome back.", speaker: "A"),
+            RawTranscriptSegment(start: 0, end: 2, text: "Welcome back.", speaker: "A")
         ]
         let pipeline = PipelineFixtures.makePipeline(repository: meeting.repository, backend: backend)
         await pipeline.process(meetingID: meeting.metadata.id)
@@ -564,10 +568,10 @@ struct PipelineTests {
         // The Retry action still works once the outage is over.
         backend.alwaysFailTranscription = nil
         backend.transcriptionSegments = [
-            RawTranscriptSegment(start: 0, end: 2, text: "Back again.", speaker: nil),
+            RawTranscriptSegment(start: 0, end: 2, text: "Back again.", speaker: nil)
         ]
         backend.diarizationSegments = [
-            RawTranscriptSegment(start: 0, end: 2, text: "Welcome back.", speaker: "A"),
+            RawTranscriptSegment(start: 0, end: 2, text: "Welcome back.", speaker: "A")
         ]
         try await pipeline.retry(meetingID: meeting.metadata.id)
         let afterRetry = try meeting.store.readMetadata()
@@ -602,11 +606,11 @@ struct PipelineTests {
 
         let backend = FakeAIBackend()
         backend.transcriptionSegments = [
-            RawTranscriptSegment(start: 0, end: 2, text: "First half.", speaker: nil),
+            RawTranscriptSegment(start: 0, end: 2, text: "First half.", speaker: nil)
         ]
         backend.failNextDiarization = .serverError(status: 503)
         backend.diarizationSegments = [
-            RawTranscriptSegment(start: 0, end: 2, text: "Second half.", speaker: "A"),
+            RawTranscriptSegment(start: 0, end: 2, text: "Second half.", speaker: "A")
         ]
         let pipeline = PipelineFixtures.makePipeline(repository: meeting.repository, backend: backend)
         await pipeline.process(meetingID: meeting.metadata.id)
@@ -661,10 +665,10 @@ struct PipelineTests {
         )
         let backend = FakeAIBackend()
         backend.transcriptionSegments = [
-            RawTranscriptSegment(start: 0, end: 2, text: "Plain transcript only.", speaker: nil),
+            RawTranscriptSegment(start: 0, end: 2, text: "Plain transcript only.", speaker: nil)
         ]
         backend.diarizationSegments = [
-            RawTranscriptSegment(start: 0, end: 2, text: "Understood.", speaker: "A"),
+            RawTranscriptSegment(start: 0, end: 2, text: "Understood.", speaker: "A")
         ]
         let pipeline = PipelineFixtures.makePipeline(
             repository: meeting.repository, backend: backend, settings: settings
@@ -687,10 +691,10 @@ struct PipelineTests {
 
         let backend = FakeAIBackend()
         backend.transcriptionSegments = [
-            RawTranscriptSegment(start: 0, end: 2, text: "Mine.", speaker: nil),
+            RawTranscriptSegment(start: 0, end: 2, text: "Mine.", speaker: nil)
         ]
         backend.diarizationSegments = [
-            RawTranscriptSegment(start: 0, end: 2, text: "Theirs.", speaker: "A"),
+            RawTranscriptSegment(start: 0, end: 2, text: "Theirs.", speaker: "A")
         ]
         let pipeline = PipelineFixtures.makePipeline(repository: meeting.repository, backend: backend)
         await pipeline.process(meetingID: meeting.metadata.id)
@@ -759,7 +763,7 @@ struct PipelineTests {
         let backend = FakeAIBackend()
         backend.transcriptionSegments = []
         backend.diarizationSegments = [
-            RawTranscriptSegment(start: 0, end: 2, text: "Theirs.", speaker: "A"),
+            RawTranscriptSegment(start: 0, end: 2, text: "Theirs.", speaker: "A")
         ]
         let pipeline = PipelineFixtures.makePipeline(repository: meeting.repository, backend: backend)
         await pipeline.process(meetingID: meeting.metadata.id)
@@ -786,7 +790,7 @@ struct PipelineTests {
         let backend = FakeAIBackend()
         backend.transcriptionSegments = []
         backend.diarizationSegments = [
-            RawTranscriptSegment(start: 0, end: 2, text: "Theirs.", speaker: "A"),
+            RawTranscriptSegment(start: 0, end: 2, text: "Theirs.", speaker: "A")
         ]
         let pipeline = PipelineFixtures.makePipeline(repository: meeting.repository, backend: backend)
         await pipeline.process(meetingID: meeting.metadata.id)
@@ -921,11 +925,12 @@ struct PipelineTests {
 
         // Confirmed on "what do" alone, two seconds of an 11 s line.
         var speakers = try meeting.store.readSpeakerMap()
-        speakers.utteranceOverrides.append(UtteranceOverride(
-            track: .remote, anchorSeconds: 2, startSeconds: 1, endSeconds: 3,
-            assignment: SpeakerAssignment(displayName: "Sam", origin: .human),
-            createdAt: Date(), chunkID: "c1"
-        ))
+        speakers.utteranceOverrides.append(
+            UtteranceOverride(
+                track: .remote, anchorSeconds: 2, startSeconds: 1, endSeconds: 3,
+                assignment: SpeakerAssignment(displayName: "Sam", origin: .human),
+                createdAt: Date(), chunkID: "c1"
+            ))
         try meeting.store.writeSpeakerMap(speakers)
 
         _ = try await pipeline.applySpeakerRange(
@@ -975,9 +980,12 @@ struct PipelineTests {
         let all = try #require(try meeting.store.readCanonicalTranscript()).utterances
         let clicked = try #require(all.first { $0.chunkID == "c2" })
         _ = try await pipeline.applySpeakerRange(
-            "Dara", meetingID: meeting.id, track: .remote, parts: [SpeakerRangePart(
-                utteranceID: clicked.id, startSeconds: 6, endSeconds: 10
-            )]
+            "Dara", meetingID: meeting.id, track: .remote,
+            parts: [
+                SpeakerRangePart(
+                    utteranceID: clicked.id, startSeconds: 6, endSeconds: 10
+                )
+            ]
         )
 
         let map = try meeting.store.readSpeakerMap()
@@ -1165,15 +1173,17 @@ struct PipelineTests {
         }
         let lineStart = 0.0
         let lineEnd = padded ? 12.7 : 11.0
-        var utterances = [Utterance(
-            id: Utterance.identifier(
-                chunkID: "c1", track: .remote, start: lineStart, end: lineEnd
-            ),
-            start: lineStart, end: lineEnd, track: .remote,
-            rawSpeakerLabel: "remote-001_speaker_00",
-            speakerKey: "remote-001_speaker_00", text: texts.joined(separator: " "),
-            chunkID: "c1", model: "m", words: words
-        )]
+        var utterances = [
+            Utterance(
+                id: Utterance.identifier(
+                    chunkID: "c1", track: .remote, start: lineStart, end: lineEnd
+                ),
+                start: lineStart, end: lineEnd, track: .remote,
+                rawSpeakerLabel: "remote-001_speaker_00",
+                speakerKey: "remote-001_speaker_00", text: texts.joined(separator: " "),
+                chunkID: "c1", model: "m", words: words
+            )
+        ]
         if withOverlappingTwin {
             // The next chunk's own transcription of the same audio, segmented
             // differently and kept because it is not similar enough to drop.
@@ -1183,12 +1193,13 @@ struct PipelineTests {
                     text: " \($0.element)"
                 )
             }
-            utterances.append(Utterance(
-                id: Utterance.identifier(chunkID: "c2", track: .remote, start: 4, end: 10),
-                start: 4, end: 10, track: .remote, rawSpeakerLabel: "remote-001_speaker_00",
-                speakerKey: "remote-001_speaker_00", text: "the other chunk heard this too",
-                chunkID: "c2", model: "m", words: twinWords
-            ))
+            utterances.append(
+                Utterance(
+                    id: Utterance.identifier(chunkID: "c2", track: .remote, start: 4, end: 10),
+                    start: 4, end: 10, track: .remote, rawSpeakerLabel: "remote-001_speaker_00",
+                    speakerKey: "remote-001_speaker_00", text: "the other chunk heard this too",
+                    chunkID: "c2", model: "m", words: twinWords
+                ))
         }
         try created.store.writeCanonicalTranscript(
             CanonicalTranscript(generatedAt: started, utterances: utterances)

@@ -155,15 +155,18 @@ struct VoiceEvidenceTests {
         let (store, root) = try Self.makeStore()
         defer { try? FileManager.default.removeItem(at: root) }
         let bryn = try await store.createPerson(name: "Bryn")
-        _ = try await store.enrol(VoiceEnrollmentCandidate(
-            identityID: bryn.id, vector: Self.vector(seed: 73), model: .fluidAudioOffline,
-            speechSeconds: 1_200, qualityScore: 1, source: .humanConfirmedCluster,
-            evidence: [VoiceEvidence(
-                meetingID: "m1", track: .remote,
-                spans: [AudioSpan(start: 0, end: 1_200)],
-                confirmation: .humanConfirmedCluster, clusterID: "remote-001_speaker_00"
-            )]
-        ))
+        _ = try await store.enrol(
+            VoiceEnrollmentCandidate(
+                identityID: bryn.id, vector: Self.vector(seed: 73), model: .fluidAudioOffline,
+                speechSeconds: 1_200, qualityScore: 1, source: .humanConfirmedCluster,
+                evidence: [
+                    VoiceEvidence(
+                        meetingID: "m1", track: .remote,
+                        spans: [AudioSpan(start: 0, end: 1_200)],
+                        confirmation: .humanConfirmedCluster, clusterID: "remote-001_speaker_00"
+                    )
+                ]
+            ))
 
         let displaced = try await store.retractEvidence(
             VoiceEvidenceRetraction(
@@ -194,14 +197,17 @@ struct VoiceEvidenceTests {
         let (store, root) = try Self.makeStore()
         defer { try? FileManager.default.removeItem(at: root) }
         let bryn = try await store.createPerson(name: "Bryn")
-        _ = try await store.enrol(VoiceEnrollmentCandidate(
-            identityID: bryn.id, vector: Self.vector(seed: 74), model: .fluidAudioOffline,
-            speechSeconds: 60, qualityScore: 1, source: .humanConfirmedCluster,
-            evidence: [VoiceEvidence(
-                meetingID: "m1", track: .remote, spans: [AudioSpan(start: 0, end: 60)],
-                confirmation: .humanConfirmedCluster
-            )]
-        ))
+        _ = try await store.enrol(
+            VoiceEnrollmentCandidate(
+                identityID: bryn.id, vector: Self.vector(seed: 74), model: .fluidAudioOffline,
+                speechSeconds: 60, qualityScore: 1, source: .humanConfirmedCluster,
+                evidence: [
+                    VoiceEvidence(
+                        meetingID: "m1", track: .remote, spans: [AudioSpan(start: 0, end: 60)],
+                        confirmation: .humanConfirmedCluster
+                    )
+                ]
+            ))
         for window in [AudioSpan(start: 0, end: 8), AudioSpan(start: 8, end: 14)] {
             let displaced = try await store.retractEvidence(
                 VoiceEvidenceRetraction(meetingID: "m1", track: .remote, spans: [window]),
@@ -232,14 +238,17 @@ struct VoiceEvidenceTests {
         let (store, root) = try Self.makeStore()
         defer { try? FileManager.default.removeItem(at: root) }
         let bryn = try await store.createPerson(name: "Bryn")
-        _ = try await store.enrol(VoiceEnrollmentCandidate(
-            identityID: bryn.id, vector: Self.vector(seed: 83), model: .fluidAudioOffline,
-            speechSeconds: 60, qualityScore: 1, source: .humanConfirmedCluster,
-            evidence: [VoiceEvidence(
-                meetingID: "m1", track: .remote, spans: [AudioSpan(start: 0, end: 60)],
-                confirmation: .humanConfirmedCluster
-            )]
-        ))
+        _ = try await store.enrol(
+            VoiceEnrollmentCandidate(
+                identityID: bryn.id, vector: Self.vector(seed: 83), model: .fluidAudioOffline,
+                speechSeconds: 60, qualityScore: 1, source: .humanConfirmedCluster,
+                evidence: [
+                    VoiceEvidence(
+                        meetingID: "m1", track: .remote, spans: [AudioSpan(start: 0, end: 60)],
+                        confirmation: .humanConfirmedCluster
+                    )
+                ]
+            ))
         let other = try await store.createPerson(name: "Dara")
 
         // Ten seconds go to Dara, then come back.
@@ -279,14 +288,17 @@ struct VoiceEvidenceTests {
         let (store, root) = try Self.makeStore()
         defer { try? FileManager.default.removeItem(at: root) }
         let me = try await store.createPerson(name: "Marlow", isLocalUser: true)
-        _ = try await store.enrol(VoiceEnrollmentCandidate(
-            identityID: me.id, vector: Self.vector(seed: 75), model: .fluidAudioOffline,
-            speechSeconds: 200, qualityScore: 1, source: .micTrackDeterministic,
-            evidence: [VoiceEvidence(
-                meetingID: "m1", track: .mic, spans: [AudioSpan(start: 0, end: 200)],
-                confirmation: .micTrackDeterministic
-            )]
-        ))
+        _ = try await store.enrol(
+            VoiceEnrollmentCandidate(
+                identityID: me.id, vector: Self.vector(seed: 75), model: .fluidAudioOffline,
+                speechSeconds: 200, qualityScore: 1, source: .micTrackDeterministic,
+                evidence: [
+                    VoiceEvidence(
+                        meetingID: "m1", track: .mic, spans: [AudioSpan(start: 0, end: 200)],
+                        confirmation: .micTrackDeterministic
+                    )
+                ]
+            ))
         let displaced = try await store.retractEvidence(
             VoiceEvidenceRetraction(
                 meetingID: "m1", track: .remote, spans: [AudioSpan(start: 0, end: 200)]
@@ -345,16 +357,19 @@ struct VoiceEvidenceTests {
         let bryn = try await store.createPerson(name: "Bryn")
         let other = try await store.createAnonymous(state: .persistent)
         for (identity, start) in [(bryn, 0.0), (other, 600.0)] {
-            _ = try await store.enrol(VoiceEnrollmentCandidate(
-                identityID: identity.id, vector: Self.vector(seed: start == 0 ? 77 : 78),
-                model: .fluidAudioOffline, speechSeconds: 90, qualityScore: 1,
-                source: .humanConfirmedCluster,
-                evidence: [VoiceEvidence(
-                    meetingID: "m1", track: .remote,
-                    spans: [AudioSpan(start: start, end: start + 90)],
-                    confirmation: .humanConfirmedCluster
-                )]
-            ))
+            _ = try await store.enrol(
+                VoiceEnrollmentCandidate(
+                    identityID: identity.id, vector: Self.vector(seed: start == 0 ? 77 : 78),
+                    model: .fluidAudioOffline, speechSeconds: 90, qualityScore: 1,
+                    source: .humanConfirmedCluster,
+                    evidence: [
+                        VoiceEvidence(
+                            meetingID: "m1", track: .remote,
+                            spans: [AudioSpan(start: start, end: start + 90)],
+                            confirmation: .humanConfirmedCluster
+                        )
+                    ]
+                ))
         }
         try await store.merge(other.id, into: bryn.id)
         #expect(try await Self.samples(store, bryn.id) == 2)
@@ -385,16 +400,19 @@ struct VoiceEvidenceTests {
         let bryn = try await store.createPerson(name: "Bryn")
         let kept = Self.vector(seed: 79)
         for (seed, meeting, start) in [(79, "m1", 0.0), (80, "m2", 0.0)] {
-            _ = try await store.enrol(VoiceEnrollmentCandidate(
-                identityID: bryn.id, vector: Self.vector(seed: seed),
-                model: .fluidAudioOffline, speechSeconds: 90, qualityScore: 1,
-                source: .humanConfirmedCluster,
-                evidence: [VoiceEvidence(
-                    meetingID: meeting, track: .remote,
-                    spans: [AudioSpan(start: start, end: start + 90)],
-                    confirmation: .humanConfirmedCluster
-                )]
-            ))
+            _ = try await store.enrol(
+                VoiceEnrollmentCandidate(
+                    identityID: bryn.id, vector: Self.vector(seed: seed),
+                    model: .fluidAudioOffline, speechSeconds: 90, qualityScore: 1,
+                    source: .humanConfirmedCluster,
+                    evidence: [
+                        VoiceEvidence(
+                            meetingID: meeting, track: .remote,
+                            spans: [AudioSpan(start: start, end: start + 90)],
+                            confirmation: .humanConfirmedCluster
+                        )
+                    ]
+                ))
         }
         let blended = try await #require(store.searchableProfiles(model: .fluidAudioOffline).first?.centroid)
         #expect(
@@ -432,16 +450,19 @@ struct VoiceEvidenceTests {
         defer { try? FileManager.default.removeItem(at: root) }
         let bryn = try await store.createPerson(name: "Bryn")
         for round in 0..<3 {
-            try await store.addPendingEnrollment(VoiceEnrollmentCandidate(
-                identityID: bryn.id, vector: Self.vector(seed: 82 + round),
-                model: .fluidAudioOffline, speechSeconds: 60, qualityScore: 1,
-                source: .humanConfirmedUtterances,
-                evidence: [VoiceEvidence(
-                    meetingID: "m1", track: .remote,
-                    spans: [AudioSpan(start: 0, end: 60)],
-                    confirmation: .humanConfirmedUtterances
-                )]
-            ))
+            try await store.addPendingEnrollment(
+                VoiceEnrollmentCandidate(
+                    identityID: bryn.id, vector: Self.vector(seed: 82 + round),
+                    model: .fluidAudioOffline, speechSeconds: 60, qualityScore: 1,
+                    source: .humanConfirmedUtterances,
+                    evidence: [
+                        VoiceEvidence(
+                            meetingID: "m1", track: .remote,
+                            spans: [AudioSpan(start: 0, end: 60)],
+                            confirmation: .humanConfirmedUtterances
+                        )
+                    ]
+                ))
             #expect(
                 try await store.flushPendingEnrollment(
                     for: bryn.id, model: .fluidAudioOffline
@@ -479,15 +500,18 @@ struct VoiceEvidenceTests {
         // The store is fully usable afterwards, which is what says the
         // tables really were created rather than the read failing
         // quietly.
-        _ = try await store.enrol(VoiceEnrollmentCandidate(
-            identityID: people[0].id, vector: Self.vector(seed: 81),
-            model: .fluidAudioOffline, speechSeconds: 90, qualityScore: 1,
-            source: .humanConfirmedCluster,
-            evidence: [VoiceEvidence(
-                meetingID: "m9", track: .remote, spans: [AudioSpan(start: 0, end: 90)],
-                confirmation: .humanConfirmedCluster
-            )]
-        ))
+        _ = try await store.enrol(
+            VoiceEnrollmentCandidate(
+                identityID: people[0].id, vector: Self.vector(seed: 81),
+                model: .fluidAudioOffline, speechSeconds: 90, qualityScore: 1,
+                source: .humanConfirmedCluster,
+                evidence: [
+                    VoiceEvidence(
+                        meetingID: "m9", track: .remote, spans: [AudioSpan(start: 0, end: 90)],
+                        confirmation: .humanConfirmedCluster
+                    )
+                ]
+            ))
         #expect(try await Self.samples(store, people[0].id) == 1)
     }
 
@@ -495,9 +519,11 @@ struct VoiceEvidenceTests {
     /// recorded: identities and vectors, no evidence tables.
     private static func writePreEvidenceStore(at url: URL) throws {
         var handle: OpaquePointer?
-        guard sqlite3_open_v2(
-            url.path, &handle, SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE, nil
-        ) == SQLITE_OK, let handle else {
+        guard
+            sqlite3_open_v2(
+                url.path, &handle, SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE, nil
+            ) == SQLITE_OK, let handle
+        else {
             throw StorageError.meetingNotFound(id: url.path)
         }
         defer { sqlite3_close(handle) }

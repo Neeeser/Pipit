@@ -39,7 +39,9 @@ public enum ManifestEvent: Sendable, Equatable {
         public let appVersion: String
         public let processID: Int32
 
-        public init(meetingID: String, source: MeetingSource, segmentSeconds: Double, appVersion: String, processID: Int32) {
+        public init(
+            meetingID: String, source: MeetingSource, segmentSeconds: Double, appVersion: String, processID: Int32
+        ) {
             self.meetingID = meetingID
             self.source = source
             self.segmentSeconds = segmentSeconds

@@ -75,7 +75,8 @@ extension LocalModelManager {
         )
         progress(1)
 
-        let merged = results.count == 1
+        let merged =
+            results.count == 1
             ? results[0]
             : TranscriptionUtilities.mergeTranscriptionResults(results)
 
@@ -87,22 +88,24 @@ extension LocalModelManager {
                 var collected: [RawTranscriptWord] = []
                 collected.reserveCapacity(timings.count)
                 for timing in timings {
-                    collected.append(RawTranscriptWord(
-                        start: Double(timing.start),
-                        end: Double(timing.end),
-                        text: timing.word,
-                        probability: Double(timing.probability)
-                    ))
+                    collected.append(
+                        RawTranscriptWord(
+                            start: Double(timing.start),
+                            end: Double(timing.end),
+                            text: timing.word,
+                            probability: Double(timing.probability)
+                        ))
                 }
                 words = collected
             }
-            segments.append(RawTranscriptSegment(
-                start: Double(segment.start),
-                end: Double(segment.end),
-                text: segment.text.trimmingCharacters(in: .whitespaces),
-                speaker: nil,
-                words: words
-            ))
+            segments.append(
+                RawTranscriptSegment(
+                    start: Double(segment.start),
+                    end: Double(segment.end),
+                    text: segment.text.trimmingCharacters(in: .whitespaces),
+                    speaker: nil,
+                    words: words
+                ))
         }
         return TranscriptionOutput(
             segments: segments,

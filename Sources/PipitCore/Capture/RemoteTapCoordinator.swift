@@ -234,7 +234,8 @@ public final class RemoteTapCoordinator: Sendable {
             (state.policy.health, state.policy.unrecoveredSilence(at: now) != nil)
         }
         guard implied != health else { return }
-        let detail = implied == .degraded && silent
+        let detail =
+            implied == .degraded && silent
             ? "tap delivers silence while target reports output"
             : nil
         setHealth(implied, detail: detail)

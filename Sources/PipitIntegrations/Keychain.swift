@@ -71,7 +71,7 @@ public struct KeychainAPIKeyStore: APIKeyProviding, Sendable {
         ]
         var result: CFTypeRef?
         guard SecItemCopyMatching(query as CFDictionary, &result) == errSecSuccess,
-              let data = result as? Data
+            let data = result as? Data
         else { return nil }
         return String(data: data, encoding: .utf8)
     }

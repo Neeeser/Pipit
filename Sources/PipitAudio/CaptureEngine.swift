@@ -1,5 +1,5 @@
-import Accelerate
 import AVFoundation
+import Accelerate
 import Foundation
 import PipitCore
 
@@ -112,12 +112,14 @@ public final class CaptureEngine: Sendable {
     /// Builds the capture sources. The defaults are the real AVFoundation and
     /// CoreAudio implementations; tests substitute fakes so the engine's own
     /// behaviour can be exercised without audio hardware.
-    public typealias MicrophoneFactory = @Sendable (
-        @escaping AudioBufferSink, @escaping @Sendable () -> Void
-    ) -> MicrophoneEngineController
-    public typealias TapFactory = @Sendable (
-        @escaping AudioBufferSink, @escaping @Sendable () -> Void
-    ) -> ProcessTapController
+    public typealias MicrophoneFactory =
+        @Sendable (
+            @escaping AudioBufferSink, @escaping @Sendable () -> Void
+        ) -> MicrophoneEngineController
+    public typealias TapFactory =
+        @Sendable (
+            @escaping AudioBufferSink, @escaping @Sendable () -> Void
+        ) -> ProcessTapController
 
     public init(
         clock: any Clock = SystemClock(),
@@ -215,11 +217,12 @@ public final class CaptureEngine: Sendable {
         try await onControlQueueThrowing {
             let manifest = try ManifestWriter(url: layout.manifest)
             manifest.append(
-                .sessionStart(.init(
-                    meetingID: meetingID, source: source, segmentSeconds: self.segmentSeconds,
-                    appVersion: PipitVersion.current,
-                    processID: ProcessInfo.processInfo.processIdentifier
-                )),
+                .sessionStart(
+                    .init(
+                        meetingID: meetingID, source: source, segmentSeconds: self.segmentSeconds,
+                        appVersion: PipitVersion.current,
+                        processID: ProcessInfo.processInfo.processIdentifier
+                    )),
                 hostTime: self.clock.monotonicSeconds, wallClock: self.clock.now
             )
 
@@ -281,7 +284,8 @@ public final class CaptureEngine: Sendable {
         // The writer holds this closure and the engine holds the writer, so
         // the reference back has to be weak or the pair never deallocates.
         let engine = WeakEngine(self)
-        let micFormat = format(from: micCoordinator.activeFormat)
+        let micFormat =
+            format(from: micCoordinator.activeFormat)
             ?? AVAudioFormat(standardFormatWithSampleRate: 48_000, channels: 1)!
         let (micBase, remoteBase) = state.withLock { ($0.micLastSegmentIndex, $0.remoteLastSegmentIndex) }
         let micWriter = SegmentWriter(
@@ -355,9 +359,10 @@ public final class CaptureEngine: Sendable {
 
         for (track, frames, seconds, earliest) in flushed {
             manifest.append(
-                .preRollFlushed(.init(
-                    track: track, frameCount: frames, seconds: seconds, earliestHostTime: earliest
-                )),
+                .preRollFlushed(
+                    .init(
+                        track: track, frameCount: frames, seconds: seconds, earliestHostTime: earliest
+                    )),
                 hostTime: clock.monotonicSeconds, wallClock: clock.now
             )
         }
@@ -466,9 +471,10 @@ public final class CaptureEngine: Sendable {
             capturesRemote: capturesRemote
         )
         closing.2?.append(
-            .sessionEnd(.init(
-                reason: reason, micSeconds: snapshot.micSeconds, remoteSeconds: snapshot.remoteSeconds
-            )),
+            .sessionEnd(
+                .init(
+                    reason: reason, micSeconds: snapshot.micSeconds, remoteSeconds: snapshot.remoteSeconds
+                )),
             hostTime: clock.monotonicSeconds, wallClock: clock.now
         )
         closing.2?.close()
@@ -764,10 +770,11 @@ private final class CoordinatorRelay: CaptureCoordinatorDelegate, @unchecked Sen
         }
         queue.async {
             engine?.recordManifest(
-                .remoteBind(.init(
-                    reason: reason.label, targets: recorded, bindCount: bindCount,
-                    streamCount: binding.streamCount, tapStreamIndex: binding.tapStreamIndex
-                ))
+                .remoteBind(
+                    .init(
+                        reason: reason.label, targets: recorded, bindCount: bindCount,
+                        streamCount: binding.streamCount, tapStreamIndex: binding.tapStreamIndex
+                    ))
             )
         }
     }
@@ -781,9 +788,10 @@ private final class CoordinatorRelay: CaptureCoordinatorDelegate, @unchecked Sen
         }
         queue.async {
             engine?.recordManifest(
-                .remoteStream(.init(
-                    bindCount: bindCount, streams: streams, usedFallback: reading.usedFallback
-                ))
+                .remoteStream(
+                    .init(
+                        bindCount: bindCount, streams: streams, usedFallback: reading.usedFallback
+                    ))
             )
         }
     }
@@ -794,14 +802,15 @@ private final class CoordinatorRelay: CaptureCoordinatorDelegate, @unchecked Sen
         let engine = target
         queue.async {
             engine?.recordManifest(
-                .micBind(.init(
-                    deviceUID: device.uid, deviceName: device.name,
-                    deviceSampleRate: device.sampleRate, deviceChannelCount: device.channelCount,
-                    trackSampleRate: build.format.sampleRate,
-                    trackChannelCount: build.format.channelCount,
-                    deviceSelectionStatus: build.deviceSelectionStatus,
-                    reason: reason.label
-                ))
+                .micBind(
+                    .init(
+                        deviceUID: device.uid, deviceName: device.name,
+                        deviceSampleRate: device.sampleRate, deviceChannelCount: device.channelCount,
+                        trackSampleRate: build.format.sampleRate,
+                        trackChannelCount: build.format.channelCount,
+                        deviceSelectionStatus: build.deviceSelectionStatus,
+                        reason: reason.label
+                    ))
             )
         }
     }

@@ -75,7 +75,8 @@ public struct TranscriptNavigation: Equatable, Sendable {
     public static func speaker(
         _ name: String, recordingID: String, in blocks: [CombinedLineBlock]
     ) -> TranscriptNavigation {
-        let targets = blocks
+        let targets =
+            blocks
             .filter { $0.recordingID == recordingID && $0.speakerName == name }
             .map { Target(blockID: $0.id) }
         return TranscriptNavigation(kind: .speaker(name: name, recordingID: recordingID), targets: targets, index: 0)

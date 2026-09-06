@@ -87,10 +87,11 @@ struct LiveOpenAITests {
     )
     func transcriptionReturnsTheSegmentTimingsTheTimelineNeeds() async throws {
         let (client, fixtures) = try Self.live()
-        let response = try await client.transcribe(TranscriptionRequest(
-            audio: fixtures.appendingPathComponent("conversation.mic.wav"),
-            model: AIModelSettings().transcription
-        ))
+        let response = try await client.transcribe(
+            TranscriptionRequest(
+                audio: fixtures.appendingPathComponent("conversation.mic.wav"),
+                model: AIModelSettings().transcription
+            ))
         #expect(!response.segments.isEmpty, "no segments returned")
         #expect(
             Self.mentions(response.text, atLeast: 2, of: Self.expectedTerms),
@@ -110,10 +111,11 @@ struct LiveOpenAITests {
     )
     func diarizationSeparatesTheRemoteSpeakers() async throws {
         let (client, fixtures) = try Self.live()
-        let response = try await client.diarize(DiarizationRequest(
-            audio: fixtures.appendingPathComponent("conversation.remote.wav"),
-            model: AIModelSettings().diarization
-        ))
+        let response = try await client.diarize(
+            DiarizationRequest(
+                audio: fixtures.appendingPathComponent("conversation.remote.wav"),
+                model: AIModelSettings().diarization
+            ))
         let labels = Set(response.segments.compactMap(\.speaker))
         #expect(labels.count >= 2, "expected at least two remote speakers, got \(labels.sorted())")
         #expect(
@@ -130,14 +132,16 @@ struct LiveOpenAITests {
     )
     func theAssembledTranscriptKeepsTheLocalSpeakerSeparate() async throws {
         let (client, fixtures) = try Self.live()
-        async let micResponse = client.transcribe(TranscriptionRequest(
-            audio: fixtures.appendingPathComponent("conversation.mic.wav"),
-            model: AIModelSettings().transcription
-        ))
-        async let remoteResponse = client.diarize(DiarizationRequest(
-            audio: fixtures.appendingPathComponent("conversation.remote.wav"),
-            model: AIModelSettings().diarization
-        ))
+        async let micResponse = client.transcribe(
+            TranscriptionRequest(
+                audio: fixtures.appendingPathComponent("conversation.mic.wav"),
+                model: AIModelSettings().transcription
+            ))
+        async let remoteResponse = client.diarize(
+            DiarizationRequest(
+                audio: fixtures.appendingPathComponent("conversation.remote.wav"),
+                model: AIModelSettings().diarization
+            ))
         let (mic, remote) = try await (micResponse, remoteResponse)
 
         let raw = RawTranscript(chunks: [
@@ -180,16 +184,17 @@ struct LiveOpenAITests {
     )
     func speakerResolutionNamesTheRemoteSpeakersFromTheirIntroduction() async throws {
         let (client, fixtures) = try Self.live()
-        let remote = try await client.diarize(DiarizationRequest(
-            audio: fixtures.appendingPathComponent("conversation.remote.wav"),
-            model: AIModelSettings().diarization
-        ))
+        let remote = try await client.diarize(
+            DiarizationRequest(
+                audio: fixtures.appendingPathComponent("conversation.remote.wav"),
+                model: AIModelSettings().diarization
+            ))
         let raw = RawTranscript(chunks: [
             RawTranscriptChunk(
                 id: "remote_chunk_001", track: .remote, timelineOffset: 0,
                 durationSeconds: 40, model: AIModelSettings().diarization,
                 responseFormat: "diarized_json", segments: remote.segments
-            ),
+            )
         ])
         let transcript = TranscriptAssembler().assemble(
             raw: raw, micTrackIsLocalUser: true, generatedAt: Date()
@@ -232,14 +237,14 @@ struct LiveOpenAITests {
         // second is the case that used to produce a confident guess out
         // of nothing.
         let transcript = """
-        [00:12] Bryn C: The retain numbers landed overnight and they look clean.
-        [00:19] Bryn C: Ellis, do you want to take the ingestion question?
-        [00:24] remote-001_speaker_03: Yeah. The chunker is still the slow part, but I \
-        pulled the embedding call out of the loop and it dropped to about four seconds a document.
-        [00:41] remote-001_speaker_07: I looked at the same path last week. The batching \
-        helps but the tokenizer is doing twice the work it needs to on short documents.
-        [00:58] Bryn C: Good. Let us pick it up tomorrow.
-        """
+            [00:12] Bryn C: The retain numbers landed overnight and they look clean.
+            [00:19] Bryn C: Ellis, do you want to take the ingestion question?
+            [00:24] remote-001_speaker_03: Yeah. The chunker is still the slow part, but I \
+            pulled the embedding call out of the loop and it dropped to about four seconds a document.
+            [00:41] remote-001_speaker_07: I looked at the same path last week. The batching \
+            helps but the tokenizer is doing twice the work it needs to on short documents.
+            [00:58] Bryn C: Good. Let us pick it up tomorrow.
+            """
 
         let suggestions = try await client.resolveSpeakers(
             SpeakerResolutionRequest(
@@ -288,10 +293,11 @@ struct LiveOpenAITests {
     )
     func enrichmentWritesATitleAndASummaryFromTheTranscript() async throws {
         let (client, fixtures) = try Self.live()
-        let response = try await client.transcribe(TranscriptionRequest(
-            audio: fixtures.appendingPathComponent("conversation.wav"),
-            model: AIModelSettings().transcription
-        ))
+        let response = try await client.transcribe(
+            TranscriptionRequest(
+                audio: fixtures.appendingPathComponent("conversation.wav"),
+                model: AIModelSettings().transcription
+            ))
         let enrichment = try await client.enrich(
             EnrichmentRequest(
                 transcript: response.text,

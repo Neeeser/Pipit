@@ -2,6 +2,7 @@
 //
 // `relayEnvelope` comes from shared/relay.js, which the build concatenates in
 // front of this file.
+/* global relayEnvelope */
 
 const api = globalThis.browser ?? globalThis.chrome;
 const HOST_NAME = 'com.pipit.sensor';

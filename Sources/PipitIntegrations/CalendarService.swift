@@ -103,22 +103,25 @@ public final class CalendarService: @unchecked Sendable {
         for event in events {
             let identifier = event.eventIdentifier ?? UUID().uuidString
             byIdentifier[identifier] = event
-            candidates.append(CalendarCandidate(
-                identifier: identifier,
-                title: event.title ?? "Untitled event",
-                startDate: event.startDate,
-                endDate: event.endDate,
-                isAllDay: event.isAllDay,
-                haystack: [event.notes, event.location, event.url?.absoluteString]
-                    .compactMap { $0 }
-                    .joined(separator: " ")
-            ))
+            candidates.append(
+                CalendarCandidate(
+                    identifier: identifier,
+                    title: event.title ?? "Untitled event",
+                    startDate: event.startDate,
+                    endDate: event.endDate,
+                    isAllDay: event.isAllDay,
+                    haystack: [event.notes, event.location, event.url?.absoluteString]
+                        .compactMap { $0 }
+                        .joined(separator: " ")
+                ))
         }
 
-        guard let best = CalendarMatchPolicy.best(
-            among: candidates, startedAt: startedAt, endedAt: end,
-            meetingURL: meetingURL, providerMeetingID: providerMeetingID
-        ) else { return nil }
+        guard
+            let best = CalendarMatchPolicy.best(
+                among: candidates, startedAt: startedAt, endedAt: end,
+                meetingURL: meetingURL, providerMeetingID: providerMeetingID
+            )
+        else { return nil }
         let event = byIdentifier[best.candidate.identifier]
         let attendees = (event?.attendees ?? []).compactMap { attendee -> String? in
             attendee.name ?? attendee.url.absoluteString.replacingOccurrences(of: "mailto:", with: "")

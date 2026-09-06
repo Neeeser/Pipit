@@ -115,7 +115,8 @@ public enum PeopleDirectoryFilter {
                 unnamed.append(entry)
                 continue
             }
-            let organization = entry.identity.organization?
+            let organization =
+                entry.identity.organization?
                 .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
             if organization.isEmpty {
                 unaffiliated.append(entry)

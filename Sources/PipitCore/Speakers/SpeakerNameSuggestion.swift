@@ -82,7 +82,8 @@ public struct SpeakerSuggestionSet: Sendable, Equatable, Codable {
     /// makes accepting one pill remove exactly that pill.
     public func visible(forUnnamed unnamed: Set<String>) -> [SpeakerNameSuggestion] {
         let dismissed = Set(dismissedLabels)
-        return suggestions
+        return
+            suggestions
             .filter { unnamed.contains($0.label) }
             .filter { !dismissed.contains($0.label) }
             .filter { $0.confidence >= SpeakerNameSuggestion.minimumConfidence }

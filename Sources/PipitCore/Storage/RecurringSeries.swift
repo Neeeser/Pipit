@@ -74,9 +74,10 @@ public enum RecurringSeries {
         let lookalikes = archive.filter {
             $0.title.compare(title, options: [.caseInsensitive]) == .orderedSame
         }
-        let series = meeting.calendarSeriesID.map { id in
-            archive.contains { $0.calendarSeriesID == id } ? [id] : [id]
-        } ?? []
+        let series =
+            meeting.calendarSeriesID.map { id in
+                archive.contains { $0.calendarSeriesID == id } ? [id] : [id]
+            } ?? []
         // A calendar series is worth offering on its own, whatever the titles
         // say: the next occurrence is already known to be one.
         guard lookalikes.count >= threshold || !series.isEmpty else { return nil }
@@ -92,44 +93,50 @@ public enum RecurringSeries {
 
         var clauses: [RecurringProposal.Clause] = []
         if !series.isEmpty {
-            clauses.append(.init(
-                kind: .calendarSeries,
-                label: "In the same calendar series",
-                detail: "The calendar already says the next one is this meeting again",
-                isOnByDefault: true
-            ))
+            clauses.append(
+                .init(
+                    kind: .calendarSeries,
+                    label: "In the same calendar series",
+                    detail: "The calendar already says the next one is this meeting again",
+                    isOnByDefault: true
+                ))
         }
         if lookalikes.count >= threshold {
-            clauses.append(.init(
-                kind: .title,
-                label: "Title is \(title)",
-                detail: "\(lookalikes.count) meetings on disk carry it",
-                // A calendar series is the better clause when there is one, so
-                // the title is left for the user to add rather than assumed.
-                isOnByDefault: series.isEmpty
-            ))
-            clauses.append(.init(
-                kind: .provider,
-                label: "Recorded from \(meeting.provider.displayName)",
-                detail: sameProvider.count == lookalikes.count
-                    ? "All \(lookalikes.count) were"
-                    : "\(sameProvider.count) of \(lookalikes.count) were",
-                isOnByDefault: series.isEmpty && sameProvider.count == lookalikes.count
-            ))
-            clauses.append(.init(
-                kind: .slot,
-                label: "\(dayLabel(weekdays)), \(FolderRuleSummary.clock(window.after)) to \(FolderRuleSummary.clock(window.before))",
-                detail: "Where every one of them started",
-                isOnByDefault: false
-            ))
+            clauses.append(
+                .init(
+                    kind: .title,
+                    label: "Title is \(title)",
+                    detail: "\(lookalikes.count) meetings on disk carry it",
+                    // A calendar series is the better clause when there is one, so
+                    // the title is left for the user to add rather than assumed.
+                    isOnByDefault: series.isEmpty
+                ))
+            clauses.append(
+                .init(
+                    kind: .provider,
+                    label: "Recorded from \(meeting.provider.displayName)",
+                    detail: sameProvider.count == lookalikes.count
+                        ? "All \(lookalikes.count) were"
+                        : "\(sameProvider.count) of \(lookalikes.count) were",
+                    isOnByDefault: series.isEmpty && sameProvider.count == lookalikes.count
+                ))
+            clauses.append(
+                .init(
+                    kind: .slot,
+                    label:
+                        "\(dayLabel(weekdays)), \(FolderRuleSummary.clock(window.after)) to \(FolderRuleSummary.clock(window.before))",
+                    detail: "Where every one of them started",
+                    isOnByDefault: false
+                ))
         }
         if regulars.count >= 2 {
-            clauses.append(.init(
-                kind: .participants,
-                label: "\(regulars.prefix(2).joined(separator: " and ")) are in it",
-                detail: "On the roster of most of them, not read from the voices",
-                isOnByDefault: false
-            ))
+            clauses.append(
+                .init(
+                    kind: .participants,
+                    label: "\(regulars.prefix(2).joined(separator: " and ")) are in it",
+                    detail: "On the roster of most of them, not read from the voices",
+                    isOnByDefault: false
+                ))
         }
         guard !clauses.isEmpty else { return nil }
 

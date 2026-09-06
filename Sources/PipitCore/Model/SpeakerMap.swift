@@ -250,10 +250,12 @@ public struct SpeakerMap: Codable, Sendable, Equatable {
 
     /// Records a boundary, ignoring one that falls where a boundary already is.
     public mutating func cut(_ cut: LineCut) {
-        guard !lineCuts.contains(where: {
-            $0.track == cut.track && $0.chunkID == cut.chunkID
-                && abs($0.atSeconds - cut.atSeconds) < 0.001
-        }) else { return }
+        guard
+            !lineCuts.contains(where: {
+                $0.track == cut.track && $0.chunkID == cut.chunkID
+                    && abs($0.atSeconds - cut.atSeconds) < 0.001
+            })
+        else { return }
         lineCuts.append(cut)
     }
 
@@ -264,7 +266,7 @@ public struct SpeakerMap: Codable, Sendable, Equatable {
 
     public static func withLocalUser(named name: String) -> SpeakerMap {
         SpeakerMap(entries: [
-            SpeakerLabel.localUser: SpeakerAssignment(displayName: name, origin: .deterministic),
+            SpeakerLabel.localUser: SpeakerAssignment(displayName: name, origin: .deterministic)
         ])
     }
 
@@ -389,7 +391,8 @@ public struct SpeakerMap: Codable, Sendable, Equatable {
     ) {
         guard var existing = entries[key], existing.identityID == nil else { return }
         if let identityName, !identityName.isEmpty,
-           existing.displayName.caseInsensitiveCompare(identityName) != .orderedSame {
+            existing.displayName.caseInsensitiveCompare(identityName) != .orderedSame
+        {
             return
         }
         existing.identityID = identityID
@@ -427,16 +430,17 @@ public struct SpeakerMap: Codable, Sendable, Equatable {
         _ utterance: Utterance, with assignment: SpeakerAssignment, at date: Date
     ) {
         utteranceOverrides.removeAll { $0.covers(utterance) }
-        utteranceOverrides.append(UtteranceOverride(
-            track: utterance.track,
-            anchorSeconds: (utterance.start + utterance.end) / 2,
-            startSeconds: utterance.start,
-            endSeconds: max(utterance.end, utterance.start + 0.001),
-            assignment: assignment,
-            createdAt: date,
-            utteranceID: utterance.id,
-            chunkID: utterance.chunkID
-        ))
+        utteranceOverrides.append(
+            UtteranceOverride(
+                track: utterance.track,
+                anchorSeconds: (utterance.start + utterance.end) / 2,
+                startSeconds: utterance.start,
+                endSeconds: max(utterance.end, utterance.start + 0.001),
+                assignment: assignment,
+                createdAt: date,
+                utteranceID: utterance.id,
+                chunkID: utterance.chunkID
+            ))
     }
 
     public mutating func clearOverride(for utterance: Utterance) {

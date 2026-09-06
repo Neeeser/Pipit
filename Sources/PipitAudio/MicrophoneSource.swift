@@ -80,7 +80,7 @@ public final class MicrophoneSource: MicrophoneEngineController, Sendable {
     /// identity with another's format.
     public func currentInputDevice() -> MicrophoneDeviceDescription? {
         guard let device = CoreAudioSystem.defaultInputDevice(),
-              let uid = CoreAudioSystem.deviceUID(device)
+            let uid = CoreAudioSystem.deviceUID(device)
         else { return nil }
         return MicrophoneDeviceDescription(
             uid: uid,
@@ -215,7 +215,8 @@ public final class MicrophoneSource: MicrophoneEngineController, Sendable {
             // An invalid or zero host time would make every gap look like the
             // machine's uptime and rebuild the engine on every poll. Arrival is
             // what the watchdog measures, so substituting now is correct.
-            let hostTime = when.isHostTimeValid && when.hostTime != 0
+            let hostTime =
+                when.isHostTimeValid && when.hostTime != 0
                 ? HostTime.seconds(when.hostTime)
                 : HostTime.now
             sink(AudioBufferPacket(buffer: copy, hostTime: hostTime))

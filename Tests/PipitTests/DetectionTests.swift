@@ -391,7 +391,7 @@ struct GenericCallDetectorTests {
                 bundleIdentifier: "com.apple.CoreSpeech", processID: 808,
                 holdsMicrophone: true, producesOutput: false,
                 isFrontmost: false, windowTitle: nil
-            ),
+            )
         ]
         for _ in 0..<400 {
             now += 0.5
@@ -436,7 +436,7 @@ struct GenericCallDetectorTests {
                 bundleIdentifier: "com.example.videochat", processID: 4242,
                 holdsMicrophone: true, producesOutput: true,
                 isFrontmost: true, windowTitle: "Team call"
-            ),
+            )
         ]
         _ = detector.update(states: states, at: 100)
         let early = detector.currentEvidence()
@@ -449,13 +449,14 @@ struct GenericCallDetectorTests {
         #expect(promoted.first?.confidence == .confirmed, "the dwell has passed")
 
         // An ignored process never reaches the evidence at all.
-        _ = detector.update(states: [
-            ApplicationAudioState(
-                bundleIdentifier: "com.apple.CoreSpeech", processID: 808,
-                holdsMicrophone: true, producesOutput: false,
-                isFrontmost: false, windowTitle: nil
-            ),
-        ], at: 110)
+        _ = detector.update(
+            states: [
+                ApplicationAudioState(
+                    bundleIdentifier: "com.apple.CoreSpeech", processID: 808,
+                    holdsMicrophone: true, producesOutput: false,
+                    isFrontmost: false, windowTitle: nil
+                )
+            ], at: 110)
         #expect(
             !(detector.currentEvidence().contains { $0.applicationBundleID == "com.apple.CoreSpeech" }),
             "the ignore list keeps system services out entirely"
@@ -471,7 +472,7 @@ struct GenericCallDetectorTests {
                 bundleIdentifier: "com.example.videochat", processID: 4_242,
                 holdsMicrophone: true, producesOutput: true,
                 isFrontmost: true, windowTitle: "Team call"
-            ),
+            )
         ]
         var promoted: GenericCallDetector.Candidate?
         for _ in 0..<40 {
@@ -498,7 +499,7 @@ struct GenericCallDetectorTests {
                     bundleIdentifier: "com.example.videochat", processID: 1,
                     holdsMicrophone: true, producesOutput: false,
                     isFrontmost: true, windowTitle: nil
-                ),
+                )
             ],
             at: 100
         )
@@ -524,7 +525,7 @@ struct GenericCallDetectorTests {
                     bundleIdentifier: "com.openai.chat.helper.Renderer", processID: 1,
                     holdsMicrophone: true, producesOutput: false,
                     isFrontmost: true, windowTitle: nil
-                ),
+                )
             ],
             at: 100
         )
@@ -550,7 +551,7 @@ struct GenericCallDetectorTests {
                             bundleIdentifier: "com.example.videochat", processID: 1,
                             holdsMicrophone: true, producesOutput: true,
                             isFrontmost: true, windowTitle: nil
-                        ),
+                        )
                     ],
                     at: now
                 ) == []
@@ -570,7 +571,7 @@ struct GenericCallDetectorTests {
                 bundleIdentifier: "com.example.videochat", processID: 4_242,
                 holdsMicrophone: true, producesOutput: true,
                 isFrontmost: true, windowTitle: "Team call"
-            ),
+            )
         ]
         _ = detector.update(states: states, at: 100)
         _ = detector.update(states: states, at: 109)
@@ -596,7 +597,8 @@ struct GenericCallDetectorTests {
             MicrophoneIgnoreList.applicationIdentifier(for: "com.openai.chat.helper.Renderer") == "com.openai.chat"
         )
         #expect(
-            MicrophoneIgnoreList.applicationIdentifier(for: "com.tinyspeck.slackmacgap.helper") == "com.tinyspeck.slackmacgap"
+            MicrophoneIgnoreList.applicationIdentifier(for: "com.tinyspeck.slackmacgap.helper")
+                == "com.tinyspeck.slackmacgap"
         )
         // A two-component vendor identifier still normalises: Notion ships
         // as notion.id, with its helpers under notion.id.helper.
@@ -635,7 +637,7 @@ struct GenericCallDetectorTests {
                                 bundleIdentifier: sibling, processID: 1,
                                 holdsMicrophone: true, producesOutput: true,
                                 isFrontmost: true, windowTitle: nil
-                            ),
+                            )
                         ],
                         at: when
                     ) == [],
@@ -661,7 +663,7 @@ struct GenericCallDetectorTests {
                             bundleIdentifier: "com.pipit.app.helper", processID: 1,
                             holdsMicrophone: true, producesOutput: true,
                             isFrontmost: false, windowTitle: nil
-                        ),
+                        )
                     ],
                     at: when
                 ) == []
@@ -686,7 +688,7 @@ struct GenericCallDetectorTests {
                             processID: 1,
                             holdsMicrophone: true, producesOutput: true,
                             isFrontmost: true, windowTitle: nil
-                        ),
+                        )
                     ],
                     at: now
                 ) == []

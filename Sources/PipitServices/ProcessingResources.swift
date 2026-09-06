@@ -1,10 +1,10 @@
 import Foundation
-import Synchronization
 import PipitAudio
 import PipitCore
 import PipitIntegrations
 import PipitLocalAI
 import PipitSpeakers
+import Synchronization
 
 /// Which backends a meeting runs through, resolved per meeting from settings.
 ///
@@ -265,7 +265,8 @@ public struct ProcessingScratch: Sendable {
     public init(root: URL) { self.root = root }
 
     public static func defaultRoot() -> URL {
-        let caches = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first
+        let caches =
+            FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first
             ?? URL(fileURLWithPath: NSTemporaryDirectory())
         return caches.appendingPathComponent("Pipit/processing", isDirectory: true)
     }
@@ -317,13 +318,17 @@ public struct ProcessingScratch: Sendable {
     /// meeting's 16 kHz audio in Caches, once per meeting.
     public func pruneIncomplete() {
         let manager = FileManager.default
-        guard let meetings = try? manager.contentsOfDirectory(
-            at: root, includingPropertiesForKeys: nil, options: [.skipsHiddenFiles]
-        ) else { return }
+        guard
+            let meetings = try? manager.contentsOfDirectory(
+                at: root, includingPropertiesForKeys: nil, options: [.skipsHiddenFiles]
+            )
+        else { return }
         for meeting in meetings where meeting.hasDirectoryPath {
-            guard let files = try? manager.contentsOfDirectory(
-                at: meeting, includingPropertiesForKeys: nil, options: [.skipsHiddenFiles]
-            ) else { continue }
+            guard
+                let files = try? manager.contentsOfDirectory(
+                    at: meeting, includingPropertiesForKeys: nil, options: [.skipsHiddenFiles]
+                )
+            else { continue }
             for file in files where file.lastPathComponent.hasSuffix(".partial.wav") {
                 try? manager.removeItem(at: file)
             }

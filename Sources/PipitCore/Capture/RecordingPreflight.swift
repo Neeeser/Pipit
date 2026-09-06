@@ -87,11 +87,14 @@ public struct PermissionNotice: Equatable, Sendable, Identifiable {
     public var body: String {
         switch single {
         case .microphone:
-            return "Pipit does not have the Microphone permission. Nothing was recorded. Allow it and the recording starts."
+            return
+                "Pipit does not have the Microphone permission. Nothing was recorded. Allow it and the recording starts."
         case .screenRecording:
-            return "Pipit does not have the Screen & System Audio Recording permission. Your microphone is being recorded. The other side of the call is not."
+            return
+                "Pipit does not have the Screen & System Audio Recording permission. Your microphone is being recorded. The other side of the call is not."
         case .accessibility:
-            return "Pipit does not have the Accessibility permission, so Slack huddles are not detected. Recording still works."
+            return
+                "Pipit does not have the Accessibility permission, so Slack huddles are not detected. Recording still works."
         case .some(let kind):
             return "Pipit does not have the \(kind.title) permission."
         case .none:

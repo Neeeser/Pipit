@@ -138,7 +138,8 @@ public enum MeetingFolderName {
             value = value.dropFirst()
         }
         while let last = value.last,
-              last.isWhitespace || last == "." || last == "-" || last == "," || last == ";" {
+            last.isWhitespace || last == "." || last == "-" || last == "," || last == ";"
+        {
             value = value.dropLast()
         }
         return String(value)
@@ -151,7 +152,8 @@ public enum MeetingFolderName {
         let cut = text.index(text.startIndex, offsetBy: titleLimit)
         let head = text[text.startIndex..<cut]
         if let space = head.lastIndex(of: " "),
-           head.distance(from: space, to: head.endIndex) <= wordBoundaryReach {
+            head.distance(from: space, to: head.endIndex) <= wordBoundaryReach
+        {
             return String(head[head.startIndex..<space])
         }
         return String(head)

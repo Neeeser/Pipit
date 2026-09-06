@@ -75,9 +75,10 @@ struct BenchScorerTests {
     /// The keys are `c0`...`c3` rather than the reference names, so the scorer
     /// has the permutation to solve that a real diarizer hands it.
     private static func oracle(_ truth: BenchTruth) -> [BenchUtterance] {
-        let key = Dictionary(uniqueKeysWithValues: truth.speakers.enumerated().map {
-            ($0.element, "c\($0.offset)")
-        })
+        let key = Dictionary(
+            uniqueKeysWithValues: truth.speakers.enumerated().map {
+                ($0.element, "c\($0.offset)")
+            })
         var bySpeaker: [String: [BenchTruth.Word]] = [:]
         for word in truth.words { bySpeaker[word.speaker, default: []].append(word) }
         for key in bySpeaker.keys { bySpeaker[key]?.sort { $0.start < $1.start } }
@@ -116,10 +117,11 @@ struct BenchScorerTests {
             turns.append(BenchTruth.Turn(speaker: speaker, start: base, end: base + 100))
             for step in 0..<200 {
                 let start = base + Double(step) * 0.5
-                words.append(BenchTruth.Word(
-                    start: start, end: start + 0.4,
-                    text: "\(speaker)\(step)", speaker: speaker, truncated: false
-                ))
+                words.append(
+                    BenchTruth.Word(
+                        start: start, end: start + 0.4,
+                        text: "\(speaker)\(step)", speaker: speaker, truncated: false
+                    ))
             }
         }
         let utterances = [
@@ -146,15 +148,17 @@ struct BenchScorerTests {
         for turn in turns {
             for (step, text) in turn.words.enumerated() {
                 let start = turn.start + Double(step)
-                words.append(BenchTruth.Word(
-                    start: start, end: start + 0.5, text: text,
-                    speaker: turn.speaker, truncated: false
-                ))
+                words.append(
+                    BenchTruth.Word(
+                        start: start, end: start + 0.5, text: text,
+                        speaker: turn.speaker, truncated: false
+                    ))
             }
-            spans.append(BenchTruth.Turn(
-                speaker: turn.speaker, start: turn.start,
-                end: turn.start + Double(turn.words.count)
-            ))
+            spans.append(
+                BenchTruth.Turn(
+                    speaker: turn.speaker, start: turn.start,
+                    end: turn.start + Double(turn.words.count)
+                ))
         }
         return BenchTruth(
             meeting: "made", source: "none.wav", windowStart: nil, windowSeconds: seconds,
@@ -277,20 +281,22 @@ struct BenchScorerTests {
         // clock the "yeah" falls between "four" and "five", so a
         // transcript that gets every word right still pays two edits,
         // which the DP takes as two substitutions over that pair.
-        let interleaved = Self.made([
-            ("A", 0, ["one", "two", "three", "four", "five"]),
-            ("B", 3.5, ["yeah"]),
-        ], seconds: 10)
+        let interleaved = Self.made(
+            [
+                ("A", 0, ["one", "two", "three", "four", "five"]),
+                ("B", 3.5, ["yeah"]),
+            ], seconds: 10)
         #expect(
             abs(BenchScorer.orderingFloor(interleaved) - (2.0 / 6.0)) <= 0.0001,
             "expected \(2.0 / 6.0) ± \(0.0001), got \(BenchScorer.orderingFloor(interleaved)) — one interleaved word costs two edits out of six words"
         )
 
-        let sequential = Self.made([
-            ("A", 0, ["one", "two", "three"]),
-            ("B", 4, ["four", "five", "six"]),
-            ("A", 8, ["seven", "eight"]),
-        ], seconds: 12)
+        let sequential = Self.made(
+            [
+                ("A", 0, ["one", "two", "three"]),
+                ("B", 4, ["four", "five", "six"]),
+                ("A", 8, ["seven", "eight"]),
+            ], seconds: 12)
         #expect(
             abs(BenchScorer.orderingFloor(sequential) - 0) <= 0.0001,
             "expected \(0) ± \(0.0001), got \(BenchScorer.orderingFloor(sequential)) — turns that do not interleave read the same both ways"
@@ -299,10 +305,12 @@ struct BenchScorerTests {
         // The floor comes off wer and never takes it below zero.
         let score = BenchScorer.score(
             truth: sequential,
-            utterances: [BenchUtterance(
-                start: 0, end: 12, text: "one two three four five six seven eight",
-                speakerKey: "c0"
-            )]
+            utterances: [
+                BenchUtterance(
+                    start: 0, end: 12, text: "one two three four five six seven eight",
+                    speakerKey: "c0"
+                )
+            ]
         )
         #expect(
             abs(score.orderingFloorWer - 0) <= 0.0001,
@@ -331,15 +339,18 @@ struct BenchScorerTests {
         // words, all on one key. Serialized WER reads it as perfect.
         // Per speaker, A's stream carries four insertions and B's four
         // deletions: eight edits over eight reference words.
-        let truth = Self.made([
-            ("A", 0, ["a1", "a2", "a3", "a4"]),
-            ("B", 4, ["b1", "b2", "b3", "b4"]),
-        ], seconds: 10)
+        let truth = Self.made(
+            [
+                ("A", 0, ["a1", "a2", "a3", "a4"]),
+                ("B", 4, ["b1", "b2", "b3", "b4"]),
+            ], seconds: 10)
         let score = BenchScorer.score(
             truth: truth,
-            utterances: [BenchUtterance(
-                start: 0, end: 8, text: "a1 a2 a3 a4 b1 b2 b3 b4", speakerKey: "c0"
-            )]
+            utterances: [
+                BenchUtterance(
+                    start: 0, end: 8, text: "a1 a2 a3 a4 b1 b2 b3 b4", speakerKey: "c0"
+                )
+            ]
         )
         #expect(
             abs(score.wer - 0) <= 0.0001,
@@ -359,12 +370,13 @@ struct BenchScorerTests {
         // transcript never writes B's overlapped four. Attribution
         // scores the easy half and says so; cpWER charges the four
         // missing words as deletions on B's stream.
-        let truth = Self.made([
-            ("A", 0, ["a1", "a2", "a3", "a4"]),
-            ("B", 4, ["b1", "b2", "b3", "b4"]),
-            ("A", 8, ["a5", "a6", "a7", "a8"]),
-            ("B", 8, ["b5", "b6", "b7", "b8"]),
-        ], seconds: 12)
+        let truth = Self.made(
+            [
+                ("A", 0, ["a1", "a2", "a3", "a4"]),
+                ("B", 4, ["b1", "b2", "b3", "b4"]),
+                ("A", 8, ["a5", "a6", "a7", "a8"]),
+                ("B", 8, ["b5", "b6", "b7", "b8"]),
+            ], seconds: 12)
         let score = BenchScorer.score(
             truth: truth,
             utterances: [
@@ -393,9 +405,11 @@ struct BenchScorerTests {
         let truth = Self.made([("A", 0, ["a1", "a2", "a3", "a4"])], seconds: 30)
         let late = BenchScorer.score(
             truth: truth,
-            utterances: [BenchUtterance(
-                start: 20, end: 24, text: "a1 a2 a3 a4", speakerKey: "c0"
-            )]
+            utterances: [
+                BenchUtterance(
+                    start: 20, end: 24, text: "a1 a2 a3 a4", speakerKey: "c0"
+                )
+            ]
         )
         let lateCpWer = try #require(late.cpWer)
         #expect(abs(lateCpWer - 0) <= 0.0001, "expected \(0) ± \(0.0001), got \(lateCpWer)")
@@ -407,9 +421,11 @@ struct BenchScorerTests {
 
         let punctual = BenchScorer.score(
             truth: truth,
-            utterances: [BenchUtterance(
-                start: 0, end: 4, text: "a1 a2 a3 a4", speakerKey: "c0"
-            )]
+            utterances: [
+                BenchUtterance(
+                    start: 0, end: 4, text: "a1 a2 a3 a4", speakerKey: "c0"
+                )
+            ]
         )
         let punctualTcpWer = try #require(punctual.tcpWer)
         #expect(
@@ -423,12 +439,13 @@ struct BenchScorerTests {
         // Sixteen words. The first eight are spoken alone, the last
         // eight across each other, so attribution is asked about half
         // the meeting and says so.
-        let truth = Self.made([
-            ("A", 0, ["a1", "a2", "a3", "a4"]),
-            ("B", 4, ["b1", "b2", "b3", "b4"]),
-            ("A", 8, ["a5", "a6", "a7", "a8"]),
-            ("B", 8, ["b5", "b6", "b7", "b8"]),
-        ], seconds: 12)
+        let truth = Self.made(
+            [
+                ("A", 0, ["a1", "a2", "a3", "a4"]),
+                ("B", 4, ["b1", "b2", "b3", "b4"]),
+                ("A", 8, ["a5", "a6", "a7", "a8"]),
+                ("B", 8, ["b5", "b6", "b7", "b8"]),
+            ], seconds: 12)
         let score = BenchScorer.score(
             truth: truth,
             utterances: [
@@ -457,9 +474,11 @@ struct BenchScorerTests {
         let truth = Self.made([("A", 0, ["okay", "um", "the", "budget", "is", "fine"])], seconds: 8)
         let score = BenchScorer.score(
             truth: truth,
-            utterances: [BenchUtterance(
-                start: 0, end: 6, text: "the budget is fine", speakerKey: "c0"
-            )]
+            utterances: [
+                BenchUtterance(
+                    start: 0, end: 6, text: "the budget is fine", speakerKey: "c0"
+                )
+            ]
         )
         #expect(
             abs(score.wer - (2.0 / 6.0)) <= 0.0001,
@@ -499,11 +518,12 @@ struct BenchScorerTests {
     func aCaseReportsHowDenselyItsWindowIsSpoken() async throws {
         // Eight seconds of speech in a twenty second window, twelve
         // words in it.
-        let truth = Self.made([
-            ("A", 0, ["a1", "a2", "a3", "a4"]),
-            ("B", 6, ["b1", "b2", "b3", "b4"]),
-            ("A", 6, ["a5", "a6", "a7", "a8"]),
-        ], seconds: 20)
+        let truth = Self.made(
+            [
+                ("A", 0, ["a1", "a2", "a3", "a4"]),
+                ("B", 6, ["b1", "b2", "b3", "b4"]),
+                ("A", 6, ["a5", "a6", "a7", "a8"]),
+            ], seconds: 20)
         let score = BenchScorer.score(
             truth: truth,
             utterances: [BenchUtterance(start: 0, end: 4, text: "a1", speakerKey: "c0")]
@@ -525,10 +545,11 @@ struct BenchScorerTests {
         let ties = Self.tiesCase()
         var seen: [BenchScorer.Mapping] = []
         for _ in 0..<8 {
-            seen.append(BenchScorer.bestMapping(
-                pairs: ties.pairs, referenceSpeakers: ties.speakers,
-                hypothesisKeys: ties.keys
-            ))
+            seen.append(
+                BenchScorer.bestMapping(
+                    pairs: ties.pairs, referenceSpeakers: ties.speakers,
+                    hypothesisKeys: ties.keys
+                ))
         }
         let expected = ["c0": "A", "c2": "B", "c4": "C", "c6": "D"]
         for mapping in seen {
@@ -675,9 +696,11 @@ struct BenchScorerTests {
                 // The fetch script names the downloaded file after the
                 // last path component of its URL, and the truth's
                 // `source` is what the harness then looks for.
-                let url = manifest.audioURL?[meeting]
+                let url =
+                    manifest.audioURL?[meeting]
                     ?? manifest.mirror.replacingOccurrences(of: "{meeting}", with: meeting)
-                let saved = manifest.audioFilename?[meeting]
+                let saved =
+                    manifest.audioFilename?[meeting]
                     ?? URL(string: url)?.lastPathComponent
                 #expect(
                     saved == truth.source,

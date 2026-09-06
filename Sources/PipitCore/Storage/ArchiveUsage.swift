@@ -34,8 +34,9 @@ extension MeetingRepository {
         var usage = ArchiveUsage(freeBytes: Self.freeBytes(on: archive.root))
         for directory in meetingDirectories() {
             usage.bytes += Self.allocatedBytes(of: directory)
-            guard let metadata = try? MeetingStore(layout: MeetingLayout(root: directory))
-                .readMetadata()
+            guard
+                let metadata = try? MeetingStore(layout: MeetingLayout(root: directory))
+                    .readMetadata()
             else { continue }
             if metadata.mergedIntoMeetingID == nil { usage.meetingCount += 1 }
         }
@@ -44,9 +45,11 @@ extension MeetingRepository {
 
     static func allocatedBytes(of directory: URL) -> Int64 {
         let keys: [URLResourceKey] = [.totalFileAllocatedSizeKey, .isRegularFileKey]
-        guard let enumerator = FileManager.default.enumerator(
-            at: directory, includingPropertiesForKeys: keys
-        ) else { return 0 }
+        guard
+            let enumerator = FileManager.default.enumerator(
+                at: directory, includingPropertiesForKeys: keys
+            )
+        else { return 0 }
         var total: Int64 = 0
         for case let file as URL in enumerator {
             let values = try? file.resourceValues(forKeys: Set(keys))

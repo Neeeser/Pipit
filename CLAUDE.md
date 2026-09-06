@@ -14,7 +14,15 @@ Line Tools problems. `scripts/test.sh` wraps `swift test --no-parallel`.
 ./scripts/test.sh
 ./scripts/test.sh --filter Name
 ./scripts/bundle-app.sh debug
+./scripts/lint.sh
+./scripts/format.sh
+xcodegen generate
 ```
+
+`scripts/lint.sh` checks formatting and SwiftLint rules without changing files.
+`scripts/format.sh` rewrites the sources in place to satisfy that check.
+`xcodegen generate` rewrites `Pipit.xcodeproj` after an edit to `project.yml`,
+and CI fails on a project that does not match.
 
 Run the browser sensor checks after changing `extension/`:
 
@@ -22,7 +30,7 @@ Run the browser sensor checks after changing `extension/`:
 (cd extension && npm test && npm run build)
 ```
 
-Before finishing a change, run `./scripts/test.sh` and
+Before finishing a change, run `./scripts/lint.sh`, `./scripts/test.sh`, and
 `(cd extension && npm test)`.
 
 Run `./scripts/check-offline.sh` after changing model installation or code that
