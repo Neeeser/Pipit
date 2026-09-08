@@ -64,9 +64,6 @@ struct MeetingTranscriptView: View {
                 )
                 .frame(maxWidth: 360)
             }
-            Text("The audio is already on disk. Closing this window changes nothing.")
-                .font(.caption)
-                .foregroundStyle(.secondary)
             Spacer()
         }
         .padding(.horizontal, 20)

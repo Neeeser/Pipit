@@ -297,7 +297,7 @@ public struct VoiceEnrollmentView: View {
     @ViewBuilder private var state: some View {
         switch model.phase {
         case .idle:
-            Text("Nothing is recorded until you press Start.")
+            Text("Recording starts when you press Start.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .frame(height: 44, alignment: .topLeading)

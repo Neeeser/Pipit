@@ -12,17 +12,10 @@ struct GeneralSettingsPane: View {
                 Toggle("Show notifications", isOn: model.binding(\.showNotifications))
                 VStack(alignment: .leading, spacing: 2) {
                     Toggle("Show in Dock", isOn: model.binding(\.showsDockIcon))
-                    Text("The menu bar item stays either way.")
+                    Text("Off keeps Pipit in the menu bar only.")
                         .font(.caption).foregroundStyle(.secondary)
                 }
-                VStack(alignment: .leading, spacing: 2) {
-                    Toggle("Receive beta updates", isOn: model.binding(\.receivesBetaUpdates))
-                    Text(
-                        "Betas carry work that is not finished. A 0.x build receives "
-                            + "them already. The setting starts deciding at 1.0."
-                    )
-                    .font(.caption).foregroundStyle(.secondary)
-                }
+                Toggle("Beta updates", isOn: model.binding(\.receivesBetaUpdates))
                 Toggle(
                     "Pause automatic detection",
                     isOn: Binding(

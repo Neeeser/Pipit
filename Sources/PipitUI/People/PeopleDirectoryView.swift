@@ -260,9 +260,6 @@ public struct PeopleDirectoryView: View {
         } else {
             VStack(spacing: 6) {
                 Text("Select someone").font(.title3)
-                Text("Their voice profile, notes and meeting history appear here.")
-                    .font(.callout)
-                    .foregroundStyle(.secondary)
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         }

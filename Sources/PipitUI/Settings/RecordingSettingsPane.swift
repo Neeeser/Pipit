@@ -25,22 +25,15 @@ struct RecordingSettingsPane: View {
                     choices: Self.endGraceChoices,
                     keyPath: \.meetingEndGraceSeconds
                 )
-                Text(
-                    "How long the call has to be gone before recording pauses. A short wait "
-                        + "ends a meeting sooner, and a call that flickers for a moment can cut "
-                        + "the recording."
-                )
-                .font(.caption).foregroundStyle(.secondary)
+                Text("How long the call has to be gone before recording pauses.")
+                    .font(.caption).foregroundStyle(.secondary)
                 waitRow(
                     "Wait for a rejoin before saving",
                     choices: Self.reconnectWindowChoices,
                     keyPath: \.meetingReconnectWindowSeconds
                 )
-                Text(
-                    "Nothing is recorded during this wait. Rejoining within it continues the "
-                        + "same meeting; rejoining after it starts a new one."
-                )
-                .font(.caption).foregroundStyle(.secondary)
+                Text("Rejoining within this window continues the same meeting.")
+                    .font(.caption).foregroundStyle(.secondary)
             }
             Section("Applications") {
                 appList(

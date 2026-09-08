@@ -2,7 +2,8 @@ import PipitCore
 import PipitServices
 import SwiftUI
 
-struct CloudSettingsPane: View {
+/// The OpenAI key and what it is used for.
+struct AIFeaturesSettingsPane: View {
     let model: SettingsModel
     private var runtime: PipitRuntime { model.runtime }
 
@@ -19,35 +20,25 @@ struct CloudSettingsPane: View {
                     case .idle: EmptyView()
                     case .testing: ProgressView().controlSize(.small)
                     case .success:
-                        Label("Key and model access confirmed", systemImage: "checkmark.circle.fill")
+                        Label("The key works", systemImage: "checkmark.circle.fill")
                             .foregroundStyle(.green).font(.caption)
                     case .failure(let message):
                         Label(message, systemImage: "xmark.circle.fill")
                             .foregroundStyle(.red).font(.caption)
                     }
                 }
-                Text(
-                    "The key is stored in the macOS keychain. Spend and usage are not readable "
-                        + "through a project key, so use the OpenAI dashboard to review them."
-                )
-                .font(.caption).foregroundStyle(.secondary)
-                Link(
-                    "Open the OpenAI dashboard",
-                    destination: URL(string: "https://platform.openai.com/usage")!
-                )
-                .font(.caption)
+                Text("Stored in the macOS keychain.")
+                    .font(.caption).foregroundStyle(.secondary)
             }
-            Section("Models") {
+            Section("Model") {
                 metadataModelRow()
             }
-            Section("Enrichment") {
+            Section("Features") {
                 enrichmentToggle("Generate a title", keyPath: \.generateTitle)
                 enrichmentToggle("Generate a description", keyPath: \.generateDescription)
                 enrichmentToggle("Generate notes", keyPath: \.generateNotes)
                 enrichmentToggle("Generate a summary", keyPath: \.generateSummary)
                 enrichmentToggle("Suggest speaker names", keyPath: \.suggestSpeakers)
-                Text("Recording and transcription work with all of these disabled.")
-                    .font(.caption).foregroundStyle(.secondary)
             }
         }
         .formStyle(.grouped)
@@ -64,7 +55,7 @@ struct CloudSettingsPane: View {
     private func metadataModelRow() -> some View {
         let current = runtime.settings.models.metadata
         let isPreset = AIModelSettings.metadataChoices.contains(current)
-        return LabeledContent("Metadata") {
+        return LabeledContent("Model") {
             VStack(alignment: .trailing, spacing: 2) {
                 Picker(
                     "",

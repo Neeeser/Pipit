@@ -4,9 +4,6 @@ about: Report something Pipit does wrong
 labels: bug
 ---
 
-Do not paste transcripts, recordings, or the names of people on a real call.
-Describe the problem with synthetic examples.
-
 ## What happened
 
 ## What you expected

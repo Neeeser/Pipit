@@ -45,11 +45,8 @@ struct StorageSettingsPane: View {
                     LabeledContent("Database") {
                         Text("\(max(1, statistics.storageBytes / 1_024)) KB")
                     }
-                    Text(
-                        "Stored on this Mac only. They are never uploaded and never written "
-                            + "into a meeting folder or an export."
-                    )
-                    .font(.caption).foregroundStyle(.secondary)
+                    Text("Stored on this Mac.")
+                        .font(.caption).foregroundStyle(.secondary)
                 }
             }
             Section("Speech models") {

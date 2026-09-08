@@ -9,7 +9,7 @@ enum SettingsPane: String, CaseIterable, Identifiable {
     case general
     case recording
     case processing
-    case cloud
+    case aiFeatures
     case browsers
     case folders
     case storage
@@ -22,7 +22,7 @@ enum SettingsPane: String, CaseIterable, Identifiable {
         case .general: "General"
         case .recording: "Recording"
         case .processing: "Processing"
-        case .cloud: "Cloud"
+        case .aiFeatures: "AI Features"
         case .browsers: "Browsers"
         case .folders: "Folders"
         case .storage: "Storage"
@@ -35,7 +35,7 @@ enum SettingsPane: String, CaseIterable, Identifiable {
         case .general: "gearshape"
         case .recording: "record.circle"
         case .processing: "waveform.badge.magnifyingglass"
-        case .cloud: "sparkles"
+        case .aiFeatures: "sparkles"
         case .browsers: "globe"
         case .folders: "folder.badge.gearshape"
         case .storage: "internaldrive"
@@ -76,7 +76,7 @@ public struct SettingsView: View {
         case .general: GeneralSettingsPane(model: model)
         case .recording: RecordingSettingsPane(model: model)
         case .processing: ProcessingSettingsPane(model: model)
-        case .cloud: CloudSettingsPane(model: model)
+        case .aiFeatures: AIFeaturesSettingsPane(model: model)
         case .browsers: BrowsersSettingsPane(model: model)
         case .folders: FoldersSettingsPane(model: model)
         case .storage: StorageSettingsPane(model: model)

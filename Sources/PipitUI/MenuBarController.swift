@@ -449,7 +449,7 @@ public final class MenuBarController: NSObject, NSMenuDelegate {
         menu.addItem(Self.informationItem("  \(title)"))
         menu.addItem(
             Self.informationItem(
-                "  Recording is paused. It resumes if the meeting comes back, and ends after 90 seconds."))
+                "  Paused. Ends in 90 seconds unless the meeting comes back."))
 
         menu.addItem(.separator())
         let stop = NSMenuItem(title: "End Meeting Now", action: #selector(stopRecording), keyEquivalent: "")
@@ -538,7 +538,7 @@ public final class MenuBarController: NSObject, NSMenuDelegate {
     @objc private func addNote() {
         let alert = NSAlert()
         alert.messageText = "Add a note to this meeting"
-        alert.informativeText = "Notes are saved with the recording and are used as context during enrichment."
+        alert.informativeText = "Saved with the meeting."
         let field = NSTextField(frame: NSRect(x: 0, y: 0, width: 320, height: 24))
         field.placeholderString = "Decision, action item, or context"
         alert.accessoryView = field
@@ -556,7 +556,7 @@ public final class MenuBarController: NSObject, NSMenuDelegate {
         panel.allowsMultipleSelection = false
         panel.canChooseDirectories = false
         panel.allowedContentTypes = [.audio, .movie, .mpeg4Movie, .mp3, .wav, .aiff]
-        panel.message = "Choose a recording to import. The original file is copied and left unchanged."
+        panel.message = "Choose a recording to import."
         panel.prompt = "Import"
         NSApp.activate(ignoringOtherApps: true)
         guard panel.runModal() == .OK, let url = panel.url else { return }
