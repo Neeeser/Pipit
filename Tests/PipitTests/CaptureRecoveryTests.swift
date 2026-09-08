@@ -1223,6 +1223,36 @@ struct MicrophoneRecoveryCoordinatorTests {
         #expect(coordinator.restartCount == 1)
     }
 
+    @Test("a wake noted while capture is idle does not rebuild the next session")
+    func aWakeNotedWhileCaptureIsIdleDoesNotRebuildTheNextSession() async throws {
+        // The wake observer runs for the life of the process, and polling
+        // runs only while capture is armed. A wake with nothing running was
+        // written down all the same, nothing ever read it, and the first
+        // poll of the next session, hours later, ran a wake rebuild against
+        // an engine built seconds earlier: a `wake` restart 0.7 s after
+        // `session_start` in the manifest, and a gap in the pre-roll.
+        let engine = FakeMicrophoneEngine()
+        let clock = ManualClock()
+        let delegate = RecordingCaptureDelegate()
+        let coordinator = MicrophoneRecoveryCoordinator(
+            controller: engine, clock: clock, delegate: delegate
+        )
+
+        coordinator.noteWake()
+        clock.advance(3 * 60 * 60)
+
+        coordinator.start()
+        coordinator.noteBufferArrived(hostTime: clock.monotonicSeconds)
+        for _ in 0..<4 {
+            clock.advance(0.5)
+            coordinator.tick()
+            coordinator.noteBufferArrived(hostTime: clock.monotonicSeconds)
+        }
+
+        #expect(coordinator.restartCount == 0, "restarts: \(delegate.restarts.map(\.reason))")
+        #expect(engine.buildCount == 1)
+    }
+
     @Test("a looping rebuild is warned about, a single one is not")
     func aLoopingRebuildIsWarnedAboutASingleOneIsNot() async throws {
         let engine = FakeMicrophoneEngine()
@@ -1456,6 +1486,29 @@ struct RemoteTapCoordinatorTests {
         // reachable without hardcoding which process holds it.
         #expect(coordinator.boundProcessIDs == [500, 501])
         #expect(tap.bindCount == 1)
+    }
+
+    @Test("a wake noted while the tap is idle does not rebind the next session")
+    func aWakeNotedWhileTheTapIsIdleDoesNotRebindTheNextSession() async throws {
+        // The same stale wake, on the far end: the manifest showed a `wake`
+        // rebind of the tap 0.7 s after session start, hours after the Mac
+        // last woke.
+        let tap = FakeProcessTap()
+        let clock = ManualClock()
+        let delegate = RecordingCaptureDelegate()
+        let coordinator = RemoteTapCoordinator(controller: tap, clock: clock, delegate: delegate)
+        tap.setTargets([makeTarget(pid: 500, producing: true)])
+
+        coordinator.noteWake()
+        clock.advance(3 * 60 * 60)
+
+        coordinator.start(bundlePrefixes: ["org.mozilla.firefox"])
+        for _ in 0..<4 {
+            clock.advance(0.5)
+            coordinator.tick()
+        }
+
+        #expect(tap.bindCount == 1, "binds: \(delegate.remoteBinds.map(\.reason))")
     }
 
     @Test("what the tap's first callback read is written down once per bind")

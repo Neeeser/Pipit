@@ -161,8 +161,16 @@ public final class RemoteTapCoordinator: Sendable {
         bind(reason: .targetChanged)
     }
 
+    /// System wake. Only while the tap runs: a wake noted with nothing
+    /// running was read by the first poll of the next session and rebound a
+    /// tap bound seconds earlier, and that session's own bind already read
+    /// the targets fresh.
     public func noteWake() {
-        state.withLock { $0.wakeRequestedAt = clock.monotonicSeconds }
+        let now = clock.monotonicSeconds
+        state.withLock { state in
+            guard state.policy.isRunning else { return }
+            state.wakeRequestedAt = now
+        }
     }
 
     public func tick() {

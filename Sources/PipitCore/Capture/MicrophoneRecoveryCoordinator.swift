@@ -368,9 +368,18 @@ public final class MicrophoneRecoveryCoordinator: Sendable {
 
     /// System wake. The rebuild is deferred by the settle delay because the audio
     /// stack is still re-enumerating devices immediately after wake.
+    ///
+    /// Only while capture runs. The observer lives as long as the process and
+    /// polling runs only while capture is armed, so a wake noted with nothing
+    /// running was read by the first poll of the next session, hours later,
+    /// and rebuilt an engine built seconds earlier. That session reads the
+    /// device fresh when it starts, which is all the wake asked for.
     public func noteWake() {
         let now = clock.monotonicSeconds
-        state.withLock { $0.wakeRequestedAt = now }
+        state.withLock { state in
+            guard state.policy.isRunning else { return }
+            state.wakeRequestedAt = now
+        }
     }
 
     /// Poll. Call every `thresholds.pollInterval`.
