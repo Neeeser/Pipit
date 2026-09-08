@@ -142,9 +142,12 @@ struct MicrophoneRecoveryCoordinatorTests {
         #expect(coordinator.activeFormat == AudioFormatDescriptor(sampleRate: 48_000, channelCount: 3))
 
         // Headphones disconnecting emitted seven topology events in 0.55 s,
-        // one of which described the device mid-teardown.
+        // one of which described the device mid-teardown. The default input
+        // falls back to another device, so the settled change is a switch
+        // and not the footprint of the engine already running.
         engine.queueFormatReadings([AudioFormatDescriptor(sampleRate: 0, channelCount: 0)])
         engine.setSteadyFormat(AudioFormatDescriptor(sampleRate: 48_000, channelCount: 3))
+        engine.setDeviceUID("built-in")
         for _ in 0..<7 {
             coordinator.noteConfigurationChange()
             clock.advance(0.08)
@@ -321,6 +324,78 @@ struct MicrophoneRecoveryCoordinatorTests {
             coordinator.restartCount >= 3,
             "it still tries before it waits: got \(coordinator.restartCount)"
         )
+    }
+
+    @Test("a change the build itself emits does not rebuild a working engine")
+    func aChangeTheBuildItselfEmitsDoesNotRebuildAWorkingEngine() async throws {
+        // Measured on 2026-09-08 with a standalone engine: pointing the input
+        // unit at the default input device makes AVAudioEngine post one
+        // configuration change about 45 ms after start, on every build, and
+        // a plain build posts none. The engine then delivers audio as normal.
+        // Honoured, that change rebuilt the engine at the debounce cadence
+        // for a whole meeting: 1,333 rebuilds in 22 minutes, each one a
+        // 200 ms hole in the microphone track. The silent-engine bound never
+        // engaged because audio was arriving between rebuilds.
+        //
+        // A change that reports the device the engine was just built on, at
+        // the rate and channel count it was built at, while that engine is
+        // delivering, describes nothing that needs rebuilding.
+        let engine = FakeMicrophoneEngine()
+        let clock = ManualClock()
+        let coordinator = MicrophoneRecoveryCoordinator(
+            controller: engine, clock: clock, delegate: RecordingCaptureDelegate()
+        )
+        engine.setSteadyFormat(AudioFormatDescriptor(sampleRate: 48_000, channelCount: 3))
+        coordinator.start()
+
+        var buildsSeen = 0
+        for _ in 0..<120 {
+            if engine.buildCount > buildsSeen {
+                buildsSeen = engine.buildCount
+                // What the build sends back, ahead of its first buffer.
+                coordinator.noteConfigurationChange()
+            }
+            coordinator.noteBufferArrived(hostTime: clock.monotonicSeconds + 0.09)
+            clock.advance(0.5)
+            coordinator.tick()
+        }
+
+        #expect(
+            coordinator.restartCount == 0,
+            "the build's own change rebuilt a working engine \(coordinator.restartCount) times in a minute"
+        )
+        #expect(coordinator.health == .healthy)
+        #expect(coordinator.warnings() == [])
+    }
+
+    @Test("a change that names another device or format is still taken while audio flows")
+    func aChangeThatNamesAnotherDeviceOrFormatIsStillTakenWhileAudioFlows() async throws {
+        // The footprint rule must not swallow a real switch. A headset plugged
+        // in while the built-in microphone is delivering is a different
+        // identity, and a device renegotiating its rate is the same identity
+        // at a different format. Each is rebuilt once.
+        let engine = FakeMicrophoneEngine()
+        let clock = ManualClock()
+        let coordinator = MicrophoneRecoveryCoordinator(
+            controller: engine, clock: clock, delegate: RecordingCaptureDelegate()
+        )
+        engine.setSteadyFormat(AudioFormatDescriptor(sampleRate: 48_000, channelCount: 3))
+        coordinator.start()
+        coordinator.noteBufferArrived(hostTime: clock.monotonicSeconds)
+
+        engine.setDeviceUID("usb-headset")
+        coordinator.noteConfigurationChange()
+        clock.advance(0.5)
+        coordinator.tick()
+        #expect(coordinator.restartCount == 1, "a different device is a switch")
+        coordinator.noteBufferArrived(hostTime: clock.monotonicSeconds)
+
+        engine.setSteadyFormat(AudioFormatDescriptor(sampleRate: 16_000, channelCount: 1))
+        coordinator.noteConfigurationChange()
+        clock.advance(0.5)
+        coordinator.tick()
+        #expect(coordinator.restartCount == 2, "the same device at a new rate is a renegotiation")
+        #expect(coordinator.activeFormat == AudioFormatDescriptor(sampleRate: 16_000, channelCount: 1))
     }
 
     @Test("a device that returns while builds are failing is rebuilt on the next poll")
@@ -1159,14 +1234,17 @@ struct MicrophoneRecoveryCoordinatorTests {
         coordinator.noteBufferArrived(hostTime: clock.monotonicSeconds)
 
         // One device switch that recovers is normal and silent.
+        engine.setDeviceUID("headset")
         coordinator.noteConfigurationChange()
         clock.advance(0.5)
         coordinator.tick()
         coordinator.noteBufferArrived(hostTime: clock.monotonicSeconds)
         #expect(coordinator.warnings() == [])
 
-        // Four rebuilds inside a minute is a loop.
-        for _ in 0..<4 {
+        // Four rebuilds inside a minute is a loop. Each change names a
+        // different device, so each one is a switch the coordinator takes.
+        for step in 0..<4 {
+            engine.setDeviceUID("device-\(step)")
             coordinator.noteConfigurationChange()
             clock.advance(0.5)
             coordinator.tick()
