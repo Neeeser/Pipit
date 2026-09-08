@@ -141,6 +141,13 @@ public final class MicrophoneRecoveryCoordinator: Sendable {
         var activeFormat: AudioFormatDescriptor?
         /// The device the installed engine was built on, by identity.
         var activeDeviceUID: String?
+        /// The same device as CoreAudio described it right after the build:
+        /// identity, rate and channel count. A configuration change that
+        /// reads back exactly this, while the engine is delivering, is the
+        /// build's own footprint and not a reason to rebuild.
+        var activeDevice: MicrophoneDeviceDescription?
+        /// Configuration changes answered by leaving a working engine alone.
+        var footprintChangesIgnored = 0
         /// Whether `buildAndStart` has returned since the last rebuild was
         /// decided. The one fact a buffer and an implied health state are
         /// evidence about; inferred before from the wait's cause and from a
@@ -256,6 +263,9 @@ public final class MicrophoneRecoveryCoordinator: Sendable {
     public var activeFormat: AudioFormatDescriptor? { state.withLock { $0.activeFormat } }
     public var restartCount: Int { state.withLock { $0.policy.restartCount } }
     public var suppressedWatchdogTrips: Int { state.withLock { $0.policy.suppressedWatchdogTrips } }
+    /// Configuration changes that reported the device the engine was built
+    /// on while that engine was delivering, and so rebuilt nothing.
+    public var footprintChangesIgnored: Int { state.withLock { $0.footprintChangesIgnored } }
 
     /// Starts capture. Safe to call once; further starts are rebuilds.
     public func start() {
@@ -275,6 +285,7 @@ public final class MicrophoneRecoveryCoordinator: Sendable {
             state.wakeRequestedAt = nil
             state.activeFormat = nil
             state.activeDeviceUID = nil
+            state.activeDevice = nil
             state.engineInstalled = false
         }
         controller.teardown()
@@ -357,9 +368,18 @@ public final class MicrophoneRecoveryCoordinator: Sendable {
 
     /// System wake. The rebuild is deferred by the settle delay because the audio
     /// stack is still re-enumerating devices immediately after wake.
+    ///
+    /// Only while capture runs. The observer lives as long as the process and
+    /// polling runs only while capture is armed, so a wake noted with nothing
+    /// running was read by the first poll of the next session, hours later,
+    /// and rebuilt an engine built seconds earlier. That session reads the
+    /// device fresh when it starts, which is all the wake asked for.
     public func noteWake() {
         let now = clock.monotonicSeconds
-        state.withLock { $0.wakeRequestedAt = now }
+        state.withLock { state in
+            guard state.policy.isRunning else { return }
+            state.wakeRequestedAt = now
+        }
     }
 
     /// Poll. Call every `thresholds.pollInterval`.
@@ -418,6 +438,21 @@ public final class MicrophoneRecoveryCoordinator: Sendable {
         switch decision {
         case .none:
             refreshHealth(at: now)
+        case .rebuild(.configurationChange) where isBuildFootprint(at: now):
+            // Measured on 2026-09-08: pointing the input unit at the default
+            // input device makes AVAudioEngine post one configuration change
+            // about 45 ms after every start, and the engine then delivers as
+            // normal. Rebuilt on it, the engine posted another, and the
+            // microphone was torn down once a second for a whole meeting,
+            // 1,333 times in 22 minutes, with 200 ms of silence written at
+            // each one. The bound on silent engines never engaged, because
+            // audio arrived between the rebuilds. A change that reads back
+            // the device this engine was built on, at the rate and channel
+            // count it was built at, while the engine is delivering, asks for
+            // nothing. A device that changed underneath a running engine
+            // reads differently here, or stops delivering and meets the
+            // watchdog.
+            refreshHealth(at: now)
         case .rebuild(let reason):
             rebuild(reason: reason, isInitial: false)
             // Whether or not the rebuild ran. While a wait refuses one on
@@ -445,6 +480,28 @@ public final class MicrophoneRecoveryCoordinator: Sendable {
             }
             return warnings
         }
+    }
+
+    /// Whether a settled configuration change describes the engine that is
+    /// running: same device by identity, rate and channel count, and buffers
+    /// arriving from it. `evaluate` has already consumed the pending change,
+    /// so returning true leaves nothing armed.
+    private func isBuildFootprint(at now: Double) -> Bool {
+        let active: MicrophoneDeviceDescription? = state.withLock { state in
+            guard state.engineInstalled, state.policy.health(at: now) == .healthy else { return nil }
+            return state.activeDevice
+        }
+        guard let active, let current = controller.currentInputDevice(), current == active else {
+            return false
+        }
+        let ignored = state.withLock { state in
+            state.footprintChangesIgnored += 1
+            return state.footprintChangesIgnored
+        }
+        Log.capture.notice(
+            "configuration change names the running device while it delivers, left alone (\(ignored, privacy: .public) so far)"
+        )
+        return true
     }
 
     private func refreshHealth(at now: Double) {
@@ -542,6 +599,7 @@ public final class MicrophoneRecoveryCoordinator: Sendable {
             // engine has been recorded.
             state.engineInstalled = false
             state.activeDeviceUID = nil
+            state.activeDevice = nil
             state.buildCommittedAt = now
             // Whatever wait this rebuild was allowed past is spent: expired, or
             // admitted. Left in place it was still there to be forgiven by a
@@ -583,7 +641,8 @@ public final class MicrophoneRecoveryCoordinator: Sendable {
             let installed = build.format
             // Read after the build, so it names the device the engine is on.
             let deviceUID = controller.currentInputDeviceUID()
-            if let device = controller.currentInputDevice() {
+            let device = controller.currentInputDevice()
+            if let device {
                 // Both readings, because they answer different questions. The
                 // device is what this build asked for; the build's format is
                 // what the node reported afterwards, which is what the segments
@@ -600,6 +659,7 @@ public final class MicrophoneRecoveryCoordinator: Sendable {
             state.withLock { state in
                 state.activeFormat = installed
                 state.activeDeviceUID = deviceUID
+                state.activeDevice = device
                 state.engineInstalled = true
                 if !isInitial { state.policy.noteRebuildSucceeded() }
                 // This build read the device fresh, which is all a change that
