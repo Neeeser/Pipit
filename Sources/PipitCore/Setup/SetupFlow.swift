@@ -9,6 +9,7 @@ public enum SetupStepID: String, Sendable, CaseIterable, Identifiable {
     case screenRecording
     case accessibility
     case optionalPermissions
+    case aiFeatures
     case firefox
     case finish
 
@@ -24,6 +25,7 @@ public enum SetupStepID: String, Sendable, CaseIterable, Identifiable {
         case .screenRecording: "Screen recording"
         case .accessibility: "Accessibility"
         case .optionalPermissions: "Calendar and alerts"
+        case .aiFeatures: "AI Features"
         case .firefox: "Firefox"
         case .finish: "Finish"
         }
@@ -35,7 +37,7 @@ public enum SetupStepID: String, Sendable, CaseIterable, Identifiable {
         case .microphone: .microphone
         case .screenRecording: .screenRecording
         case .accessibility: .accessibility
-        case .welcome, .backend, .models, .optionalPermissions, .firefox, .finish: nil
+        case .welcome, .backend, .models, .optionalPermissions, .aiFeatures, .firefox, .finish: nil
         }
     }
 
@@ -44,7 +46,7 @@ public enum SetupStepID: String, Sendable, CaseIterable, Identifiable {
         if let permission { return permission.isRequired }
         switch self {
         case .backend, .models: return true
-        case .welcome, .optionalPermissions, .firefox, .finish: return false
+        case .welcome, .optionalPermissions, .aiFeatures, .firefox, .finish: return false
         case .microphone, .screenRecording, .accessibility: return true
         }
     }
@@ -61,7 +63,14 @@ public struct SetupSnapshot: Sendable, Equatable {
     public var permissions: [PermissionKind: PermissionState]
     public var installedUnits: Set<LocalModelUnit>
     public var isDownloadingModels: Bool
+    /// Whether the relay Firefox uses to reach Pipit is on disk. Pipit writes
+    /// it on every launch, so it says nothing about Firefox itself.
     public var nativeHostInstalled: Bool
+    /// Whether the add-on is in Firefox: connected to Pipit, or found in a
+    /// profile by a read the person allowed.
+    public var firefoxAddOnInstalled: Bool
+    /// Whether an OpenAI key is in the keychain, checked or not.
+    public var hasStoredKey: Bool
 
     public init(
         settings: AppSettings = AppSettings(),
@@ -69,7 +78,9 @@ public struct SetupSnapshot: Sendable, Equatable {
         permissions: [PermissionKind: PermissionState] = [:],
         installedUnits: Set<LocalModelUnit> = [],
         isDownloadingModels: Bool = false,
-        nativeHostInstalled: Bool = false
+        nativeHostInstalled: Bool = false,
+        firefoxAddOnInstalled: Bool = false,
+        hasStoredKey: Bool = false
     ) {
         self.settings = settings
         self.cloudKeyVerified = cloudKeyVerified
@@ -77,6 +88,8 @@ public struct SetupSnapshot: Sendable, Equatable {
         self.installedUnits = installedUnits
         self.isDownloadingModels = isDownloadingModels
         self.nativeHostInstalled = nativeHostInstalled
+        self.firefoxAddOnInstalled = firefoxAddOnInstalled
+        self.hasStoredKey = hasStoredKey
     }
 
     /// The units this configuration needs, whichever backends are chosen.
@@ -149,8 +162,16 @@ public enum SetupFlow {
                 && snapshot.state(of: .notifications) == .granted
             if both { return .done }
             return visited ? .skipped : .notVisited
+        case .aiFeatures:
+            // A key on disk is the offer taken, whether or not this session
+            // checked it. The page checks a typed key before saving it.
+            if snapshot.cloudKeyVerified || snapshot.hasStoredKey { return .done }
+            return visited ? .skipped : .notVisited
         case .firefox:
-            if snapshot.nativeHostInstalled { return .done }
+            // The add-on in Firefox, not the relay on disk. The relay is
+            // written by Pipit on every launch, and a reinstall onto a Mac
+            // that had an earlier build showed green with no add-on at all.
+            if snapshot.firefoxAddOnInstalled { return .done }
             return visited ? .skipped : .notVisited
         case .finish:
             return snapshot.settings.hasCompletedOnboarding ? .done : .notVisited
@@ -174,7 +195,7 @@ public enum SetupFlow {
             // and meetings that finish first are queued until they do, so holding
             // the user here for 2.1 GB buys nothing.
             return snapshot.missingUnits.isEmpty || snapshot.isDownloadingModels
-        case .welcome, .optionalPermissions, .firefox, .finish:
+        case .welcome, .optionalPermissions, .aiFeatures, .firefox, .finish:
             return true
         case .microphone, .screenRecording, .accessibility:
             return false

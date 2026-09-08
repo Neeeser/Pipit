@@ -310,6 +310,21 @@ public struct ProcessingSettings: Codable, Sendable, Equatable {
     }
 }
 
+/// Whether Pipit may read Firefox's add-on list.
+///
+/// Reading another application's data raises a macOS prompt once, and a
+/// refusal has no switch in System Settings to undo it. The read therefore
+/// happens only after the person asks for it on the Firefox page, and the
+/// answer is kept so the folder is never read again by accident.
+public enum FirefoxProfileAccess: String, Codable, Sendable {
+    /// Never tried. Nothing reads the profile.
+    case notAsked
+    /// The read worked. It may run on its own from now on.
+    case allowed
+    /// macOS refused the read. Nothing reads the profile until asked again.
+    case blocked
+}
+
 /// Everything the user can configure. Stored as JSON in Application Support so it
 /// is readable and portable, with the API key deliberately absent: that lives in
 /// the keychain and nowhere else.
@@ -325,9 +340,9 @@ public struct AppSettings: Codable, Sendable, Equatable {
     public var launchAtLogin: Bool
     public var showNotifications: Bool
     /// Show a Dock icon and appear in the app switcher, rather than running
-    /// from the menu bar alone. Off by default: a utility that takes a Dock
-    /// slot on upgrade is a visible change nobody asked for. The menu bar item
-    /// is there either way, so the app is always reachable.
+    /// from the menu bar alone. On by default: a person who has just installed
+    /// an application looks for it in the Dock and the app switcher. Menu bar
+    /// only is a choice made on the Finish page or in General.
     public var showsDockIcon: Bool
     /// Whether the updater also offers pre-releases. It is off by default. A
     /// beta carries work that is not finished, and nobody is moved onto one by
@@ -364,13 +379,14 @@ public struct AppSettings: Codable, Sendable, Equatable {
     /// quits, from one the user never installed. Only the first is worth
     /// warning about.
     public var firefoxSensorHasConnected: Bool
+    public var firefoxProfileAccess: FirefoxProfileAccess
 
     public init(
         version: Int = AppSettings.currentVersion,
         storageRootPath: String = MeetingArchiveLayout.defaultRoot.path,
         launchAtLogin: Bool = false,
         showNotifications: Bool = true,
-        showsDockIcon: Bool = false,
+        showsDockIcon: Bool = true,
         receivesBetaUpdates: Bool = false,
         models: AIModelSettings = AIModelSettings(),
         processing: ProcessingSettings = ProcessingSettings(),
@@ -386,7 +402,8 @@ public struct AppSettings: Codable, Sendable, Equatable {
         meetingEndGraceSeconds: Double = SessionController.Configuration().endGraceSeconds,
         meetingReconnectWindowSeconds: Double = SessionController.Configuration()
             .reconnectWindowSeconds,
-        firefoxSensorHasConnected: Bool = false
+        firefoxSensorHasConnected: Bool = false,
+        firefoxProfileAccess: FirefoxProfileAccess = .notAsked
     ) {
         self.version = version
         self.storageRootPath = storageRootPath
@@ -408,6 +425,7 @@ public struct AppSettings: Codable, Sendable, Equatable {
         self.meetingEndGraceSeconds = meetingEndGraceSeconds
         self.meetingReconnectWindowSeconds = meetingReconnectWindowSeconds
         self.firefoxSensorHasConnected = firefoxSensorHasConnected
+        self.firefoxProfileAccess = firefoxProfileAccess
     }
 
     /// Every field decodes with its default when absent, so a settings file
@@ -502,6 +520,9 @@ public struct AppSettings: Codable, Sendable, Equatable {
         firefoxSensorHasConnected =
             try container.decodeIfPresent(Bool.self, forKey: .firefoxSensorHasConnected)
             ?? defaults.firefoxSensorHasConnected
+        firefoxProfileAccess =
+            try container.decodeIfPresent(FirefoxProfileAccess.self, forKey: .firefoxProfileAccess)
+            ?? defaults.firefoxProfileAccess
         // The stored number gated the migrations above; the decoded struct is
         // current-schema, and writing it back as such is what stops a
         // migration from re-running against a value the user has since chosen.

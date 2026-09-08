@@ -199,6 +199,7 @@ struct SetupFlowTests {
         #expect(marks[.backend] == .done)
         #expect(marks[.welcome] == .notVisited, "a page never continued past has no mark")
         #expect(marks[.optionalPermissions] == .notVisited)
+        #expect(marks[.aiFeatures] == .notVisited)
         #expect(marks[.firefox] == .notVisited)
         #expect(marks[.finish] == .notVisited)
 
@@ -206,7 +207,7 @@ struct SetupFlowTests {
         // a choice, and the rail keeps it as one.
         snapshot.settings.setupStepsVisited = [
             SetupStepID.welcome.rawValue, SetupStepID.optionalPermissions.rawValue,
-            SetupStepID.firefox.rawValue,
+            SetupStepID.aiFeatures.rawValue, SetupStepID.firefox.rawValue,
         ]
         snapshot.permissions[.calendar] = .granted
         marks = Dictionary(
@@ -217,15 +218,27 @@ struct SetupFlowTests {
             marks[.optionalPermissions] == .skipped,
             "one of the two on is not everything on the page"
         )
+        #expect(marks[.aiFeatures] == .skipped, "no key stored is the offer left off")
         #expect(marks[.firefox] == .skipped)
 
-        snapshot.permissions[.notifications] = .granted
+        // The relay and its manifest are written by Pipit on every launch, so
+        // they said nothing about Firefox. A reinstall onto a Mac that had an
+        // earlier build showed a green check with no add-on in Firefox at all.
         snapshot.nativeHostInstalled = true
+        marks = Dictionary(
+            uniqueKeysWithValues: SetupFlow.steps(for: snapshot).map { ($0.id, $0.mark) }
+        )
+        #expect(marks[.firefox] == .skipped, "the host on disk is not the add-on in Firefox")
+
+        snapshot.permissions[.notifications] = .granted
+        snapshot.firefoxAddOnInstalled = true
+        snapshot.hasStoredKey = true
         snapshot.settings.hasCompletedOnboarding = true
         marks = Dictionary(
             uniqueKeysWithValues: SetupFlow.steps(for: snapshot).map { ($0.id, $0.mark) }
         )
         #expect(marks[.optionalPermissions] == .done)
+        #expect(marks[.aiFeatures] == .done, "a stored key is the page's offer taken")
         #expect(marks[.firefox] == .done)
         #expect(marks[.finish] == .done)
 
@@ -295,6 +308,9 @@ struct SetupFlowTests {
         #expect(SetupFlow.step(after: .finish) == nil)
         #expect(SetupFlow.step(before: .welcome) == nil)
         #expect(SetupFlow.step(before: .finish) == .firefox)
+        #expect(SetupFlow.step(after: .optionalPermissions) == .aiFeatures)
+        #expect(SetupFlow.step(after: .aiFeatures) == .firefox)
+        #expect(!SetupStepID.aiFeatures.isRequired, "a key is an offer, not a gate")
     }
 
     @Test("only the panes with an application list accept a dropped app")

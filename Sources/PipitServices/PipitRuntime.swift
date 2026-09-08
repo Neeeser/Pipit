@@ -489,13 +489,30 @@ public final class PipitRuntime {
 
     // MARK: - detection
 
+    /// Reads Firefox's add-on list because the person asked, and keeps whether
+    /// macOS allowed it so the read never runs unasked.
+    @discardableResult
+    public func checkFirefoxProfile() -> FirefoxProfile.Probe {
+        let probe = FirefoxProfile.probe()
+        var updated = settings
+        updated.firefoxProfileAccess = FirefoxProfileAccess.recorded(from: probe)
+        if updated.firefoxProfileAccess != settings.firefoxProfileAccess { update(settings: updated) }
+        status.firefoxAddOnInProfile = status.sensorConnection.isLoaded || probe == .installed
+        Log.app.info("firefox profile check: \(String(describing: probe), privacy: .public)")
+        return probe
+    }
+
     func detectionDidUpdate(_ snapshot: DetectionSnapshot) {
         status.sensorConnection = snapshot.browserSensor
         status.isFirefoxRunning = BrowserPresence.isRunning(.firefox)
-        // A live connection is proof enough; the profile is only read when
-        // there is nothing talking.
+        // A live connection is proof enough. The profile is read only when
+        // nothing is talking and the person has allowed the read, which they
+        // do once on the Firefox page. Reading it here unasked raised the
+        // macOS "access data from other apps" prompt seconds after first
+        // launch, before setup had said a word about Firefox.
         status.firefoxAddOnInProfile =
-            snapshot.browserSensor.isLoaded || FirefoxProfile.hasInstalledAddOn()
+            snapshot.browserSensor.isLoaded
+            || (settings.firefoxProfileAccess == .allowed && FirefoxProfile.probe() == .installed)
         // The latch is written once, the first time the add-on ever reports.
         // From then on a silent sensor is a dropped add-on rather than one that
         // was never installed.

@@ -143,7 +143,7 @@ public struct SetupWizardView: View {
                 .buttonStyle(.borderedProminent)
                 .disabled(!model.isCurrentStepSatisfied)
                 .keyboardShortcut(.defaultAction)
-        case .optionalPermissions, .firefox:
+        case .optionalPermissions, .aiFeatures, .firefox:
             // Available, deliberately not the accent colour. Skipping is a real
             // choice and connecting is the better one.
             Button(hasDoneOptionalWork ? "Continue" : "Skip for now") { model.advance() }
@@ -158,8 +158,10 @@ public struct SetupWizardView: View {
         switch model.current {
         case .optionalPermissions:
             return model.status(for: .calendar).isUsable || model.status(for: .notifications).isUsable
+        case .aiFeatures:
+            return model.hasKeyOnDisk || model.keyState == .verified
         case .firefox:
-            return model.hostStatus?.isReadyForFirefox == true
+            return model.firefoxAddOnState.isInstalled
         default:
             return false
         }

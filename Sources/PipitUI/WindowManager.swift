@@ -32,6 +32,9 @@ public final class WindowManager {
     /// Puts the activation policy into force. Injected so a test can read the
     /// decision without turning the test process into a Dock application.
     private let applyPolicy: @MainActor (NSApplication.ActivationPolicy) -> Void
+    /// Asks the updater to check now. Set by the application delegate, which
+    /// owns the updater; the General page's button is disabled while nil.
+    public var checkForUpdates: (() -> Void)?
 
     public init(
         runtime: PipitRuntime,
@@ -82,6 +85,7 @@ public final class WindowManager {
         }
         let model = SettingsModel(runtime: runtime)
         model.onOpenPeople = { [weak self] in self?.showPeople() }
+        model.onCheckForUpdates = checkForUpdates
         settingsModel = model
         let window = makeWindow(
             title: "Pipit Settings",
