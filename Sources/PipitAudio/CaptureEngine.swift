@@ -90,6 +90,13 @@ public final class CaptureEngine: Sendable {
         /// writer path would run on an audio thread.
         var micLastSegmentIndex = 0
         var remoteLastSegmentIndex = 0
+        /// Seconds written by the runs a pause has already closed. A writer
+        /// counts only its own frames, so the seconds reported at stop and in
+        /// every health snapshot are these plus the open writer's. Read from
+        /// the open writer alone, a stop after a pause wrote session_end with
+        /// zero seconds above 74 s of audio on disk.
+        var micSecondsClosed: Double = 0
+        var remoteSecondsClosed: Double = 0
     }
 
     private let state = LockedBox(State())
@@ -199,6 +206,8 @@ public final class CaptureEngine: Sendable {
                 state.pendingEvents.removeAll()
                 state.micLastSegmentIndex = 0
                 state.remoteLastSegmentIndex = 0
+                state.micSecondsClosed = 0
+                state.remoteSecondsClosed = 0
             }
             self.micPreRoll.discard()
             self.remotePreRoll.discard()
@@ -248,8 +257,14 @@ public final class CaptureEngine: Sendable {
             closing.0?.finish(reason: reason)
             closing.1?.finish(reason: reason)
             self.state.withLock { state in
-                if let mic = closing.0 { state.micLastSegmentIndex = mic.stats.segmentCount }
-                if let remote = closing.1 { state.remoteLastSegmentIndex = remote.stats.segmentCount }
+                if let mic = closing.0 {
+                    state.micLastSegmentIndex = mic.stats.segmentCount
+                    state.micSecondsClosed += mic.stats.totalSeconds
+                }
+                if let remote = closing.1 {
+                    state.remoteLastSegmentIndex = remote.stats.segmentCount
+                    state.remoteSecondsClosed += remote.stats.totalSeconds
+                }
             }
             closing.2?.append(
                 .marker(.init(label: "pause:\(reason)")),
@@ -460,11 +475,13 @@ public final class CaptureEngine: Sendable {
         }
         closing.0?.finish(reason: reason)
         closing.1?.finish(reason: reason)
-        let capturesRemote = state.withLock { $0.capturesRemote }
+        let (capturesRemote, micClosed, remoteClosed) = state.withLock {
+            ($0.capturesRemote, $0.micSecondsClosed, $0.remoteSecondsClosed)
+        }
         let snapshot = CaptureHealthSnapshot(
             mic: .idle, remote: .idle,
-            micSeconds: closing.0?.stats.totalSeconds ?? 0,
-            remoteSeconds: closing.1?.stats.totalSeconds ?? 0,
+            micSeconds: micClosed + (closing.0?.stats.totalSeconds ?? 0),
+            remoteSeconds: remoteClosed + (closing.1?.stats.totalSeconds ?? 0),
             isWritingToDisk: false,
             micRestarts: micCoordinator.restartCount,
             remoteRebinds: remoteCoordinator.bindCount,
@@ -633,8 +650,11 @@ public final class CaptureEngine: Sendable {
         // Writer statistics are read outside the engine lock: `SegmentWriter.stats`
         // takes its own lock, and a render thread waiting on the engine lock must
         // never be parked behind it.
-        let (micWriter, remoteWriter, capturesRemote, mode) = state.withLock { state in
-            (state.micWriter, state.remoteWriter, state.capturesRemote, state.mode)
+        let (micWriter, remoteWriter, capturesRemote, mode, micClosed, remoteClosed) = state.withLock { state in
+            (
+                state.micWriter, state.remoteWriter, state.capturesRemote, state.mode,
+                state.micSecondsClosed, state.remoteSecondsClosed
+            )
         }
         // A remote source reporting healthy while its writer failed to open is
         // exactly the state that must never read as healthy.
@@ -649,8 +669,8 @@ public final class CaptureEngine: Sendable {
         let snapshot = CaptureHealthSnapshot(
             mic: micHealth,
             remote: remoteHealth,
-            micSeconds: micWriter?.stats.totalSeconds ?? 0,
-            remoteSeconds: remoteWriter?.stats.totalSeconds ?? 0,
+            micSeconds: micClosed + (micWriter?.stats.totalSeconds ?? 0),
+            remoteSeconds: remoteClosed + (remoteWriter?.stats.totalSeconds ?? 0),
             isWritingToDisk: mode == .recording,
             micRestarts: micCoordinator.restartCount,
             remoteRebinds: remoteCoordinator.bindCount,

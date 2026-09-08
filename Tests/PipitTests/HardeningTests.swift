@@ -557,6 +557,48 @@ struct CaptureEngineHardeningTests {
         )
         #expect(timeline.isComplete)
     }
+
+    @Test("the stop snapshot counts every run, not only the last")
+    func theStopSnapshotCountsEveryRunNotOnlyTheLast() async throws {
+        // A pause closes the writers and a resume opens fresh ones, so the
+        // seconds at stop were read from whichever writer was open at the
+        // time. Stopping after a pause read zero from no writer at all, and
+        // stopping after a resume counted the last run alone. A meeting that
+        // left a Meet and was stopped 9 s later wrote session_end with
+        // micSeconds 0 above 74 s of audio on disk.
+        let root = try TestPaths.makeTemporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let layout = MeetingLayout(root: root)
+        try FileManager.default.createDirectory(at: layout.segments, withIntermediateDirectories: true)
+
+        let microphone = LockedBox<EmittingMicrophone?>(nil)
+        let engine = CaptureEngine(
+            segmentSeconds: 60,
+            makeMicrophone: { sink, _ in
+                let source = EmittingMicrophone(sink: sink)
+                microphone.withLock { $0 = source }
+                return source
+            },
+            makeTap: { sink, _ in EmittingTap(sink: sink) },
+            delegate: SilentDelegate()
+        )
+        await engine.arm(bundlePrefixes: [], capturesRemote: false)
+        try await engine.commit(layout: layout, meetingID: "m", source: .googleMeet)
+        microphone.withLock { $0?.emit(seconds: 2, hostTime: 100) }
+        await engine.pause(reason: "provider_evidence_gone")
+        microphone.withLock { $0?.emit(seconds: 5, hostTime: 110) }
+        await engine.resume()
+        microphone.withLock { $0?.emit(seconds: 1, hostTime: 120) }
+        await engine.pause(reason: "provider_evidence_gone")
+
+        let snapshot = await engine.stop(reason: "user_stopped")
+        let timeline = try ManifestReader.timeline(contentsOf: layout.manifest)
+        #expect(
+            abs(snapshot.micSeconds - timeline.duration(track: .mic)) <= 0.1,
+            "snapshot \(snapshot.micSeconds) s against \(timeline.duration(track: .mic)) s on disk"
+        )
+        #expect(abs(snapshot.micSeconds - 8) <= 0.1, "2 s, 5 s from the ring, 1 s: got \(snapshot.micSeconds)")
+    }
 }
 
 @Suite("DetectionHardening")
