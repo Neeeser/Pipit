@@ -24,24 +24,19 @@ public enum PermissionKind: String, Sendable, CaseIterable, Identifiable {
         }
     }
 
-    /// Why Pipit asks, and what happens without it.
+    /// Why Pipit asks.
     public var rationale: String {
         switch self {
         case .microphone:
-            "Records your side of every meeting. Pipit cannot record without it."
+            "Records your side of the meeting."
         case .screenRecording:
-            "Reads window titles to tell which meeting is on screen. Without it, a "
-                + "browser call is detected from audio state alone, so recording starts "
-                + "late and a prejoin screen looks the same as a joined call."
+            "Reads window titles to tell which meeting is on screen."
         case .accessibility:
-            "Reads Slack's window contents to see when a huddle starts and ends. It "
-                + "reads nothing else, and it never sends what it reads anywhere."
+            "Reads app windows to see when a huddle is on screen."
         case .calendar:
-            "Matches a recording to the event on your calendar, which gives the meeting "
-                + "its real title and its attendee list. Recording works without it."
+            "Matches a recording to the event on your calendar, which gives it the title and attendees."
         case .notifications:
-            "Reports when recording starts, when a meeting is saved, and when a stage "
-                + "needs attention."
+            "Reports when recording starts, a meeting is saved, and a transcript is ready."
         }
     }
 
@@ -161,14 +156,12 @@ public struct PermissionStatus: Sendable, Equatable, Identifiable {
         case .granted: nil
         case .notDetermined: "Not requested yet."
         case .denied where kind == .accessibility || kind == .screenRecording:
-            "Switch Pipit on in System Settings. If it is already switched on "
-                + "there, remove it with the minus button and add it again: an "
-                + "unsigned build gets a new identity every time it is rebuilt, and "
-                + "the old entry keeps the permission."
+            "Switch Pipit on in System Settings. If it is already on, remove it "
+                + "with the minus button and add it again."
         case .denied: "Enable it in System Settings, then return here."
         case .grantedButNotEffective:
-            "\(kind.title) appears enabled but is not active for this Pipit build. "
-                + "Remove Pipit from the list in System Settings and add it again."
+            "\(kind.title) is on in System Settings but not active for this build. "
+                + "Remove Pipit from the list and add it again."
         }
     }
 }

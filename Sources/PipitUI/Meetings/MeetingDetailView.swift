@@ -490,7 +490,7 @@ public struct MeetingDetailView: View {
                 } else if detail.canGenerateEnrichment {
                     writeSummary
                 } else {
-                    Text("No summary. Enrichment writes one when it runs.")
+                    Text("No summary yet.")
                         .foregroundStyle(.secondary)
                 }
                 Spacer(minLength: 0)
@@ -540,7 +540,7 @@ public struct MeetingDetailView: View {
 
                 SectionCard(
                     title: "Notes",
-                    subtitle: "Saved as you type, including while processing runs."
+                    subtitle: "Saved as you type."
                 ) {
                     VStack(alignment: .leading, spacing: 6) {
                         TextEditor(text: detail.notesBinding())
@@ -558,7 +558,7 @@ public struct MeetingDetailView: View {
                 if let generated = detail.generatedNotes, !generated.isEmpty {
                     SectionCard(
                         title: "Meeting notes",
-                        subtitle: "Written from the transcript. Kept apart from your notes above."
+                        subtitle: "Written from the transcript."
                     ) {
                         Text(generated).font(.body).textSelection(.enabled)
                     }
@@ -588,7 +588,7 @@ public struct MeetingDetailView: View {
                                         .trimmingCharacters(in: .whitespaces).isEmpty
                                 )
                         }
-                        Text("Changing this re-runs speaker matching only. Nothing is transcribed again.")
+                        Text("Changing this re-runs speaker matching.")
                             .font(.caption).foregroundStyle(.secondary)
                     }
                 }
@@ -614,7 +614,7 @@ public struct MeetingDetailView: View {
     private func continuationCard(_ suggestion: (title: String, reason: String)) -> some View {
         SectionCard(
             title: "Same meeting?",
-            subtitle: "Combining links the two recordings. Neither recording's audio is moved or modified."
+            subtitle: "Combining links the two recordings."
         ) {
             VStack(alignment: .leading, spacing: 10) {
                 Text("This may be a continuation of “\(suggestion.title)”. \(suggestion.reason).")

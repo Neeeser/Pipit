@@ -380,7 +380,7 @@ public struct MeetingsWindowView: View {
                 .foregroundStyle(.secondary)
             } else if let source = model.sourceFilter {
                 Text("No \(source.listName) meetings")
-                Text("Not under this filter. Drop the source in the search field to see the rest.")
+                Text("Clear the source filter to see the rest.")
                     .foregroundStyle(.secondary)
             } else if model.filter == .archived {
                 Text("Nothing archived")
@@ -469,11 +469,6 @@ public struct MeetingsWindowView: View {
         } else {
             VStack(spacing: 6) {
                 Text("Select a meeting").font(.title3)
-                Text("Its transcript, speakers and notes appear here. The folder on disk is one click away.")
-                    .font(.callout)
-                    .foregroundStyle(.secondary)
-                    .multilineTextAlignment(.center)
-                    .frame(maxWidth: 320)
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
@@ -691,11 +686,10 @@ struct MeetingsSelectionView: View {
                 if unnamedCount > 0 {
                     SectionCard(
                         title: "\(unnamedCount) \(unnamedCount == 1 ? "voice" : "voices") nobody has named",
-                        subtitle: "Every one of them is in the People window as well, under Unnamed voices."
+                        subtitle: "Also listed in People under Unnamed voices."
                     ) {
                         Text(
-                            "Open a meeting to name a voice in it. A voice heard in more than one "
-                                + "of these takes the name in all of them at once."
+                            "Open a meeting to name a voice. A voice heard in several meetings is named in all of them."
                         )
                         .font(.callout)
                     }
@@ -703,7 +697,7 @@ struct MeetingsSelectionView: View {
 
                 SectionCard(
                     title: "Act on all \(model.selection.count)",
-                    subtitle: "Rebuilding reads the model output already on disk. Nothing is transcribed again."
+                    subtitle: "Rebuilds from the saved model output."
                 ) {
                     HStack(spacing: 8) {
                         Button("Reveal in Finder") { model.revealSelection() }

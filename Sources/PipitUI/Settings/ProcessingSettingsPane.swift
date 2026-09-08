@@ -31,24 +31,10 @@ struct ProcessingSettingsPane: View {
                 speakerToggle("Remember recurring unnamed voices", keyPath: \.rememberRecurringVoices)
                 speakerToggle("Learn my voice automatically", keyPath: \.learnMyVoice)
                 speakerToggle("Learn from confirmed speaker corrections", keyPath: \.learnFromCorrections)
-                Text(
-                    "Voice profiles stay on this Mac and are never uploaded, whichever "
-                        + "backends are selected above. Only your microphone track and speaker "
-                        + "names you confirm yourself ever add to a profile."
-                )
-                .font(.caption).foregroundStyle(.secondary)
+                Text("Voice profiles stay on this Mac.")
+                    .font(.caption).foregroundStyle(.secondary)
             }
             modelsOnDiskSection
-            if runtime.settings.processing.isFullyLocal {
-                Section {
-                    Label(
-                        "Recording, transcription, speakers and voice recognition all run on "
-                            + "this Mac. An API key is needed only for titles, summaries and notes.",
-                        systemImage: "lock.laptopcomputer"
-                    )
-                    .font(.caption)
-                }
-            }
         }
         .formStyle(.grouped)
         .task { await runtime.refreshLocalModelState() }
@@ -69,8 +55,8 @@ struct ProcessingSettingsPane: View {
                 }
             )
         ) {
-            Text("Cloud — OpenAI").tag(ProcessingBackendChoice.openAI)
-            Text("Local — on this Mac").tag(ProcessingBackendChoice.local)
+            Text("OpenAI").tag(ProcessingBackendChoice.openAI)
+            Text("On this Mac").tag(ProcessingBackendChoice.local)
         }
         .pickerStyle(.radioGroup)
     }
@@ -97,17 +83,11 @@ struct ProcessingSettingsPane: View {
                     }
                 )
             ) {
-                cloudChoice(
-                    "gpt-4o-transcribe-diarize",
-                    "Speaker identification built in: one request returns the words "
-                        + "and who said them. Nothing to download."
-                )
+                cloudChoice("gpt-4o-transcribe-diarize", "Returns the words and who said them.")
                 cloudChoice(
                     "gpt-transcribe",
-                    "Strongest on clear recordings, takes vocabulary hints. Timings "
-                        + "are computed on this Mac by a 600 MB aligner model. Can "
-                        + "return nothing for stretches of very difficult audio; the "
-                        + "meeting then retries instead of losing words."
+                    "Strongest on clear recordings and takes vocabulary hints. Word timings "
+                        + "come from a 600 MB aligner on this Mac."
                 )
                 Text("Custom…").tag(Self.customModelTag)
             }
@@ -128,7 +108,7 @@ struct ProcessingSettingsPane: View {
             }
             if AIModelSettings.transcriptionTiming(for: current) == .text, isPreset {
                 TextField(
-                    "Vocabulary hints — names and jargon, comma separated",
+                    "Vocabulary hints: names and jargon, comma separated",
                     text: Binding(
                         get: { runtime.settings.models.vocabularyHints },
                         set: { newValue in
@@ -138,7 +118,7 @@ struct ProcessingSettingsPane: View {
                         }
                     )
                 )
-                Text("Sent with each request so the model expects these words.")
+                Text("Sent with each request.")
                     .font(.caption).foregroundStyle(.secondary)
             }
         }
@@ -184,9 +164,7 @@ struct ProcessingSettingsPane: View {
                 }
             case .outdated:
                 Label(
-                    "These were downloaded by an older build that pinned different model "
-                        + "revisions. Re-downloading matches the versions this build "
-                        + "expects.",
+                    "Downloaded by an older build. Re-download to match this one.",
                     systemImage: "arrow.triangle.2.circlepath"
                 )
                 .font(.caption).foregroundStyle(.secondary)
@@ -194,12 +172,9 @@ struct ProcessingSettingsPane: View {
             case .installed:
                 EmptyView()
             }
-            Text(
-                "Stored in Pipit's Application Support folder. Recording works while "
-                    + "models download; meetings queue and process when they arrive.\n"
-                    + (runtime.models?.locations.root.path ?? "")
-            )
-            .font(.caption).foregroundStyle(.secondary).textSelection(.enabled)
+            if let path = runtime.models?.locations.root.path {
+                Text(path).font(.caption).foregroundStyle(.secondary).textSelection(.enabled)
+            }
         }
     }
 
@@ -219,11 +194,11 @@ struct ProcessingSettingsPane: View {
     }
 
     private func unitStatus(_ unit: LocalModelUnit) -> String {
-        if let bytes = installedBytes(unit) { return "Installed — \(Self.megabytes(bytes))" }
+        if let bytes = installedBytes(unit) { return "Installed, \(Self.megabytes(bytes))" }
         if case .downloading = runtime.localModelState, requiredUnits.contains(unit) {
             return "Downloading"
         }
-        return "Not installed — about \(Self.megabytes(unit.approximateBytes))"
+        return "Not installed, about \(Self.megabytes(unit.approximateBytes))"
     }
 
     private var downloadLabel: String {
@@ -310,8 +285,7 @@ struct LocalModelChoicePicker: View {
     private static func blurb(_ model: LocalTranscriptionModel) -> String {
         switch model {
         case .apple:
-            "Nothing to download: the speech models come with macOS. "
-                + "Transcribes your first meeting immediately."
+            "Comes with your Mac. Nothing to download."
         case .parakeet:
             "The most accurate engine. Word timings built in, 25 languages, "
                 + "about 50x realtime. 460 MB."

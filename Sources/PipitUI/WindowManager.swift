@@ -104,7 +104,7 @@ public final class WindowManager {
         }
         let window = makeWindow(
             title: "About Pipit",
-            size: NSSize(width: 460, height: 520),
+            size: NSSize(width: 360, height: 140),
             content: AboutView(runtime: runtime)
         )
         window.setFrameAutosaveName("PipitAbout")

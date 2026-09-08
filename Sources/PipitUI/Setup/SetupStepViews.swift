@@ -27,7 +27,7 @@ struct SetupStepContent: View {
 struct StepHeader: View {
     var eyebrow: String?
     var title: String
-    var message: String
+    var message: String?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
@@ -35,9 +35,11 @@ struct StepHeader: View {
                 Text(eyebrow).font(.caption).foregroundStyle(.tertiary)
             }
             Text(title).font(.title2.weight(.semibold))
-            Text(message)
-                .foregroundStyle(.secondary)
-                .fixedSize(horizontal: false, vertical: true)
+            if let message {
+                Text(message)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
         }
     }
 }
@@ -49,17 +51,9 @@ struct WelcomeStep: View {
         VStack(alignment: .leading, spacing: 18) {
             ApplicationIcon(size: 64)
             StepHeader(
-                title: "Pipit records your meetings automatically",
-                message: "It notices Slack huddles and Meet and Zoom calls in your browser, records "
-                    + "your microphone and the meeting audio as separate tracks, and writes the "
-                    + "results to ordinary files on disk."
+                title: "Pipit records your meetings",
+                message: "Each meeting is transcribed, summarized, and saved as files on your Mac."
             )
-            Text(
-                "Setup takes a few minutes. Three macOS permissions are needed before Pipit "
-                    + "can record anything, and this walks through them one at a time."
-            )
-            .foregroundStyle(.secondary)
-            .fixedSize(horizontal: false, vertical: true)
         }
     }
 }
@@ -72,12 +66,7 @@ struct BackendStep: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 18) {
-            StepHeader(
-                eyebrow: "Required",
-                title: "Where transcription runs",
-                message: "Transcription and speaker labelling can run on this Mac or through OpenAI. "
-                    + "Voice profiles stay on this Mac either way, and are never uploaded."
-            )
+            StepHeader(eyebrow: "Required", title: "Where transcription runs")
 
             Picker(
                 "",
@@ -86,15 +75,8 @@ struct BackendStep: View {
                     set: { model.chooseBackend($0) }
                 )
             ) {
-                choice(
-                    .local, "On this Mac",
-                    "Nothing leaves the machine. Needs a one-time model download."
-                )
-                choice(
-                    .openAI, "OpenAI",
-                    "More accurate on hard audio, and needs an API key. Meeting audio is sent to "
-                        + "OpenAI for transcription."
-                )
+                choice(.local, "On this Mac", "Processing runs on this Mac.")
+                choice(.openAI, "OpenAI", "Processing runs in the cloud. Needs an OpenAI API key.")
             }
             .labelsHidden()
             .pickerStyle(.radioGroup)
@@ -135,19 +117,11 @@ struct BackendStep: View {
             if model.mayAcceptUnverifiedKey {
                 Button("Continue anyway") { model.acceptUnverifiedKey() }
                     .buttonStyle(.link)
-                Text(
-                    "The request failed for a reason that was not a refusal, so the key may be "
-                        + "fine. It is checked again at the first meeting."
-                )
-                .font(.caption).foregroundStyle(.secondary)
-                .fixedSize(horizontal: false, vertical: true)
+                Text("OpenAI could not be reached. Try again.")
+                    .font(.caption).foregroundStyle(.secondary)
             }
-            Text(
-                "The key is stored in the macOS keychain and never written to a meeting file, a "
-                    + "log or a preference."
-            )
-            .font(.caption).foregroundStyle(.secondary)
-            .fixedSize(horizontal: false, vertical: true)
+            Text("Stored in the macOS keychain.")
+                .font(.caption).foregroundStyle(.secondary)
         }
     }
 
@@ -208,18 +182,13 @@ struct ModelsStep: View {
         }
     }
 
-    private var bodyText: String {
-        if runtime.settings.processing.usesLocalTranscription {
-            return "Downloaded once, then transcription and speaker recognition run on this Mac "
-                + "with nothing sent anywhere."
-        }
-        // The cloud path is not download-free and saying otherwise sets up a
-        // surprise: the diarizer is required in every configuration because voice
-        // memory embeds a cloud diarizer's intervals locally, and gpt-transcribe
-        // returns no timings, so the aligner computes them here.
-        return "OpenAI transcribes, and two pieces still run on this Mac: the speaker models "
-            + "that voice recognition needs, and the aligner that works out word timings, "
-            + "which the transcription model does not return."
+    /// The cloud path is not download-free: the diarizer is required in every
+    /// configuration because voice memory embeds a cloud diarizer's intervals
+    /// locally, and gpt-transcribe returns no timings, so the aligner computes
+    /// them here. The line says so before the download list does.
+    private var bodyText: String? {
+        if runtime.settings.processing.usesLocalTranscription { return nil }
+        return "Speaker recognition and word timing still run on this Mac."
     }
 
     private var units: [LocalModelUnit] {
@@ -245,10 +214,8 @@ struct ModelsStep: View {
             VStack(alignment: .leading, spacing: 4) {
                 ProgressView(value: fraction)
                 Text(detail).font(.caption).foregroundStyle(.secondary)
-                Text(
-                    "This keeps running while you carry on. Nothing later in setup waits for it."
-                )
-                .font(.caption).foregroundStyle(.secondary)
+                Text("Models keep downloading in the background.")
+                    .font(.caption).foregroundStyle(.secondary)
             }
         case .failed(let message, _):
             Label(message, systemImage: "exclamationmark.triangle.fill")
@@ -258,7 +225,7 @@ struct ModelsStep: View {
             Button(downloadLabel) { Task { await model.startModelDownload() } }
                 .buttonStyle(.borderedProminent)
         case .installed, .outdated:
-            Label("Everything this configuration needs is on disk", systemImage: "checkmark.circle.fill")
+            Label("Installed", systemImage: "checkmark.circle.fill")
                 .foregroundStyle(.green).font(.callout)
         }
     }
@@ -352,12 +319,7 @@ struct OptionalPermissionsStep: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 18) {
-            StepHeader(
-                eyebrow: "Optional, and both make Pipit better",
-                title: "Calendar and notifications",
-                message: "Neither is needed to record. Skipping them leaves recording exactly as it "
-                    + "is, and both can be switched on later in Settings."
-            )
+            StepHeader(eyebrow: "Optional", title: "Calendar and notifications")
             row(.calendar)
             Divider()
             row(.notifications)
@@ -399,11 +361,9 @@ struct FirefoxStep: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 18) {
             StepHeader(
-                eyebrow: "Optional, and it makes browser calls precise",
+                eyebrow: "Optional",
                 title: "Firefox add-on",
-                message: "The add-on reports when you join and leave a Meet or Zoom call. Without "
-                    + "it those calls are still recorded, from window titles and microphone "
-                    + "state, so recording starts before you have actually joined."
+                message: "Improves meeting detection in Firefox."
             )
 
             HStack(spacing: 8) {
@@ -431,12 +391,10 @@ struct FinishStep: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 18) {
             StepHeader(
-                title: model.canFinish ? "Pipit is ready" : "Something is still missing",
+                title: model.canFinish ? "Ready to record" : "Something is still missing",
                 message: model.canFinish
-                    ? "Pipit lives in the menu bar. It starts recording when it notices a "
-                        + "meeting, and files each one as a folder of ordinary files."
-                    : "The steps marked in the list on the left still need finishing before "
-                        + "Pipit can record."
+                    ? "Pipit starts recording when it notices a meeting."
+                    : "Finish the steps marked red on the left."
             )
 
             if !model.canFinish {
@@ -468,8 +426,7 @@ struct FinishStep: View {
 
             if model.runtime.localModelState.isBusy {
                 Label(
-                    "Models are still downloading. Recording works now; meetings that finish "
-                        + "first are processed when the download completes.",
+                    "Models are still downloading. Meetings recorded before they arrive are processed after.",
                     systemImage: "arrow.down.circle"
                 )
                 .font(.caption).foregroundStyle(.secondary)

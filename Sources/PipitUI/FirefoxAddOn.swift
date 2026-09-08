@@ -100,21 +100,14 @@ public enum FirefoxAddOnState: Equatable {
         }
     }
 
-    /// The line under the title, which says what follows from the state rather
-    /// than repeating it.
+    /// The line under the title. What the person gets from the state, not
+    /// what the transport is doing.
     var detail: String {
         switch self {
-        case .reporting: "Reporting a meeting."
-        case .installed: "Watching for Meet and Zoom calls."
-        case .connecting:
-            "In Firefox, and not connected to Pipit yet. It calls in within a minute, "
-                + "or as soon as you open a call."
-        case .missing:
-            "Meet and Zoom still record, from window titles and microphone state. "
-                + "Recording starts at the prejoin screen rather than when you join."
-        case .unavailable:
-            "This build carries no signed add-on, so there is nothing to install. "
-                + "Developing the extension is covered in docs/RELEASING.md."
+        case .reporting, .installed: "Meeting detection in Firefox is on."
+        case .connecting: "Waiting for Firefox to connect."
+        case .missing: "Improves meeting detection in Firefox."
+        case .unavailable: "This build has no add-on to install."
         }
     }
 }

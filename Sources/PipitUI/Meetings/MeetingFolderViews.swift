@@ -186,8 +186,7 @@ struct FolderDetailView: View {
         SectionCard(
             title: "Move a matching meeting in without asking",
             subtitle: row.folder.rule.isEmpty
-                ? "Nothing is filed here on its own. File a meeting by hand and Pipit offers to "
-                    + "make a rule out of the ones that look like it."
+                ? "File a meeting by hand and Pipit offers to make a rule from meetings like it."
                 : autoSubtitle
         ) {
             VStack(alignment: .leading, spacing: 10) {
@@ -228,8 +227,7 @@ struct FolderDetailView: View {
             title: suggested.count == 1
                 ? "One meeting looks like it belongs here"
                 : "\(suggested.count) meetings look like they belong here",
-            subtitle: "Read from the transcript and the title after processing. Nothing moves "
-                + "until you say so."
+            subtitle: "Nothing moves until you say so."
         ) {
             VStack(alignment: .leading, spacing: 6) {
                 ForEach(suggested, id: \.row.id) { entry in
@@ -254,7 +252,7 @@ struct FolderDetailView: View {
     private var contentsCard: some View {
         SectionCard(
             title: "\(row.meetingCount) \(row.meetingCount == 1 ? "meeting" : "meetings") inside",
-            subtitle: "The list on the left is showing these. Click one to read it."
+            subtitle: nil
         ) {
             VStack(alignment: .leading, spacing: 4) {
                 ForEach(members.prefix(10)) { meeting in
@@ -347,7 +345,7 @@ struct FolderPrompts: ViewModifier {
             .alert("Rename Folder", isPresented: renameShowing) {
                 RenameFolderFields(model: model)
             } message: {
-                Text("The directory is renamed and every meeting inside it moves with it.")
+                Text("Every meeting inside moves with it.")
             }
             .alert("Something went wrong", isPresented: problemShowing) {
                 Button("OK", role: .cancel) { model.folderProblem = nil }

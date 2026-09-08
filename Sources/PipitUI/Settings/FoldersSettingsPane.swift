@@ -41,12 +41,8 @@ struct FoldersSettingsPane: View {
                     "Notice recurring meetings and offer a rule",
                     isOn: binding(\.noticesRecurringMeetings)
                 )
-                Text(
-                    "A recurring meeting is recognised from metadata alone: a calendar series, "
-                        + "or the same title in the same slot. Only a topic match reads the "
-                        + "transcript, and it rides the request that already writes the summary."
-                )
-                .font(.caption).foregroundStyle(.secondary)
+                Text("A recurring meeting is recognized from its calendar series, or a repeated title and time slot.")
+                    .font(.caption).foregroundStyle(.secondary)
             }
 
             Section("Filing") {
@@ -54,11 +50,8 @@ struct FoldersSettingsPane: View {
                     "Let a folder file its own matches without asking",
                     isOn: binding(\.filesMatchingMeetings)
                 )
-                Text(
-                    "Off here stops every folder at once, without editing any of them. A "
-                        + "suggestion a model made is never filed on its own, whatever this says."
-                )
-                .font(.caption).foregroundStyle(.secondary)
+                Text("Off stops every folder from filing on its own.")
+                    .font(.caption).foregroundStyle(.secondary)
             }
 
             Section("Folders") {
@@ -80,9 +73,8 @@ struct FoldersSettingsPane: View {
 
             Section("On disk") {
                 Label(
-                    "A filed meeting lives in Meetings/Folders/<name>. Everything else stays "
-                        + "under Meetings/2026/08. Filing one moves its directory and leaves its "
-                        + "identifier alone, so the speakers database and search follow it.",
+                    "Filed meetings live in Meetings/Folders/<name>. Everything else stays "
+                        + "under Meetings/<year>/<month>.",
                     systemImage: "folder"
                 )
                 .font(.caption)

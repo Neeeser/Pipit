@@ -1,6 +1,5 @@
 import AppKit
 import PipitCore
-import PipitDetection
 import PipitServices
 import SwiftUI
 
@@ -41,7 +40,7 @@ struct BrowsersSettingsPane: View {
                 BrowserAddOnRow(
                     symbol: "globe",
                     title: "No add-on yet",
-                    detail: "Chrome calls are detected from window titles and microphone state.",
+                    detail: "Chrome calls are still detected.",
                     statusSymbol: nil,
                     statusColor: .secondary
                 )
@@ -70,22 +69,6 @@ struct BrowsersSettingsPane: View {
                 Text(lastMessage, style: .relative) + Text(" ago")
             }
         }
-        LabeledContent("Relay") {
-            Text(model.hostStatus?.hostInstalled == true ? "Installed" : "Not installed")
-                .foregroundStyle(model.hostStatus?.hostInstalled == true ? .green : .orange)
-        }
-        if let path = model.hostStatus?.installedHostPath {
-            Text(path).font(.caption).foregroundStyle(.secondary).textSelection(.enabled)
-        }
-        LabeledContent("Firefox host manifest") {
-            Text(model.hostStatus?.firefoxManifestInstalled == true ? "Installed" : "Not installed")
-                .foregroundStyle(
-                    model.hostStatus?.firefoxManifestInstalled == true ? .green : .orange
-                )
-        }
-        Text(NativeMessagingInstaller().firefoxManifestURL.path)
-            .font(.caption).foregroundStyle(.secondary).textSelection(.enabled)
-
         HStack {
             Button("Repair connection") { model.installHost() }
             if addOnState.isInstalled, FirefoxAddOn.bundledAddOn != nil {
@@ -94,18 +77,9 @@ struct BrowsersSettingsPane: View {
                 )
             }
         }
-        Text(
-            "The relay is the small program Firefox launches to reach Pipit. Repairing "
-                + "writes it and the host manifest again, which is what an add-on that "
-                + "cannot connect needs."
-        )
-        .font(.caption).foregroundStyle(.secondary)
-        .fixedSize(horizontal: false, vertical: true)
-
         if let rejected = model.sensorStatus?.rejectedConnections, rejected > 0 {
             Label(
-                "\(rejected) connection\(rejected == 1 ? "" : "s") refused. Only Pipit's own "
-                    + "relay, launched by a browser, may report meetings.",
+                "\(rejected) connection\(rejected == 1 ? "" : "s") refused.",
                 systemImage: "shield.lefthalf.filled"
             )
             .font(.caption)
