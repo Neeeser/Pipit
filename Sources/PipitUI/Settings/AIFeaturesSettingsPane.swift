@@ -31,71 +31,81 @@ struct AIFeaturesSettingsPane: View {
                     .font(.caption).foregroundStyle(.secondary)
             }
             Section("Model") {
-                metadataModelRow()
+                LabeledContent("Model") { MetadataModelPicker(runtime: runtime) }
             }
             Section("Features") {
-                enrichmentToggle("Generate a title", keyPath: \.generateTitle)
-                enrichmentToggle("Generate a description", keyPath: \.generateDescription)
-                enrichmentToggle("Generate notes", keyPath: \.generateNotes)
-                enrichmentToggle("Generate a summary", keyPath: \.generateSummary)
-                enrichmentToggle("Suggest speaker names", keyPath: \.suggestSpeakers)
+                EnrichmentToggles(runtime: runtime)
             }
         }
         .formStyle(.grouped)
         // Reads the keychain, which can block on an authorisation prompt.
         .task { await model.refresh() }
     }
+}
+
+/// A dropdown of known metadata models, with a text field for any other
+/// identifier. Whether the field shows is derived from the stored value, so
+/// no view-local state is needed. Shared by Settings and the setup wizard.
+struct MetadataModelPicker: View {
+    let runtime: PipitRuntime
 
     /// The sentinel the picker uses for a model identifier typed by hand.
     private static let customModelTag = "custom"
 
-    /// A dropdown of known metadata models, with a text field for any other
-    /// identifier. Whether the field shows is derived from the stored value, so
-    /// no view-local state is needed.
-    private func metadataModelRow() -> some View {
+    var body: some View {
         let current = runtime.settings.models.metadata
         let isPreset = AIModelSettings.metadataChoices.contains(current)
-        return LabeledContent("Model") {
-            VStack(alignment: .trailing, spacing: 2) {
-                Picker(
-                    "",
-                    selection: Binding(
-                        get: { isPreset ? current : Self.customModelTag },
+        VStack(alignment: .leading, spacing: 2) {
+            Picker(
+                "",
+                selection: Binding(
+                    get: { isPreset ? current : Self.customModelTag },
+                    set: { newValue in
+                        var settings = runtime.settings
+                        settings.models.metadata = newValue == Self.customModelTag ? "" : newValue
+                        runtime.update(settings: settings)
+                    }
+                )
+            ) {
+                ForEach(AIModelSettings.metadataChoices, id: \.self) { choice in
+                    Text(choice).tag(choice)
+                }
+                Text("Other…").tag(Self.customModelTag)
+            }
+            .labelsHidden()
+            .frame(width: 240)
+            if !isPreset {
+                TextField(
+                    "model identifier",
+                    text: Binding(
+                        get: { runtime.settings.models.metadata },
                         set: { newValue in
                             var settings = runtime.settings
-                            settings.models.metadata = newValue == Self.customModelTag ? "" : newValue
+                            settings.models.metadata = newValue
                             runtime.update(settings: settings)
                         }
                     )
-                ) {
-                    ForEach(AIModelSettings.metadataChoices, id: \.self) { choice in
-                        Text(choice).tag(choice)
-                    }
-                    Text("Other…").tag(Self.customModelTag)
-                }
-                .labelsHidden()
+                )
                 .frame(width: 240)
-                if !isPreset {
-                    TextField(
-                        "model identifier",
-                        text: Binding(
-                            get: { runtime.settings.models.metadata },
-                            set: { newValue in
-                                var settings = runtime.settings
-                                settings.models.metadata = newValue
-                                runtime.update(settings: settings)
-                            }
-                        )
-                    )
-                    .frame(width: 240)
-                }
-                Text("Titles, summaries, speaker suggestions")
-                    .font(.caption2).foregroundStyle(.secondary)
             }
         }
     }
+}
 
-    private func enrichmentToggle(
+/// The five switches for what OpenAI writes. Shared by Settings and the setup
+/// wizard so both offer the same list.
+struct EnrichmentToggles: View {
+    let runtime: PipitRuntime
+
+    var body: some View {
+        toggle("Generate a title", keyPath: \.generateTitle)
+        toggle("Generate a description", keyPath: \.generateDescription)
+        toggle("Generate notes", keyPath: \.generateNotes)
+        toggle("Generate a summary", keyPath: \.generateSummary)
+        toggle("Suggest speaker names", keyPath: \.suggestSpeakers)
+    }
+
+    private func toggle(
         _ title: String, keyPath: WritableKeyPath<EnrichmentSettings, Bool>
     ) -> some View {
         Toggle(

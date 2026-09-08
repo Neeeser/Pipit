@@ -55,6 +55,8 @@ struct DockPresenceTests {
         let runtime = PipitRuntime(settingsDirectory: root)
         var settings = runtime.settings
         settings.storageRootPath = root.appendingPathComponent("Meetings").path
+        // Menu bar only, so the window is the only thing asking for the Dock.
+        settings.showsDockIcon = false
         runtime.update(settings: settings)
         return WindowManager(runtime: runtime) { recorder.policies.append($0) }
     }

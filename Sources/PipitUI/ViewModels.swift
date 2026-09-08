@@ -35,6 +35,9 @@ public final class SettingsModel {
     /// Opens the people directory. Set by the window manager, which owns both
     /// this model and that window.
     @ObservationIgnored public var onOpenPeople: (() -> Void)?
+    /// Asks the updater to check now. Set by the window manager; nil while
+    /// there is no updater, which disables the button.
+    @ObservationIgnored public var onCheckForUpdates: (() -> Void)?
 
     public enum TestState: Equatable {
         case idle
@@ -146,6 +149,14 @@ public final class SettingsModel {
     }
 
     public func openPeople() { onOpenPeople?() }
+
+    public var canCheckForUpdates: Bool { onCheckForUpdates != nil }
+    public func checkForUpdates() { onCheckForUpdates?() }
+
+    /// Reads Firefox's add-on list because the person pressed the button.
+    public func checkFirefox() {
+        runtime.checkFirefoxProfile()
+    }
 
     /// Measures the archive off the main actor.
     ///

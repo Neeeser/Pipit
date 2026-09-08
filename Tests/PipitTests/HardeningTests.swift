@@ -1046,21 +1046,42 @@ struct SensorTrustTests {
         )
 
         #expect(
-            !FirefoxProfile.hasInstalledAddOn(profilesDirectory: root),
+            FirefoxProfile.probe(profilesDirectory: root) == .absent,
             "an empty profile holds no add-on"
         )
 
         try Data().write(to: profile.appendingPathComponent("sensor@pipit.app.xpi"))
         #expect(
-            FirefoxProfile.hasInstalledAddOn(profilesDirectory: root),
+            FirefoxProfile.probe(profilesDirectory: root) == .installed,
             "the file Firefox writes on install is the whole answer"
         )
         #expect(
-            !FirefoxProfile.hasInstalledAddOn(
-                profilesDirectory: root.appendingPathComponent("missing")
-            ),
+            FirefoxProfile.probe(profilesDirectory: root.appendingPathComponent("missing")) == .absent,
             "no Firefox on this Mac reads as no add-on"
         )
+    }
+
+    @Test("a profiles folder macOS refuses to open reads as unreadable, not as no add-on")
+    func aProfilesFolderMacOSRefusesToOpenReadsAsUnreadableNotAsNoAddOn() async throws {
+        // macOS 15 treats Firefox's Application Support folder as Firefox's
+        // data and refuses the read until the person allows it. A refusal
+        // used to read as "not installed", which sent someone who had just
+        // installed the add-on back to the install button.
+        let root = try TestPaths.makeTemporaryDirectory()
+        defer {
+            try? FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: root.path)
+            try? FileManager.default.removeItem(at: root)
+        }
+        try FileManager.default.setAttributes([.posixPermissions: 0o000], ofItemAtPath: root.path)
+        try #require(!FileManager.default.isReadableFile(atPath: root.path), "the fixture must be unreadable")
+
+        #expect(FirefoxProfile.probe(profilesDirectory: root) == .unreadable)
+
+        // The answer is kept so the folder is never read again by accident.
+        // A refusal has no switch in System Settings to undo it.
+        #expect(FirefoxProfileAccess.recorded(from: .unreadable) == .blocked)
+        #expect(FirefoxProfileAccess.recorded(from: .installed) == .allowed)
+        #expect(FirefoxProfileAccess.recorded(from: .absent) == .allowed, "reading an empty list is still reading")
     }
 
     @Test("only Pipit's own relay, launched by a browser, is accepted")

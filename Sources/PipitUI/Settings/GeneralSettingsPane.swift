@@ -15,7 +15,6 @@ struct GeneralSettingsPane: View {
                     Text("Off keeps Pipit in the menu bar only.")
                         .font(.caption).foregroundStyle(.secondary)
                 }
-                Toggle("Beta updates", isOn: model.binding(\.receivesBetaUpdates))
                 Toggle(
                     "Pause automatic detection",
                     isOn: Binding(
@@ -23,6 +22,12 @@ struct GeneralSettingsPane: View {
                         set: { runtime.setDetectionPaused($0) }
                     )
                 )
+            }
+            Section("Updates") {
+                Button("Check for Updates…") { model.checkForUpdates() }
+                    .disabled(!model.canCheckForUpdates)
+                Toggle("Beta updates", isOn: model.binding(\.receivesBetaUpdates))
+                Text(AboutView.version).font(.caption).foregroundStyle(.secondary)
             }
             // Nothing here says who you are. Naming yourself is a rename and
             // saying an existing row is you is a merge, and People owns both.

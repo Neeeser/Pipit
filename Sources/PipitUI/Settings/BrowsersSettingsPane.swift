@@ -17,6 +17,7 @@ struct BrowsersSettingsPane: View {
         FirefoxAddOnState(
             connection: runtime.status.sensorConnection,
             isInProfile: runtime.status.firefoxAddOnInProfile,
+            profileRead: runtime.settings.firefoxProfileAccess == .allowed,
             hasBundledAddOn: FirefoxAddOn.bundledAddOn != nil
         )
     }
@@ -31,9 +32,14 @@ struct BrowsersSettingsPane: View {
                     statusSymbol: addOnState.symbol,
                     statusColor: addOnState.color
                 )
-                if addOnState == .missing {
+                if addOnState.offersInstall {
                     FirefoxAddOnInstallButton(prepareRelay: { model.installHost() })
                 }
+                FirefoxAddOnCheck(
+                    access: runtime.settings.firefoxProfileAccess,
+                    state: addOnState,
+                    check: { model.checkFirefox() }
+                )
             }
 
             Section("Chrome") {

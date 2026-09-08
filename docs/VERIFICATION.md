@@ -118,9 +118,15 @@ The following paths have been exercised outside unit tests:
   screen and open Setup from the menu; it appears centred on that screen, in
   front. Close it, put another application in full screen, reopen Setup from
   the menu, and confirm it comes up in front of the full-screen application.
-- Setup marks: continue past Calendar and alerts with both off and past
-  Firefox without installing the add-on, quit and relaunch, and confirm both
-  show a blue check. Turn calendar and notifications on and confirm the row
+- Firefox check: on a Mac with Firefox, launch a fresh install and confirm
+  no "access data from other apps" prompt appears before the Firefox page.
+  Press "Check Firefox for the add-on" there and confirm macOS asks once.
+  Choose Don't Allow and confirm the page says macOS blocked the check, and
+  that quitting and relaunching raises no prompt. Choose Allow on another
+  account and confirm the add-on's state is read on every later launch.
+- Setup marks: continue past Calendar and alerts with both off, past AI
+  Features with no key, and past Firefox without installing the add-on, quit
+  and relaunch, and confirm all three show a blue check. Turn calendar and notifications on and confirm the row
   turns green. A required step never done shows a red X on every launch,
   including after an unsigned reinstall dropped the grant.
 - Documents prompt at launch: install an unsigned rebuild and launch it.

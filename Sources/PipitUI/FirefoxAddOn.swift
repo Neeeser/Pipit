@@ -56,22 +56,30 @@ public enum FirefoxAddOnState: Equatable {
     /// drops the connection, and the add-on waits out a backoff before calling
     /// in again, so this is an ordinary state rather than a fault.
     case connecting
-    /// Not connected, not in a profile, and this build has one to install.
+    /// Not connected, and Firefox's add-on list has not been read, so whether
+    /// it is installed is not known. Reading it raises a macOS prompt, which
+    /// the person triggers from the check button rather than Pipit on its own.
+    case unknown
+    /// Not connected, read as absent from every profile, and this build has
+    /// one to install.
     case missing
-    /// The same, except this build carries no signed add-on to offer.
+    /// Not connected or in a profile, and this build carries no signed add-on
+    /// to offer.
     case unavailable
 
     public init(
         connection: BrowserSensorTracker.Connection,
         isInProfile: Bool,
+        profileRead: Bool,
         hasBundledAddOn: Bool
     ) {
-        switch (connection, isInProfile, hasBundledAddOn) {
-        case (.fresh, _, _): self = .reporting
-        case (.stale, _, _): self = .installed
-        case (_, true, _): self = .connecting
-        case (_, false, true): self = .missing
-        case (_, false, false): self = .unavailable
+        switch (connection, isInProfile, profileRead, hasBundledAddOn) {
+        case (.fresh, _, _, _): self = .reporting
+        case (.stale, _, _, _): self = .installed
+        case (_, true, _, _): self = .connecting
+        case (_, false, _, false): self = .unavailable
+        case (_, false, false, true): self = .unknown
+        case (_, false, true, true): self = .missing
         }
     }
 
@@ -80,13 +88,18 @@ public enum FirefoxAddOnState: Equatable {
     }
 
     var title: String {
-        isInstalled ? "Add-on installed" : "Add-on not installed"
+        switch self {
+        case .installed, .reporting, .connecting: "Add-on installed"
+        case .unknown: "Add-on not connected"
+        case .missing, .unavailable: "Add-on not installed"
+        }
     }
 
     var symbol: String {
         switch self {
         case .installed, .reporting: "checkmark.circle.fill"
         case .connecting: "clock.fill"
+        case .unknown: "questionmark.circle"
         case .missing: "exclamationmark.circle.fill"
         case .unavailable: "circle.slash"
         }
@@ -95,7 +108,7 @@ public enum FirefoxAddOnState: Equatable {
     var color: Color {
         switch self {
         case .installed, .reporting: .green
-        case .connecting, .unavailable: .secondary
+        case .connecting, .unknown, .unavailable: .secondary
         case .missing: .orange
         }
     }
@@ -106,8 +119,42 @@ public enum FirefoxAddOnState: Equatable {
         switch self {
         case .reporting, .installed: "Meeting detection in Firefox is on."
         case .connecting: "Waiting for Firefox to connect."
-        case .missing: "Improves meeting detection in Firefox."
+        case .unknown, .missing: "Improves meeting detection in Firefox."
         case .unavailable: "This build has no add-on to install."
+        }
+    }
+
+    /// Whether the install button is worth showing.
+    public var offersInstall: Bool { self == .unknown || self == .missing }
+}
+
+/// The button that reads Firefox's add-on list, and what macOS said last time.
+///
+/// Shown by setup and by the Browsers page. The read raises the macOS
+/// "access data from other apps" prompt once, and a refusal has no switch in
+/// System Settings, so the read runs only from here until it has been allowed.
+struct FirefoxAddOnCheck: View {
+    let access: FirefoxProfileAccess
+    let state: FirefoxAddOnState
+    let check: () -> Void
+
+    var body: some View {
+        // Nothing to ask while the add-on is talking, once the read is allowed
+        // and runs on its own, or on a Mac with no Firefox to read.
+        if state == .unknown, FirefoxAddOn.isFirefoxInstalled {
+            VStack(alignment: .leading, spacing: 6) {
+                switch access {
+                case .notAsked, .allowed:
+                    Button("Check Firefox for the add-on") { check() }
+                    Text("macOS asks once to let Pipit read Firefox's add-on list.")
+                        .font(.caption).foregroundStyle(.secondary)
+                case .blocked:
+                    Label("macOS blocked the check.", systemImage: "exclamationmark.triangle.fill")
+                        .font(.caption).foregroundStyle(.orange)
+                    Button("Try again") { check() }
+                        .buttonStyle(.link)
+                }
+            }
         }
     }
 }
