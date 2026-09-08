@@ -90,7 +90,9 @@ public final class SetupModel {
             settings: runtime.settings,
             cloudKeyVerified: keyState == .verified || acceptedUnverifiedKey,
             isDownloadingModels: runtime.localModelState.isBusy,
-            nativeHostInstalled: hostStatus?.isReadyForFirefox == true
+            nativeHostInstalled: hostStatus?.isReadyForFirefox == true,
+            firefoxAddOnInstalled: firefoxAddOnState.isInstalled,
+            hasStoredKey: hasStoredKey
         )
         snapshot.permissions = Dictionary(
             uniqueKeysWithValues: statuses.map { ($0.kind, $0.state) }
@@ -248,14 +250,33 @@ public final class SetupModel {
     /// for every user, including the ones who never leave the local default and
     /// have no key at all.
     public func lookUpStoredKeyIfNeeded() async {
+        guard !runtime.settings.processing.isFullyLocal else { return }
+        await lookUpStoredKey()
+    }
+
+    /// The lookup itself, once. The AI Features page asks whatever the
+    /// backend, since its offer is a key on the local path too.
+    public func lookUpStoredKey() async {
         if let storedKeyLookup {
             await storedKeyLookup.value
             return
         }
-        guard !runtime.settings.processing.isFullyLocal else { return }
         let lookup = Task { hasStoredKey = await keyPresence() }
         storedKeyLookup = lookup
         await lookup.value
+    }
+
+    /// Reads and writes one settings value in place, for the Finish page's
+    /// Dock and login switches.
+    public func setting<Value>(_ keyPath: WritableKeyPath<AppSettings, Value>) -> Binding<Value> {
+        Binding(
+            get: { self.runtime.settings[keyPath: keyPath] },
+            set: { newValue in
+                var settings = self.runtime.settings
+                settings[keyPath: keyPath] = newValue
+                self.runtime.update(settings: settings)
+            }
+        )
     }
 
     /// Whether the cloud step can offer to check a key the user has not typed.
@@ -298,6 +319,20 @@ public final class SetupModel {
     }
 
     // MARK: - Firefox and storage
+
+    public var firefoxAddOnState: FirefoxAddOnState {
+        FirefoxAddOnState(
+            connection: runtime.status.sensorConnection,
+            isInProfile: runtime.status.firefoxAddOnInProfile,
+            profileRead: runtime.settings.firefoxProfileAccess == .allowed,
+            hasBundledAddOn: FirefoxAddOn.bundledAddOn != nil
+        )
+    }
+
+    /// Reads Firefox's add-on list because the person pressed the button.
+    public func checkFirefox() {
+        runtime.checkFirefoxProfile()
+    }
 
     public func installHost() {
         guard let binary = NativeMessagingInstaller.bundledHostURL() else {

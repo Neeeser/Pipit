@@ -542,41 +542,49 @@ struct UITests {
     func theFirefoxCardReadsTheConnectionAndWhatTheBuildCarries() async throws {
         #expect(
             FirefoxAddOnState(
-                connection: .fresh, isInProfile: true, hasBundledAddOn: true
+                connection: .fresh, isInProfile: true, profileRead: true, hasBundledAddOn: true
             ) == .reporting
         )
         #expect(
             FirefoxAddOnState(
-                connection: .stale, isInProfile: true, hasBundledAddOn: true
+                connection: .stale, isInProfile: true, profileRead: true, hasBundledAddOn: true
             ) == .installed,
             "a held connection with no meeting on screen is installed and idle"
         )
         #expect(
             FirefoxAddOnState(
-                connection: .stale, isInProfile: false, hasBundledAddOn: false
+                connection: .stale, isInProfile: false, profileRead: true, hasBundledAddOn: false
             ) == .installed,
             "a temporary add-on is on no profile's disk and still installed"
         )
         #expect(
             FirefoxAddOnState(
-                connection: .disconnected, isInProfile: true, hasBundledAddOn: true
+                connection: .disconnected, isInProfile: true, profileRead: true, hasBundledAddOn: true
             ) == .connecting,
             "restarting Pipit drops the connection of an add-on that is still there"
         )
         #expect(
             FirefoxAddOnState(
-                connection: .absent, isInProfile: false, hasBundledAddOn: true
+                connection: .absent, isInProfile: false, profileRead: true, hasBundledAddOn: true
             ) == .missing,
             "nothing installed, and this build has one to offer"
         )
         #expect(
             FirefoxAddOnState(
-                connection: .absent, isInProfile: false, hasBundledAddOn: false
+                connection: .absent, isInProfile: false, profileRead: true, hasBundledAddOn: false
             ) == .unavailable,
             "nothing installed, and there is nothing to install"
         )
+        #expect(
+            FirefoxAddOnState(
+                connection: .absent, isInProfile: false, profileRead: false, hasBundledAddOn: true
+            ) == .unknown,
+            "nothing talking and the profile unread is not known to be missing"
+        )
         #expect(FirefoxAddOnState.connecting.isInstalled)
         #expect(!FirefoxAddOnState.missing.isInstalled)
+        #expect(!FirefoxAddOnState.unknown.isInstalled)
+        #expect(FirefoxAddOnState.unknown.offersInstall, "the install button is still the way in")
     }
 
     @Test("the add-on warning is for one that was dropped, not one never installed")
@@ -699,20 +707,18 @@ struct UITests {
         #expect(!raw.lowercased().contains("sk-"))
     }
 
-    @Test("the Dock icon is off unless a settings file asks for it")
-    func theDockIconIsOffUnlessASettingsFileAsksForIt() async throws {
-        // A menu-bar utility that takes a Dock slot on upgrade is a
-        // visible change nobody asked for, so an absent key reads as
-        // off rather than as the platform default for an app.
-        let older = #"{"version": 3, "localUserName": "Marlow"}"#
-        let settings = try JSONDecoder().decode(AppSettings.self, from: Data(older.utf8))
-        #expect(!settings.showsDockIcon)
-        #expect(settings.localUserName == "Marlow", "the fields beside it are untouched")
-        #expect(!AppSettings().showsDockIcon, "and a fresh install is menu bar only")
+    @Test("the Dock icon is on unless a settings file turns it off")
+    func theDockIconIsOnUnlessASettingsFileTurnsItOff() async throws {
+        // A person who installs Pipit looks for it where applications are:
+        // the Dock and the app switcher. Menu bar only is the choice, made
+        // on the Finish page or in General.
+        #expect(AppSettings().showsDockIcon, "a fresh install shows a Dock icon")
 
-        let chosen = #"{"version": 3, "showsDockIcon": true}"#
-        let enabled = try JSONDecoder().decode(AppSettings.self, from: Data(chosen.utf8))
-        #expect(enabled.showsDockIcon)
+        let chosen = #"{"version": 3, "showsDockIcon": false, "localUserName": "Marlow"}"#
+        let settings = try JSONDecoder().decode(AppSettings.self, from: Data(chosen.utf8))
+        #expect(!settings.showsDockIcon, "a file that says menu bar only is kept")
+        #expect(settings.localUserName == "Marlow", "the fields beside it are untouched")
+        #expect(settings.firefoxProfileAccess == .notAsked, "nothing reads Firefox until the person asks")
     }
 
     @Test("a settings file from an older build keeps its values when a field is added")

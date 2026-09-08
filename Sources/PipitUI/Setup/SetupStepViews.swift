@@ -17,6 +17,7 @@ struct SetupStepContent: View {
         case .screenRecording: PermissionStep(model: model, kind: .screenRecording)
         case .accessibility: PermissionStep(model: model, kind: .accessibility)
         case .optionalPermissions: OptionalPermissionsStep(model: model)
+        case .aiFeatures: AIFeaturesStep(model: model)
         case .firefox: FirefoxStep(model: model)
         case .finish: FinishStep(model: model)
         }
@@ -81,7 +82,10 @@ struct BackendStep: View {
             .labelsHidden()
             .pickerStyle(.radioGroup)
 
-            if !runtime.settings.processing.isFullyLocal { keyField }
+            if !runtime.settings.processing.isFullyLocal {
+                Divider()
+                OpenAIKeyField(model: model)
+            }
         }
         // Covers arriving on this step with the cloud already chosen, which
         // `chooseBackend` does not see.
@@ -97,10 +101,17 @@ struct BackendStep: View {
         }
         .tag(tag)
     }
+}
 
-    private var keyField: some View {
+/// The OpenAI key, saved to the keychain and checked with one request.
+///
+/// Shown by the "Where it runs" page when OpenAI transcribes, and by the AI
+/// Features page whatever the backend.
+struct OpenAIKeyField: View {
+    let model: SetupModel
+
+    var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Divider()
             Text("OpenAI API key").font(.headline)
             SecureField("sk-…", text: Binding(get: { model.apiKey }, set: { model.apiKey = $0 }))
                 .textFieldStyle(.roundedBorder)
@@ -345,18 +356,39 @@ struct OptionalPermissionsStep: View {
     }
 }
 
+// MARK: - AI features
+
+/// The OpenAI key and what it is used for. Every feature is on by default,
+/// and this is where a person switches one off.
+struct AIFeaturesStep: View {
+    let model: SetupModel
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 18) {
+            StepHeader(
+                eyebrow: "Optional",
+                title: "AI Features",
+                message: "OpenAI writes a title, summary, and notes for each meeting and suggests speaker names."
+            )
+            OpenAIKeyField(model: model)
+            Divider()
+            HStack(alignment: .firstTextBaseline, spacing: 12) {
+                Text("Model").font(.headline)
+                MetadataModelPicker(runtime: model.runtime)
+            }
+            Divider()
+            EnrichmentToggles(runtime: model.runtime)
+        }
+        .task { await model.lookUpStoredKey() }
+    }
+}
+
 // MARK: - Firefox
 
 struct FirefoxStep: View {
     let model: SetupModel
 
-    private var addOnState: FirefoxAddOnState {
-        FirefoxAddOnState(
-            connection: model.runtime.status.sensorConnection,
-            isInProfile: model.runtime.status.firefoxAddOnInProfile,
-            hasBundledAddOn: FirefoxAddOn.bundledAddOn != nil
-        )
-    }
+    private var addOnState: FirefoxAddOnState { model.firefoxAddOnState }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 18) {
@@ -376,9 +408,15 @@ struct FirefoxStep: View {
                 .font(.caption).foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
 
-            if !addOnState.isInstalled, addOnState != .unavailable {
+            if addOnState.offersInstall {
                 FirefoxAddOnInstallButton(prepareRelay: { model.installHost() })
             }
+
+            FirefoxAddOnCheck(
+                access: model.runtime.settings.firefoxProfileAccess,
+                state: addOnState,
+                check: { model.checkFirefox() }
+            )
         }
     }
 }
@@ -408,6 +446,15 @@ struct FinishStep: View {
                         .buttonStyle(.link)
                     }
                 }
+            }
+
+            Divider()
+
+            VStack(alignment: .leading, spacing: 8) {
+                Toggle("Show in Dock", isOn: model.setting(\.showsDockIcon))
+                Text("Off keeps Pipit in the menu bar only.")
+                    .font(.caption).foregroundStyle(.secondary)
+                Toggle("Launch at login", isOn: model.setting(\.launchAtLogin))
             }
 
             Divider()
