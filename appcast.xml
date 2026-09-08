@@ -3,6 +3,18 @@
     <channel>
         <title>Pipit</title>
         <item>
+            <title>0.1.1</title>
+            <pubDate>Tue, 08 Sep 2026 18:43:33 +0000</pubDate>
+            <link>https://github.com/Neeeser/Pipit/releases</link>
+            <sparkle:channel>beta</sparkle:channel>
+            <sparkle:releaseNotesLink>https://github.com/Neeeser/Pipit/releases/tag/v0.1.1</sparkle:releaseNotesLink>
+            <sparkle:version>335</sparkle:version>
+            <sparkle:shortVersionString>0.1.1</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>15.0</sparkle:minimumSystemVersion>
+            <sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements>
+            <enclosure url="https://github.com/Neeeser/Pipit/releases/download/v0.1.1/Pipit-0.1.1.zip" length="18424966" type="application/octet-stream" sparkle:edSignature="6fLlNbHaMmVOhe5N4N2ckz0+i02HlJWIc3ygzsNaLn/8pndUYnMs/0k4W1JcISplrkNdm61r4Vf6DSWIE10lBw=="/>
+        </item>
+        <item>
             <title>0.1.0</title>
             <pubDate>Mon, 07 Sep 2026 00:12:50 +0000</pubDate>
             <link>https://github.com/Neeeser/Pipit/releases</link>
