@@ -100,7 +100,7 @@ targets:
         # the built bundle, so these two are what the plist holds only until it
         # runs. scripts/bump-version.sh --apply keeps MARKETING_VERSION in step
         # with VERSION anyway, so a build that skips the phase is not wrong.
-        MARKETING_VERSION: "0.1.1"
+        MARKETING_VERSION: "0.1.2"
         CURRENT_PROJECT_VERSION: "1"
         ENABLE_HARDENED_RUNTIME: YES
         GENERATE_INFOPLIST_FILE: NO
