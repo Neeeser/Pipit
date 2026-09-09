@@ -16,11 +16,18 @@ public enum SensorMessage: Codable, Sendable, Equatable {
         public var browser: BrowserKind
         public var extensionVersion: String?
         public var hostVersion: String
+        /// The wire shape the add-on speaks, judged by `SensorProtocol`. Nil
+        /// from an add-on signed before the number existed.
+        public var protocolVersion: Int?
 
-        public init(browser: BrowserKind, extensionVersion: String?, hostVersion: String) {
+        public init(
+            browser: BrowserKind, extensionVersion: String?, hostVersion: String,
+            protocolVersion: Int? = nil
+        ) {
             self.browser = browser
             self.extensionVersion = extensionVersion
             self.hostVersion = hostVersion
+            self.protocolVersion = protocolVersion
         }
     }
 

@@ -36,7 +36,8 @@
   "browser_specific_settings": {
     "gecko": {
       "id": "sensor@pipit.app",
-      "strict_min_version": "115.0"
+      "strict_min_version": "115.0",
+      "update_url": "https://neeeser.github.io/Pipit/firefox/updates.json"
     }
   }
 }

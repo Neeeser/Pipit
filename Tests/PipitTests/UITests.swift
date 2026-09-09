@@ -587,6 +587,65 @@ struct UITests {
         #expect(FirefoxAddOnState.unknown.offersInstall, "the install button is still the way in")
     }
 
+    @Test("the Firefox card asks for an update when the add-on is behind this build")
+    func theFirefoxCardAsksForAnUpdateWhenTheAddOnIsBehindThisBuild() async throws {
+        let behind = FirefoxAddOnState(
+            connection: .fresh, isInProfile: true, profileRead: true, hasBundledAddOn: true,
+            compatibility: .behind
+        )
+        #expect(behind == .outdated)
+        #expect(behind.offersUpdate)
+        #expect(!behind.offersInstall)
+        #expect(behind.isInstalled)
+        #expect(
+            FirefoxAddOnState(
+                connection: .disconnected, isInProfile: true, profileRead: true, hasBundledAddOn: true,
+                compatibility: .behind
+            ) == .outdated,
+            "the answer is known from the latch before the add-on calls back"
+        )
+        #expect(
+            FirefoxAddOnState(
+                connection: .absent, isInProfile: false, profileRead: true, hasBundledAddOn: true,
+                compatibility: .behind
+            ) == .missing,
+            "an add-on that was removed is missing, whatever it last reported"
+        )
+        let ahead = FirefoxAddOnState(
+            connection: .fresh, isInProfile: true, profileRead: true, hasBundledAddOn: true,
+            compatibility: .ahead
+        )
+        #expect(ahead == .newer)
+        #expect(ahead.suggestsAppUpdate)
+        #expect(!ahead.offersUpdate, "nothing is lost with a newer add-on")
+        #expect(
+            FirefoxAddOnState(
+                connection: .fresh, isInProfile: true, profileRead: true, hasBundledAddOn: true,
+                compatibility: .current
+            ) == .reporting
+        )
+    }
+
+    @Test("an add-on that is behind marks the idle icon and not a recording one")
+    func anAddOnThatIsBehindMarksTheIdleIconAndNotARecordingOne() async throws {
+        await MainActor.run {
+            var status = RuntimeStatus()
+            status.firefoxSensorHasConnected = true
+            status.firefoxAddOnProtocol = SensorProtocol.unnumbered
+            #expect(status.firefoxAddOnNeedsUpdate)
+            #expect(MenuBarController.iconIsBadged(for: status))
+            #expect(!MenuBarController.iconIsRed(for: status), "red is reserved for a refused permission")
+
+            status.sessionState = .recording
+            #expect(
+                !MenuBarController.iconIsBadged(for: status), "a recording icon carries the state that matters most")
+
+            status.sessionState = .idle
+            status.firefoxAddOnProtocol = SensorProtocol.required
+            #expect(!MenuBarController.iconIsBadged(for: status))
+        }
+    }
+
     @Test("the add-on warning is for one that was dropped, not one never installed")
     func theAddOnWarningIsForOneThatWasDroppedNotOneNeverInstalled() async throws {
         var status = RuntimeStatus()

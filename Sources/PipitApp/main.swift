@@ -29,7 +29,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // every settings change through the menu bar controller's observer and
         // whenever a window opens or closes.
         windows.refreshDockPresence()
-        updates = UpdateController(runtime: runtime)
+        updates = UpdateController(runtime: runtime, windows: windows)
         windows.checkForUpdates = { [weak self] in self?.updates.checkForUpdates() }
         menuBar = MenuBarController(runtime: runtime, windows: windows, updates: updates)
         notificationRouter = NotificationRouter(runtime: runtime, windows: windows)

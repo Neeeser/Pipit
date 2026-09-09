@@ -49,6 +49,7 @@ public final class MenuBarController: NSObject, NSMenuDelegate {
             self?.syncProvisionalPrompt()
             windows?.refreshDockPresence()
             self?.applyLoginItemIfChanged(runtime.settings.launchAtLogin)
+            self?.updates.statusDidChange()
         }
         let timer = DispatchSource.makeTimerSource(queue: .main)
         timer.schedule(deadline: .now() + 1, repeating: 1)
@@ -151,12 +152,13 @@ public final class MenuBarController: NSObject, NSMenuDelegate {
         status.permissionNotice != nil
     }
 
-    /// Whether the exclamation mark is stamped into the icon's corner.
+    /// Whether the exclamation mark is drawn beside the bird, in the menu
+    /// bar's own colour. Red is reserved for a refused permission.
     public static func iconIsBadged(for status: RuntimeStatus) -> Bool {
         if iconIsRed(for: status) { return false }
         // A recording icon already carries the state that matters most. The
         // add-on warning waits until the icon is otherwise idle.
-        return status.sensorNeedsAttention && !status.isCapturing
+        return (status.sensorNeedsAttention || status.firefoxAddOnNeedsUpdate) && !status.isCapturing
     }
 
     /// Everything the image is decided from, so an unchanged icon is not rebuilt.
@@ -176,7 +178,7 @@ public final class MenuBarController: NSObject, NSMenuDelegate {
         copy.size = NSSize(width: 18, height: 18)
         copy.isTemplate = true
         if iconIsRed(for: status) { return rasterized(flagged(copy)) }
-        return iconIsBadged(for: status) ? rasterized(badged(copy)) : copy
+        return iconIsBadged(for: status) ? rasterized(marked(copy)) : copy
     }
 
     /// A composed image as pixels.
@@ -253,31 +255,29 @@ public final class MenuBarController: NSObject, NSMenuDelegate {
         return image
     }
 
-    /// Stamps a warning mark into the corner of the menu bar icon.
+    /// The exclamation mark beside the bird, as a template.
     ///
-    /// The icon is a template, so the mark cannot be a second colour. A hole
-    /// cleared around it is what keeps it readable against the icon behind.
-    private static func badged(_ base: NSImage) -> NSImage {
-        guard
-            let mark = NSImage(
-                systemSymbolName: "exclamationmark.circle.fill", accessibilityDescription: nil
-            )
-        else { return base }
-        let badged = NSImage(size: base.size, flipped: false) { rect in
-            base.draw(in: rect)
-            let diameter = rect.width * 0.6
-            let box = NSRect(
-                x: rect.maxX - diameter, y: rect.minY, width: diameter, height: diameter
-            )
-            NSGraphicsContext.current?.compositingOperation = .destinationOut
-            NSColor.black.setFill()
-            NSBezierPath(ovalIn: box.insetBy(dx: -1.5, dy: -1.5)).fill()
-            NSGraphicsContext.current?.compositingOperation = .sourceOver
-            mark.draw(in: box)
+    /// The same mark and place as the refused-permission icon, so a person
+    /// learns one shape. It stays a template and takes the menu bar's own
+    /// colour, because red is what a refused permission looks like. Beside
+    /// rather than stamped over: a mark cut into the corner took a hole out
+    /// of the bird.
+    private static func marked(_ base: NSImage) -> NSImage {
+        let markWidth = base.size.height * 0.5
+        let gap: CGFloat = 1.5
+        let size = NSSize(width: base.size.width + gap + markWidth, height: base.size.height)
+        let mark = NSImage(systemSymbolName: "exclamationmark.circle.fill", accessibilityDescription: nil)
+        let image = NSImage(size: size, flipped: false) { rect in
+            let bird = NSRect(x: rect.minX, y: rect.minY, width: base.size.width, height: base.size.height)
+            base.draw(in: bird)
+            if let mark {
+                let box = NSRect(x: bird.maxX + gap, y: rect.minY, width: markWidth, height: markWidth)
+                mark.draw(in: box)
+            }
             return true
         }
-        badged.isTemplate = true
-        return badged
+        image.isTemplate = true
+        return image
     }
 
     /// Keeps `swift run Pipit` usable outside the assembled application
@@ -294,6 +294,9 @@ public final class MenuBarController: NSObject, NSMenuDelegate {
     }
 
     private func accessibilityLabel(for status: RuntimeStatus) -> String {
+        if status.firefoxAddOnNeedsUpdate, !status.isCapturing {
+            return "Pipit, the Firefox add-on needs updating"
+        }
         if status.sensorNeedsAttention, !status.isCapturing {
             return "Pipit, the Firefox add-on is not loaded"
         }
@@ -328,9 +331,12 @@ public final class MenuBarController: NSObject, NSMenuDelegate {
             menu.addItem(.separator())
         }
 
-        if status.sensorNeedsAttention {
+        // An add-on that is behind is the one thing asked of the person, and
+        // updating it also loads it, so it takes the row over "not loaded".
+        if status.firefoxAddOnNeedsUpdate || status.sensorNeedsAttention {
             let warning = NSMenuItem(
-                title: "Firefox add-on not loaded",
+                title: status.firefoxAddOnNeedsUpdate
+                    ? "Firefox add-on needs updating" : "Firefox add-on not loaded",
                 action: #selector(openBrowserSettings),
                 keyEquivalent: ""
             )

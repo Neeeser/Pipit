@@ -25,6 +25,8 @@ public final class WindowManager {
     private var permissionNoticeModel: PermissionNoticeModel?
     private var permissionNoticeID: String?
     private var provisionalPromptID: String?
+    private var updateWindow: NSWindow?
+    private var updateCloseToken: NSObjectProtocol?
     /// The windows currently on screen that Pipit has to stay reachable behind.
     private var openWindows: Set<ObjectIdentifier> = []
     /// One per open window, so a window closed by any route is noticed.
@@ -95,6 +97,42 @@ public final class WindowManager {
         window.setFrameAutosaveName("PipitSettings")
         settingsWindow = window
         present(window)
+    }
+
+    /// The update window, for every stage of an update.
+    ///
+    /// One window for the life of the process, shown and hidden as the update
+    /// moves. Closing it with the close box answers whatever Sparkle is
+    /// waiting on the way a dismissed dialog would, through the model.
+    public func showUpdate(
+        _ model: UpdateFlowModel, installAddOn: @escaping () -> Void, activating: Bool
+    ) {
+        if let window = updateWindow {
+            if !window.isVisible { present(window, activating: activating) }
+            return
+        }
+        let window = makeWindow(
+            title: "Software Update",
+            size: NSSize(width: 500, height: 360),
+            content: UpdateWindowView(model: model, installAddOn: installAddOn)
+        )
+        window.styleMask.remove(.resizable)
+        window.styleMask.remove(.miniaturizable)
+        updateCloseToken = NotificationCenter.default.addObserver(
+            forName: NSWindow.willCloseNotification, object: window, queue: .main
+        ) { _ in
+            MainActor.assumeIsolated { model.windowClosed() }
+        }
+        updateWindow = window
+        present(window, activating: activating)
+    }
+
+    public func closeUpdate() {
+        guard let window = updateWindow, window.isVisible else { return }
+        // Ordering out rather than closing: the close box is what answers
+        // Sparkle, and this is Sparkle finishing on its own.
+        window.orderOut(nil)
+        release(ObjectIdentifier(window))
     }
 
     /// What Pipit is and where it puts things.

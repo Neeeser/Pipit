@@ -411,6 +411,9 @@ struct FirefoxStep: View {
             if addOnState.offersInstall {
                 FirefoxAddOnInstallButton(prepareRelay: { model.installHost() })
             }
+            if addOnState.offersUpdate {
+                FirefoxAddOnInstallButton(prepareRelay: { model.installHost() }, role: .update)
+            }
 
             FirefoxAddOnCheck(
                 access: model.runtime.settings.firefoxProfileAccess,

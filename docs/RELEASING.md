@@ -262,3 +262,28 @@ The version argument stamps the built manifest, because AMO refuses a version
 it has already signed for this add-on. Pass the release version so each tag
 signs a version of its own. Mozilla reviews self-distributed add-ons after the
 fact and can disable one that breaks their policies.
+### Add-on updates
+
+Firefox updates the add-on on its own. The add-on's manifest names an update
+feed at `https://neeeser.github.io/Pipit/firefox/updates.json`, and Firefox
+reads it about once a day. The release workflow attaches the signed add-on to
+the GitHub release, and the appcast workflow adds it to the feed with
+`scripts/make-addon-updates.sh` when it publishes the appcast. A signed add-on
+already installed updates from the feed with no prompt.
+
+The app tells the person to update the add-on only when the add-on is older
+than the app needs. That is decided by one number, `SensorProtocol.required`
+in `Sources/PipitCore/Detection/SensorCompatibility.swift`, matched by
+`SENSOR_PROTOCOL` in `extension/shared/relay.js`. The add-on sends its number
+in its hello. Raise both numbers together in the change that makes the app
+depend on something new from the add-on, and leave them alone in every other
+release. An add-on ahead of the app is not a problem: each side reads only the
+fields it knows, and the Browsers page says an app update is what would use
+the newer add-on.
+
+The update window is Pipit's own, not Sparkle's. It lists the app and the
+add-on as the two steps of one update, and it draws the release notes from
+the GitHub release body through the API rather than showing the release page.
+The launch after an update opens the window on its second step when the
+add-on is still behind, and closes it once the add-on reconnects updated.
+
