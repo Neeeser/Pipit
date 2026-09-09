@@ -26,6 +26,10 @@ public struct RuntimeStatus: Sendable, Equatable {
     /// Whether a Firefox profile holds the add-on, which is the answer while it
     /// is installed but has not called in yet.
     public var firefoxAddOnInProfile = false
+    /// The wire shape the add-on last reported, from the settings latch, so
+    /// the answer is there before the add-on calls back after a restart.
+    public var firefoxAddOnProtocol: Int?
+    public var firefoxAddOnVersion: String?
     public var slackState: SlackHuddleDetector.State = .idle
     public var lastWarning: CaptureWarning?
     /// A recording was refused or crippled for a missing grant, and the
@@ -68,6 +72,20 @@ public struct RuntimeStatus: Sendable, Equatable {
         // connections, which restarting Pipit causes and which fixes itself.
         return !firefoxAddOnInProfile
     }
+
+    /// Where the add-on that last reported stands against this build.
+    public var firefoxAddOnCompatibility: SensorProtocol.Compatibility? {
+        guard firefoxSensorHasConnected else { return nil }
+        return SensorProtocol.compatibility(of: firefoxAddOnProtocol ?? SensorProtocol.unnumbered)
+    }
+
+    /// The add-on is older than this build needs. Drives the menu bar row,
+    /// the Browsers card and the second step of the update window.
+    public var firefoxAddOnNeedsUpdate: Bool { firefoxAddOnCompatibility == .behind }
+
+    /// The add-on is newer than this build. Nothing is lost, and the Browsers
+    /// card says an app update is what would use it.
+    public var firefoxAddOnIsAhead: Bool { firefoxAddOnCompatibility == .ahead }
 
     /// Never show a healthy recording while a required source is known to be
     /// failing.
@@ -521,7 +539,21 @@ public final class PipitRuntime {
             updated.firefoxSensorHasConnected = true
             update(settings: updated)
         }
+        // What the add-on said about itself is kept the same way, so the
+        // launch after an app update knows whether the add-on is behind
+        // before the add-on has called back.
+        if let hello = snapshot.sensorHello {
+            let reported = hello.protocolVersion ?? SensorProtocol.unnumbered
+            if settings.firefoxAddOnProtocol != reported || settings.firefoxAddOnVersion != hello.extensionVersion {
+                var updated = settings
+                updated.firefoxAddOnProtocol = reported
+                updated.firefoxAddOnVersion = hello.extensionVersion
+                update(settings: updated)
+            }
+        }
         status.firefoxSensorHasConnected = settings.firefoxSensorHasConnected
+        status.firefoxAddOnProtocol = settings.firefoxAddOnProtocol
+        status.firefoxAddOnVersion = settings.firefoxAddOnVersion
         status.slackState = snapshot.slackState
         if let reading = snapshot.roster { recordSensorReading(reading) }
 

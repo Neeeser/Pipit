@@ -2,7 +2,7 @@
 //
 // `relayEnvelope` comes from shared/relay.js, which the build concatenates in
 // front of this file.
-/* global relayEnvelope */
+/* global relayEnvelope, helloMessage */
 
 const api = globalThis.browser ?? globalThis.chrome;
 const HOST_NAME = 'com.pipit.sensor';
@@ -40,11 +40,7 @@ function connect() {
       // drops it after this is a fresh problem and gets the short retry again.
       reconnectDelay = RECONNECT_MIN_MS;
     });
-    port.postMessage({
-      type: 'hello',
-      extensionVersion: api.runtime.getManifest().version,
-      sentAt: Date.now(),
-    });
+    port.postMessage(helloMessage(api.runtime.getManifest().version));
   } catch {
     port = null;
     scheduleReconnect();

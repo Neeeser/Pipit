@@ -90,9 +90,19 @@ jobs:
             "https://github.com/$GITHUB_REPOSITORY/releases/download/$TAG/" \
             ${BETA_ARGS[@]+"${BETA_ARGS[@]}"}
           cp dist/appcast/appcast.xml "$PAGES/appcast.xml"
+          # Firefox reads this feed on its own schedule and installs the
+          # signed add-on without a prompt. A release with no add-on asset
+          # leaves the feed as it was.
+          if gh release download "$TAG" --pattern "pipit-sensor.xpi" --dir dist; then
+            ./scripts/make-addon-updates.sh dist/pipit-sensor.xpi \
+              "https://github.com/$GITHUB_REPOSITORY/releases/download/$TAG/pipit-sensor.xpi" \
+              "$PAGES/firefox/updates.json"
+          else
+            echo "::warning::No signed add-on on $TAG. The add-on update feed was not changed."
+          fi
           git -C "$PAGES" config user.name 'github-actions[bot]'
           git -C "$PAGES" config user.email 'github-actions[bot]@users.noreply.github.com'
-          git -C "$PAGES" add appcast.xml
+          git -C "$PAGES" add appcast.xml firefox
           if git -C "$PAGES" diff --quiet --cached; then
             echo "appcast unchanged"
           else

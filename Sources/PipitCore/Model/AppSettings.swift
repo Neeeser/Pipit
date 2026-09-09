@@ -380,6 +380,14 @@ public struct AppSettings: Codable, Sendable, Equatable {
     /// warning about.
     public var firefoxSensorHasConnected: Bool
     public var firefoxProfileAccess: FirefoxProfileAccess
+    /// What the Firefox add-on said about itself the last time it called in.
+    ///
+    /// Kept on disk because the answer is needed on the launch after an app
+    /// update, and the add-on takes up to a minute to call back after Pipit
+    /// restarts. Nil until an add-on has reported. An add-on that sends no
+    /// number is stored as `SensorProtocol.unnumbered`.
+    public var firefoxAddOnProtocol: Int?
+    public var firefoxAddOnVersion: String?
 
     public init(
         version: Int = AppSettings.currentVersion,
@@ -403,7 +411,9 @@ public struct AppSettings: Codable, Sendable, Equatable {
         meetingReconnectWindowSeconds: Double = SessionController.Configuration()
             .reconnectWindowSeconds,
         firefoxSensorHasConnected: Bool = false,
-        firefoxProfileAccess: FirefoxProfileAccess = .notAsked
+        firefoxProfileAccess: FirefoxProfileAccess = .notAsked,
+        firefoxAddOnProtocol: Int? = nil,
+        firefoxAddOnVersion: String? = nil
     ) {
         self.version = version
         self.storageRootPath = storageRootPath
@@ -426,6 +436,8 @@ public struct AppSettings: Codable, Sendable, Equatable {
         self.meetingReconnectWindowSeconds = meetingReconnectWindowSeconds
         self.firefoxSensorHasConnected = firefoxSensorHasConnected
         self.firefoxProfileAccess = firefoxProfileAccess
+        self.firefoxAddOnProtocol = firefoxAddOnProtocol
+        self.firefoxAddOnVersion = firefoxAddOnVersion
     }
 
     /// Every field decodes with its default when absent, so a settings file
@@ -523,6 +535,8 @@ public struct AppSettings: Codable, Sendable, Equatable {
         firefoxProfileAccess =
             try container.decodeIfPresent(FirefoxProfileAccess.self, forKey: .firefoxProfileAccess)
             ?? defaults.firefoxProfileAccess
+        firefoxAddOnProtocol = try container.decodeIfPresent(Int.self, forKey: .firefoxAddOnProtocol)
+        firefoxAddOnVersion = try container.decodeIfPresent(String.self, forKey: .firefoxAddOnVersion)
         // The stored number gated the migrations above; the decoded struct is
         // current-schema, and writing it back as such is what stops a
         // migration from re-running against a value the user has since chosen.

@@ -116,7 +116,8 @@ func sensorMessage(from raw: [String: Any], browser: BrowserKind) -> SensorMessa
             SensorMessage.Hello(
                 browser: browser,
                 extensionVersion: raw["extensionVersion"] as? String,
-                hostVersion: hostVersion
+                hostVersion: hostVersion,
+                protocolVersion: raw["protocol"] as? Int
             ))
     case "tab_removed":
         guard let tabID = raw["tabId"] as? Int else { return nil }

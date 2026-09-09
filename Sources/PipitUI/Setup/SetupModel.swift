@@ -325,7 +325,8 @@ public final class SetupModel {
             connection: runtime.status.sensorConnection,
             isInProfile: runtime.status.firefoxAddOnInProfile,
             profileRead: runtime.settings.firefoxProfileAccess == .allowed,
-            hasBundledAddOn: FirefoxAddOn.bundledAddOn != nil
+            hasBundledAddOn: FirefoxAddOn.bundledAddOn != nil,
+            compatibility: runtime.status.firefoxAddOnCompatibility
         )
     }
 

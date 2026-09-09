@@ -13,3 +13,13 @@ export function relayEnvelope(message, tabId, otherAudibleTabs) {
   const sentAt = typeof message.sentAt === 'number' ? message.sentAt : Date.now();
   return { ...message, tabId, otherAudibleTabs, sentAt };
 }
+
+// The wire shape this add-on speaks. The app carries the number it needs and
+// tells the person to update the add-on when this one is lower. It moves only
+// with a change the app depends on, never with a release that leaves the
+// add-on alone.
+export const SENSOR_PROTOCOL = 2;
+
+export function helloMessage(extensionVersion, sentAt = Date.now()) {
+  return { type: 'hello', extensionVersion, protocol: SENSOR_PROTOCOL, sentAt };
+}

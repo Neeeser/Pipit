@@ -18,7 +18,8 @@ struct BrowsersSettingsPane: View {
             connection: runtime.status.sensorConnection,
             isInProfile: runtime.status.firefoxAddOnInProfile,
             profileRead: runtime.settings.firefoxProfileAccess == .allowed,
-            hasBundledAddOn: FirefoxAddOn.bundledAddOn != nil
+            hasBundledAddOn: FirefoxAddOn.bundledAddOn != nil,
+            compatibility: runtime.status.firefoxAddOnCompatibility
         )
     }
 
@@ -34,6 +35,16 @@ struct BrowsersSettingsPane: View {
                 )
                 if addOnState.offersInstall {
                     FirefoxAddOnInstallButton(prepareRelay: { model.installHost() })
+                }
+                if addOnState.offersUpdate {
+                    if let version = runtime.status.firefoxAddOnVersion {
+                        Text("Firefox has add-on \(version).")
+                            .font(.caption).foregroundStyle(.secondary)
+                    }
+                    FirefoxAddOnInstallButton(prepareRelay: { model.installHost() }, role: .update)
+                }
+                if addOnState.suggestsAppUpdate, model.canCheckForUpdates {
+                    Button("Check for Updates…") { model.checkForUpdates() }
                 }
                 FirefoxAddOnCheck(
                     access: runtime.settings.firefoxProfileAccess,
@@ -79,7 +90,7 @@ struct BrowsersSettingsPane: View {
             Button("Repair connection") { model.installHost() }
             if addOnState.isInstalled, FirefoxAddOn.bundledAddOn != nil {
                 FirefoxAddOnInstallButton(
-                    prepareRelay: { model.installHost() }, isReinstall: true
+                    prepareRelay: { model.installHost() }, role: .reinstall
                 )
             }
         }

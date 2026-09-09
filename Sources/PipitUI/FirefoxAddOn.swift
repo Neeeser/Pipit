@@ -66,13 +66,32 @@ public enum FirefoxAddOnState: Equatable {
     /// Not connected or in a profile, and this build carries no signed add-on
     /// to offer.
     case unavailable
+    /// Installed, and older than this build needs. The one state that asks
+    /// for something: the add-on has to be updated in Firefox.
+    case outdated
+    /// Installed, and newer than this build. Nothing is lost, and an app
+    /// update is what would use what it added.
+    case newer
 
     public init(
         connection: BrowserSensorTracker.Connection,
         isInProfile: Bool,
         profileRead: Bool,
-        hasBundledAddOn: Bool
+        hasBundledAddOn: Bool,
+        compatibility: SensorProtocol.Compatibility? = nil
     ) {
+        // The number the add-on last reported outranks the connection: it is
+        // known before the add-on calls back after a restart, and an add-on
+        // that is there and behind needs updating whether it is talking or not.
+        switch (compatibility, connection.isLoaded || isInProfile) {
+        case (.behind, true):
+            self = .outdated
+            return
+        case (.ahead, true) where connection.isLoaded:
+            self = .newer
+            return
+        default: break
+        }
         switch (connection, isInProfile, profileRead, hasBundledAddOn) {
         case (.fresh, _, _, _): self = .reporting
         case (.stale, _, _, _): self = .installed
@@ -84,12 +103,14 @@ public enum FirefoxAddOnState: Equatable {
     }
 
     public var isInstalled: Bool {
-        self == .installed || self == .reporting || self == .connecting
+        self == .installed || self == .reporting || self == .connecting || self == .outdated
+            || self == .newer
     }
 
     var title: String {
         switch self {
-        case .installed, .reporting, .connecting: "Add-on installed"
+        case .installed, .reporting, .connecting, .newer: "Add-on installed"
+        case .outdated: "Add-on needs updating"
         case .unknown: "Add-on not connected"
         case .missing, .unavailable: "Add-on not installed"
         }
@@ -97,19 +118,19 @@ public enum FirefoxAddOnState: Equatable {
 
     var symbol: String {
         switch self {
-        case .installed, .reporting: "checkmark.circle.fill"
+        case .installed, .reporting, .newer: "checkmark.circle.fill"
         case .connecting: "clock.fill"
         case .unknown: "questionmark.circle"
-        case .missing: "exclamationmark.circle.fill"
+        case .missing, .outdated: "exclamationmark.circle.fill"
         case .unavailable: "circle.slash"
         }
     }
 
     var color: Color {
         switch self {
-        case .installed, .reporting: .green
+        case .installed, .reporting, .newer: .green
         case .connecting, .unknown, .unavailable: .secondary
-        case .missing: .orange
+        case .missing, .outdated: .orange
         }
     }
 
@@ -118,6 +139,8 @@ public enum FirefoxAddOnState: Equatable {
     var detail: String {
         switch self {
         case .reporting, .installed: "Meeting detection in Firefox is on."
+        case .newer: "Meeting detection in Firefox is on. The add-on is newer than this Pipit."
+        case .outdated: "This version of Pipit needs a newer add-on."
         case .connecting: "Waiting for Firefox to connect."
         case .unknown, .missing: "Improves meeting detection in Firefox."
         case .unavailable: "This build has no add-on to install."
@@ -126,6 +149,13 @@ public enum FirefoxAddOnState: Equatable {
 
     /// Whether the install button is worth showing.
     public var offersInstall: Bool { self == .unknown || self == .missing }
+
+    /// Whether the update button is worth showing. The same file goes to
+    /// Firefox as on first install; only the label changes.
+    public var offersUpdate: Bool { self == .outdated }
+
+    /// Whether an app update is the thing to offer.
+    public var suggestsAppUpdate: Bool { self == .newer }
 }
 
 /// The button that reads Firefox's add-on list, and what macOS said last time.
@@ -167,20 +197,29 @@ struct FirefoxAddOnInstallButton: View {
     /// Pipit, and nobody installing an add-on should have to know that, so one
     /// button does both and neither is a step of its own.
     let prepareRelay: () -> Void
-    /// A second install over one already there, which needs no urgency.
-    var isReinstall = false
+    enum Role {
+        case install
+        /// A second install over one already there, which needs no urgency.
+        case reinstall
+        /// The add-on is behind this build. Same file, same Firefox prompt.
+        case update
+    }
+    var role: Role = .install
     @State private var launchFailed = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
             HStack(spacing: 10) {
-                if isReinstall {
+                switch role {
+                case .reinstall:
                     Button("Reinstall add-on") { install() }
                         .disabled(!FirefoxAddOn.isFirefoxInstalled)
-                } else {
-                    Button("Install the Firefox add-on") { install() }
-                        .buttonStyle(.borderedProminent)
-                        .disabled(!FirefoxAddOn.isFirefoxInstalled)
+                case .install, .update:
+                    Button(role == .update ? "Update the Firefox add-on" : "Install the Firefox add-on") {
+                        install()
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .disabled(!FirefoxAddOn.isFirefoxInstalled)
                     Text("Firefox asks you to confirm")
                         .font(.caption).foregroundStyle(.tertiary)
                 }

@@ -12,6 +12,8 @@ public struct DetectionSnapshot: Sendable, Equatable {
     /// Who the meeting client says is in the call, and who is holding the floor.
     /// Empty where nothing readable is in a meeting.
     public var roster: SensorReading?
+    /// What the browser add-on said about itself when it last connected.
+    public var sensorHello: SensorMessage.Hello?
 
     public init(
         evidence: [ProviderEvidence] = [],
@@ -19,7 +21,8 @@ public struct DetectionSnapshot: Sendable, Equatable {
         browserSensor: BrowserSensorTracker.Connection = .absent,
         hasAccessibility: Bool = false,
         hasWindowTitles: Bool = false,
-        roster: SensorReading? = nil
+        roster: SensorReading? = nil,
+        sensorHello: SensorMessage.Hello? = nil
     ) {
         self.evidence = evidence
         self.slackState = slackState
@@ -27,6 +30,7 @@ public struct DetectionSnapshot: Sendable, Equatable {
         self.hasAccessibility = hasAccessibility
         self.hasWindowTitles = hasWindowTitles
         self.roster = roster
+        self.sensorHello = sensorHello
     }
 }
 
@@ -335,7 +339,8 @@ public final class DetectionEngine: @unchecked Sendable {
             browserSensor: browserDetectors[.firefox]?.sensor.connection ?? .absent,
             hasAccessibility: AccessibilityBridge.isTrusted,
             hasWindowTitles: !titles.isEmpty || windowReader.hasTitleAccess,
-            roster: reading(slack: slackObservation, browsers: browserDetectors, at: observedAt)
+            roster: reading(slack: slackObservation, browsers: browserDetectors, at: observedAt),
+            sensorHello: sensorServer?.currentStatus.lastHello
         )
         let labels = evidence.map { item in
             "\(item.provider.rawValue):\(item.confidence.rawValue):\(item.source.rawValue)"

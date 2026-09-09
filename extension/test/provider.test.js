@@ -14,7 +14,7 @@ import {
   createSpeakingTracker,
   meetTileName,
 } from '../shared/provider.js';
-import { relayEnvelope } from '../shared/relay.js';
+import { relayEnvelope, helloMessage, SENSOR_PROTOCOL } from '../shared/relay.js';
 
 const leaveControl = { ariaLabel: 'Leave call' };
 const joinControl = { ariaLabel: 'Join now' };
@@ -504,4 +504,13 @@ test('a prejoin or waiting room carries the meeting in its address', () => {
   });
   assert.equal(prejoin.state, 'prejoin');
   assert.equal(prejoin.meetingId, '81771591841');
+});
+
+test('the hello names the wire shape the add-on speaks', () => {
+  const hello = helloMessage('0.2.0.90', 1000);
+  assert.equal(hello.type, 'hello');
+  assert.equal(hello.extensionVersion, '0.2.0.90');
+  assert.equal(hello.protocol, SENSOR_PROTOCOL);
+  assert.equal(hello.sentAt, 1000);
+  assert.ok(Number.isInteger(SENSOR_PROTOCOL) && SENSOR_PROTOCOL >= 2);
 });
