@@ -369,6 +369,16 @@ public final class PipitRuntime {
             }
         )
         relay.connect(runtime: self)
+        seedStatus(from: loaded)
+    }
+
+    /// What the add-on last reported, carried into the status before detection
+    /// has polled once. Sparkle reports the relaunch after an update the moment
+    /// the updater starts, and the update window's second step reads this.
+    private func seedStatus(from settings: AppSettings) {
+        status.firefoxSensorHasConnected = settings.firefoxSensorHasConnected
+        status.firefoxAddOnProtocol = settings.firefoxAddOnProtocol
+        status.firefoxAddOnVersion = settings.firefoxAddOnVersion
     }
 
     public func observeStatus(_ handler: @escaping @MainActor @Sendable () -> Void) {
