@@ -372,11 +372,17 @@ export function buildState({
   href, title, controls, pageText, tabId, now, participants, people, activeSpeaker,
 }) {
   const roster = people && people.length ? rosterFromTiles(people) : null;
+  const meetingId = (meetingIdForURL(href) || '').slice(0, 64) || null;
+  // The script runs on every page of a provider's site, and Zoom's Workplace
+  // home shows a join control on every visit. A prejoin or a waiting room is
+  // a page for one meeting, and that meeting is in the address.
+  let state = stateFromControls(controls, pageText);
+  if ((state === 'prejoin' || state === 'waiting') && !meetingId) state = 'browsing';
   return {
     type: 'state',
     provider: providerForURL(href),
-    state: stateFromControls(controls, pageText),
-    meetingId: (meetingIdForURL(href) || '').slice(0, 64) || null,
+    state,
+    meetingId,
     url: scrubURL(href),
     title: title ? String(title).slice(0, 200) : null,
     muted: mutedFromControls(controls),

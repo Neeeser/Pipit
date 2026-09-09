@@ -471,3 +471,37 @@ test('a message with no time gets one at the relay', () => {
   assert.ok(envelope.sentAt <= Date.now());
   assert.equal(envelope.tabId, 3);
 });
+
+test('a prejoin or waiting room carries the meeting in its address', () => {
+  // The content script runs on every page of a provider's site, and Zoom's
+  // Workplace home shows a join control on every visit.
+  const now = 1787070000000;
+  const home = buildState({
+    href: 'https://app.zoom.us/wc?ref_from=waffle_zwa',
+    title: 'Zoom',
+    controls: [{ ariaLabel: 'Join meeting' }],
+    pageText: '',
+    tabId: 3,
+    now,
+  });
+  assert.equal(home.state, 'browsing');
+  const waitingText = buildState({
+    href: 'https://app.zoom.us/wc',
+    title: 'Zoom',
+    controls: [],
+    pageText: 'Please wait while the page loads.',
+    tabId: 3,
+    now,
+  });
+  assert.equal(waitingText.state, 'browsing');
+  const prejoin = buildState({
+    href: 'https://app.zoom.us/wc/81771591841/join',
+    title: 'Zoom',
+    controls: [{ ariaLabel: 'Join meeting' }],
+    pageText: '',
+    tabId: 4,
+    now,
+  });
+  assert.equal(prejoin.state, 'prejoin');
+  assert.equal(prejoin.meetingId, '81771591841');
+});

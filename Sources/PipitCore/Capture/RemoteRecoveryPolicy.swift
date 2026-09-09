@@ -119,6 +119,17 @@ public struct RemoteRecoveryPolicy: Sendable {
         }
     }
 
+    /// Starts the silence run over, for the moment writing begins or pauses.
+    ///
+    /// A candidate arms the tap minutes before anything commits, and a
+    /// browser reports output for as long as any page holds an audio stream
+    /// open, so zeros counted through that wait say nothing about the meeting
+    /// that then starts. The same run carried into a pause would judge a
+    /// reconnect window nobody is recording.
+    public mutating func resetSilenceRun() {
+        clearSilenceRun()
+    }
+
     /// Seconds of unbroken silence, once `evaluate` has called the tap
     /// degraded for it. Nil until then, which is the state the warning reports.
     public func unrecoveredSilence(at now: Double) -> Double? {

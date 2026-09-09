@@ -1891,4 +1891,30 @@ struct RemoteTapCoordinatorTests {
         #expect(coordinator.warnings() == [])
         #expect(tap.bindCount == 1, "a silent app must not be rebound")
     }
+    @Test("a silence run is started over when the recording begins writing")
+    func aSilenceRunIsStartedOverWhenTheRecordingBeginsWriting() async throws {
+        // A candidate arms the tap minutes before anything commits, and a
+        // browser reports output for as long as any page holds an audio
+        // stream open. Zeros counted through that wait would warn on the
+        // first poll of the meeting, before its far end has said a word.
+        let tap = FakeProcessTap()
+        let clock = ManualClock()
+        let delegate = RecordingCaptureDelegate()
+        let coordinator = RemoteTapCoordinator(controller: tap, clock: clock, delegate: delegate)
+        tap.setTargets([makeTarget(pid: 79_590, producing: true)])
+        coordinator.start(bundlePrefixes: ["org.mozilla.firefox"])
+        Self.deliverSilence(to: coordinator, clock: clock, seconds: 45)
+        #expect(coordinator.warnings().count == 1)
+
+        coordinator.resetSilenceRun()
+        clock.advance(0.5)
+        coordinator.tick()
+        #expect(coordinator.warnings() == [], "the run before writing began says nothing about the meeting")
+        #expect(coordinator.health == .healthy)
+
+        Self.deliverSilence(to: coordinator, clock: clock, seconds: 25)
+        #expect(coordinator.warnings() == [], "silence is counted from the reset, not from the arm")
+        Self.deliverSilence(to: coordinator, clock: clock, seconds: 20)
+        #expect(coordinator.warnings().count == 1, "silence that lasts through the recording is still reported")
+    }
 }

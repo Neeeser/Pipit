@@ -256,6 +256,7 @@ public final class CaptureEngine: Sendable {
             }
             closing.0?.finish(reason: reason)
             closing.1?.finish(reason: reason)
+            self.remoteCoordinator.resetSilenceRun()
             self.state.withLock { state in
                 if let mic = closing.0 {
                     state.micLastSegmentIndex = mic.stats.segmentCount
@@ -365,6 +366,9 @@ public final class CaptureEngine: Sendable {
             state.mode = .recording
             return summaries
         }
+        // Zeros counted while the session was armed or paused belong to a
+        // stretch nobody was recording. The run starts with the writing.
+        remoteCoordinator.resetSilenceRun()
 
         // Held while the session was armed, and carrying their own moments, so
         // the bind that produced the pre-roll reads before the pre-roll does.
@@ -639,8 +643,16 @@ public final class CaptureEngine: Sendable {
         // A stop that happened while this tick was queued makes it stale.
         guard state.withLock({ $0.generation }) == generation else { return }
         micCoordinator.tick()
-        if state.withLock({ $0.capturesRemote }) { remoteCoordinator.tick() }
+        let (capturesRemote, writing) = state.withLock { ($0.capturesRemote, $0.mode == .recording) }
+        if capturesRemote { remoteCoordinator.tick() }
         publishHealth()
+        // Only a recording can lose audio. A candidate and a reconnect window
+        // both run the sources with nothing on disk, and a browser reports
+        // output for as long as any page holds an audio stream open, so the
+        // silence rule fired on a Zoom home page for an afternoon and again
+        // in the thirty seconds after a call had ended. The coordinators keep
+        // measuring; what they found is raised on the first poll that writes.
+        guard writing else { return }
         for warning in micCoordinator.warnings() + remoteCoordinator.warnings() {
             raise(warning)
         }

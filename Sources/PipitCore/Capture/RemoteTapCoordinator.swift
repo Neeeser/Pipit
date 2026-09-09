@@ -153,6 +153,13 @@ public final class RemoteTapCoordinator: Sendable {
         }
     }
 
+    /// Starts the silence run over. Called by the engine when writing begins
+    /// and when it pauses, so the run measures the recording and nothing
+    /// before or after it.
+    public func resetSilenceRun() {
+        state.withLock { $0.policy.resetSilenceRun() }
+    }
+
     /// The tap reported a format change. Buffers keep arriving labelled with the
     /// old format, so nothing else can detect this.
     public func rebindAfterFormatChange() {
