@@ -275,17 +275,23 @@ public struct BrowserMeetingDetector: Sendable {
     private func evidenceFromSensor(
         _ event: BrowserMeetingEvent, native: NativeSignals, parsed: BrowserWindowTitle.Parsed?
     ) -> ProviderEvidence {
+        let meetingID = event.meetingID ?? parsed?.meetingID
+        // The extension runs on every page of a provider's site. Zoom's
+        // Workplace home shows a join control, and reported a prejoin for as
+        // long as the tab stayed open, which kept capture armed for hours
+        // after the call the tab was opened for. A prejoin or a waiting room
+        // is a page for one meeting, and that meeting is in its address.
         let confidence: MeetingConfidence =
             switch event.state {
             case .inCall, .reconnecting: .confirmed
-            case .prejoin, .waiting: .candidate
+            case .prejoin, .waiting: meetingID == nil ? .none : .candidate
             case .browsing, .ended, .unknown: .none
             }
         return ProviderEvidence(
             provider: event.provider == .unknown ? (parsed?.provider ?? .unknown) : event.provider,
             confidence: confidence,
             source: .browserSensor,
-            meetingID: event.meetingID ?? parsed?.meetingID,
+            meetingID: meetingID,
             url: event.url,
             title: event.title.flatMap(BrowserWindowTitle.meetingName) ?? parsed?.title,
             muted: event.muted,

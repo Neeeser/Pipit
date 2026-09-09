@@ -208,6 +208,11 @@ public struct SessionController: Sendable {
         /// is a different meeting, and it records normally.
         let meetingID: String?
         var lastSeen: Double
+        /// Set for a candidate that timed out. The page is refused as a
+        /// candidate until its evidence goes away, but a confirmed call on it
+        /// still records: someone who sat on a prejoin for ten minutes and
+        /// then joined is in a meeting.
+        var candidateOnly = false
     }
 
     private var suppressed: [SuppressedCall] = []
@@ -303,6 +308,10 @@ public struct SessionController: Sendable {
             } else if let since = candidateSince,
                 now - since >= configuration.candidateTimeoutSeconds
             {
+                // The same evidence re-armed the candidate on the next poll,
+                // and the microphone and the tap ran all afternoon on a
+                // browser tab nobody was meeting in, ten minutes at a time.
+                suppressCurrentCall(now: now, candidateOnly: true)
                 return finishCandidate(reason: "candidate_timeout")
             }
             return actions
@@ -454,13 +463,14 @@ public struct SessionController: Sendable {
     /// Remembers the call the session was on, so the evidence that is still
     /// there does not start it again on the next poll. Read before the reset,
     /// which is where the evidence lives.
-    private mutating func suppressCurrentCall(now: Double) {
+    private mutating func suppressCurrentCall(now: Double, candidateOnly: Bool = false) {
         guard let evidence, let bundle = evidence.applicationBundleID else { return }
         let call = SuppressedCall(
             provider: evidence.provider,
             application: MicrophoneIgnoreList.applicationIdentifier(for: bundle),
             meetingID: evidence.meetingID ?? snapshot.providerMeetingID,
-            lastSeen: now
+            lastSeen: now,
+            candidateOnly: candidateOnly
         )
         suppressed.removeAll { existing in
             existing.provider == call.provider
@@ -501,7 +511,7 @@ public struct SessionController: Sendable {
     private mutating func ageSuppressedCalls(in allEvidence: [ProviderEvidence], now: Double) {
         suppressed = suppressed.compactMap { call in
             let stillThere = allEvidence.contains { candidate in
-                candidate.confidence == .confirmed && Self.matches(call, candidate)
+                Self.matches(call, candidate) && Self.holds(call, against: candidate)
             }
             if stillThere {
                 var seen = call
@@ -510,6 +520,16 @@ public struct SessionController: Sendable {
             }
             return now - call.lastSeen >= configuration.endGraceSeconds ? nil : call
         }
+    }
+
+    /// Whether this evidence is the kind the call is suppressed for. An
+    /// answered call is held by the confirmed evidence it was answered on; a
+    /// timed-out candidate is held by candidate evidence and released by
+    /// confirmed evidence, which records.
+    private static func holds(_ call: SuppressedCall, against candidate: ProviderEvidence) -> Bool {
+        call.candidateOnly
+            ? candidate.confidence == .candidate
+            : candidate.confidence == .confirmed
     }
 
     private static func matches(_ call: SuppressedCall, _ candidate: ProviderEvidence) -> Bool {
@@ -535,7 +555,7 @@ public struct SessionController: Sendable {
             .filter { $0.confidence > .none }
             .filter { policies.policy(for: $0.provider).autoStart != .never }
             .filter { candidate in
-                !suppressed.contains { Self.matches($0, candidate) }
+                !suppressed.contains { Self.matches($0, candidate) && Self.holds($0, against: candidate) }
             }
             .max { lhs, rhs in
                 if lhs.confidence != rhs.confidence { return lhs.confidence < rhs.confidence }

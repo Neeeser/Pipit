@@ -662,6 +662,55 @@ struct SessionControllerTests {
         )
         #expect(controller.snapshot.state == .idle)
     }
+    @Test("a candidate that times out is not armed again by the same page")
+    func aCandidateThatTimesOutIsNotArmedAgainByTheSamePage() async throws {
+        // A browser tab on a provider's home page reported a candidate for
+        // two and a half hours. Every ten minutes the candidate timed out,
+        // the same evidence armed capture again half a second later, and
+        // the microphone and the tap ran all afternoon on a page nobody
+        // was meeting in.
+        let configuration = SessionController.Configuration()
+        var controller = SessionController(configuration: configuration)
+        let wall = Date(timeIntervalSince1970: 1_787_070_000)
+        let page = ProviderEvidence(
+            provider: .zoom, confidence: .candidate, source: .browserSensor,
+            meetingID: nil, url: "https://app.zoom.us/wc", title: nil, browser: .firefox,
+            applicationBundleID: "org.mozilla.firefox", audioBundlePrefixes: ["org.mozilla.firefox"]
+        )
+        var now = 100.0
+        var actions = controller.update(evidence: [page], now: now, wallClock: wall)
+        #expect(actions.contains { if case .armCapture = $0 { true } else { false } })
+
+        var discarded = false
+        while now - 100 <= configuration.candidateTimeoutSeconds + 1 {
+            now += 0.5
+            actions = controller.update(evidence: [page], now: now, wallClock: wall)
+            if actions.contains(where: {
+                if case .discardCapture(let reason) = $0 { reason == "candidate_timeout" } else { false }
+            }) {
+                discarded = true
+                break
+            }
+        }
+        #expect(discarded, "a candidate that never confirms is given up")
+
+        var rearmed = false
+        for _ in 0..<120 {
+            now += 0.5
+            actions = controller.update(evidence: [page], now: now, wallClock: wall)
+            rearmed = rearmed || actions.contains { if case .armCapture = $0 { true } else { false } }
+        }
+        #expect(!rearmed, "the page that already timed out must not arm capture again")
+        #expect(controller.snapshot.state == .idle)
+
+        // Joining from that page is a meeting, and it records.
+        var joined = page
+        joined.confidence = .confirmed
+        joined.meetingID = "81771591841"
+        now += 0.5
+        actions = controller.update(evidence: [joined], now: now, wallClock: wall)
+        #expect(actions.contains { if case .commitRecording = $0 { true } else { false } })
+    }
 }
 
 @Suite("ReconnectMatcher")

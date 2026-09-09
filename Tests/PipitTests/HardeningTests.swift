@@ -377,6 +377,54 @@ struct CaptureEngineHardeningTests {
         #expect(streams.first?.usedFallback == false)
     }
 
+    @Test("silence before the recording begins raises nothing")
+    func silenceBeforeTheRecordingBeginsRaisesNothing() async throws {
+        // A candidate arms the tap while a browser sits on a provider page,
+        // and the browser reports output for as long as any page holds an
+        // audio stream open. Warning about the zeros then told the user a
+        // recording was losing its far end while nothing was recorded, and
+        // told them again every time the candidate was armed anew.
+        let root = try TestPaths.makeTemporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let layout = MeetingLayout(root: root)
+        try FileManager.default.createDirectory(at: layout.segments, withIntermediateDirectories: true)
+
+        let tap = LockedBox<EmittingTap?>(nil)
+        let delegate = SilentDelegate()
+        let engine = CaptureEngine(
+            thresholds: CaptureThresholds(remoteSilenceTimeout: 0.1, pollInterval: 0.02),
+            segmentSeconds: 60,
+            makeMicrophone: { sink, _ in EmittingMicrophone(sink: sink) },
+            makeTap: { sink, _ in
+                let source = EmittingTap(sink: sink)
+                tap.withLock { $0 = source }
+                return source
+            },
+            delegate: delegate
+        )
+        await engine.arm(bundlePrefixes: ["com.example.app"], capturesRemote: true)
+        tap.withLock {
+            $0?.setTargets([makeTarget(pid: 42, bundle: "com.example.app", producing: true)])
+        }
+        for _ in 0..<25 {
+            tap.withLock { $0?.emit(seconds: 0.02, hostTime: HostTime.now, amplitude: 0) }
+            try await Task.sleep(nanoseconds: 20_000_000)
+        }
+        #expect(delegate.warnings.isEmpty, "nothing is recorded, so nothing is lost: \(delegate.warnings)")
+
+        // The same zeros once the meeting is on disk are the far end missing.
+        try await engine.commit(layout: layout, meetingID: "m", source: .googleMeet)
+        for _ in 0..<25 {
+            tap.withLock { $0?.emit(seconds: 0.02, hostTime: HostTime.now, amplitude: 0) }
+            try await Task.sleep(nanoseconds: 20_000_000)
+        }
+        _ = await engine.stop(reason: "test")
+        #expect(
+            delegate.warnings.contains { $0.dedupKey == "remote_silent_while_producing" },
+            "silence through the recording itself is still reported: \(delegate.warnings)"
+        )
+    }
+
     @Test("audio the tap really carries raises nothing")
     func audioTheTapReallyCarriesRaisesNothing() async throws {
         let (delegate, _) = try await Self.recordTapAudio(amplitude: 0.5)

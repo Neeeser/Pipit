@@ -214,6 +214,39 @@ struct BrowserMeetingDetectorTests {
         #expect(joined.muted == false)
     }
 
+    @Test("a provider page without a meeting in its address is not a candidate")
+    func aProviderPageWithoutAMeetingInItsAddressIsNotACandidate() async throws {
+        // The extension runs on every page of a provider's site. Zoom's
+        // Workplace home shows a join control, so it reported a prejoin for
+        // as long as the tab stayed open, and capture stayed armed for
+        // hours after the call the tab was opened for had ended. A prejoin
+        // or a waiting room carries the meeting in its address.
+        var detector = BrowserMeetingDetector()
+        let now = 100.0
+        let native = BrowserMeetingDetector.NativeSignals(
+            browserHoldsMicrophone: false, browserProducesOutput: true, windowTitles: ["Zoom"]
+        )
+        detector.sensorConnected(at: now)
+        detector.receive(
+            BrowserMeetingEvent(
+                browser: .firefox, provider: .zoom, state: .prejoin,
+                timestamp: now, url: "https://app.zoom.us/wc", meetingID: nil, tabID: 1
+            ),
+            at: now
+        )
+        #expect(detector.update(native: native, at: now).confidence == .none)
+
+        detector.receive(
+            BrowserMeetingEvent(
+                browser: .firefox, provider: .zoom, state: .prejoin,
+                timestamp: now + 0.5, url: "https://app.zoom.us/wc/81771591841/join",
+                meetingID: "81771591841", tabID: 2
+            ),
+            at: now + 0.5
+        )
+        #expect(detector.update(native: native, at: now + 0.5).confidence == .candidate)
+    }
+
     @Test("a prejoin screen is not recorded while the extension is reporting")
     func aPrejoinScreenIsNotRecordedWhileTheExtensionIsReporting() async throws {
         // Meet holds the microphone on its prejoin screen, so the native
