@@ -130,8 +130,26 @@ export function rosterFromTiles(tiles) {
 // separator, so the name is whatever comes before the first of these.
 const MEET_TILE_CHROME = [
   'Meeting host', 'More actions', 'More options', 'Remove from meeting',
-  'Deny entry', 'Admit', 'Visitor', 'Presenting', 'is presenting',
+  'Deny entry', 'Admit', 'Visitor', 'Presenting', 'Presentation', 'is presenting',
   'Pin to screen', "You can't remotely mute", 'Mute for everyone',
+];
+// A control whose label is built around the person's name rather than appended
+// to it, so there is no run to cut back to. Measured on a Meet call of 10
+// September 2026: a tile read `Pin Bryn Callister to your main screen` and the
+// whole string became a participant's name, which is what the roster then
+// offered to put on a voice.
+//
+// The line is refused whole rather than mined for the name in the middle.
+// Reading it out would mean knowing every phrasing Google uses and in which
+// language, and a name this drops shows as `Speaker 3` and asks to be
+// corrected, where a wrong one does not.
+//
+// The first is the string measured. The second is its paired control and has
+// not been seen on a recording here; a pattern that never matches costs
+// nothing, and a display name of that shape is not a display name.
+const MEET_TILE_CONTROL_LINE = [
+  /^Pin .+ to your main screen$/i,
+  /^Unpin .+ from your main screen$/i,
 ];
 // Material icon ligatures render as their own text inside the row, glued onto
 // the name with no separator. Matched as whole known tokens rather than by
@@ -143,7 +161,14 @@ const MEET_TILE_LIGATURE = [
   'domain_disabled', 'more_vert', 'more_horiz', 'push_pin', 'present_to_all',
   'mic_off', 'mic_none', 'videocam_off', 'devices', 'volume_up',
   'do_not_disturb_on', 'visibility_off', 'keep_outline', 'frame_person',
+  'warning_amber',
 ];
+// Ligatures whose text is an ordinary word, so they are only ever read as one
+// where the shape says so: glued to the front of a name, with the name's first
+// capital right behind. `keep` is the filled pin beside `keep_outline` and a
+// recording here holds `keepBryn CallisterPresentation`. Looking for it anywhere
+// in a line would take the name off somebody called `keeper`.
+const MEET_TILE_LIGATURE_PREFIX = [...MEET_TILE_LIGATURE, 'keep'];
 // A line that is one snake_case token and nothing else. Every Material and
 // Google Symbols name has this shape, and a person's display name does not, so
 // a line like this is an icon whether or not the list above knows it yet.
@@ -164,14 +189,28 @@ function meetLineName(raw) {
   const line = String(raw ?? '').trim();
   if (!line) return undefined;
   if (MEET_ICON_LINE.test(line)) return undefined;
-  let cut = line.length;
+  if (MEET_TILE_CONTROL_LINE.some((pattern) => pattern.test(line))) return undefined;
+  // A ligature glued to the front of the name, which cutting at the first
+  // marker would answer with an empty string: `keepBryn CallisterPresentation`
+  // is on a recording here and its name is recoverable. Exact case and an
+  // upper-case letter behind it, which is what the concatenation looks like
+  // and what a person called `Keeper` does not.
+  let head = line;
+  for (const ligature of MEET_TILE_LIGATURE_PREFIX) {
+    if (head.startsWith(ligature) && /^\p{Lu}/u.test(head.slice(ligature.length))) {
+      head = head.slice(ligature.length);
+      break;
+    }
+  }
+  let cut = head.length;
   for (const marker of [...MEET_TILE_CHROME, ...MEET_TILE_LIGATURE]) {
-    const at = line.indexOf(marker);
+    const at = head.indexOf(marker);
     if (at >= 0 && at < cut) cut = at;
   }
+  const line2 = head;
   // A cut lands mid-phrase often enough that the punctuation leading into it
   // survives: "Bob (Presenting)" would otherwise read "Bob (".
-  const name = line.slice(0, cut).replace(/[\s([{,\-\u2013\u2014]+$/, '').trim();
+  const name = line2.slice(0, cut).replace(/[\s([{,\-\u2013\u2014]+$/, '').trim();
   return name ? name.slice(0, 80) : undefined;
 }
 

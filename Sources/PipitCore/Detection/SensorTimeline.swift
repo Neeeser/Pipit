@@ -47,8 +47,34 @@ public struct SensorParticipant: Codable, Sendable, Equatable, Identifiable {
             .trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return nil }
         guard !SensorParticipant.isIconName(trimmed) else { return nil }
+        guard !SensorParticipant.isControlLabel(trimmed) else { return nil }
         return trimmed
     }
+
+    /// Whether the whole name is a tile control whose label is built around a
+    /// person's name rather than appended to it.
+    ///
+    /// Measured on a Meet call of 10 September 2026: a tile read `Pin Adam
+    /// Hulkower to your main screen` and the extension, which cuts a name back
+    /// to the first piece of control text it recognises, found nothing to cut
+    /// at and sent the whole string. The extension no longer does. This is here
+    /// for the recording that already holds it, which is immutable and read
+    /// again on every rebuild.
+    ///
+    /// The name in the middle is not mined out. Reading it would mean knowing
+    /// every phrasing Google uses and in which language, and a refused name
+    /// shows as `Speaker 3` and asks to be corrected where a wrong one is
+    /// enrolled against somebody's voice.
+    static func isControlLabel(_ name: String) -> Bool {
+        controlLabels.contains { name.range(of: $0, options: .regularExpression) != nil }
+    }
+
+    /// The first is the string measured. The second is its paired control and
+    /// has not been seen here; a pattern that never matches costs nothing.
+    private static let controlLabels = [
+        "^(?i)Pin .+ to your main screen$",
+        "^(?i)Unpin .+ from your main screen$",
+    ]
 
     /// The icon names that carry no underscore, so the shape test below cannot
     /// see them. Taken from the ligatures the extension already lists, which is

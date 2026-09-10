@@ -1009,6 +1009,21 @@ struct SensorIdentityLinkTests {
         #expect(map.entries["remote-001_speaker_01"]?.identityID == identity)
     }
 
+    @Test("a tile control built around a name is not a name")
+    func aTileControlBuiltAroundANameIsNotAName() async throws {
+        // The extension cuts a name back to the first piece of control text it
+        // recognises, and a label that wraps the name has nothing to cut at.
+        // Measured on a Meet call of 10 September 2026, where a whole button
+        // label arrived as a participant and was offered as a speaker's name.
+        // The recording is immutable and read again on every rebuild, so the
+        // refusal has to live here too.
+        #expect(participant("d561", "Pin Bryn Callister to your main screen").personName == nil)
+        #expect(participant("d561", "Unpin Bryn Callister from your main screen").personName == nil)
+        // And a person whose name starts the same way keeps it.
+        #expect(participant("d562", "Pinar Aksoy").personName == "Pinar Aksoy")
+        #expect(participant("d563", "Pin Oak Holdings").personName == "Pin Oak Holdings")
+    }
+
     @Test("the local user is the one the microphone heard")
     func theLocalUserIsTheOneTheMicrophoneHeard() async throws {
         // Meet marks its own tile with the English word "You", so a
