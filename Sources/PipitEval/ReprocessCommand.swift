@@ -14,9 +14,18 @@ import PipitSpeakers
 /// is backed up and then removed first. The recording and the manifest are
 /// never touched.
 ///
-/// Voice memory is read, never written. Known voices are recognised so the
-/// transcript comes back with names, and nothing is enrolled, remembered or
-/// learned from a run of this tool.
+/// No profile is written. Known voices are recognised so the transcript comes
+/// back with names, and nothing is enrolled, remembered or learned from a run
+/// of this tool.
+///
+/// The occurrence rows are written, which is not the same thing and used to be
+/// described as if it were. Every run records one row per cluster in
+/// `speaker_occurrence`, keyed on the meeting identifier, because that is how
+/// the pipeline stores what it heard. A copy of a meeting keeps the original's
+/// identifier, so reprocessing a copy of a meeting that is still in the archive
+/// overwrites the real one's rows. `--support` is what keeps a run off the
+/// store the app is using, and the store a run opened is printed before it
+/// starts so there is no guessing which one it was.
 enum ReprocessCommand {
     static func run(
         meeting: URL, applicationSupport: URL, backups: URL, recognize: Bool
@@ -48,6 +57,11 @@ enum ReprocessCommand {
         }
 
         let before = summary(store: store, backup: backup)
+        // Printed before anything runs, because the answer decides whether this
+        // run is safe to make. A copy of a meeting carries the original's
+        // identifier, so a run pointed at the app's own store rewrites the real
+        // meeting's rows in it.
+        note("voice store    \(SpeakerStore.defaultURL(applicationSupport: applicationSupport).path)")
         let manager = LocalModelManager(applicationSupport: applicationSupport)
         var configuration = SettingsStore(directory: applicationSupport).load()
         configuration.enrichment = EnrichmentSettings(
