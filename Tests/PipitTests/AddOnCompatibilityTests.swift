@@ -59,6 +59,25 @@ struct AddOnCompatibilityTests {
         #expect(!status.firefoxAddOnNeedsUpdate)
     }
 
+    @Test("the status knows the add-on before detection has polled")
+    @MainActor
+    func theStatusKnowsTheAddOnBeforeDetectionHasPolled() async throws {
+        // Sparkle reports the relaunch after an update the moment the updater
+        // starts, before the first detection poll has copied the settings
+        // latch into the status. Read from the status at that moment, the
+        // add-on looked current and the second step of the update was never
+        // shown. The status carries the latch from the start.
+        let root = try TestPaths.makeTemporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        try SettingsStore(directory: root).save(
+            AppSettings(firefoxSensorHasConnected: true, firefoxAddOnVersion: "0.1.1.87")
+        )
+        let runtime = PipitRuntime(settingsDirectory: root)
+        #expect(runtime.status.firefoxSensorHasConnected)
+        #expect(runtime.status.firefoxAddOnNeedsUpdate, "an add-on that never sent a number is behind")
+        #expect(runtime.status.firefoxAddOnVersion == "0.1.1.87")
+    }
+
     @Test("the settings file keeps what the add-on last reported")
     func theSettingsFileKeepsWhatTheAddOnLastReported() async throws {
         var settings = AppSettings()

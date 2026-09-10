@@ -50,7 +50,11 @@ public final class UpdateController: NSObject, SPUUpdaterDelegate {
                 windows.showUpdate(model, installAddOn: { self.installAddOn() }, activating: activating)
             },
             dismiss: { [weak self] in self?.windows.closeUpdate() },
-            loadNotes: { [weak self] version in self?.loadNotes(version: version) }
+            loadNotes: { [weak self] version in self?.loadNotes(version: version) },
+            refreshAddOn: { [weak self] in
+                guard let self, let runtime else { return }
+                model.syncAddOn(from: runtime.status)
+            }
         )
         let updater = SPUUpdater(
             hostBundle: .main, applicationBundle: .main, userDriver: driver, delegate: self

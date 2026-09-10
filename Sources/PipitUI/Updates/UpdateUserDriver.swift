@@ -16,18 +16,24 @@ final class UpdateUserDriver: NSObject, SPUUserDriver {
     private let present: @MainActor (_ activating: Bool) -> Void
     private let dismiss: @MainActor () -> Void
     private let loadNotes: @MainActor (_ version: String) -> Void
+    /// Reads the add-on state into the model. Called at the two moments the
+    /// add-on step is decided, so the answer is the runtime's now rather than
+    /// whatever the model was last told.
+    private let refreshAddOn: @MainActor () -> Void
 
     @MainActor
     init(
         model: UpdateFlowModel,
         present: @escaping @MainActor (_ activating: Bool) -> Void,
         dismiss: @escaping @MainActor () -> Void,
-        loadNotes: @escaping @MainActor (_ version: String) -> Void
+        loadNotes: @escaping @MainActor (_ version: String) -> Void,
+        refreshAddOn: @escaping @MainActor () -> Void
     ) {
         self.model = model
         self.present = present
         self.dismiss = dismiss
         self.loadNotes = loadNotes
+        self.refreshAddOn = refreshAddOn
     }
 
     /// Puts the window up or takes it down for the state the model is in.
@@ -83,6 +89,7 @@ final class UpdateUserDriver: NSObject, SPUUserDriver {
 
     func showUpdateNotFoundWithError(_ error: any Error, acknowledgement: @escaping () -> Void) {
         MainActor.assumeIsolated {
+            refreshAddOn()
             model.upToDate(acknowledge: acknowledgement)
             sync()
         }
@@ -145,6 +152,7 @@ final class UpdateUserDriver: NSObject, SPUUserDriver {
         MainActor.assumeIsolated {
             // The second step of the update: the add-on, if it is behind. When
             // it is not, the model acknowledges and nothing appears.
+            refreshAddOn()
             if model.installedAndRelaunched(acknowledge: acknowledgement) { sync() }
         }
     }
