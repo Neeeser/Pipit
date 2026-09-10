@@ -3,30 +3,6 @@
     <channel>
         <title>Pipit</title>
         <item>
-            <title>0.1.4</title>
-            <pubDate>Thu, 10 Sep 2026 02:56:54 +0000</pubDate>
-            <link>https://github.com/Neeeser/Pipit/releases</link>
-            <sparkle:channel>beta</sparkle:channel>
-            <sparkle:releaseNotesLink>https://github.com/Neeeser/Pipit/releases/tag/v0.1.4</sparkle:releaseNotesLink>
-            <sparkle:version>342</sparkle:version>
-            <sparkle:shortVersionString>0.1.4</sparkle:shortVersionString>
-            <sparkle:minimumSystemVersion>15.0</sparkle:minimumSystemVersion>
-            <sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements>
-            <enclosure url="https://github.com/Neeeser/Pipit/releases/download/v0.1.4/Pipit-0.1.4.zip" length="18534678" type="application/octet-stream" sparkle:edSignature="VUYhYoJjr4pIg/0lqjf+lFhyCgziL/352PSQ/pOhxydGAE++ybAHO2wwLM4TUxWyR+TDXBUd4p0qbyVbZM9xDQ=="/>
-        </item>
-        <item>
-            <title>0.1.3</title>
-            <pubDate>Thu, 10 Sep 2026 00:30:44 +0000</pubDate>
-            <link>https://github.com/Neeeser/Pipit/releases</link>
-            <sparkle:channel>beta</sparkle:channel>
-            <sparkle:releaseNotesLink>https://github.com/Neeeser/Pipit/releases/tag/v0.1.3</sparkle:releaseNotesLink>
-            <sparkle:version>340</sparkle:version>
-            <sparkle:shortVersionString>0.1.3</sparkle:shortVersionString>
-            <sparkle:minimumSystemVersion>15.0</sparkle:minimumSystemVersion>
-            <sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements>
-            <enclosure url="https://github.com/Neeeser/Pipit/releases/download/v0.1.3/Pipit-0.1.3.zip" length="18532144" type="application/octet-stream" sparkle:edSignature="HImpaDsrPz71Z/h4mv3ph0hWFFSTqC2mQ1b9QGalveXb5kN9iMy8wLsODVS7Aog1S0tn5BwiWreayG1Rn0Z5Ag=="/>
-        </item>
-        <item>
             <title>0.1.2</title>
             <pubDate>Wed, 09 Sep 2026 23:20:28 +0000</pubDate>
             <link>https://github.com/Neeeser/Pipit/releases</link>
