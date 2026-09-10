@@ -841,14 +841,13 @@ struct AudioTests {
         }
     }
 
-    @Test("a group that opens with 30 s of silence keeps channel 0")
-    func aGroupThatOpensWith30SOfSilenceKeepsChannel0() async throws {
-        // The scan measures the group's first file only, and a file of
-        // digital silence is a tie, which answers channel 0. So a
-        // meeting whose first half minute is silent on every channel
-        // reads back silent even though a later segment has audio.
-        // Pinned rather than fixed: reaching past the first file means
-        // opening segments the reader has not got to yet.
+    @Test("a group that opens with silence still finds the later channel")
+    func aGroupThatOpensWithSilenceStillFindsTheLaterChannel() async throws {
+        // The scan measures every segment in the group, so a meeting whose
+        // first half minute is silent on every channel still reads back the
+        // channel carrying the voice. This was pinned the other way while the
+        // scan looked at the group's first file alone, which left such a
+        // meeting reading back silent.
         let root = try TestPaths.makeTemporaryDirectory()
         defer { try? FileManager.default.removeItem(at: root) }
         let layout = MeetingLayout(root: root)
@@ -885,7 +884,7 @@ struct AudioTests {
             for frame in 0..<Int(buffer.frameLength) { peak = max(peak, abs(data[0][frame])) }
             return true
         }
-        #expect(peak == 0, "channel 0 is kept, so the later tone is not read back")
+        #expect(peak > 0.1, "the channel carrying the later tone is kept, got peak \(peak)")
     }
 
     @Test("a chunk exports to an m4a small enough for the request limit")

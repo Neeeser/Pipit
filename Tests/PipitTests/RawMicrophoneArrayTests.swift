@@ -42,7 +42,7 @@ struct RawMicrophoneArrayTests {
     /// correlation for a real source was 0.77 to 0.83 at lags of 2 to 3 samples.
     private static func writeSegment(
         into directory: URL, name: String, channels: AVAudioChannelCount,
-        dbfs: Double, seconds: Double = 4,
+        dbfs: Double, seconds: Double = 4, index: Int = 0,
         burst: (at: Double, seconds: Double, amplitude: Float)? = nil
     ) throws -> RecordedSegment {
         // Mono and stereo have standard layouts. Three channels do not, which
@@ -93,7 +93,7 @@ struct RawMicrophoneArrayTests {
         try file.write(from: buffer)
 
         return RecordedSegment(
-            track: .mic, index: 0, file: name,
+            track: .mic, index: index, file: name,
             format: AudioFormatDescriptor(sampleRate: rate, channelCount: Int(channels)),
             startFrame: 0, firstFrameHostTime: 0,
             openedAt: Date(timeIntervalSince1970: 1_787_070_000), openReason: "test"
@@ -172,6 +172,35 @@ struct RawMicrophoneArrayTests {
         #expect(
             top < 0,
             "the lifted track must stay below full scale, peaked at \(top) dBFS"
+        )
+    }
+
+    @Test("a later segment louder than the first is not driven into clipping")
+    func aLaterSegmentLouderThanTheFirstIsNotDrivenIntoClipping() throws {
+        let directory = try TestPaths.makeTemporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: directory) }
+
+        // The shape that broke a real meeting on 10 September 2026. The gain was
+        // measured from the opening of the first segment, where the peak sat at
+        // -47.8 dB, and applied to the whole group. A later segment peaked at
+        // -29.2 dB, which the same gain drove to +10.8 dBFS. Clipped audio is
+        // what made the speech model loop and fail the meeting.
+        var segments: [RecordedSegment] = []
+        segments.append(
+            try Self.writeSegment(
+                into: directory, name: "mic-000.caf", channels: 3, dbfs: -55, index: 0
+            ))
+        segments.append(
+            try Self.writeSegment(
+                into: directory, name: "mic-001.caf", channels: 3, dbfs: -55, index: 1,
+                burst: (at: 1.0, seconds: 0.5, amplitude: 0.5)
+            ))
+        let samples = try Self.readAll(segments: segments, directory: directory)
+
+        let top = Self.peak(samples)
+        #expect(
+            top < 0,
+            "a louder later segment must not clip, peaked at \(top) dBFS"
         )
     }
 

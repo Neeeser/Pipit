@@ -182,7 +182,7 @@ public final class TrackAudioReader {
             // meeting recorded that way transcribed badly from end to end.
             gain = 1
             if sourceFormat.channelCount > 2 {
-                let levels = channelLevels(of: file, seconds: 30)
+                let levels = groupLevels(from: segmentIndex - 1, matching: sourceFormat)
                 let chosen = levels.dominant
                 converter.channelMap = Array(
                     repeating: NSNumber(value: chosen), count: Int(targetFormat.channelCount)
@@ -194,7 +194,7 @@ public final class TrackAudioReader {
                 // three capsules measured within 2.3 dB of each other, so there
                 // is nothing to choose between.
                 gain = Self.arrayGain(
-                    meanSquare: levels.meanSquare[chosen], peak: levels.peak[chosen]
+                    meanSquare: levels.meanSquare(chosen), peak: levels.peak[chosen]
                 )
                 Log.processing.info(
                     """
@@ -214,36 +214,82 @@ public final class TrackAudioReader {
         return false
     }
 
-    /// What each channel was doing over the measured window, and which one won.
+    /// What each channel was doing over the measured audio, and which one won.
+    ///
+    /// Energy and frames are kept separately so measurements of several
+    /// segments can be added together before the mean is taken.
     private struct ChannelLevels {
-        var meanSquare: [Double]
+        var energy: [Double]
         var peak: [Float]
-        var dominant: Int
+        var frames: Int
+
+        var dominant: Int {
+            var chosen = 0
+            for channel in energy.indices where energy[channel] > energy[chosen] { chosen = channel }
+            return chosen
+        }
+
+        func meanSquare(_ channel: Int) -> Double {
+            guard frames > 0, energy.indices.contains(channel) else { return 0 }
+            return energy[channel] / Double(frames)
+        }
+
+        mutating func add(_ other: ChannelLevels) {
+            guard energy.count == other.energy.count else { return }
+            for channel in energy.indices {
+                energy[channel] += other.energy[channel]
+                peak[channel] = max(peak[channel], other.peak[channel])
+            }
+            frames += other.frames
+        }
     }
 
-    /// Mean square and peak per channel over the first `seconds` of a file,
-    /// and the channel holding the most energy.
+    /// Every segment in the group measured together.
     ///
-    /// Bounded because a track can run for hours and the answer does not change
-    /// within one segment group. The microphone was one device at one channel
-    /// count for all of it. The file is rewound afterwards, so the read loop
-    /// that follows starts at the first frame. An empty or unreadable file
-    /// answers channel 0 at silence, and so does a tie.
+    /// The gain is applied to the whole group, so it has to be decided from the
+    /// whole group. Measuring only the first file is what drove a real meeting
+    /// into clipping on 10 September 2026: its opening peaked at -47.8 dB and
+    /// allowed the full lift, while a later segment peaked at -29.2 dB and was
+    /// pushed to +10.8 dBFS. The speech model looped on the clipped audio and
+    /// the meeting failed to transcribe.
     ///
-    /// The limit that follows from the bound: only the group's first file is
-    /// measured, so a group that opens with `seconds` of silence answers 0 by
-    /// the tie rule and keeps channel 0 for the rest of the group, which is the
-    /// channel this exists to stop keeping. A meeting that starts with half a
-    /// minute of nothing on every channel reads back silent, and is not lifted
-    /// either, because the levels it measured were silence. Chasing later
-    /// segments would mean opening files the reader has not reached yet, and
-    /// the case is not worth that.
-    private func channelLevels(of file: AVAudioFile, seconds: Double) -> ChannelLevels {
+    /// This reads each segment once more than the resampler will. Segments are
+    /// float32 and a meeting is minutes of them, so the pass is bounded by the
+    /// recording rather than by anything unbounded, and it happens once per
+    /// group at processing time.
+    private func groupLevels(from start: Int, matching format: AVAudioFormat) -> ChannelLevels {
+        let channels = Int(format.channelCount)
+        var combined = ChannelLevels(
+            energy: [Double](repeating: 0, count: channels),
+            peak: [Float](repeating: 0, count: channels), frames: 0
+        )
+        var index = start
+        while index < segments.count {
+            let segment = segments[index]
+            guard segment.format.sampleRate == format.sampleRate,
+                segment.format.channelCount == channels
+            else { break }
+            let url = segmentsDirectory.appendingPathComponent(segment.file)
+            if let file = try? AVAudioFile(forReading: url), file.length > 0 {
+                combined.add(channelLevels(of: file))
+            }
+            index += 1
+        }
+        return combined
+    }
+
+    /// Mean square and peak per channel over one whole file, and the channel
+    /// holding the most energy.
+    ///
+    /// The file is rewound afterwards, so a caller that goes on to read it
+    /// starts at the first frame. A file of one channel, or one that cannot be
+    /// buffered, measures as silence and answers channel 0, and so does a tie.
+    private func channelLevels(of file: AVAudioFile) -> ChannelLevels {
         let format = file.processingFormat
         let channels = Int(format.channelCount)
         let empty = ChannelLevels(
-            meanSquare: [Double](repeating: 0, count: max(channels, 1)),
-            peak: [Float](repeating: 0, count: max(channels, 1)), dominant: 0
+            energy: [Double](repeating: 0, count: max(channels, 1)),
+            peak: [Float](repeating: 0, count: max(channels, 1)), frames: 0
         )
         guard channels > 1, let buffer = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: 16_384)
         else { return empty }
@@ -252,8 +298,7 @@ public final class TrackAudioReader {
         var energy = [Double](repeating: 0, count: channels)
         var peak = [Float](repeating: 0, count: channels)
         var counted = 0
-        var remaining = AVAudioFramePosition(seconds * format.sampleRate)
-        while remaining > 0, file.framePosition < file.length {
+        while file.framePosition < file.length {
             buffer.frameLength = 0
             do {
                 try file.read(into: buffer)
@@ -261,7 +306,7 @@ public final class TrackAudioReader {
                 break
             }
             guard buffer.frameLength > 0, let data = buffer.floatChannelData else { break }
-            let frames = Int(min(AVAudioFramePosition(buffer.frameLength), remaining))
+            let frames = Int(buffer.frameLength)
             for channel in 0..<channels {
                 var sum: Double = 0
                 var high: Float = 0
@@ -274,15 +319,9 @@ public final class TrackAudioReader {
                 peak[channel] = max(peak[channel], high)
             }
             counted += frames
-            remaining -= AVAudioFramePosition(buffer.frameLength)
         }
         guard counted > 0 else { return empty }
-
-        var chosen = 0
-        for channel in 1..<channels where energy[channel] > energy[chosen] { chosen = channel }
-        return ChannelLevels(
-            meanSquare: energy.map { $0 / Double(counted) }, peak: peak, dominant: chosen
-        )
+        return ChannelLevels(energy: energy, peak: peak, frames: counted)
     }
 
     /// How far to lift one bare capsule so the track is worth keeping.
