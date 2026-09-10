@@ -142,6 +142,59 @@ public enum SensorAttribution {
         max(turn.start, turn.end - wordAttributionTailSeconds)
     }
 
+    /// The one person the far-end track can hold, where the meeting client
+    /// named the whole call and there is one other person in it.
+    ///
+    /// The far end is a mixdown of everyone but the local user, so a call with
+    /// one other person in it holds one voice from beginning to end. Nothing
+    /// acoustic has to be worked out: every word on that track is theirs,
+    /// including the ones the diarizer never marked as speech.
+    ///
+    /// It refuses those it has to. The diarizer drops any segment shorter than
+    /// a second, so a one-to-one huddle of 10 September 2026 left 82 seconds of
+    /// `Mm-hmm` and `Okay` with no name on them and split the rest of the call
+    /// into two speakers, one of which was 73 seconds of the same person cut
+    /// off the head and tail of their own sentences. Three rows for two people,
+    /// and a sixth of what the other person said filed under neither.
+    ///
+    /// Only where the client itself said which tile is the local user. Slack
+    /// does, and every one-to-one recording on disk is one of its huddles. A
+    /// roster scraped off a page is a reading of what rendered, and a person
+    /// whose tile never did would have their words given to somebody else here,
+    /// which is the one mistake this must not make.
+    public static func soleRemoteParticipant(sensors: RawSensors) -> SensorParticipant? {
+        guard sensors.selfIsAuthoritative else { return nil }
+        guard sensors.participants.filter(\.isSelf).count == 1 else { return nil }
+        let others = sensors.participants.filter { !$0.isSelf }
+        guard others.count == 1, let only = others.first, only.personName != nil else {
+            return nil
+        }
+        // And the client saw them hold the floor at least once. Without it a
+        // call the other person sat silent through still produces a speaker
+        // keyed to them with no line under it, which `speakerEntries` exists to
+        // refuse: a name offered for a voice with no audio behind it.
+        guard sensors.turns.contains(where: { $0.participantID == only.id }) else { return nil }
+        return only
+    }
+
+    /// The last moment the client was still answering about this call.
+    ///
+    /// A roster is a reading, and a reader that stops answering leaves the
+    /// last one it gave standing. `SensorTimeline` already closes an open turn
+    /// where the readings stop rather than at the end of the recording, for the
+    /// same reason: a call can run for an hour after the client goes quiet.
+    /// Nothing past the last turn was observed, so nothing past it is claimed.
+    ///
+    /// Every turn counts here, including one too long to be a claim about who
+    /// held the floor. The question is when the client last said anything at
+    /// all, and a stuck indicator still says the client was there. Reading only
+    /// the ones `isFloorObservation` keeps put the bound at 20 seconds on a
+    /// one-to-one walkthrough where the other person then talked for fifteen
+    /// minutes, and handed all fifteen back to the diarizer.
+    static func lastObservation(sensors: RawSensors) -> Double? {
+        sensors.turns.map(\.end).max()
+    }
+
     /// The sensor timeline as intervals the assembler can align words against.
     ///
     /// Keyed with `SpeakerLabel.sensor`, so speech lands on the platform's own
@@ -154,6 +207,33 @@ public enum SensorAttribution {
     /// which hears the audio and is the right authority on speech the sensor
     /// cannot explain.
     public static func wordIntervals(sensors: RawSensors) -> [DiarizationInterval] {
+        // One other person in the call, so the track holds them and the turns
+        // are not needed to say which stretches. An interval per turn would
+        // leave everything between them to the diarizer, which is where the
+        // backchannels and the split sentences were being lost.
+        //
+        // Bounded by the last reading rather than run to the end of the track.
+        // A roster of two is a claim about the call the client could still see,
+        // and a reader that stops answering keeps the last roster it gave: a
+        // third person joining after that would have twenty minutes of their
+        // speech rendered, exported and offered for voice confirmation under
+        // somebody else's name, where the diarizer would at least have given
+        // them a cluster of their own. Past the last reading the diarizer
+        // decides again.
+        //
+        // It costs almost nothing where the client keeps answering. Across the
+        // five one-to-one huddles on disk the last turn ends at 99.3% to 99.8%
+        // of the recording, so what falls back is the last two to ten seconds.
+        if let only = soleRemoteParticipant(sensors: sensors),
+            let until = lastObservation(sensors: sensors), until > 0
+        {
+            return [
+                DiarizationInterval(
+                    start: 0, end: until,
+                    clusterID: SpeakerLabel.sensor(participantID: only.id)
+                )
+            ]
+        }
         let selfIDs = Set(sensors.participants.filter(\.isSelf).map(\.id))
         // Only a participant this build can name. `speakerEntries` already
         // refuses to make a speaker out of one it cannot, so a turn kept here

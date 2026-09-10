@@ -183,7 +183,14 @@ public struct RawSensors: Codable, Sendable, Equatable {
     /// timeline and speech evidence, twenty-two participants: the local user
     /// reads 0.763 to 0.914 and everybody else reads 0.000 to 0.118. The
     /// threshold sits 2.18x below the lowest of the first group and 2.96x above
-    /// the highest of the second, and nothing crosses it.
+    /// the highest of the second.
+    ///
+    /// It separates them while the microphone holds the local user alone. On a
+    /// call played out of the speakers it does not, and it is no longer asked
+    /// to: `markingSelf` takes the highest reading rather than every reading
+    /// that clears this, because on the two leaking recordings measured since,
+    /// everybody clears it. What this still decides is whether anybody is
+    /// marked at all.
     ///
     /// The middle clause is what earns that. On the detector alone the worst
     /// reading from somebody who is not the local user is 0.215, which 0.35
@@ -224,14 +231,15 @@ public struct RawSensors: Codable, Sendable, Equatable {
     /// recording has exactly that, and marking both would have deleted a real
     /// participant's speech.
     ///
-    /// Three clauses, the same three `LocalSpeechPolicy` needed and for the same
-    /// reasons. The detector has to fire. The microphone has to be no quieter
-    /// than the far end. And a filtered copy of the far end must not account for
-    /// the microphone's energy, which is the clause that survives a call played
-    /// out of the laptop's speakers: there the gain control lifts the leakage to
-    /// the far end's own level and every comparison of loudness keeps it. Being
-    /// wrong here deletes a real participant's turns outright, so it fails
-    /// closed.
+    /// What the reading measures is how much of a participant's turn the
+    /// detector heard the microphone carrying. On a clean microphone that
+    /// separates the local user from everyone else outright. On a call played
+    /// out of the laptop's speakers it does not: the far end is in the
+    /// microphone too, so a turn anybody holds overlaps something the detector
+    /// fires on, and the readings converge. Only the highest is the local
+    /// user's, so only the highest is marked. Being wrong here deletes a real
+    /// participant's turns outright, and marking every reading that cleared the
+    /// bar deleted five of them at once.
     public func markingSelf(using evidence: SpeechEvidence?) -> RawSensors {
         // A fallback, not a supplement. Where the reader authoritatively named
         // the local user, a second self is always wrong: marking one was the
@@ -273,7 +281,7 @@ public struct RawSensors: Codable, Sendable, Equatable {
         {
             byParticipant[turn.participantID, default: []].append(turn)
         }
-        var found: Set<String> = []
+        var scored: [(id: String, share: Double)] = []
         for (id, held) in byParticipant {
             // Thin evidence is not evidence. A participant whose whole presence
             // is a couple of seconds that happen to fall under the local user's
@@ -286,12 +294,41 @@ public struct RawSensors: Codable, Sendable, Equatable {
             // the part of it the audio covers.
             guard measurement.seconds >= Self.minimumSelfEvidenceSeconds else { continue }
             guard measurement.share >= Self.selfTurnLocalSpeechShare else { continue }
-            found.insert(id)
+            scored.append((id, measurement.share))
         }
-        guard !found.isEmpty else { return self }
+        // One call has one local user, so only the highest reading is theirs.
+        //
+        // Every participant clearing the bar used to be marked, on the reading
+        // that the bar is what separates the user from the room. It is, while
+        // the microphone holds the user alone. A call taken on speakers puts
+        // the far end into the microphone at a level the detector fires on, and
+        // then the reading says how much of a turn overlapped anybody talking.
+        // On the standup of 10 September 2026 all five people in the call
+        // scored 0.418 to 0.814 and all five were marked self, which threw the
+        // meeting client's whole account of the call away: nobody was named
+        // from the roster, and the one participant whose name the page had
+        // rendered badly was the only speaker left in the transcript.
+        //
+        // Across the six recordings carrying a sensor roster and speech
+        // evidence this changes nothing where the microphone is clean. On those
+        // four the local user reads 0.70 to 0.83 and everybody else 0.00 to
+        // 0.11, a separation of 0.688 to 0.778, and one participant clears the
+        // bar anyway. On the two where the microphone is leaking the separation
+        // collapses to 0.005 and 0.055, and taking the top one still finds the
+        // local user in both. The wider range quoted on
+        // `selfTurnLocalSpeechShare` is a different population, twenty-two
+        // participants over seven recordings scored per turn rather than per
+        // participant.
+        //
+        // Ties broken by identifier so the result does not depend on dictionary
+        // order.
+        let best = scored.sorted {
+            $0.share == $1.share ? $0.id < $1.id : $0.share > $1.share
+        }.first
+        guard let best else { return self }
         var marked = self
         marked.participants = participants.map { person in
-            guard found.contains(person.id) else { return person }
+            guard person.id == best.id else { return person }
             var updated = person
             updated.isSelf = true
             return updated
