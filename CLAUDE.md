@@ -82,6 +82,12 @@ out.
 
 ## Project constraints
 
+- Never write a Core Audio device property. Pipit reads the microphone and taps
+  process output. It must not change input gain, sample rate, the default
+  device, or anything else another application captures, and it must not run the
+  microphone through the voice-processing unit. `AudioObjectSetPropertyData` and
+  the voice-processing unit stay out of the app. `AudioUnitSetProperty` on
+  Pipit's own audio unit is process-local and allowed.
 - Treat source audio, manifests, raw model output, and imported originals as
   immutable after they are written.
 - Keep meeting content out of logs. Log identifiers, counts, durations, states,
