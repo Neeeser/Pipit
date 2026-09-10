@@ -1495,7 +1495,7 @@ struct LocalPipelineTests {
         backend.suggestions = [
             SpeakerSuggestion(
                 label: target, name: "Nadia Quist", confidence: 0.93,
-                quote: "Nadia, what did it come back at?", atSeconds: 3
+                quote: "we ship friday", atSeconds: 0
             )
         ]
         // "Leave unnamed" on the chip, which is what clears a key.
@@ -1524,7 +1524,10 @@ struct LocalPipelineTests {
         backend.suggestions = [
             SpeakerSuggestion(
                 label: "remote-001_speaker_00", name: "Nadia Quist",
-                confidence: 0.93, quote: "Nadia, what did it come back at?", atSeconds: 3
+                // The line the fixture's transcript actually holds. A quote
+                // that is not in it is dropped before it reaches the strip,
+                // which is a different rule than the one under test here.
+                confidence: 0.93, quote: "we ship friday", atSeconds: 0
             )
         ]
 
