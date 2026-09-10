@@ -388,6 +388,11 @@ public struct AppSettings: Codable, Sendable, Equatable {
     /// number is stored as `SensorProtocol.unnumbered`.
     public var firefoxAddOnProtocol: Int?
     public var firefoxAddOnVersion: String?
+    /// The app version that last ran. A launch under a different version is
+    /// the first launch after an update, which is when the update window
+    /// asks for the add-on. Sparkle offers no hook for that moment: its
+    /// installer tells the old process, which is already gone.
+    public var lastLaunchedVersion: String?
 
     public init(
         version: Int = AppSettings.currentVersion,
@@ -413,7 +418,8 @@ public struct AppSettings: Codable, Sendable, Equatable {
         firefoxSensorHasConnected: Bool = false,
         firefoxProfileAccess: FirefoxProfileAccess = .notAsked,
         firefoxAddOnProtocol: Int? = nil,
-        firefoxAddOnVersion: String? = nil
+        firefoxAddOnVersion: String? = nil,
+        lastLaunchedVersion: String? = nil
     ) {
         self.version = version
         self.storageRootPath = storageRootPath
@@ -438,6 +444,7 @@ public struct AppSettings: Codable, Sendable, Equatable {
         self.firefoxProfileAccess = firefoxProfileAccess
         self.firefoxAddOnProtocol = firefoxAddOnProtocol
         self.firefoxAddOnVersion = firefoxAddOnVersion
+        self.lastLaunchedVersion = lastLaunchedVersion
     }
 
     /// Every field decodes with its default when absent, so a settings file
@@ -537,6 +544,7 @@ public struct AppSettings: Codable, Sendable, Equatable {
             ?? defaults.firefoxProfileAccess
         firefoxAddOnProtocol = try container.decodeIfPresent(Int.self, forKey: .firefoxAddOnProtocol)
         firefoxAddOnVersion = try container.decodeIfPresent(String.self, forKey: .firefoxAddOnVersion)
+        lastLaunchedVersion = try container.decodeIfPresent(String.self, forKey: .lastLaunchedVersion)
         // The stored number gated the migrations above; the decoded struct is
         // current-schema, and writing it back as such is what stops a
         // migration from re-running against a value the user has since chosen.

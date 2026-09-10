@@ -7,6 +7,9 @@ struct UpdateWindowView: View {
     let model: UpdateFlowModel
     /// Hands the bundled add-on to Firefox.
     let installAddOn: () -> Void
+    /// The notes list's own height, so the scroll view can take that much
+    /// up to a cap. A scroll view offered no height takes none.
+    @State private var notesHeight: CGFloat = 0
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
@@ -173,8 +176,14 @@ struct UpdateWindowView: View {
                             }
                         }
                         .frame(maxWidth: .infinity, alignment: .leading)
+                        .onGeometryChange(for: CGFloat.self) {
+                            $0.size.height
+                        } action: {
+                            notesHeight = $0
+                        }
                     }
-                    .frame(maxHeight: 180)
+                    // A short list shows whole; a long one scrolls inside the cap.
+                    .frame(height: min(max(notesHeight, 20), 220))
                 }
             } else if model.notesUnavailable {
                 Text("The notes could not be loaded. They are on the release page.")

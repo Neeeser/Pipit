@@ -13,7 +13,7 @@ import PipitCore
 // and the browser side is told so, which is exactly the behaviour that lets
 // Pipit fall back to native detection.
 
-let hostVersion = "1.0.0"
+let hostVersion = "1.1.0"
 
 /// Reads the browser's length-prefixed messages from standard input.
 struct BrowserMessageReader {
@@ -53,19 +53,74 @@ func replyToBrowser(_ object: [String: Any]) {
 }
 
 /// Connects to Pipit's socket, reconnecting when the app restarts.
+///
+/// Firefox keeps this process alive for as long as the add-on's port is open,
+/// which is the life of the browser. Pipit restarts underneath it, on every
+/// update among other things, and the socket it connected to goes away. The
+/// extension only speaks when a meeting page changes, so a reconnect that
+/// waited for the next message left the add-on looking absent for hours, and
+/// the hello, which the extension sends once per port, never reached the
+/// restarted app. The connection watches the socket itself and greets the
+/// app again each time it comes back.
+///
+/// Not unit tested: the test target cannot link an executable target. The
+/// logic is kept to a lock, a poll and a replay for that reason.
 final class AppConnection {
     private let socketPath: String
+    private let lock = NSLock()
     private var descriptor: Int32 = -1
+    /// The last hello the extension sent, replayed on every reconnect.
+    private var greeting: SensorMessage?
 
     init(socketPath: String) {
         self.socketPath = socketPath
     }
 
-    var isConnected: Bool { descriptor >= 0 }
+    var isConnected: Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        return descriptor >= 0
+    }
 
+    /// Connects, and greets the app with the last hello if there is one.
     @discardableResult
     func connect() -> Bool {
-        disconnect()
+        lock.lock()
+        defer { lock.unlock() }
+        guard open() else { return false }
+        if let greeting { _ = write(greeting) }
+        return true
+    }
+
+    /// Reconnects when the socket has gone away. Called from a timer, so a
+    /// Pipit restart is noticed within seconds rather than at the next
+    /// meeting page.
+    func watch() {
+        lock.lock()
+        defer { lock.unlock() }
+        if descriptor >= 0 {
+            var pollable = pollfd(fd: descriptor, events: Int16(POLLIN | POLLHUP | POLLERR), revents: 0)
+            let ready = poll(&pollable, 1, 0)
+            let gone =
+                ready > 0
+                && (pollable.revents & Int16(POLLHUP | POLLERR | POLLNVAL) != 0
+                    || (pollable.revents & Int16(POLLIN) != 0 && peekIsEOF()))
+            if !gone { return }
+            closeDescriptor()
+        }
+        if open(), let greeting { _ = write(greeting) }
+    }
+
+    /// A readable socket with nothing to read is the peer having closed it.
+    private func peekIsEOF() -> Bool {
+        var byte: UInt8 = 0
+        let count = recv(descriptor, &byte, 1, MSG_PEEK | MSG_DONTWAIT)
+        return count == 0
+    }
+
+    /// Opens the socket without greeting. The caller holds the lock.
+    private func open() -> Bool {
+        closeDescriptor()
         guard var address = UnixSocketAddress.make(path: socketPath) else { return false }
         let handle = socket(AF_UNIX, SOCK_STREAM, 0)
         guard handle >= 0 else { return false }
@@ -83,6 +138,13 @@ final class AppConnection {
     }
 
     func disconnect() {
+        lock.lock()
+        defer { lock.unlock() }
+        closeDescriptor()
+    }
+
+    /// The caller holds the lock.
+    private func closeDescriptor() {
         guard descriptor >= 0 else { return }
         close(descriptor)
         descriptor = -1
@@ -90,15 +152,23 @@ final class AppConnection {
 
     @discardableResult
     func send(_ message: SensorMessage) -> Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        if case .hello = message { greeting = message }
+        if descriptor < 0, !open() { return false }
+        return write(message)
+    }
+
+    /// Writes one message on the open socket. The caller holds the lock.
+    private func write(_ message: SensorMessage) -> Bool {
         guard let line = try? SensorTransport.encodeLine(message) else { return false }
-        if !isConnected, !connect() { return false }
         return line.withUnsafeBytes { buffer -> Bool in
             var offset = 0
             while offset < buffer.count {
-                let written = write(descriptor, buffer.baseAddress!.advanced(by: offset), buffer.count - offset)
+                let written = Darwin.write(descriptor, buffer.baseAddress!.advanced(by: offset), buffer.count - offset)
                 if written <= 0 {
                     if errno == EINTR { continue }
-                    disconnect()
+                    closeDescriptor()
                     return false
                 }
                 offset += written
@@ -187,11 +257,19 @@ let reader = BrowserMessageReader()
 connection.connect()
 replyToBrowser(["type": "ready", "connected": connection.isConnected, "hostVersion": hostVersion])
 
+// Notices a Pipit restart on its own. Two seconds is well inside the add-on's
+// own reconnect backoff and costs one poll of a socket.
+let watchdog = DispatchSource.makeTimerSource(queue: DispatchQueue(label: "com.pipit.sensor-host.watch"))
+watchdog.schedule(deadline: .now() + 2, repeating: 2)
+watchdog.setEventHandler { connection.watch() }
+watchdog.resume()
+
 while let raw = reader.next() {
     guard let message = sensorMessage(from: raw, browser: browser) else { continue }
     var delivered = connection.send(message)
     if !delivered {
-        // The app may have restarted since the last message.
+        // The app may have restarted since the last message. The reconnect
+        // greets it with the last hello, so this message follows one.
         delivered = connection.connect() && connection.send(message)
     }
     if raw["type"] as? String == "hello" || !delivered {
