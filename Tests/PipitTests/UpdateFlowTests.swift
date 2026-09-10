@@ -1,3 +1,4 @@
+import AppKit
 import Foundation
 import PipitCore
 import PipitServices
@@ -172,13 +173,66 @@ struct UpdateFlowTests {
 struct LaunchAfterUpdateTests {
     @Test("a launch under a new version is the one after an update")
     func aLaunchUnderANewVersionIsTheOneAfterAnUpdate() async throws {
-        #expect(UpdateController.isFirstLaunchAfterUpdate(previous: "0.1.2", running: "0.1.3"))
-        #expect(!UpdateController.isFirstLaunchAfterUpdate(previous: "0.1.3", running: "0.1.3"))
+        #expect(UpdateController.isFirstLaunchAfterUpdate(previous: "0.1.2", running: "0.1.3", existingInstall: true))
+        #expect(!UpdateController.isFirstLaunchAfterUpdate(previous: "0.1.3", running: "0.1.3", existingInstall: true))
         #expect(
-            !UpdateController.isFirstLaunchAfterUpdate(previous: nil, running: "0.1.3"),
+            !UpdateController.isFirstLaunchAfterUpdate(previous: nil, running: "0.1.3", existingInstall: false),
             "a first launch ever follows no update"
         )
-        #expect(!UpdateController.isFirstLaunchAfterUpdate(previous: "0.1.2", running: ""))
+        #expect(
+            UpdateController.isFirstLaunchAfterUpdate(previous: nil, running: "0.1.4", existingInstall: true),
+            "an install from before the record existed is still an install that was just updated"
+        )
+        #expect(!UpdateController.isFirstLaunchAfterUpdate(previous: "0.1.2", running: "", existingInstall: true))
+    }
+
+    @Test("an install that predates the version record still gets the add-on step")
+    @MainActor
+    func anInstallThatPredatesTheVersionRecordStillGetsTheAddOnStep() async throws {
+        // The settings file a 0.1.3 install carries into 0.1.4: setup done,
+        // the add-on has connected before, and no record of the version that
+        // last ran, because no build before 0.1.4 wrote one. Reading "no
+        // previous version" as a first launch ever kept the window shut on
+        // exactly the launch the field was added for.
+        NSApplication.shared.setActivationPolicy(.prohibited)
+        let root = try TestPaths.makeTemporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        try SettingsStore(directory: root).save(
+            AppSettings(hasCompletedOnboarding: true, firefoxSensorHasConnected: true)
+        )
+        let runtime = PipitRuntime(settingsDirectory: root)
+        let windows = WindowManager(runtime: runtime) { _ in }
+        let updates = UpdateController(runtime: runtime, windows: windows, runningVersion: "0.1.4")
+
+        updates.start()
+
+        #expect(updates.model.phase == .installed, "the launch after an update opens on the add-on step")
+        #expect(updates.model.addOnStepPending)
+        #expect(windows.hasOpenWindow, "the window is on screen, not only modelled")
+        #expect(runtime.settings.lastLaunchedVersion == "0.1.4")
+        updates.model.acknowledge()
+        #expect(!windows.hasOpenWindow)
+
+        // The next launch under the same version is an ordinary launch.
+        let again = UpdateController(runtime: runtime, windows: windows, runningVersion: "0.1.4")
+        again.start()
+        #expect(again.model.phase == .idle)
+        #expect(!windows.hasOpenWindow)
+    }
+
+    @Test("a first launch ever asks for nothing")
+    @MainActor
+    func aFirstLaunchEverAsksForNothing() async throws {
+        NSApplication.shared.setActivationPolicy(.prohibited)
+        let root = try TestPaths.makeTemporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let runtime = PipitRuntime(settingsDirectory: root)
+        let windows = WindowManager(runtime: runtime) { _ in }
+        let updates = UpdateController(runtime: runtime, windows: windows, runningVersion: "0.1.4")
+        updates.start()
+        #expect(updates.model.phase == .idle)
+        #expect(!windows.hasOpenWindow)
+        #expect(runtime.settings.lastLaunchedVersion == "0.1.4")
     }
 
     @Test("the settings file keeps the version that last ran")

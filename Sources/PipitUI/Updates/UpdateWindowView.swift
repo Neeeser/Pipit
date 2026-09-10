@@ -69,7 +69,7 @@ struct UpdateWindowView: View {
             model.addOnStepPending
                 ? "You have \(model.runningVersion). Two parts update together."
                 : "You have \(model.runningVersion)."
-        case .installed: "One more step. This version needs a newer Firefox add-on."
+        case .installed: "One more step. Update the Firefox add-on."
         case .upToDate:
             model.addOnStepPending
                 ? "Pipit \(model.runningVersion) is the newest version. The Firefox add-on is behind it."
@@ -121,10 +121,9 @@ struct UpdateWindowView: View {
     }
 
     private var addOnStepDetail: String {
-        let installed = model.addOn.installedVersion.map { "\($0) installed" } ?? "installed"
         switch model.phase {
-        case .installed, .upToDate: return "\(installed), a newer one needed"
-        default: return "Updated after the restart. Firefox asks you to confirm."
+        case .installed, .upToDate: "Update the add-on. Firefox asks you to confirm."
+        default: "Updated after the restart. Firefox asks you to confirm."
         }
     }
 

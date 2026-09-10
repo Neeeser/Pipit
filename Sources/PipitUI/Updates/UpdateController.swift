@@ -26,11 +26,18 @@ public final class UpdateController: NSObject, SPUUpdaterDelegate {
     /// is disabled while this is false.
     public var isAvailable: Bool { updater != nil }
 
-    public init(runtime: PipitRuntime, windows: WindowManager) {
+    /// The version this process runs, injectable so a test can stand in for
+    /// a launch under a new version.
+    private let running: String
+
+    public init(
+        runtime: PipitRuntime, windows: WindowManager, runningVersion: String = UpdateController.runningVersion
+    ) {
         self.runtime = runtime
         self.windows = windows
+        self.running = runningVersion
         super.init()
-        model.runningVersion = Self.runningVersion
+        model.runningVersion = runningVersion
         model.syncAddOn(from: runtime.status)
     }
 
@@ -79,14 +86,19 @@ public final class UpdateController: NSObject, SPUUpdaterDelegate {
     /// add-on, if the add-on is behind.
     private func noticeLaunchAfterUpdate() {
         guard let runtime else { return }
-        let running = Self.runningVersion
         let previous = runtime.settings.lastLaunchedVersion
+        // An install from before the record existed has no previous version
+        // and is still an install that was just updated. Finished setup or an
+        // add-on that has connected is what says it is not a first launch.
+        let existingInstall =
+            runtime.settings.hasCompletedOnboarding || runtime.settings.firefoxSensorHasConnected
         if previous != running {
             var settings = runtime.settings
             settings.lastLaunchedVersion = running
             runtime.update(settings: settings)
         }
-        guard Self.isFirstLaunchAfterUpdate(previous: previous, running: running) else { return }
+        guard Self.isFirstLaunchAfterUpdate(previous: previous, running: running, existingInstall: existingInstall)
+        else { return }
         model.syncAddOn(from: runtime.status)
         let installAddOn: () -> Void = { [weak self] in self?.installAddOn() }
         if model.installedAndRelaunched(acknowledge: { [weak self] in self?.windows.closeUpdate() }) {
@@ -94,10 +106,17 @@ public final class UpdateController: NSObject, SPUUpdaterDelegate {
         }
     }
 
-    /// Whether this launch follows an update. A first launch ever has no
-    /// previous version and is not one.
-    public nonisolated static func isFirstLaunchAfterUpdate(previous: String?, running: String) -> Bool {
-        guard let previous, !running.isEmpty else { return false }
+    /// Whether this launch follows an update.
+    ///
+    /// No previous version means either a first launch ever or an install
+    /// from before the version was recorded, and `existingInstall` tells
+    /// them apart. Reading it as a first launch kept the window shut on the
+    /// one launch the record was added for.
+    public nonisolated static func isFirstLaunchAfterUpdate(
+        previous: String?, running: String, existingInstall: Bool
+    ) -> Bool {
+        guard !running.isEmpty else { return false }
+        guard let previous else { return existingInstall }
         return previous != running
     }
 
@@ -141,7 +160,7 @@ public final class UpdateController: NSObject, SPUUpdaterDelegate {
 
     /// The version this copy of the app was built as. Sparkle compares the
     /// same string when it decides whether a feed item is newer.
-    static var runningVersion: String {
+    public static var runningVersion: String {
         Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? ""
     }
 
@@ -153,7 +172,7 @@ public final class UpdateController: NSObject, SPUUpdaterDelegate {
         MainActor.assumeIsolated {
             UpdateChannels.allowed(
                 receivesBeta: runtime?.settings.receivesBetaUpdates ?? false,
-                appVersion: Self.runningVersion
+                appVersion: running
             )
         }
     }
