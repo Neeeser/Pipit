@@ -1022,6 +1022,11 @@ struct SensorIdentityLinkTests {
         // And a person whose name starts the same way keeps it.
         #expect(participant("d562", "Pinar Aksoy").personName == "Pinar Aksoy")
         #expect(participant("d563", "Pin Oak Holdings").personName == "Pin Oak Holdings")
+        // And the other shape the add-on now cuts, on a recording made before
+        // it did.
+        #expect(participant("d564", "keepBryn CallisterPresentation").personName == nil)
+        #expect(participant("d565", "Keeper Onyekwere").personName == "Keeper Onyekwere")
+        #expect(participant("d566", "keeper onyekwere").personName == "keeper onyekwere")
     }
 
     @Test("the local user is the one the microphone heard")

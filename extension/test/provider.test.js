@@ -317,6 +317,15 @@ test('a ligature glued to the name is cut off it', () => {
     'Renée Balfour'
   );
   assert.equal(meetTileName('keepBryn CallisterPresentation'), 'Bryn Callister');
+  // A pin glued to the front of a pin control left the whole control standing.
+  assert.equal(meetTileName('push_pinPin Bryn Callister to your main screen'), undefined);
+  // A line that is nothing but the filled pin is not a name either.
+  assert.equal(meetTileName('keep'), undefined);
+  assert.equal(meetTileName('keep\nBryn Callister'), 'Bryn Callister');
+  // And the word only cuts a name where it is glued on, because Meet rooms
+  // are named with it.
+  assert.equal(meetTileName('Q3 Presentation Host'), 'Q3 Presentation Host');
+  assert.equal(meetTileName('Presentation Room 3'), 'Presentation Room 3');
   // A person whose name simply starts with one of those words keeps it.
   assert.equal(meetTileName('Keeper Onyekwere'), 'Keeper Onyekwere');
   assert.equal(meetTileName('keeper onyekwere'), 'keeper onyekwere');
