@@ -67,6 +67,38 @@ public final class UpdateController: NSObject, SPUUpdaterDelegate {
         } catch {
             Log.ui.error("updater not started: \(error.localizedDescription, privacy: .public)")
         }
+        noticeLaunchAfterUpdate()
+    }
+
+    /// The first launch under a new version is the second step of the update.
+    ///
+    /// Sparkle's installer reports "installed and relaunched" to the process
+    /// it terminated and stops its status service before relaunching, so the
+    /// relaunched app never hears it. The version that last ran is kept in
+    /// settings instead, and a change to it is the moment to ask for the
+    /// add-on, if the add-on is behind.
+    private func noticeLaunchAfterUpdate() {
+        guard let runtime else { return }
+        let running = Self.runningVersion
+        let previous = runtime.settings.lastLaunchedVersion
+        if previous != running {
+            var settings = runtime.settings
+            settings.lastLaunchedVersion = running
+            runtime.update(settings: settings)
+        }
+        guard Self.isFirstLaunchAfterUpdate(previous: previous, running: running) else { return }
+        model.syncAddOn(from: runtime.status)
+        let installAddOn: () -> Void = { [weak self] in self?.installAddOn() }
+        if model.installedAndRelaunched(acknowledge: { [weak self] in self?.windows.closeUpdate() }) {
+            windows.showUpdate(model, installAddOn: installAddOn, activating: false)
+        }
+    }
+
+    /// Whether this launch follows an update. A first launch ever has no
+    /// previous version and is not one.
+    public nonisolated static func isFirstLaunchAfterUpdate(previous: String?, running: String) -> Bool {
+        guard let previous, !running.isEmpty else { return false }
+        return previous != running
     }
 
     /// Checks now and shows the result, including "you are up to date".
@@ -87,7 +119,7 @@ public final class UpdateController: NSObject, SPUUpdaterDelegate {
     }
 
     /// Hands the bundled add-on to Firefox, with the relay in place first.
-    private func installAddOn() {
+    func installAddOn() {
         if let binary = NativeMessagingInstaller.bundledHostURL() {
             _ = try? NativeMessagingInstaller().install(hostBinary: binary)
         }

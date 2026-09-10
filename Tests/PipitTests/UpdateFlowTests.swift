@@ -167,3 +167,26 @@ struct UpdateFlowTests {
         #expect(model.addOnStepPending)
     }
 }
+
+@Suite("LaunchAfterUpdate")
+struct LaunchAfterUpdateTests {
+    @Test("a launch under a new version is the one after an update")
+    func aLaunchUnderANewVersionIsTheOneAfterAnUpdate() async throws {
+        #expect(UpdateController.isFirstLaunchAfterUpdate(previous: "0.1.2", running: "0.1.3"))
+        #expect(!UpdateController.isFirstLaunchAfterUpdate(previous: "0.1.3", running: "0.1.3"))
+        #expect(
+            !UpdateController.isFirstLaunchAfterUpdate(previous: nil, running: "0.1.3"),
+            "a first launch ever follows no update"
+        )
+        #expect(!UpdateController.isFirstLaunchAfterUpdate(previous: "0.1.2", running: ""))
+    }
+
+    @Test("the settings file keeps the version that last ran")
+    func theSettingsFileKeepsTheVersionThatLastRan() async throws {
+        var settings = AppSettings()
+        #expect(settings.lastLaunchedVersion == nil)
+        settings.lastLaunchedVersion = "0.1.3"
+        let decoded = try JSONDecoder().decode(AppSettings.self, from: try JSONEncoder().encode(settings))
+        #expect(decoded.lastLaunchedVersion == "0.1.3")
+    }
+}

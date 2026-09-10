@@ -82,12 +82,14 @@ public enum FirefoxAddOnState: Equatable {
     ) {
         // The number the add-on last reported outranks the connection: it is
         // known before the add-on calls back after a restart, and an add-on
-        // that is there and behind needs updating whether it is talking or not.
-        switch (compatibility, connection.isLoaded || isInProfile) {
-        case (.behind, true):
+        // that is there and behind needs updating whether it is talking or
+        // not. Only a profile read that found no add-on says otherwise.
+        let readAsRemoved = profileRead && !isInProfile && !connection.isLoaded
+        switch compatibility {
+        case .behind where !readAsRemoved:
             self = .outdated
             return
-        case (.ahead, true) where connection.isLoaded:
+        case .ahead where connection.isLoaded:
             self = .newer
             return
         default: break

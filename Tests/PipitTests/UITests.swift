@@ -611,6 +611,13 @@ struct UITests {
             ) == .missing,
             "an add-on that was removed is missing, whatever it last reported"
         )
+        #expect(
+            FirefoxAddOnState(
+                connection: .absent, isInProfile: false, profileRead: false, hasBundledAddOn: true,
+                compatibility: .behind
+            ) == .outdated,
+            "unread profile and no connection yet: the latch still says an add-on is there and behind"
+        )
         let ahead = FirefoxAddOnState(
             connection: .fresh, isInProfile: true, profileRead: true, hasBundledAddOn: true,
             compatibility: .ahead
