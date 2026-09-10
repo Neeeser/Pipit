@@ -172,4 +172,61 @@ public enum MicrophoneCleaningFixtures {
             root: root, mic: mic, remote: remote, remoteStartOffset: remoteStartOffset
         )
     }
+
+    /// A call whose far end starts and stops the way a person talking does.
+    ///
+    /// A tone that never stops has a flat loudness envelope, and a flat
+    /// envelope is the same envelope after any shift: it can be lined up
+    /// anywhere and cancelled from anywhere, so it hides both the fault and the
+    /// fix. Speech turns on and off, and that is the structure alignment is
+    /// measured against. Deterministic, so a failure is reproducible.
+    ///
+    /// - Parameter micLostSeconds: audio the microphone dropped mid-recording
+    ///   with nothing written for it, so every later sample of that track sits
+    ///   that much earlier than the manifest says. Zero is a healthy recording.
+    /// - Parameter micHoldsEcho: false for a call taken on headphones, where
+    ///   the far end never reaches the capsule.
+    public static func makeSpokenCall(
+        root: URL, seconds: Double = 40, remoteStartOffset: Double = 2,
+        micLostSeconds: Double = 0, micHoldsEcho: Bool = true
+    ) throws -> (metadata: MeetingMetadata, store: MeetingStore, repository: MeetingRepository) {
+        let count = Int(seconds * rate)
+        var remote = tone(count: count, frequency: farToneA, amplitude: 0.5)
+        let second = tone(count: count, frequency: farToneB, amplitude: 0.4, from: count / 2)
+        for index in 0..<count { remote[index] += second[index] }
+        // Turns of 0.35 to 1.2 s with gaps of the same order, from a fixed
+        // sequence rather than a generator, so every run sees the same call.
+        var at = 0.0
+        var step = 0
+        let pattern: [(on: Double, off: Double)] = [
+            (0.9, 0.5), (0.4, 0.7), (1.2, 0.4), (0.6, 0.9), (0.35, 0.5), (1.0, 0.6),
+        ]
+        while at < seconds {
+            let turn = pattern[step % pattern.count]
+            step += 1
+            let quietFrom = Int((at + turn.on) * rate)
+            let quietTo = min(count, Int((at + turn.on + turn.off) * rate))
+            if quietFrom < count {
+                for index in quietFrom..<max(quietFrom, quietTo) { remote[index] = 0 }
+            }
+            at += turn.on + turn.off
+        }
+
+        // The user, talking across the far end for the middle third.
+        var mic = tone(
+            count: count, frequency: nearTone, amplitude: 0.3,
+            from: count / 3, upTo: 2 * count / 3
+        )
+        if micHoldsEcho {
+            let shift =
+                Int(remoteStartOffset * rate) + echoDelaySamples - Int(micLostSeconds * rate)
+            for index in max(0, shift)..<count where index - shift < count {
+                mic[index] += echoGain * remote[index - shift]
+            }
+        }
+        return try makeMeeting(
+            root: root, mic: mic, remote: remote, remoteStartOffset: remoteStartOffset
+        )
+    }
+
 }

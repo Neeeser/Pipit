@@ -232,6 +232,37 @@ public struct MicrophoneCleaner: Sendable {
 
     // MARK: - the pass over both tracks
 
+    /// Where the far end has to be put before the canceller sees it.
+    ///
+    /// The manifest's own answer unless the recording says otherwise. A track
+    /// that lost audio mid-recording ends up shifted against the other one
+    /// while its first frame still reads correct, so the manifest describes a
+    /// pair that no longer exists and the filter is given a reference that
+    /// cannot explain what it is subtracting from.
+    ///
+    /// Never a guess. The measurement has to find a peak, beat the manifest's
+    /// offset by a clear margin and be bigger than the filter absorbs by
+    /// itself, and a recording that clears none of those is cancelled exactly
+    /// as it was before this existed.
+    private func alignment(
+        microphone: TrackAudioLocation, reference: TrackAudioLocation,
+        timeline: RecordingTimeline
+    ) throws -> Double {
+        let fromTimeline = EchoCancellationPass.referenceOffset(timeline: timeline)
+        let measured = try EchoCancellationPass.measureAlignment(
+            microphone: microphone, reference: reference, timelineOffset: fromTimeline
+        )
+        guard measured.isUsable else { return fromTimeline }
+        Log.processing.info(
+            """
+            far end realigned by \(String(format: "%.2f", measured.offsetSeconds - fromTimeline), privacy: .public)s \
+            correlation \(String(format: "%.3f", measured.correlation), privacy: .public) \
+            was \(String(format: "%.3f", measured.correlationAtTimeline), privacy: .public)
+            """
+        )
+        return measured.offsetSeconds
+    }
+
     /// Runs `EchoCancellationPass` over the pair and encodes what comes back.
     ///
     /// Everything about how the two tracks are lined up and measured is in the
@@ -274,7 +305,9 @@ public struct MicrophoneCleaner: Sendable {
         var pending: [Float] = []
         let pass = try EchoCancellationPass.run(
             microphone: microphone, reference: reference,
-            referenceOffset: EchoCancellationPass.referenceOffset(timeline: timeline)
+            referenceOffset: try alignment(
+                microphone: microphone, reference: reference, timeline: timeline
+            )
         ) { cleaned in
             pending += cleaned
             if pending.count >= Self.writeFrames {

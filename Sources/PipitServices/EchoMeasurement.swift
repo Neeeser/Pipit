@@ -141,6 +141,13 @@ public enum EchoMeasurement: Sendable, Equatable {
         public let referenceOffsetSeconds: Double
         /// True when a caller supplied that offset instead of the timeline.
         public let referenceOffsetIsOverride: Bool
+        /// Where the recording itself says the far end sits, and how well the
+        /// two loudness envelopes agree there and at the timeline's offset.
+        /// Reported on every run, used only when `measuredOffsetIsUsable`.
+        public let measuredOffsetSeconds: Double
+        public let measuredOffsetCorrelation: Double
+        public let timelineOffsetCorrelation: Double
+        public let measuredOffsetIsUsable: Bool
         /// Every class, in declaration order, including empty ones.
         public let classes: [ClassSummary]
         /// Every window, in order. What `classes` was summarised from.
@@ -257,7 +264,13 @@ public enum EchoMeasurement: Sendable, Equatable {
             return .noReference(.recordedSilence)
         }
 
-        let offset = referenceOffset ?? timelineReferenceOffset(timeline)
+        let fromTimeline = timelineReferenceOffset(timeline)
+        // Measured whatever the caller does with it, so a run pinned to an
+        // offset by hand still reports where the far end actually sits.
+        let alignment = try EchoCancellationPass.measureAlignment(
+            microphone: microphone, reference: reference, timelineOffset: fromTimeline
+        )
+        let offset = referenceOffset ?? (alignment.isUsable ? alignment.offsetSeconds : fromTimeline)
         let pass = try EchoCancellationPass.run(
             microphone: microphone, reference: reference, referenceOffset: offset
         ) { _ in }
@@ -293,6 +306,10 @@ public enum EchoMeasurement: Sendable, Equatable {
                 microphoneQuietWindowDBFS: quiet,
                 referenceOffsetSeconds: offset,
                 referenceOffsetIsOverride: referenceOffset != nil,
+                measuredOffsetSeconds: alignment.offsetSeconds,
+                measuredOffsetCorrelation: alignment.correlation,
+                timelineOffsetCorrelation: alignment.correlationAtTimeline,
+                measuredOffsetIsUsable: alignment.isUsable,
                 classes: classes,
                 windowLog: log,
                 notableLossDB: notableLossDB,

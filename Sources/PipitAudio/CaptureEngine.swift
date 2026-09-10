@@ -705,6 +705,26 @@ public final class CaptureEngine: Sendable {
         Log.capture.error("segment write failed: \(error.logSafeDescription, privacy: .public)")
     }
 
+    /// Tells the track's writer that the space before its next packet is audio
+    /// the recording lost rather than a stretch nobody was recording.
+    ///
+    /// The writer sees a gap between two host times and nothing else. A rebuild
+    /// is what says the source had stopped delivering, which is the difference
+    /// between a hole to be written as silence and a reconnect window to be
+    /// left out.
+    ///
+    /// Called on the rebuilding thread rather than queued, so it lands before
+    /// the rebuilt source can deliver. Takes the state lock and hands off to
+    /// the writer's own queue, and touches neither the control queue nor the
+    /// delegate, so there is nothing here for a caller to wait on.
+    fileprivate func noteRestart(track: CaptureTrack) {
+        let writer = state.withLock { state -> SegmentWriter? in
+            guard state.mode == .recording else { return nil }
+            return track == .mic ? state.micWriter : state.remoteWriter
+        }
+        writer?.resumeContinuity()
+    }
+
     /// Appends to the manifest, holding the event until there is one.
     ///
     /// `state.manifest` is set at commit, and the tap binds while the session is
@@ -781,6 +801,15 @@ private final class CoordinatorRelay: CaptureCoordinatorDelegate, @unchecked Sen
     }
 
     func captureDidRestart(track: CaptureTrack, reason: RebuildReason, restartCount: Int) {
+        // Synchronous for the same reason the format change above is, and it is
+        // the same race: the rebuilt source delivers on its own thread, and
+        // whichever of the two reaches the writer first decides. Queued, this
+        // waits behind the rest of the rebuild, the other coordinator's tick
+        // and a delegate callback that runs synchronously into the app, while
+        // the first packet needs none of that. A packet that wins crosses the
+        // seam, the writer forgets what it was holding, and the hole goes
+        // unwritten: the fix this exists for silently does nothing.
+        target?.noteRestart(track: track)
         let engine = target
         queue.async {
             engine?.recordManifest(

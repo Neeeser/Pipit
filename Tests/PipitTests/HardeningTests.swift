@@ -606,6 +606,72 @@ struct CaptureEngineHardeningTests {
         #expect(timeline.isComplete)
     }
 
+    @Test("a rebuild across the pre-roll seam writes the silence it cost")
+    func aRebuildAcrossThePreRollSeamWritesTheSilenceItCost() async throws {
+        // The engine is what tells the writer that a gap is lost audio rather
+        // than a stretch nobody was recording, and the writer cannot tell them
+        // apart on its own. Every other test here calls the writer directly, so
+        // this is the one that fails if the engine stops saying it.
+        //
+        // The thresholds are shrunk so the rebuild happens inside a test rather
+        // than after two seconds. The fake stamps its packets on a timeline of
+        // its own and delivers nothing once capture is live, so the policy
+        // rebuilds on its own within a poll or two.
+        let root = try TestPaths.makeTemporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let layout = MeetingLayout(root: root)
+        try FileManager.default.createDirectory(
+            at: layout.segments, withIntermediateDirectories: true
+        )
+
+        let microphone = LockedBox<EmittingMicrophone?>(nil)
+        let delegate = SilentDelegate()
+        let engine = CaptureEngine(
+            thresholds: CaptureThresholds(
+                rebuildGrace: 0.02, micCallbackTimeout: 0.05, pollInterval: 0.02
+            ),
+            segmentSeconds: 600,
+            makeMicrophone: { sink, _ in
+                let source = EmittingMicrophone(sink: sink)
+                microphone.withLock { $0 = source }
+                return source
+            },
+            makeTap: { sink, _ in EmittingTap(sink: sink) },
+            delegate: delegate
+        )
+        await engine.arm(bundlePrefixes: [], capturesRemote: false)
+        // Into the pre-roll ring, so committing flushes it and opens the seam.
+        microphone.withLock { $0?.emit(seconds: 0.5, hostTime: 100) }
+        try await engine.commit(layout: layout, meetingID: "m", source: .googleMeet)
+
+        // The microphone is delivering nothing, so the watchdog rebuilds it.
+        var waited = 0
+        while (delegate.snapshots.last?.micRestarts ?? 0) == 0, waited < 300 {
+            try await Task.sleep(nanoseconds: 10_000_000)
+            waited += 1
+        }
+        #expect(
+            (delegate.snapshots.last?.micRestarts ?? 0) > 0,
+            "the watchdog never rebuilt the microphone, so this proves nothing"
+        )
+
+        // Capture comes back 2.5 s after the last frame the ring held.
+        microphone.withLock { $0?.emit(seconds: 0.5, hostTime: 103) }
+        _ = await engine.stop(reason: "test")
+
+        let timeline = try ManifestReader.timeline(contentsOf: layout.manifest)
+        #expect(
+            abs(timeline.duration(track: .mic) - 3.5) <= 0.05,
+            """
+            expected 3.5 ± 0.05, got \(timeline.duration(track: .mic)) — 1 s of audio \
+            plus the 2.5 s the stall cost
+            """
+        )
+        // Not `isContiguous`: a restart after a track's first frame is exactly
+        // what that refuses, and one just happened.
+        #expect(timeline.restarts.contains { $0.track == .mic })
+    }
+
     @Test("the stop snapshot counts every run, not only the last")
     func theStopSnapshotCountsEveryRunNotOnlyTheLast() async throws {
         // A pause closes the writers and a resume opens fresh ones, so the
