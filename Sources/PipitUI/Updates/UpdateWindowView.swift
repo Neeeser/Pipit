@@ -122,7 +122,7 @@ struct UpdateWindowView: View {
 
     private var addOnStepDetail: String {
         switch model.phase {
-        case .installed, .upToDate: "Update the add-on. Firefox asks you to confirm."
+        case .installed, .upToDate: "Update the add-on."
         default: "Updated after the restart. Firefox asks you to confirm."
         }
     }
