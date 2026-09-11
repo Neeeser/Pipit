@@ -129,6 +129,125 @@ struct MicrophoneCleanerTests {
         )
     }
 
+    @Test("a microphone that lost audio mid-recording is lined up again and cleaned")
+    func aMicrophoneThatLostAudioMidRecordingIsLinedUpAgainAndCleaned() async throws {
+        // The manifest says when each track's first frame arrived, and a source
+        // that stalls after that leaves a hole without changing it. On the
+        // standup of 10 September 2026 the microphone ran 2.45 s ahead of the
+        // far end for 31 minutes while the manifest reported the two tracks
+        // starting 1.3 ms apart, and the canceller took 6.5 dB off the far end
+        // where the same pass at the measured offset takes 15.3 dB.
+        let root = try TestPaths.makeTemporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let meeting = try MicrophoneCleaningFixtures.makeSpokenCall(
+            root: root, micLostSeconds: 2.45
+        )
+        let store = meeting.store
+        let timeline = try store.readTimeline()
+
+        var carried = meeting.metadata
+        let outcome = try MicrophoneCleaner().clean(
+            store: store, metadata: &carried, timeline: timeline
+        )
+        #expect(outcome == CleaningOutcome.cleaned)
+
+        let metadata = try store.readMetadata()
+        let raw = try MicrophoneCleaningFixtures.samples(
+            store.rawTrackAudioLocation(track: .mic, metadata: metadata, timeline: timeline)
+        )
+        let clean = try MicrophoneCleaningFixtures.samples(
+            store.trackAudioLocation(track: .mic, metadata: metadata, timeline: timeline)
+        )
+        let farBefore = MicrophoneCleaningFixtures.toneEnergy(
+            MicrophoneCleaningFixtures.seconds(28, 40, of: raw),
+            frequency: MicrophoneCleaningFixtures.farToneA
+        )
+        let farAfter = MicrophoneCleaningFixtures.toneEnergy(
+            MicrophoneCleaningFixtures.seconds(28, 40, of: clean),
+            frequency: MicrophoneCleaningFixtures.farToneA
+        )
+        let removed = MicrophoneCleaningFixtures.dropDB(from: farBefore, to: farAfter)
+        #expect(removed > 20, "the far end came down only \(removed) dB")
+    }
+
+    @Test("the far end is found where the recording holds it, not where the manifest says")
+    func theFarEndIsFoundWhereTheRecordingHoldsItNotWhereTheManifestSays() async throws {
+        let root = try TestPaths.makeTemporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let meeting = try MicrophoneCleaningFixtures.makeSpokenCall(
+            root: root, micLostSeconds: 2.45
+        )
+        let timeline = try meeting.store.readTimeline()
+        let fromTimeline = EchoMeasurement.timelineReferenceOffset(timeline)
+        let measurement = try EchoMeasurement.measure(
+            store: meeting.store, metadata: meeting.metadata, timeline: timeline
+        )
+        guard case .measured(let report) = measurement else {
+            Issue.record("the pair was not measurable")
+            return
+        }
+        #expect(report.measuredOffsetIsUsable)
+        #expect(
+            abs((report.measuredOffsetSeconds - fromTimeline) - (-2.45)) <= 0.02,
+            """
+            expected the far end moved -2.45 ± 0.02 s, \
+            got \(report.measuredOffsetSeconds - fromTimeline)
+            """
+        )
+        #expect(report.measuredOffsetCorrelation > report.timelineOffsetCorrelation)
+        #expect(
+            abs((report.referenceOffsetSeconds) - (report.measuredOffsetSeconds)) <= 0.001,
+            "and the pass ran at the offset it measured"
+        )
+    }
+
+    @Test("a recording already lined up is left where the manifest put it")
+    func aRecordingAlreadyLinedUpIsLeftWhereTheManifestPutIt() async throws {
+        let root = try TestPaths.makeTemporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let meeting = try MicrophoneCleaningFixtures.makeSpokenCall(root: root)
+        let timeline = try meeting.store.readTimeline()
+        let measurement = try EchoMeasurement.measure(
+            store: meeting.store, metadata: meeting.metadata, timeline: timeline
+        )
+        guard case .measured(let report) = measurement else {
+            Issue.record("the pair was not measurable")
+            return
+        }
+        #expect(
+            !report.measuredOffsetIsUsable,
+            "the 3 ms across the desk is not worth moving a whole track for"
+        )
+        #expect(
+            abs(
+                (report.referenceOffsetSeconds)
+                    - (EchoMeasurement.timelineReferenceOffset(timeline))) <= 0.001
+        )
+    }
+
+    @Test("a call on headphones offers no echo path to line up against")
+    func aCallOnHeadphonesOffersNoEchoPathToLineUpAgainst() async throws {
+        // Two thirds of the recordings on disk are these. There is no peak to
+        // find, so the loudest piece of noise must not be taken for one.
+        let root = try TestPaths.makeTemporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let meeting = try MicrophoneCleaningFixtures.makeSpokenCall(root: root, micHoldsEcho: false)
+        let timeline = try meeting.store.readTimeline()
+        let measurement = try EchoMeasurement.measure(
+            store: meeting.store, metadata: meeting.metadata, timeline: timeline
+        )
+        guard case .measured(let report) = measurement else {
+            Issue.record("the pair was not measurable")
+            return
+        }
+        #expect(!report.measuredOffsetIsUsable)
+        #expect(
+            abs(
+                (report.referenceOffsetSeconds)
+                    - (EchoMeasurement.timelineReferenceOffset(timeline))) <= 0.001
+        )
+    }
+
     @Test("a cleaned meeting reads the cleaned track and still reaches the raw one")
     func aCleanedMeetingReadsTheCleanedTrackAndStillReachesTheRawOne() async throws {
         let root = try TestPaths.makeTemporaryDirectory()

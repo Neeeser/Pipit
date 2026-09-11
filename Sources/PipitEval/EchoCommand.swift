@@ -130,13 +130,24 @@ enum EchoCommand {
 
     private static func printReport(_ report: EchoMeasurement.Report) {
         let offset = String(format: "%+.2f", report.referenceOffsetSeconds)
-        let source = report.referenceOffsetIsOverride ? "given by hand" : "from the manifest"
+        let source =
+            report.referenceOffsetIsOverride
+            ? "given by hand"
+            : (report.measuredOffsetIsUsable ? "measured off the recording" : "from the manifest")
         print(
             String(
                 format: "duration        %.1fs in %d windows of %.2fs",
                 report.seconds, report.windowCount, report.windowSeconds
             ))
         print("reference       far end moved \(offset)s onto the microphone's clock, \(source)")
+        print(
+            String(
+                format: "alignment       envelopes agree %.3f at %+.2fs and %.3f at the manifest's"
+                    + " offset, so the measurement is %@",
+                report.measuredOffsetCorrelation, report.measuredOffsetSeconds,
+                report.timelineOffsetCorrelation,
+                report.measuredOffsetIsUsable ? "used" : "not used"
+            ))
         print(
             String(
                 format: "far end         above %.1f dBFS in %d windows, %.1f%% of the meeting",

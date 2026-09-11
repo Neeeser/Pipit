@@ -384,6 +384,182 @@ struct AudioTests {
         )
     }
 
+    @Test("a source that stalled across the pre-roll seam still has its silence written")
+    func aSourceThatStalledAcrossThePreRollSeamStillHasItsSilenceWritten() async throws {
+        // The seam between the last packet drained out of the pre-roll ring and
+        // the first one written live. Both are handed over inside the lock that
+        // flips the engine into recording, so a running source makes them
+        // contiguous. A stalled one leaves a hole, and this used to discard it:
+        // on 10 September 2026 that put the microphone 2.45 s ahead of the far
+        // end for 31 minutes and the echo canceller never locked on.
+        let root = try TestPaths.makeTemporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let layout = MeetingLayout(root: root)
+        try FileManager.default.createDirectory(
+            at: layout.segments, withIntermediateDirectories: true
+        )
+        let manifest = try ManifestWriter(url: layout.manifest)
+        let format = AVAudioFormat(standardFormatWithSampleRate: 48_000, channels: 1)!
+        let writer = SegmentWriter(
+            track: .mic, layout: layout, manifest: manifest,
+            format: format, segmentSeconds: 60
+        )
+
+        // The ring's last packet.
+        writer.enqueueSynchronously(
+            AudioBufferPacket(
+                buffer: AudioFixtures.makeTone(seconds: 0.5, sampleRate: 48_000), hostTime: 100
+            ))
+        writer.breakContinuity()
+        // The watchdog reports the microphone stalled, and live capture resumes
+        // 2.45 s after the last frame the ring held.
+        writer.resumeContinuity()
+        writer.enqueueSynchronously(
+            AudioBufferPacket(
+                buffer: AudioFixtures.makeTone(seconds: 0.5, sampleRate: 48_000), hostTime: 102.95
+            ))
+        writer.finish(reason: "test")
+        manifest.close()
+
+        let timeline = try ManifestReader.timeline(contentsOf: layout.manifest)
+        #expect(
+            abs((timeline.duration(track: .mic)) - (3.45)) <= 0.01,
+            """
+            expected 3.45 ± 0.01, got \(timeline.duration(track: .mic)) — 1 s of audio \
+            plus the 2.45 s the stall cost
+            """
+        )
+        #expect(timeline.isContiguous(track: .mic))
+    }
+
+    @Test("one rebuild never pays for a whole reconnect wait")
+    func oneRebuildNeverPaysForAWholeReconnectWait() async throws {
+        // A source gone for the whole of a reconnect window leaves a hole as
+        // long as the wait, and only a stall's worth of that is audio anybody
+        // meant to record. The ceiling is what keeps a minute of waiting from
+        // becoming a minute of silence in the file.
+        let root = try TestPaths.makeTemporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let layout = MeetingLayout(root: root)
+        try FileManager.default.createDirectory(
+            at: layout.segments, withIntermediateDirectories: true
+        )
+        let manifest = try ManifestWriter(url: layout.manifest)
+        let format = AVAudioFormat(standardFormatWithSampleRate: 48_000, channels: 1)!
+        let writer = SegmentWriter(
+            track: .mic, layout: layout, manifest: manifest,
+            format: format, segmentSeconds: 600
+        )
+
+        writer.enqueueSynchronously(
+            AudioBufferPacket(
+                buffer: AudioFixtures.makeTone(seconds: 0.5, sampleRate: 48_000), hostTime: 100
+            ))
+        writer.breakContinuity()
+        writer.resumeContinuity()
+        writer.enqueueSynchronously(
+            AudioBufferPacket(
+                buffer: AudioFixtures.makeTone(seconds: 0.5, sampleRate: 48_000), hostTime: 190
+            ))
+        writer.finish(reason: "test")
+        manifest.close()
+
+        let timeline = try ManifestReader.timeline(contentsOf: layout.manifest)
+        #expect(
+            abs((timeline.duration(track: .mic)) - (1 + SegmentWriter.rebuildGapCeilingSeconds))
+                <= 0.01,
+            """
+            expected \(1 + SegmentWriter.rebuildGapCeilingSeconds) ± 0.01, \
+            got \(timeline.duration(track: .mic)) — the 90 s wait capped at a stall's worth
+            """
+        )
+    }
+
+    @Test("the rebuild ceiling applies to one packet and not to the rest of the track")
+    func theRebuildCeilingAppliesToOnePacketAndNotToTheRestOfTheTrack() async throws {
+        let root = try TestPaths.makeTemporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let layout = MeetingLayout(root: root)
+        try FileManager.default.createDirectory(
+            at: layout.segments, withIntermediateDirectories: true
+        )
+        let manifest = try ManifestWriter(url: layout.manifest)
+        let format = AVAudioFormat(standardFormatWithSampleRate: 48_000, channels: 1)!
+        let writer = SegmentWriter(
+            track: .mic, layout: layout, manifest: manifest,
+            format: format, segmentSeconds: 600
+        )
+
+        writer.enqueueSynchronously(
+            AudioBufferPacket(
+                buffer: AudioFixtures.makeTone(seconds: 0.5, sampleRate: 48_000), hostTime: 100
+            ))
+        writer.breakContinuity()
+        writer.resumeContinuity()
+        // Crosses the seam with no gap at all, which spends the ceiling.
+        writer.enqueueSynchronously(
+            AudioBufferPacket(
+                buffer: AudioFixtures.makeTone(seconds: 0.5, sampleRate: 48_000), hostTime: 100.5
+            ))
+        // A later engine rebuild costs 7 s, above the seam ceiling and below
+        // the ordinary one, and is written whole.
+        writer.enqueueSynchronously(
+            AudioBufferPacket(
+                buffer: AudioFixtures.makeTone(seconds: 0.5, sampleRate: 48_000), hostTime: 108
+            ))
+        writer.finish(reason: "test")
+        manifest.close()
+
+        let timeline = try ManifestReader.timeline(contentsOf: layout.manifest)
+        #expect(
+            abs((timeline.duration(track: .mic)) - (8.5)) <= 0.01,
+            "expected 8.5 ± 0.01, got \(timeline.duration(track: .mic))"
+        )
+    }
+
+    @Test("a restart reported after the seam is crossed pads nothing")
+    func aRestartReportedAfterTheSeamIsCrossedPadsNothing() async throws {
+        // The rebuild is reported before the new engine delivers its first
+        // buffer, so this order does not arise in practice. It fails closed
+        // anyway, because the alternative is charging one gap with the whole
+        // reconnect window that came before it.
+        let root = try TestPaths.makeTemporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let layout = MeetingLayout(root: root)
+        try FileManager.default.createDirectory(
+            at: layout.segments, withIntermediateDirectories: true
+        )
+        let manifest = try ManifestWriter(url: layout.manifest)
+        let format = AVAudioFormat(standardFormatWithSampleRate: 48_000, channels: 1)!
+        let writer = SegmentWriter(
+            track: .mic, layout: layout, manifest: manifest,
+            format: format, segmentSeconds: 600
+        )
+
+        writer.enqueueSynchronously(
+            AudioBufferPacket(
+                buffer: AudioFixtures.makeTone(seconds: 0.5, sampleRate: 48_000), hostTime: 100
+            ))
+        writer.breakContinuity()
+        writer.enqueueSynchronously(
+            AudioBufferPacket(
+                buffer: AudioFixtures.makeTone(seconds: 0.5, sampleRate: 48_000), hostTime: 190
+            ))
+        writer.resumeContinuity()
+        writer.enqueueSynchronously(
+            AudioBufferPacket(
+                buffer: AudioFixtures.makeTone(seconds: 0.5, sampleRate: 48_000), hostTime: 190.5
+            ))
+        writer.finish(reason: "test")
+        manifest.close()
+
+        let timeline = try ManifestReader.timeline(contentsOf: layout.manifest)
+        #expect(
+            abs((timeline.duration(track: .mic)) - (1.5)) <= 0.01,
+            "expected 1.5 ± 0.01, got \(timeline.duration(track: .mic))"
+        )
+    }
+
     @Test("an ordinary rotation writes no silence")
     func anOrdinaryRotationWritesNoSilence() async throws {
         // The fill has to stay off the path it does not belong on.

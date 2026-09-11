@@ -35,6 +35,13 @@ public final class SegmentWriter: Sendable {
         /// Host time the next packet should carry if no audio goes missing:
         /// the last packet's own time plus how long it ran.
         var nextExpectedHostTime: Double?
+        /// The expectation `breakContinuity` set aside, so a restart can put it
+        /// back and charge the recording for the hole after all.
+        var suspendedExpectedHostTime: Double?
+        /// The most silence the next gap alone may write, where a caller has
+        /// said the seam it is about to cross is worth less trust than the
+        /// ordinary packet-to-packet one. Cleared once that packet is written.
+        var nextGapCeilingSeconds: Double?
         var writeFailures = 0
         var isFinished = false
         /// A failed open is retried on the next buffer rather than ending the
@@ -123,9 +130,57 @@ public final class SegmentWriter: Sendable {
     /// resumed, and across a reconnect that is deliberately not part of the
     /// recording. Queued rather than immediate, so it lands after the packets
     /// already handed over.
+    ///
+    /// The expectation is set aside rather than thrown away, because a source
+    /// that stalls across this seam leaves a hole that is lost audio, and only
+    /// `resumeContinuity` can tell the two apart.
     public func breakContinuity() {
         queue.async { [self] in
-            state.withLock { $0.nextExpectedHostTime = nil }
+            state.withLock {
+                $0.suspendedExpectedHostTime = $0.nextExpectedHostTime
+                $0.nextExpectedHostTime = nil
+            }
+        }
+    }
+
+    /// Says the source stopped delivering, so the space before the next packet
+    /// is audio the recording lost and its duration has to be kept.
+    ///
+    /// Called when a track is rebuilt. Everything the writer sees is a gap
+    /// between two host times, and until the rebuild is reported it cannot tell
+    /// a stalled microphone from a stretch nobody was recording. A rebuild says
+    /// which one this is.
+    ///
+    /// Only while the seam is still uncrossed. A restart reported after the
+    /// first packet is about a gap already answered for, and restoring the
+    /// expectation then would charge the next gap with the reconnect window
+    /// that came before it.
+    ///
+    /// The seam is where it mattered. On 10 September 2026 a microphone stalled
+    /// 1.2 s before a reconnect flushed the pre-roll ring and came back 1.2 s
+    /// after it, the watchdog reported `gap:2.35s`, and `breakContinuity` had
+    /// already thrown the expectation away, so nothing was written for the hole.
+    /// The two tracks then ran 2.45 s apart for the remaining 31 minutes: the
+    /// echo canceller was handed a reference that far out of step and took
+    /// 6.5 dB off the far end where the same pass at the measured offset takes
+    /// 15.3 dB, so the call played out of the speakers stayed in the microphone
+    /// and 68% of what the user was transcribed as saying was somebody else's
+    /// words.
+    ///
+    /// The ceiling bounds what one rebuild may cost. A microphone is called
+    /// stalled `CaptureThresholds.micCallbackTimeout` after its last frame, by
+    /// a poll running every `pollInterval`, and the rebuild that follows is
+    /// suppressed for `rebuildGrace`: 2.0 plus 0.5 plus 1.5. The nine engine
+    /// rebuilds measured across the recordings on disk cost 1.01 to 3.47 s.
+    public func resumeContinuity() {
+        queue.async { [self] in
+            state.withLock {
+                if $0.nextExpectedHostTime == nil {
+                    $0.nextExpectedHostTime = $0.suspendedExpectedHostTime
+                }
+                $0.suspendedExpectedHostTime = nil
+                $0.nextGapCeilingSeconds = SegmentWriter.rebuildGapCeilingSeconds
+            }
         }
     }
 
@@ -199,6 +254,11 @@ public final class SegmentWriter: Sendable {
         }
 
         let shouldRotate: Bool = state.withLock { state in
+            // The seam is crossed, so a restart reported after this packet is
+            // about a gap this writer has already answered for. Restoring the
+            // expectation then would charge the next gap with the whole of the
+            // reconnect window that came before it.
+            state.suspendedExpectedHostTime = nil
             if state.firstFrameHostTime == nil { state.firstFrameHostTime = hostTime }
             state.framesInSegment += Int64(buffer.frameLength)
             state.totalFrames += Int64(buffer.frameLength)
@@ -230,6 +290,13 @@ public final class SegmentWriter: Sendable {
     /// measured is 3.47 s.
     private static let gapCeilingSeconds = 10.0
 
+    /// The most silence one rebuild may write. See `resumeContinuity`.
+    ///
+    /// Above the 4.0 s a stall takes to be noticed and repaired and above the
+    /// longest rebuild measured, and far below any reconnect wait, so a source
+    /// that is gone for the whole of one pays five seconds rather than the wait.
+    public static let rebuildGapCeilingSeconds = 5.0
+
     /// Writes the audio nobody recorded, as silence, so the file still says how
     /// long it was.
     ///
@@ -247,11 +314,16 @@ public final class SegmentWriter: Sendable {
     /// it here leaves `leadIn`, the mixdown, compaction and `isContiguous`
     /// correct with no knowledge of gaps at all.
     private func fillGapIfNeeded(before hostTime: Double, file: AVAudioFile, format: AVAudioFormat) {
-        let expected: Double? = state.withLock { $0.nextExpectedHostTime }
+        let (expected, seamCeiling): (Double?, Double?) = state.withLock {
+            let values = ($0.nextExpectedHostTime, $0.nextGapCeilingSeconds)
+            $0.nextGapCeilingSeconds = nil
+            return values
+        }
         guard let expected, format.sampleRate > 0 else { return }
         let missing = hostTime - expected
         guard missing >= SegmentWriter.gapFloorSeconds else { return }
-        let seconds = min(missing, SegmentWriter.gapCeilingSeconds)
+        let ceiling = min(SegmentWriter.gapCeilingSeconds, seamCeiling ?? .greatestFiniteMagnitude)
+        let seconds = min(missing, ceiling)
         let frames = AVAudioFrameCount((seconds * format.sampleRate).rounded())
         guard frames > 0,
             let silence = AVAudioPCMBuffer(

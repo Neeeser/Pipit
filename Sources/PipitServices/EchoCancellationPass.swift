@@ -177,6 +177,170 @@ public struct EchoCancellationPass {
         return result
     }
 
+    // MARK: - alignment
+
+    /// Where the far end actually sits against the microphone, and whether that
+    /// is worth believing.
+    public struct Alignment: Sendable, Equatable {
+        /// Seconds the far end has to move for the envelopes to line up, in the
+        /// sense `run` takes it. Always where the peak is, so `correlation`
+        /// describes this offset whether or not it was acted on. A caller reads
+        /// `isUsable` to decide, and uses the timeline's own offset otherwise.
+        public let offsetSeconds: Double
+        /// How well the two envelopes agree at that offset.
+        public let correlation: Double
+        /// And at the offset the manifest gave, which is what this replaces.
+        public let correlationAtTimeline: Double
+        /// Whether every bar below was cleared. A measurement that was not is
+        /// still returned, because the figures explain the decision.
+        public let isUsable: Bool
+    }
+
+    /// Envelope window the search runs on. Fine enough to place a shift inside
+    /// a syllable, and a twenty-fifth of the smallest shift acted on, so the
+    /// quantisation is never what decides.
+    static let alignmentWindowSeconds = 0.01
+    /// How far either way the far end is looked for. The longest real slip
+    /// measured on the recordings on disk is 5.35 s.
+    static let alignmentSearchSeconds = 8.0
+    /// How well the envelopes have to agree before the peak is a measurement
+    /// rather than the loudest piece of noise.
+    ///
+    /// Measured over the 48 recordings on disk that hold both tracks. The ten
+    /// with an audible echo path read 0.500 to 0.866 at their best offset and
+    /// every one of the rest reads 0.320 or below, most of them near zero. This
+    /// sits 1.25x below the lowest of the first group and 1.25x above the
+    /// highest of the second. A call taken on headphones has no echo path, no
+    /// peak to find and nothing for the canceller to remove either way, so
+    /// refusing to move it costs nothing.
+    static let minimumAlignmentCorrelation = 0.40
+    /// And by how much it has to beat the offset already in hand, so a peak
+    /// that is no better than where the manifest put the far end is not acted
+    /// on.
+    ///
+    /// The three recordings that need moving gain 0.531, 0.618 and 0.604 over
+    /// the manifest's offset. The seven already lined up gain 0.000 to 0.394,
+    /// so this clause alone does not separate them: what leaves those alone is
+    /// `minimumAlignmentShiftSeconds`, because their peaks sit within a tenth
+    /// of a second of where they already are. This one refuses a peak that is
+    /// far away and no better, which is the shape a recording with two
+    /// unrelated tracks produces.
+    static let minimumAlignmentGain = 0.15
+    /// Below this the filter absorbs the difference itself, and moving the
+    /// whole track to chase it would be arithmetic dressed as precision.
+    static let minimumAlignmentShiftSeconds = 0.25
+
+    /// Measures the far end against the microphone and says where it sits.
+    ///
+    /// The manifest says when each track's first frame arrived, and until 10
+    /// September 2026 that was taken as the whole answer. It is not: a source
+    /// that stalls mid-recording leaves a hole, and a hole nothing was written
+    /// for moves every later second of that track earlier without changing the
+    /// first frame at all. On the standup of that morning the microphone ran
+    /// 2.45 s ahead of the far end for 31 of its 32 minutes while the manifest
+    /// reported the two tracks starting 1.3 ms apart. The canceller was handed
+    /// the manifest's answer, never locked on, and took 6.5 dB off the far end
+    /// where the same pass at the measured offset takes 15.3 dB.
+    ///
+    /// `SegmentWriter` no longer loses that hole, so this is not the fix for
+    /// new recordings. It is what lets one already on disk be cleaned properly
+    /// when it is analysed again, and what keeps any later fault of the same
+    /// shape from being silent.
+    ///
+    /// The comparison is between loudness envelopes rather than samples. The
+    /// echo is the far end played out of a speaker and heard again across a
+    /// room, so it arrives filtered, quieter and reverberant, and its waveform
+    /// no longer resembles what was played. Its loudness over time still does.
+    static func measureAlignment(
+        microphone: TrackAudioLocation, reference: TrackAudioLocation, timelineOffset: Double
+    ) throws -> Alignment {
+        // Nothing to compare, so the timeline's own offset is the only answer
+        // and it is reported as measured at zero agreement.
+        let unusable = Alignment(
+            offsetSeconds: timelineOffset, correlation: 0, correlationAtTimeline: 0, isUsable: false
+        )
+        // Both read on the timeline the pass itself will use, so what comes back
+        // is what still has to be corrected rather than a second absolute
+        // answer that has to be reconciled with the first.
+        guard
+            let microphoneReader = TimelineTrackReader(
+                location: microphone, format: readFormat, offsetSeconds: 0
+            ),
+            let referenceReader = TimelineTrackReader(
+                location: reference, format: readFormat, offsetSeconds: timelineOffset
+            )
+        else { return unusable }
+        let near = try envelope(of: microphoneReader)
+        let far = try envelope(of: referenceReader)
+        let count = min(near.count, far.count)
+        let span = Int((alignmentSearchSeconds / alignmentWindowSeconds).rounded())
+        // Two search widths of usable recording, so the correlation at the
+        // edges of the search is still measured over most of the meeting.
+        guard count > span * 2 else { return unusable }
+        let a = centred(Array(near[..<count]))
+        let b = centred(Array(far[..<count]))
+        let scale = (magnitude(a) * magnitude(b))
+        guard scale > 0 else { return unusable }
+
+        var bestLag = 0
+        var best = -Double.greatestFiniteMagnitude
+        for lag in -span...span {
+            let value = dot(a, b, lag: lag) / scale
+            if value > best {
+                best = value
+                bestLag = lag
+            }
+        }
+        let atTimeline = dot(a, b, lag: 0) / scale
+        // `dot` slides the far end forward by `lag`, so the lag that lines the
+        // two up is already the direction and the distance the far end has to
+        // move. A microphone that lost audio holds the room early, which puts
+        // the peak at a negative lag and moves the far end back to meet it.
+        let shift = Double(bestLag) * alignmentWindowSeconds
+        let usable =
+            best >= minimumAlignmentCorrelation
+            && best - atTimeline >= minimumAlignmentGain
+            && abs(shift) >= minimumAlignmentShiftSeconds
+        return Alignment(
+            offsetSeconds: timelineOffset + shift,
+            correlation: best,
+            correlationAtTimeline: atTimeline,
+            isUsable: usable
+        )
+    }
+
+    /// Root-mean-square loudness, one window at a time, to the end of the track.
+    private static func envelope(of reader: TimelineTrackReader) throws -> [Double] {
+        let window = Int((alignmentWindowSeconds * readFormat.sampleRate).rounded())
+        var out: [Double] = []
+        while true {
+            let samples = try reader.next(count: window)
+            if samples.isEmpty { return out }
+            out.append((squares(samples) / Double(samples.count)).squareRoot())
+            if samples.count < window { return out }
+        }
+    }
+
+    private static func centred(_ values: [Double]) -> [Double] {
+        guard !values.isEmpty else { return values }
+        let mean = values.reduce(0, +) / Double(values.count)
+        return values.map { $0 - mean }
+    }
+
+    private static func magnitude(_ values: [Double]) -> Double {
+        values.reduce(0) { $0 + $1 * $1 }.squareRoot()
+    }
+
+    /// Sum of `a` against `b` slid by `lag` windows, over the part they share.
+    private static func dot(_ a: [Double], _ b: [Double], lag: Int) -> Double {
+        let from = max(0, lag)
+        let to = min(a.count, b.count + lag)
+        guard to > from else { return 0 }
+        var total = 0.0
+        for index in from..<to { total += a[index] * b[index - lag] }
+        return total
+    }
+
     /// Whether the far end's track holds any audio at all.
     ///
     /// A track that never clears the floor in any window is one the tap opened
