@@ -133,6 +133,30 @@ const MEET_TILE_CHROME = [
   'Deny entry', 'Admit', 'Visitor', 'Presenting', 'is presenting',
   'Pin to screen', "You can't remotely mute", 'Mute for everyone',
 ];
+// Control text that is only control text where it is glued straight onto the
+// name. `Presentation` arrives that way on a recording here, and it is also an
+// ordinary word: matched anywhere it turns `Q3 Presentation Host` into `Q3` and
+// `Presentation Room 3` into nothing, and Meet rooms are named like that. A
+// space in front of it means somebody typed it.
+const MEET_TILE_GLUED_CHROME = ['Presentation'];
+// A control whose label is built around the person's name rather than appended
+// to it, so there is no run to cut back to. Measured on a Meet call of 10
+// September 2026: a tile read `Pin Bryn Callister to your main screen` and the
+// whole string became a participant's name, which is what the roster then
+// offered to put on a voice.
+//
+// The line is refused whole rather than mined for the name in the middle.
+// Reading it out would mean knowing every phrasing Google uses and in which
+// language, and a name this drops shows as `Speaker 3` and asks to be
+// corrected, where a wrong one does not.
+//
+// The first is the string measured. The second is its paired control and has
+// not been seen on a recording here. A pattern that never matches costs
+// nothing, and a display name of that shape is not a display name.
+const MEET_TILE_CONTROL_LINE = [
+  /^Pin .+ to your main screen$/i,
+  /^Unpin .+ from your main screen$/i,
+];
 // Material icon ligatures render as their own text inside the row, glued onto
 // the name with no separator. Matched as whole known tokens rather than by
 // pattern: a pattern for "a lowercase run containing an underscore" starts at
@@ -143,7 +167,17 @@ const MEET_TILE_LIGATURE = [
   'domain_disabled', 'more_vert', 'more_horiz', 'push_pin', 'present_to_all',
   'mic_off', 'mic_none', 'videocam_off', 'devices', 'volume_up',
   'do_not_disturb_on', 'visibility_off', 'keep_outline', 'frame_person',
+  'warning_amber',
 ];
+// Ligatures whose text is an ordinary word, so they are only ever read as one
+// where the shape says so: glued to the front of a name, with the name's first
+// capital right behind. `keep` is the filled pin beside `keep_outline` and a
+// recording here holds `keepBryn CallisterPresentation`. Looking for it anywhere
+// in a line would take the name off somebody called `keeper`.
+const MEET_TILE_LIGATURE_PREFIX = [...MEET_TILE_LIGATURE, 'keep'];
+// And on its own it is a line of pure icon, which the underscore test above
+// cannot see because there is no underscore in it.
+const MEET_TILE_LIGATURE_LINE = ['keep'];
 // A line that is one snake_case token and nothing else. Every Material and
 // Google Symbols name has this shape, and a person's display name does not, so
 // a line like this is an icon whether or not the list above knows it yet.
@@ -158,20 +192,44 @@ const MEET_TILE_LIGATURE = [
 // enrolled against somebody's voice.
 const MEET_ICON_LINE = /^[a-z][a-z0-9]*(?:_[a-z0-9]+)+$/;
 
+/// Whether a whole line is an icon rather than anything a person typed.
+function isIconLine(text) {
+  return MEET_ICON_LINE.test(text) || MEET_TILE_LIGATURE_LINE.includes(text);
+}
+
 /// The name out of one line of a Meet participant row, or undefined where the
 /// line is control text all the way through.
 function meetLineName(raw) {
   const line = String(raw ?? '').trim();
   if (!line) return undefined;
-  if (MEET_ICON_LINE.test(line)) return undefined;
-  let cut = line.length;
+  if (isIconLine(line)) return undefined;
+  // A ligature glued to the front of the name, which cutting at the first
+  // marker would answer with an empty string: a tile on a recording here reads
+  // one, and the name behind it is recoverable. Exact case and an upper-case
+  // letter behind it, which is what the concatenation looks like and what a
+  // person called `Keeper` does not.
+  let head = line;
+  for (const ligature of MEET_TILE_LIGATURE_PREFIX) {
+    if (head.startsWith(ligature) && /^\p{Lu}/u.test(head.slice(ligature.length))) {
+      head = head.slice(ligature.length);
+      break;
+    }
+  }
+  // Tested after the strip as well as before it. A pin glued to the front of a
+  // pin control left the whole control standing as a name.
+  if (MEET_TILE_CONTROL_LINE.some((pattern) => pattern.test(head))) return undefined;
+  let cut = head.length;
   for (const marker of [...MEET_TILE_CHROME, ...MEET_TILE_LIGATURE]) {
-    const at = line.indexOf(marker);
+    const at = head.indexOf(marker);
     if (at >= 0 && at < cut) cut = at;
+  }
+  for (const marker of MEET_TILE_GLUED_CHROME) {
+    const at = head.indexOf(marker);
+    if (at > 0 && at < cut && !/\s/.test(head[at - 1])) cut = at;
   }
   // A cut lands mid-phrase often enough that the punctuation leading into it
   // survives: "Bob (Presenting)" would otherwise read "Bob (".
-  const name = line.slice(0, cut).replace(/[\s([{,\-\u2013\u2014]+$/, '').trim();
+  const name = head.slice(0, cut).replace(/[\s([{,\-\u2013\u2014]+$/, '').trim();
   return name ? name.slice(0, 80) : undefined;
 }
 

@@ -47,8 +47,46 @@ public struct SensorParticipant: Codable, Sendable, Equatable, Identifiable {
             .trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return nil }
         guard !SensorParticipant.isIconName(trimmed) else { return nil }
+        guard !SensorParticipant.isControlLabel(trimmed) else { return nil }
         return trimmed
     }
+
+    /// Whether the whole name is a tile control whose label is built around a
+    /// person's name rather than appended to it.
+    ///
+    /// Measured on a Meet call of 10 September 2026: a tile read `Pin <name> to
+    /// your main screen` and the extension, which cuts a name back to the first
+    /// piece of control text it recognises, found nothing to cut at and sent
+    /// the whole string. The extension no longer does. This is here for the
+    /// recording that already holds it, which is immutable and read again on
+    /// every rebuild.
+    ///
+    /// The name is not mined out of either shape. Reading a control label would
+    /// mean knowing every phrasing Google uses and in which language, and
+    /// cutting a ligature off would mean a second copy of the add-on's rules
+    /// living here. A refused name shows as `Speaker 3` and asks to be
+    /// corrected where a wrong one is enrolled against somebody's voice.
+    static func isControlLabel(_ name: String) -> Bool {
+        if controlLabels.contains(where: { name.range(of: $0, options: .regularExpression) != nil }) {
+            return true
+        }
+        // A ligature whose text is an ordinary word, glued to the front of the
+        // name with the name's first capital right behind. The add-on cuts it
+        // off and hands over the name; a recording made before it did carries
+        // the whole run. Refused rather than cut, because cutting it would mean
+        // a second copy of the add-on's rules living here and drifting from it.
+        return SensorParticipant.iconWords.contains { word in
+            guard name.hasPrefix(word) else { return false }
+            return name.dropFirst(word.count).first?.isUppercase == true
+        }
+    }
+
+    /// The first is the string measured. The second is its paired control and
+    /// has not been seen here. A pattern that never matches costs nothing.
+    private static let controlLabels = [
+        "^(?i)Pin .+ to your main screen$",
+        "^(?i)Unpin .+ from your main screen$",
+    ]
 
     /// The icon names that carry no underscore, so the shape test below cannot
     /// see them. Taken from the ligatures the extension already lists, which is

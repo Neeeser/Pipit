@@ -295,6 +295,44 @@ test('an empty or roleless-empty zoom label is nobody', () => {
 
 // --- Meet tile names -------------------------------------------------------
 
+test('a control built around the name is not a name', () => {
+  // Measured on a Meet call of 10 September 2026: the tile read
+  // `Pin Bryn Callister to your main screen`, nothing in the chrome list
+  // matched, and the whole string became a participant's name.
+  assert.equal(meetTileName('Pin Bryn Callister to your main screen'), undefined);
+  assert.equal(meetTileName('Unpin Bryn Callister from your main screen'), undefined);
+  // The name below it still wins.
+  assert.equal(
+    meetTileName('Pin Bryn Callister to your main screen\nBryn Callister'),
+    'Bryn Callister'
+  );
+  // And a person whose name starts with the verb keeps it.
+  assert.equal(meetTileName('Pinar Aksoy'), 'Pinar Aksoy');
+});
+
+test('a ligature glued to the name is cut off it', () => {
+  // Both measured on recordings on disk.
+  assert.equal(
+    meetTileName("Renée Balfourwarning_amberThis person isn't signed in with a Google Account"),
+    'Renée Balfour'
+  );
+  assert.equal(meetTileName('keepBryn CallisterPresentation'), 'Bryn Callister');
+  // A pin glued to the front of a pin control left the whole control standing.
+  assert.equal(meetTileName('push_pinPin Bryn Callister to your main screen'), undefined);
+  // A line that is nothing but the filled pin is not a name either.
+  assert.equal(meetTileName('keep'), undefined);
+  assert.equal(meetTileName('keep\nBryn Callister'), 'Bryn Callister');
+  // And the word only cuts a name where it is glued on, because Meet rooms
+  // are named with it.
+  assert.equal(meetTileName('Q3 Presentation Host'), 'Q3 Presentation Host');
+  assert.equal(meetTileName('Presentation Room 3'), 'Presentation Room 3');
+  // A person whose name simply starts with one of those words keeps it.
+  assert.equal(meetTileName('Keeper Onyekwere'), 'Keeper Onyekwere');
+  assert.equal(meetTileName('keeper onyekwere'), 'keeper onyekwere');
+  assert.equal(meetTileName('Devices Mbeki'), 'Devices Mbeki');
+  assert.equal(meetTileName('Bryn CallisterPresentation'), 'Bryn Callister');
+});
+
 test('a grid tile name is the first line', () => {
   assert.equal(meetTileName('Bryn Callister\nsomething else'), 'Bryn Callister');
   assert.equal(meetTileName('  Ren\u00e9e Balfour  '), 'Ren\u00e9e Balfour');
