@@ -15,7 +15,7 @@ import PipitSpeakers
 //   pipit-eval voices
 //   pipit-eval gate      --meeting DIR
 //   pipit-eval echo      --meeting DIR [--json OUT] [--offset SECONDS] [--full-id]
-//   pipit-eval reprocess --meeting DIR [--recognize] [--backups DIR]
+//   pipit-eval reprocess --meeting DIR [--recognize] [--support DIR] [--backups DIR]
 //   pipit-eval bench     [--suite ami-core] [--engine parakeet ...] [--diarizer local]
 //
 // The audio never leaves the machine and nothing here writes to a meeting.
@@ -159,6 +159,9 @@ func usage() -> Never {
                                  [--full-id]
           pipit-eval reanalyze --meeting MEETING_FOLDER [--speakers N]
           pipit-eval reprocess --meeting MEETING_FOLDER [--recognize] [--backups DIR]
+                                 [--support DIR]   # a copy of the meeting keeps its
+                                 # identifier, so point this away from the app's own
+                                 # store before reprocessing one
           pipit-eval bench    [--suite NAME] [--case MEETING] [--truth FILE]
                                  [--engine parakeet|cohere|whisper|<cloud model>]...
                                  [--diarizer local|lseend|cloud] [--out FILE] [--baseline FILE]
