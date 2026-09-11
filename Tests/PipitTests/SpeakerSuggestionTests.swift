@@ -96,6 +96,115 @@ struct SpeakerSuggestionTests {
         #expect(Self.suggestion("s", "Ellis", confidence: 0.62).band == .medium)
     }
 
+    // MARK: - checking a suggestion against its own evidence
+
+    private static func line(
+        _ key: String, _ text: String, from start: Double
+    ) -> Utterance {
+        let pieces = text.split(separator: " ").map(String.init)
+        var at = start
+        var words: [RawTranscriptWord] = []
+        for piece in pieces {
+            words.append(RawTranscriptWord(start: at, end: at + 0.4, text: piece + " "))
+            at += 0.5
+        }
+        return Utterance(
+            id: "\(key)-\(start)", start: start, end: at, track: .remote,
+            rawSpeakerLabel: key, speakerKey: key, text: text,
+            chunkID: "remote_full", model: "test", words: words
+        )
+    }
+
+    private static func transcript(_ utterances: [Utterance]) -> CanonicalTranscript {
+        CanonicalTranscript(generatedAt: Date(timeIntervalSince1970: 0), utterances: utterances)
+    }
+
+    @Test("a suggestion whose line is where it says it is survives")
+    func aSuggestionWhoseLineIsWhereItSaysItIsSurvives() async throws {
+        let transcript = Self.transcript([
+            Self.line("named", "Ellis do you want to take this", from: 12),
+            Self.line("speaker_00", "Yes I can pick that up", from: 20),
+        ])
+        let offered = [
+            Self.suggestion(
+                "speaker_00", "Ellis",
+                quote: "Ellis, do you want to take this?", atSeconds: 12
+            )
+        ]
+        #expect(SpeakerSuggestionEvidence.verified(offered, against: transcript).count == 1)
+    }
+
+    @Test("a name taken from the next speaker's own line is dropped")
+    func aNameTakenFromTheNextSpeakerSOwnLineIsDropped() async throws {
+        // The failure this exists for, on a standup of 10 September 2026 at
+        // 0.93 confidence. The quoted line was one named speaker addressing
+        // another named speaker, and the label being named had said nothing
+        // for a minute either side of it. The model read the turn-taking rule
+        // as being about whoever spoke next rather than about the label.
+        let transcript = Self.transcript([
+            Self.line("named_a", "Okay good all right um Ellis", from: 471),
+            Self.line("named_b", "Still working on the pipeline", from: 479),
+            Self.line("speaker_00", "on", from: 1027),
+        ])
+        let offered = [
+            Self.suggestion(
+                "speaker_00", "Ellis",
+                quote: "Okay. Good. All right. Um, Ellis.", atSeconds: 471
+            )
+        ]
+        #expect(SpeakerSuggestionEvidence.verified(offered, against: transcript).isEmpty)
+    }
+
+    @Test("a line quoted from somewhere it is not is dropped")
+    func aLineQuotedFromSomewhereItIsNotIsDropped() async throws {
+        // The timestamp is part of the answer and it is checkable. One
+        // suggestion on disk quotes a line that really is in the transcript,
+        // 1612 seconds from where it says the line is.
+        let transcript = Self.transcript([
+            Self.line("speaker_06", "no no", from: 1637),
+            Self.line("named", "Hey you hired him you hired him Tal", from: 1639),
+        ])
+        let offered = [
+            Self.suggestion(
+                "speaker_06", "Tal",
+                quote: "Hey, you hired him. You hired him, Tal.", atSeconds: 27
+            )
+        ]
+        #expect(SpeakerSuggestionEvidence.verified(offered, against: transcript).isEmpty)
+    }
+
+    @Test("a label that never says anything cannot be named from a line")
+    func aLabelThatNeverSaysAnythingCannotBeNamedFromALine() async throws {
+        let transcript = Self.transcript([
+            Self.line("named", "okay yeah that would be easiest", from: 530)
+        ])
+        let offered = [
+            Self.suggestion(
+                "speaker_00", "Ellis",
+                quote: "okay. Yeah, that would be easiest.", atSeconds: 510
+            )
+        ]
+        #expect(SpeakerSuggestionEvidence.verified(offered, against: transcript).isEmpty)
+    }
+
+    @Test("a quote copied with the row it was rendered in still matches")
+    func aQuoteCopiedWithTheRowItWasRenderedInStillMatches() async throws {
+        // The prompt asks for the line verbatim and one model answers with the
+        // whole rendered row. Six of its ten words are then furniture, which
+        // was enough to throw away a right answer.
+        let transcript = Self.transcript([
+            Self.line("speaker_02", "Ellis When do you", from: 17),
+            Self.line("named", "In about ten minutes", from: 25),
+        ])
+        let offered = [
+            Self.suggestion(
+                "speaker_02", "Ellis",
+                quote: "[00:17] remote-001_speaker_02: Ellis. When do you", atSeconds: 17
+            )
+        ]
+        #expect(SpeakerSuggestionEvidence.verified(offered, against: transcript).count == 1)
+    }
+
     @Test("a meeting with no suggestions file reads as an empty set")
     func aMeetingWithNoSuggestionsFileReadsAsAnEmptySet() async throws {
         let directory = FileManager.default.temporaryDirectory

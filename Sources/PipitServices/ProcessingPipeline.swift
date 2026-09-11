@@ -2494,7 +2494,7 @@ public actor ProcessingPipeline {
         // Dismissals are the user's, so a re-run keeps them rather than
         // offering a name they have already turned down.
         var set = store.readSpeakerSuggestions()
-        set.suggestions = suggestions.map {
+        let offered = suggestions.map {
             SpeakerNameSuggestion(
                 label: $0.label,
                 name: $0.name,
@@ -2502,6 +2502,14 @@ public actor ProcessingPipeline {
                 quote: $0.quote,
                 atSeconds: $0.atSeconds,
                 expandedFromCalendar: $0.expandedFromCalendar
+            )
+        }
+        // The model's own answer is checkable against the transcript it read,
+        // and the ones that do not check out are the ones that were wrong.
+        set.suggestions = SpeakerSuggestionEvidence.verified(offered, against: transcript)
+        if set.suggestions.count < offered.count {
+            Log.processing.info(
+                "speaker suggestions dropped: \(offered.count - set.suggestions.count, privacy: .public) with no evidence behind them"
             )
         }
         set.generatedAt = clock.now

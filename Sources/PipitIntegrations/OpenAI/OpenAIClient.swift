@@ -196,10 +196,15 @@ public struct OpenAIClient: AIBackend {
 
             Name a label only when someone says that name out loud in the transcript. \
             The evidence is almost always one person addressing another, and that \
-            person speaking next or just before. Quote the line that shows it, \
-            verbatim, with the timestamp it carries. A guess with no line behind it \
-            is worthless here, so return the label in `unresolved` instead of \
-            inventing one.
+            person speaking next or just before. The one who answers has to be the \
+            label you are naming: where the line that follows already carries a \
+            name, that name belongs to them and says nothing about the label. \
+            Quote the line that shows it, verbatim, with the timestamp it carries, \
+            and only ever a line the label itself spoke or one right beside it. The \
+            quote and the timestamp are checked against the transcript, and a \
+            suggestion whose line is not where you say it is will be thrown away. A \
+            guess with no line behind it is worthless here, so return the label in \
+            `unresolved` instead of inventing one.
 
             You may complete a first name into a full name using the known names \
             given as context, and must set `expanded_from_known_names` to true when \
