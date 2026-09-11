@@ -1074,6 +1074,40 @@ struct SensorIdentityLinkTests {
         #expect(scoped.participants.filter(\.isSelf).count == 0)
     }
 
+    @Test("a microphone carrying the whole room still names one local user")
+    func aMicrophoneCarryingTheWholeRoomStillNamesOneLocalUser() async throws {
+        // A call taken on speakers whose echo the canceller could not remove.
+        // The far end is in the microphone at a level the detector fires on, so
+        // every turn overlaps something that reads as speech and every reading
+        // clears the bar. Marking all of them threw the meeting client's whole
+        // account of a five-person standup away on 10 September 2026: the four
+        // people it could have named went unnamed, and the transcript kept only
+        // the notetaker bot that never spoke.
+        //
+        // The local user still reads highest, because their turns hold their
+        // own voice and not a copy of it.
+        let raw = sensors(
+            participants: [
+                participant("d560", "Marlow Fenn"),
+                participant("d556", "Grace"),
+                participant("d557", "Ada"),
+                participant("d558", "Bryn"),
+            ],
+            turns: [("d560", 0, 60), ("d556", 60, 160), ("d557", 160, 260), ("d558", 260, 360)]
+        )
+        // The microphone reads as speech through the user's own turn and
+        // through two thirds of everybody else's.
+        let leaking = speech(
+            seconds: 400,
+            talking: [(0, 60), (60, 130), (160, 230), (260, 330)]
+        )
+        let scoped = raw.markingSelf(using: leaking)
+        #expect(scoped.participants.filter(\.isSelf).count == 1)
+        #expect(scoped.participants.first { $0.id == "d560" }?.isSelf == true)
+        // And the other three are still there to be named.
+        #expect(SensorAttribution.speakerEntries(sensors: scoped).count == 3)
+    }
+
     @Test("a sliver of turn is not enough to call somebody the local user")
     func aSliverOfTurnIsNotEnoughToCallSomebodyTheLocalUser() async throws {
         // The dangerous direction. Being marked self removes a
@@ -1545,6 +1579,174 @@ struct SensorAssemblyTests {
         #expect(keys.count == 2, "got \(keys)")
         #expect(keys.first == SpeakerLabel.sensor(participantID: "U_ADA"))
         #expect(keys.last == "remote-001_speaker_01")
+    }
+
+    @Test("one other person in the call owns the whole far-end track")
+    func oneOtherPersonInTheCallOwnsTheWholeFarEndTrack() async throws {
+        // The far end is a mixdown of everyone but the local user, so a call
+        // with one other person in it holds one voice throughout. On a huddle
+        // of 10 September 2026 the diarizer split that voice into two clusters
+        // and marked none of the backchannels as speech at all, so the meeting
+        // showed three speakers for two people and left a sixth of what the
+        // other person said with no name on it.
+        let words = [
+            RawTranscriptWord(start: 2, end: 3, text: "Hello "),
+            RawTranscriptWord(start: 3, end: 4, text: "there. "),
+            // A backchannel over the local user, which the diarizer drops for
+            // being under a second and no turn covers.
+            RawTranscriptWord(start: 30, end: 30.4, text: "Mm-hmm. "),
+            RawTranscriptWord(start: 60, end: 61, text: "Later "),
+            RawTranscriptWord(start: 61, end: 62, text: "words."),
+        ]
+        let sensors = RawSensors(
+            source: "slack-huddle-ax",
+            participants: [
+                SensorParticipant(id: "U_ME", displayName: "Marlow Fenn", isSelf: true),
+                SensorParticipant(id: "U_ADA", displayName: "Ada"),
+            ],
+            turns: [
+                SensorTurn(start: 0, end: 10, participantID: "U_ADA"),
+                SensorTurn(start: 20, end: 50, participantID: "U_ME"),
+                SensorTurn(start: 58, end: 63, participantID: "U_ADA"),
+            ],
+            selfIsAuthoritative: true
+        )
+        let transcript = TranscriptAssembler().assemble(
+            raw: RawTranscript(chunks: [remoteChunk(words: words)]),
+            diarization: run([
+                DiarizationInterval(start: 1, end: 9, clusterID: "1"),
+                DiarizationInterval(start: 59, end: 63, clusterID: "2"),
+            ]),
+            sensors: sensors,
+            micTrackIsLocalUser: true,
+            generatedAt: Date(timeIntervalSince1970: 0)
+        )
+        let ada = SpeakerLabel.sensor(participantID: "U_ADA")
+        #expect(
+            transcript.utterances.allSatisfy { $0.speakerKey == ada }, "got \(transcript.utterances.map(\.speakerKey))")
+        #expect(
+            transcript.utterances.map(\.text).joined(separator: " ")
+                .contains("Mm-hmm"),
+            "including the backchannel the diarizer never marked"
+        )
+    }
+
+    @Test("nothing past the client's last reading is claimed for the one participant")
+    func nothingPastTheClientSLastReadingIsClaimedForTheOneParticipant() async throws {
+        // A roster of two is a claim about the call the client could still see.
+        // A reader that stops answering leaves the last roster it gave
+        // standing, and a third person joining after that would have their
+        // speech rendered and offered for voice confirmation under somebody
+        // else's name. The diarizer would at least have given them a cluster.
+        //
+        // Across the one-to-one huddles on disk the last turn ends at 99.3% to
+        // 99.8% of the recording, so the bound costs the last few seconds and
+        // nothing else.
+        let words = [
+            RawTranscriptWord(start: 2, end: 3, text: "Hello "),
+            RawTranscriptWord(start: 3, end: 4, text: "there. "),
+            // Long after the client went quiet.
+            RawTranscriptWord(start: 600, end: 601, text: "Somebody "),
+            RawTranscriptWord(start: 601, end: 602, text: "else."),
+        ]
+        let sensors = RawSensors(
+            source: "slack-huddle-ax",
+            participants: [
+                SensorParticipant(id: "U_ME", displayName: "Marlow Fenn", isSelf: true),
+                SensorParticipant(id: "U_ADA", displayName: "Ada"),
+            ],
+            turns: [SensorTurn(start: 0, end: 10, participantID: "U_ADA")],
+            selfIsAuthoritative: true
+        )
+        let transcript = TranscriptAssembler().assemble(
+            raw: RawTranscript(chunks: [remoteChunk(words: words)]),
+            diarization: run([DiarizationInterval(start: 599, end: 603, clusterID: "4")]),
+            sensors: sensors,
+            micTrackIsLocalUser: true,
+            generatedAt: Date(timeIntervalSince1970: 0)
+        )
+        let ada = SpeakerLabel.sensor(participantID: "U_ADA")
+        #expect(transcript.utterances.first?.speakerKey == ada)
+        #expect(
+            transcript.utterances.last?.speakerKey == "remote-001_speaker_04",
+            "the words past the last reading go back to the diarizer, got \(transcript.utterances.map(\.speakerKey))"
+        )
+    }
+
+    @Test("a participant the client never heard owns nothing")
+    func aParticipantTheClientNeverHeardOwnsNothing() async throws {
+        // A speaker keyed to somebody with no line under it is a name offered
+        // for a voice with no audio behind it, which is what `speakerEntries`
+        // refuses everywhere else.
+        let sensors = RawSensors(
+            source: "slack-huddle-ax",
+            participants: [
+                SensorParticipant(id: "U_ME", displayName: "Marlow Fenn", isSelf: true),
+                SensorParticipant(id: "U_ADA", displayName: "Ada"),
+            ],
+            turns: [SensorTurn(start: 0, end: 30, participantID: "U_ME")],
+            selfIsAuthoritative: true
+        )
+        #expect(SensorAttribution.soleRemoteParticipant(sensors: sensors) == nil)
+        #expect(SensorAttribution.wordIntervals(sensors: sensors).isEmpty)
+    }
+
+    @Test("a turn too long to be a claim still says the client was answering")
+    func aTurnTooLongToBeAClaimStillSaysTheClientWasAnswering() async throws {
+        // The bound asks when the client last said anything, not who held the
+        // floor. An indicator stuck for a quarter of an hour is refused as a
+        // claim about the speaker and is still evidence the client was there,
+        // and reading only the turns short enough to be claims handed a
+        // one-to-one walkthrough back to the diarizer from its twentieth
+        // second.
+        let sensors = RawSensors(
+            source: "slack-huddle-ax",
+            participants: [
+                SensorParticipant(id: "U_ME", displayName: "Marlow Fenn", isSelf: true),
+                SensorParticipant(id: "U_ADA", displayName: "Ada"),
+            ],
+            turns: [
+                SensorTurn(start: 0, end: 20, participantID: "U_ADA"),
+                SensorTurn(start: 20, end: 920, participantID: "U_ADA"),
+            ],
+            selfIsAuthoritative: true
+        )
+        let intervals = SensorAttribution.wordIntervals(sensors: sensors)
+        #expect(intervals.count == 1)
+        #expect(
+            abs((intervals.first?.end ?? 0) - 920) <= 0.001,
+            "expected the bound at 920, got \(intervals.first?.end ?? 0)"
+        )
+    }
+
+    @Test("a roster read off a page never owns the whole far-end track")
+    func aRosterReadOffAPageNeverOwnsTheWholeFarEndTrack() async throws {
+        // A tile that never rendered is a person the roster does not hold, and
+        // giving their words to somebody else is the one mistake this must not
+        // make. Only a client that named the local user itself is trusted with
+        // it, which today is Slack and not Meet.
+        let words = [
+            RawTranscriptWord(start: 2, end: 3, text: "Hello "),
+            RawTranscriptWord(start: 60, end: 61, text: "Later."),
+        ]
+        let sensors = RawSensors(
+            source: "google_meet-dom",
+            participants: [
+                SensorParticipant(id: "d1", displayName: "Marlow Fenn", isSelf: true),
+                SensorParticipant(id: "d2", displayName: "Ada"),
+            ],
+            turns: [SensorTurn(start: 0, end: 10, participantID: "d2")],
+            selfIsAuthoritative: false
+        )
+        #expect(SensorAttribution.soleRemoteParticipant(sensors: sensors) == nil)
+        let transcript = TranscriptAssembler().assemble(
+            raw: RawTranscript(chunks: [remoteChunk(words: words)]),
+            diarization: run([DiarizationInterval(start: 59, end: 63, clusterID: "2")]),
+            sensors: sensors,
+            micTrackIsLocalUser: true,
+            generatedAt: Date(timeIntervalSince1970: 0)
+        )
+        #expect(transcript.utterances.map(\.speakerKey).contains("remote-001_speaker_02"))
     }
 
     @Test("a turn outranks the cluster where both cover a word")
