@@ -1077,6 +1077,39 @@ public actor SpeakerStore {
         return database.changes
     }
 
+    /// Puts an identity the meeting already knows onto an occurrence row.
+    ///
+    /// A row is written when the audio is embedded, which is before anything
+    /// has said whose audio it is. For a diarization cluster the recognizer
+    /// fills it in a moment later. For a sensor key nothing did: those get
+    /// their identity from a platform handle a person confirmed, and that
+    /// happens in the meeting's own speaker map and never reached the store. On
+    /// the recordings here that left between ten and eighteen minutes of one
+    /// person's speech per huddle recorded as belonging to nobody, so their
+    /// profile never grew from a meeting that knew exactly who they were.
+    ///
+    /// Only the decision moves. The vector, the seconds and the scores the row
+    /// already holds are what the audio said and are left alone.
+    public func attachOccurrenceIdentity(
+        meetingID: String, clusterID: String, identityID: IdentityID, now: Date = Date()
+    ) throws {
+        try database.run(
+            """
+            UPDATE speaker_occurrence
+            SET resolved_identity_id = ?, resolution_source = ?, human_verified = 1,
+                threshold_band = ?, updated_at = ?
+            WHERE meeting_id = ? AND cluster_id = ?
+            """,
+            [
+                .int64(Int64(identityID.rawValue)),
+                .text(SpeakerAssignmentOrigin.sensor.rawValue),
+                .text(SpeakerConfidenceBand.high.rawValue),
+                .date(now),
+                .text(meetingID), .text(clusterID),
+            ]
+        )
+    }
+
     /// Forgets who a cluster was said to be.
     ///
     /// The occurrence row stays, because the cluster was still heard; what goes

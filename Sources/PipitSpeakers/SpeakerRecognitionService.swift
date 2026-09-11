@@ -19,11 +19,20 @@ public struct SpeakerClusterInput: Sendable, Equatable {
     /// The diarization run the cluster belongs to. Context, kept out of every
     /// retraction decision because a re-analysis replaces it.
     public var analysisID: String?
+    /// Who the meeting already knows this cluster is, from something a person
+    /// confirmed rather than from a score.
+    ///
+    /// A platform identifier bound once to a person keeps naming them, so a
+    /// huddle carries the answer before a second of audio is scored. Where it
+    /// does, matching acoustically is not a second opinion worth having: it is
+    /// a chance to disagree with a fact.
+    public var knownIdentityID: IdentityID?
 
     public init(
         clusterID: String, track: CaptureTrack, speechSeconds: Double,
         centroid: [Float], quality: Double = 1,
-        spans: [AudioSpan] = [], analysisID: String? = nil
+        spans: [AudioSpan] = [], analysisID: String? = nil,
+        knownIdentityID: IdentityID? = nil
     ) {
         self.clusterID = clusterID
         self.track = track
@@ -32,6 +41,7 @@ public struct SpeakerClusterInput: Sendable, Equatable {
         self.quality = quality
         self.spans = AudioSpan.union(spans)
         self.analysisID = analysisID
+        self.knownIdentityID = knownIdentityID
     }
 
     /// What a vector derived from this cluster was derived from.
@@ -209,6 +219,38 @@ public actor SpeakerRecognitionService {
         var identity: Identity?
         var source: SpeakerAssignmentOrigin = .ai
         var created = false
+
+        // The meeting already knows who this is, so the occurrence is recorded
+        // against them and no candidate is invented beside them.
+        //
+        // Without this, a cluster whose identity a person had confirmed in an
+        // earlier meeting was scored acoustically like any other, and a score
+        // that missed the margin seeded an anonymous profile of the same voice.
+        // The twin then splits every later margin, which seeds another. On the
+        // recordings here that put 95 minutes of speech the meeting could name
+        // into the store under nobody, and a 55-second anonymous scrap of one
+        // person outscored their own 56-minute profile on their own voice:
+        // 0.813 against 0.733, a margin of 0.081 where every earlier meeting
+        // with the same person read 0.47 to 0.65.
+        if let known = cluster.knownIdentityID, let confirmed = try await store.current(known) {
+            try await store.noteSeen(confirmed.id, at: now)
+            try await store.recordOccurrence(
+                meetingID: meetingID, clusterID: cluster.clusterID, track: cluster.track,
+                speechSeconds: cluster.speechSeconds,
+                embedding: probe.isEmpty ? nil : probe, model: model, resolution: resolution,
+                identityID: confirmed.id, source: .sensor, humanVerified: true,
+                wasExpectedParticipant: expectedParticipants.contains(confirmed.id), now: now
+            )
+            return ResolvedCluster(
+                clusterID: cluster.clusterID,
+                track: cluster.track,
+                identity: confirmed,
+                resolution: resolution,
+                source: .sensor,
+                createdIdentity: false,
+                meetingCount: (try? await store.meetingCount(for: confirmed.id)) ?? 0
+            )
+        }
 
         switch resolution.outcome {
         case .assign(let id):

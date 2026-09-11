@@ -2089,6 +2089,10 @@ public actor ProcessingPipeline {
         )
 
         let speakerStore = await service.speakerStore
+        // What the meeting has already settled by something a person confirmed,
+        // which the sensor handles wrote before this stage ran. A cluster
+        // carrying one of these is not a question for the recognizer.
+        let confirmed = try store.readSpeakerMap()
         var clusters: [SpeakerClusterInput] = []
         for run in diarization.activeRuns {
             for cluster in run.clusters {
@@ -2098,15 +2102,40 @@ public actor ProcessingPipeline {
                         meetingID: metadata.id, clusterID: key
                     )
                 else { continue }
+                let entry = confirmed.entries[key]
                 clusters.append(
                     SpeakerClusterInput(
                         clusterID: key, track: run.track,
                         speechSeconds: cluster.speechSeconds, centroid: vector,
                         quality: cluster.quality,
-                        spans: clusterSpans(cluster.id, in: run), analysisID: run.id
+                        spans: clusterSpans(cluster.id, in: run), analysisID: run.id,
+                        knownIdentityID: entry?.provenance?.humanVerified == true
+                            ? entry?.identityID : nil
                     ))
             }
         }
+        // A sensor key gets its identity from a platform handle a person
+        // confirmed, which `applySensorHandles` has already written into the
+        // meeting's map. Nothing carried it to the store, so the audio those
+        // keys hold was recorded as belonging to nobody.
+        for (key, entry) in confirmed.entries
+        where SpeakerLabel.sensorParticipantID(from: key) != nil
+            && entry.provenance?.humanVerified == true
+        {
+            guard let identity = entry.identityID else { continue }
+            do {
+                try await speakerStore.attachOccurrenceIdentity(
+                    meetingID: metadata.id, clusterID: key, identityID: identity, now: clock.now
+                )
+            } catch {
+                // Says so rather than leaving the row exactly as it was before
+                // any of this, which is the condition this is here to end.
+                Log.processing.notice(
+                    "sensor identity not attached: \(logSafeDescription(error), privacy: .public)"
+                )
+            }
+        }
+
         // Sensor keys are deliberately not submitted. Their spans are a subset
         // of some cluster's spans, so resolution would see one voice claiming
         // the same seconds twice: the concurrency rule then refuses the second

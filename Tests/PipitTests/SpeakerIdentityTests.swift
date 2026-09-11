@@ -451,6 +451,76 @@ struct SpeakerStoreTests {
         )
     }
 
+    @Test("a platform key confirmed in the meeting reaches the voice store")
+    func aPlatformKeyConfirmedInTheMeetingReachesTheVoiceStore() async throws {
+        // A sensor key's row is written when its audio is embedded, before
+        // anything has said whose audio it is, and its identity is settled
+        // later in the meeting's own map. Nothing carried it across, so between
+        // ten and eighteen minutes of one person's speech per huddle on disk is
+        // recorded against nobody.
+        let (store, root) = try SpeakerFixtures.makeStore()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let known = try await store.createPerson(name: "Bryn Callister", now: Date())
+        _ = try await store.recordOccurrence(
+            meetingID: "m1", clusterID: "sensor_U0BSR50GN82", track: .remote,
+            speechSeconds: 617, embedding: SpeakerFixtures.vector(seed: 12),
+            model: .fluidAudioOffline, resolution: nil, identityID: nil,
+            source: .sensor, humanVerified: false, wasExpectedParticipant: false
+        )
+        #expect(try await store.occurrences(meetingID: "m1").first?.resolvedIdentityID == nil)
+
+        try await store.attachOccurrenceIdentity(
+            meetingID: "m1", clusterID: "sensor_U0BSR50GN82", identityID: known.id
+        )
+        let row = try #require(try await store.occurrences(meetingID: "m1").first)
+        #expect(row.resolvedIdentityID == known.id)
+        #expect(
+            abs((row.speechSeconds) - (617)) <= 0.001,
+            "and what the audio said is left alone"
+        )
+    }
+
+    @Test("a cluster the meeting already knows is not made a stranger of")
+    func aClusterTheMeetingAlreadyKnowsIsNotMadeAStrangerOf() async throws {
+        // A platform handle bound once keeps naming the person it belongs to,
+        // so a huddle carries the answer before a second of audio is scored.
+        // Scoring it anyway and missing the margin seeded an anonymous profile
+        // of the same voice, and the twin then split every later margin. On the
+        // recordings here a 55-second scrap of one person outscored their own
+        // 56-minute profile on their own voice, 0.813 against 0.733.
+        let (store, root) = try SpeakerFixtures.makeStore()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let service = SpeakerRecognitionService(store: store)
+        let known = try await store.createPerson(name: "Bryn Callister", now: Date())
+
+        let resolved = try await service.resolve(
+            meetingID: "m1",
+            clusters: [
+                SpeakerClusterInput(
+                    clusterID: "remote-001_speaker_00", track: .remote,
+                    speechSeconds: 660, centroid: SpeakerFixtures.vector(seed: 71),
+                    spans: [
+                        AudioSpan(
+                            start: VoiceEvidenceFixture.lane("remote-001_speaker_00"),
+                            end: VoiceEvidenceFixture.lane("remote-001_speaker_00") + 660
+                        )
+                    ],
+                    knownIdentityID: known.id
+                )
+            ],
+            settings: SpeakerRecognitionSettings()
+        )
+        #expect(resolved.first?.identity?.id == known.id)
+        #expect(resolved.first?.createdIdentity == false, "and no twin was minted beside them")
+
+        let occurrences = try await store.occurrences(meetingID: "m1")
+        #expect(occurrences.first?.resolvedIdentityID == known.id)
+        #expect(
+            try await store.identities(kind: .anonymous).isEmpty,
+            "the store gained no anonymous voice for somebody it could name"
+        )
+    }
+
     @Test("re-analysing a meeting reuses the voice it already remembered")
     func reAnalysingAMeetingReusesTheVoiceItAlreadyRemembered() async throws {
         let (store, root) = try SpeakerFixtures.makeStore()
