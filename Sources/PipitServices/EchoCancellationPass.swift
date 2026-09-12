@@ -73,25 +73,53 @@ public struct EchoCancellationPass {
         timeline.leadIn(track: .remote) - timeline.leadIn(track: .mic)
     }
 
+    /// Seconds the far end is handed to the canceller early, on top of
+    /// wherever the pair was lined up.
+    ///
+    /// A canceller models an echo that arrives after its reference. The
+    /// manifest lines the pair up on host time, and the tap's timestamps can
+    /// run a few milliseconds behind the microphone's, so an exact alignment
+    /// can land the echo just ahead of the reference. On the Zoom call of 11
+    /// September 2026 the pair sat 2.4 ms the wrong way and the canceller
+    /// then shipped took 10.6 dB off the far end where the same pass with
+    /// the far end 10 ms earlier took 29.8 dB. The canceller now shipped
+    /// finds the lag itself across the next second, so on speech the lead
+    /// costs nothing.
+    ///
+    /// Applied inside `run`, so every caller lines the pair up and reports
+    /// where it lined them up, and the lead is the pass's own business. The
+    /// windows are still measured against the far end where it was lined up.
+    static let referenceLeadSeconds = 0.01
+
     /// Runs the canceller over the pair and hands each cleaned block to `sink`.
     ///
-    /// `sink` receives the samples the microphone actually recorded, with the
-    /// zero padding the canceller demanded on the final block already trimmed
-    /// off. A caller that only wants the levels passes a sink that does
-    /// nothing, and nothing is written anywhere.
+    /// `sink` receives the samples the microphone actually recorded, on the
+    /// recording's own clock: the canceller's output delay is taken back off
+    /// the front and the tail padded with silence, so a position in the
+    /// cleaned file is the same position in the recording. A caller that only
+    /// wants the levels passes a sink that does nothing, and nothing is
+    /// written anywhere.
     ///
     /// - Parameter referenceOffset: seconds the far end has to move to line up
     ///   with the microphone. `referenceOffset(timeline:)` is what a real run
     ///   uses. A caller passing anything else is deliberately measuring a
-    ///   misalignment.
+    ///   misalignment. The far end is then handed to the canceller
+    ///   `referenceLeadSeconds` earlier than that.
+    /// - Parameter canceller: the canceller to run. The shipped one by default.
     static func run(
         microphone: TrackAudioLocation, reference: TrackAudioLocation,
-        referenceOffset: Double, sink: (ArraySlice<Float>) throws -> Void
+        referenceOffset: Double,
+        canceller makeCanceller: () throws -> any EchoCancelling = {
+            try EchoModels.shippedCanceller(sampleRate: Int(readFormat.sampleRate))
+        },
+        sink: (ArraySlice<Float>) throws -> Void
     ) throws -> Result {
-        guard let canceller = EchoCanceller(sampleRate: Int(readFormat.sampleRate)) else {
+        let canceller: any EchoCancelling
+        do {
+            canceller = try makeCanceller()
+        } catch {
             throw ProcessingError.localProcessingFailed(
-                reason: "the echo canceller refused \(readFormat.sampleRate) Hz",
-                retryable: false
+                reason: "the echo canceller could not be built: \(error)", retryable: false
             )
         }
         let block = canceller.blockFrames
@@ -101,13 +129,16 @@ public struct EchoCancellationPass {
                 reason: "the echo canceller reported a block of \(block) frames", retryable: false
             )
         }
-        let blocksPerWindow = windowFrames / block
 
         guard
             let microphoneReader = TimelineTrackReader(
                 location: microphone, format: readFormat, offsetSeconds: 0
             ),
             let referenceReader = TimelineTrackReader(
+                location: reference, format: readFormat,
+                offsetSeconds: referenceOffset - referenceLeadSeconds
+            ),
+            let alignedReferenceReader = TimelineTrackReader(
                 location: reference, format: readFormat, offsetSeconds: referenceOffset
             )
         else {
@@ -115,11 +146,74 @@ public struct EchoCancellationPass {
         }
 
         var result = Result(frames: 0, windows: [])
-        var blocksInWindow = 0
+        // The window grid counts samples, not blocks, so a canceller whose
+        // block does not divide a quarter second still measures on the same
+        // grid the speech evidence is sampled on.
         var farEndSquares = 0.0
         var micBeforeSquares = 0.0
         var micAfterSquares = 0.0
         var samplesInWindow = 0
+        var reportedRemoval = 0.0
+        // The canceller's output delay: this many cleaned samples are held
+        // back at the front, and the same number of zeros added at the end.
+        var toDrop = canceller.latencyFrames
+        var recordedTotal: Int64 = 0
+
+        func account(before: ArraySlice<Float>, after: ArraySlice<Float>, played: ArraySlice<Float>) {
+            var index = 0
+            let count = before.count
+            while index < count {
+                let take = min(windowFrames - samplesInWindow, count - index)
+                let range = index..<(index + take)
+                micBeforeSquares += squares(
+                    before[before.startIndex + range.lowerBound..<before.startIndex + range.upperBound])
+                micAfterSquares += squares(
+                    after[after.startIndex + range.lowerBound..<after.startIndex + range.upperBound])
+                farEndSquares += squares(
+                    played[played.startIndex + range.lowerBound..<played.startIndex + range.upperBound])
+                samplesInWindow += take
+                index += take
+                if samplesInWindow == windowFrames {
+                    result.windows.append(
+                        Window(
+                            farEndDBFS: decibels(squares: farEndSquares, count: samplesInWindow),
+                            echoRemovedDB: reportedRemoval,
+                            microphoneBeforeDBFS: decibels(squares: micBeforeSquares, count: samplesInWindow),
+                            microphoneAfterDBFS: decibels(squares: micAfterSquares, count: samplesInWindow)
+                        ))
+                    samplesInWindow = 0
+                    farEndSquares = 0
+                    micBeforeSquares = 0
+                    micAfterSquares = 0
+                }
+            }
+        }
+
+        // The recording and the far end as lined up, kept back as far as
+        // the canceller's delay reaches, so a cleaned sample is compared with
+        // the recorded sample for the same moment. With a delay longer than
+        // a block those sit in an earlier block than the one just cleaned.
+        var beforeHistory: [Float] = []
+        var linedHistory: [Float] = []
+        var historyStart: Int64 = 0
+        var flushed: Int64 = 0
+
+        func hand(_ cleaned: ArraySlice<Float>) throws {
+            let count = cleaned.count
+            guard count > 0 else { return }
+            let from = Int(flushed - historyStart)
+            account(
+                before: beforeHistory[from..<(from + count)],
+                after: cleaned,
+                played: linedHistory[from..<(from + count)]
+            )
+            try sink(cleaned)
+            flushed += Int64(count)
+            let keep = Int(flushed - historyStart)
+            beforeHistory.removeFirst(keep)
+            linedHistory.removeFirst(keep)
+            historyStart = flushed
+        }
 
         while true {
             var samples = try microphoneReader.next(count: block)
@@ -136,44 +230,38 @@ public struct EchoCancellationPass {
             if played.count < block {
                 played += [Float](repeating: 0, count: block - played.count)
             }
-            micBeforeSquares += squares(samples)
+            var lined = try alignedReferenceReader.next(count: block)
+            if lined.count < block {
+                lined += [Float](repeating: 0, count: block - lined.count)
+            }
+            beforeHistory.append(contentsOf: samples[0..<recorded])
+            linedHistory.append(contentsOf: lined[0..<recorded])
             guard canceller.process(microphone: &samples, reference: played) else {
                 throw ProcessingError.localProcessingFailed(
                     reason: "the echo canceller refused a block of \(block) frames",
                     retryable: false
                 )
             }
-            micAfterSquares += squares(samples)
+            reportedRemoval = canceller.reportedRemovalDB ?? 0
+            recordedTotal += Int64(recorded)
 
-            // The only place the canceller's figure is read, and it is read on
-            // the far side of a call that returned true. A block that was never
-            // processed and a filter that has not locked on both reach Swift as
-            // 0.0, and this is what keeps the first out of the median.
-            farEndSquares += squares(played)
-            samplesInWindow += block
-            blocksInWindow += 1
-            if blocksInWindow == blocksPerWindow {
-                result.windows.append(
-                    Window(
-                        farEndDBFS: decibels(squares: farEndSquares, count: samplesInWindow),
-                        echoRemovedDB: canceller.echoRemovedDB,
-                        microphoneBeforeDBFS: decibels(
-                            squares: micBeforeSquares, count: samplesInWindow
-                        ),
-                        microphoneAfterDBFS: decibels(
-                            squares: micAfterSquares, count: samplesInWindow
-                        )
-                    ))
-                blocksInWindow = 0
-                farEndSquares = 0
-                micBeforeSquares = 0
-                micAfterSquares = 0
-                samplesInWindow = 0
+            // Take the output delay off the front, then hand on only as much
+            // as has been recorded so far.
+            var cleaned = samples[...]
+            if toDrop > 0 {
+                let drop = min(toDrop, cleaned.count)
+                cleaned = cleaned.dropFirst(drop)
+                toDrop -= drop
             }
-
-            try sink(samples.prefix(recorded))
-            result.frames += Int64(recorded)
+            try hand(cleaned.prefix(Int(recordedTotal - flushed)))
         }
+        // The delay's worth of silence at the end keeps the file the length
+        // of the recording.
+        let remaining = Int(recordedTotal - flushed)
+        if remaining > 0 {
+            try hand([Float](repeating: 0, count: remaining)[...])
+        }
+        result.frames = flushed
         return result
     }
 
@@ -381,6 +469,11 @@ public struct EchoCancellationPass {
         /// recordings the pass demonstrably cleaned, so nothing is decided
         /// on it.
         public let reportedMedianDB: Double
+        /// Median of what the microphone's level actually did over the
+        /// far-end-active windows, before minus after, in decibels. On a call
+        /// on headphones there is nothing to remove and this reads near zero;
+        /// on a call on speakers it is what the pass took out.
+        public let measuredMedianDB: Double
         public let activeWindows: Int
         public let microphoneFloorDBFS: Double
         /// Windows where the far end was quiet and the microphone held
@@ -436,6 +529,7 @@ public struct EchoCancellationPass {
     public static func judge(windows: [Window]) -> Judgement {
         let active = windows.filter { $0.farEndDBFS > farEndActiveDBFS }
         let reported = median(of: active.map(\.echoRemovedDB))
+        let measured = median(of: active.map { $0.microphoneBeforeDBFS - $0.microphoneAfterDBFS })
         let quiet = percentile(windows.map(\.microphoneBeforeDBFS), 0.05)
         let floor = microphoneFloorDBFS(quietWindowDBFS: quiet)
         let user = windows.filter {
@@ -450,6 +544,7 @@ public struct EchoCancellationPass {
         func judgement(_ outcome: CleaningOutcome, _ reason: String) -> Judgement {
             Judgement(
                 outcome: outcome, reason: reason, reportedMedianDB: reported,
+                measuredMedianDB: measured,
                 activeWindows: active.count, microphoneFloorDBFS: floor,
                 userWindows: user.count, userHarmMedianDB: harmMedian, userHarmShare: harmShare
             )
@@ -510,7 +605,7 @@ public struct EchoCancellationPass {
             : sorted[middle]
     }
 
-    private static func squares(_ samples: [Float]) -> Double {
+    static func squares<Samples: Collection>(_ samples: Samples) -> Double where Samples.Element == Float {
         samples.reduce(0.0) { $0 + Double($1) * Double($1) }
     }
 }
