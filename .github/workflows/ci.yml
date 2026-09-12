@@ -150,6 +150,8 @@ jobs:
           test -x dist/Pipit.app/Contents/MacOS/pipit-nativehost
           test -f dist/Pipit.app/Contents/Resources/extension/firefox/manifest.json
           test -f dist/Pipit.app/Contents/Resources/Pipit.icns
+          test -f dist/Pipit.app/Contents/Resources/EchoModels/localvqe-v1.4-aec-2.7K-f32.gguf
+          test -f dist/Pipit.app/Contents/Resources/EchoModels/dtln-aec-512.weights
           for state in idle recording paused warning; do
             test -f "dist/Pipit.app/Contents/Resources/pipit-$state.png"
             test -f "dist/Pipit.app/Contents/Resources/pipit-$state@2x.png"

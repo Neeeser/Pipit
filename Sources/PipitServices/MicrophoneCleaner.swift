@@ -96,7 +96,7 @@ public struct MicrophoneCleaner: Sendable {
             microphone: microphone, reference: reference, timeline: timeline, to: partial
         )
         let judgement = EchoCancellationPass.judge(windows: pass.windows)
-        let median = judgement.reportedMedianDB
+        let median = judgement.measuredMedianDB
         let active = judgement.activeWindows
         guard judgement.outcome == .cleaned else {
             // Too little far end played to be judged on, or the pass took the
