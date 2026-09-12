@@ -166,6 +166,15 @@ damaged the user's own windows, a meeting whose far-end track holds nothing, a
 meeting whose far end played for under ten seconds or an imported single-track
 recording, and a meeting whose cleaning pass failed.
 
+The record of a cleaned meeting holds what happened to the far end, measured
+on the audio: the median drop over the windows it was playing in, and how well
+the microphone's loudness envelope followed the far end's before and after the
+pass. A cleaned track whose envelope still follows the far end holds the
+speakers, and the meeting shows a line saying so, because the transcript may
+then show the other side's words as the user's. The assembler also drops a
+microphone line that is mostly the far end's own words said at the same
+moment, which is what such a track produces.
+
 The pass runs once per meeting and records what it decided, whatever it decided.
 A pass that failed is never retried. If the disk fills during it, that meeting is
 never cleaned, and the user keeps the transcript they would have had before the
