@@ -196,15 +196,42 @@ public struct CleanedMicrophone: Codable, Sendable, Equatable {
     /// without it. A high figure over a handful of windows says the far end
     /// barely played, and says nothing about the room.
     public var farEndActiveWindows: Int
+    /// How well the microphone's loudness envelope followed the far end's
+    /// before the pass, and how well the cleaned track's does after it.
+    ///
+    /// Measured the way the pass measures alignment: the best agreement of
+    /// the two envelopes within eight seconds either way. A pair with an
+    /// audible echo path reads 0.5 and up before cleaning, and one without
+    /// reads 0.32 or under. A cleaned track that still reads high holds the
+    /// far end still, and that is the one thing the transcript needs to be
+    /// read with. Nil on recordings made before this was measured.
+    public var echoCorrelationBefore: Double?
+    public var echoCorrelationAfter: Double?
     public var producedAt: Date
+
+    /// Agreement at or above which an envelope is the far end's.
+    public static let echoCorrelationBar = 0.40
+
+    /// Whether the far end was in the microphone and is still in the cleaned
+    /// track: sound from the speakers that the transcript may show as the
+    /// user's.
+    public var echoRemains: Bool {
+        guard let before = echoCorrelationBefore, let after = echoCorrelationAfter else {
+            return false
+        }
+        return before >= Self.echoCorrelationBar && after >= Self.echoCorrelationBar
+    }
 
     public init(
         track: AudioArchive.Track, echoRemovedMedianDB: Double, farEndActiveWindows: Int,
+        echoCorrelationBefore: Double? = nil, echoCorrelationAfter: Double? = nil,
         producedAt: Date
     ) {
         self.track = track
         self.echoRemovedMedianDB = echoRemovedMedianDB
         self.farEndActiveWindows = farEndActiveWindows
+        self.echoCorrelationBefore = echoCorrelationBefore
+        self.echoCorrelationAfter = echoCorrelationAfter
         self.producedAt = producedAt
     }
 }
