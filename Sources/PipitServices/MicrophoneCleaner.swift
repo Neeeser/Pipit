@@ -28,9 +28,19 @@ public struct MicrophoneCleaner: Sendable {
     static let writeFrames = 16_000
 
     private let clock: any Clock
+    /// Builds the canceller the pass runs. The shipped one unless a test hands
+    /// in a stand-in, which is how what the pass records about a canceller
+    /// that left the far end behind is exercised.
+    private let makeCanceller: @Sendable () throws -> any EchoCancelling
 
-    public init(clock: any Clock = SystemClock()) {
+    public init(
+        clock: any Clock = SystemClock(),
+        canceller: @escaping @Sendable () throws -> any EchoCancelling = {
+            try EchoModels.shippedCanceller(sampleRate: 16_000)
+        }
+    ) {
         self.clock = clock
+        makeCanceller = canceller
     }
 
     /// Cleans this meeting's microphone, or says why it did not.
@@ -92,8 +102,17 @@ public struct MicrophoneCleaner: Sendable {
             .deletingPathExtension()
             .appendingPathExtension("partial")
             .appendingPathExtension("m4a")
+        let lined = try alignment(microphone: microphone, reference: reference, timeline: timeline)
         let pass = try subtract(
-            microphone: microphone, reference: reference, timeline: timeline, to: partial
+            microphone: microphone, reference: reference, referenceOffset: lined.offset,
+            to: partial
+        )
+        // The same envelope measurement over the cleaned track says whether
+        // the far end is still in it. Taken on the file the pass wrote, so it
+        // describes what every reader is about to be handed.
+        let after = try EchoCancellationPass.measureAlignment(
+            microphone: try EchoCancellationPass.location(of: partial, track: .mic),
+            reference: reference, timelineOffset: lined.offset
         )
         let judgement = EchoCancellationPass.judge(windows: pass.windows)
         let median = judgement.measuredMedianDB
@@ -153,6 +172,8 @@ public struct MicrophoneCleaner: Sendable {
                 ),
                 echoRemovedMedianDB: median,
                 farEndActiveWindows: active,
+                echoCorrelationBefore: lined.measured.correlation,
+                echoCorrelationAfter: after.correlation,
                 producedAt: clock.now
             )
         }
@@ -247,12 +268,12 @@ public struct MicrophoneCleaner: Sendable {
     private func alignment(
         microphone: TrackAudioLocation, reference: TrackAudioLocation,
         timeline: RecordingTimeline
-    ) throws -> Double {
+    ) throws -> (offset: Double, measured: EchoCancellationPass.Alignment) {
         let fromTimeline = EchoCancellationPass.referenceOffset(timeline: timeline)
         let measured = try EchoCancellationPass.measureAlignment(
             microphone: microphone, reference: reference, timelineOffset: fromTimeline
         )
-        guard measured.isUsable else { return fromTimeline }
+        guard measured.isUsable else { return (fromTimeline, measured) }
         Log.processing.info(
             """
             far end realigned by \(String(format: "%.2f", measured.offsetSeconds - fromTimeline), privacy: .public)s \
@@ -260,7 +281,7 @@ public struct MicrophoneCleaner: Sendable {
             was \(String(format: "%.3f", measured.correlationAtTimeline), privacy: .public)
             """
         )
-        return measured.offsetSeconds
+        return (measured.offsetSeconds, measured)
     }
 
     /// Runs `EchoCancellationPass` over the pair and encodes what comes back.
@@ -271,7 +292,7 @@ public struct MicrophoneCleaner: Sendable {
     /// if anything throws.
     private func subtract(
         microphone: TrackAudioLocation, reference: TrackAudioLocation,
-        timeline: RecordingTimeline, to destination: URL
+        referenceOffset: Double, to destination: URL
     ) throws -> EchoCancellationPass.Result {
         guard
             let format = AVAudioFormat(
@@ -305,9 +326,7 @@ public struct MicrophoneCleaner: Sendable {
         var pending: [Float] = []
         let pass = try EchoCancellationPass.run(
             microphone: microphone, reference: reference,
-            referenceOffset: try alignment(
-                microphone: microphone, reference: reference, timeline: timeline
-            )
+            referenceOffset: referenceOffset, canceller: makeCanceller
         ) { cleaned in
             pending += cleaned
             if pending.count >= Self.writeFrames {

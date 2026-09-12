@@ -120,6 +120,20 @@ public struct MeetingDetailView: View {
                 .padding(.top, 4)
             }
 
+            if detail.metadata?.cleanedMic?.echoRemains == true {
+                // The other side came back through the speakers into the
+                // microphone and the pass could not take it all out, so some
+                // of their words may be shown as the user's.
+                Label(
+                    "Sound from the speakers stayed in the microphone.",
+                    systemImage: "speaker.wave.2.fill"
+                )
+                .font(.caption)
+                .foregroundStyle(.orange)
+                .help("Some of the other side's words may appear under your name.")
+                .padding(.top, 4)
+            }
+
             HStack(spacing: 8) {
                 folderMenu
                 Text(archivePath)
