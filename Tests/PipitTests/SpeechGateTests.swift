@@ -276,36 +276,6 @@ struct SpeechGateAssemblyTests {
             "only the two turns the user spoke"
         )
     }
-
-    @Test("a turn the far end also holds is kept whole")
-    func aTurnTheFarEndAlsoHoldsIsKeptWhole() async throws {
-        // The far end's own words used to be cut out of the local track
-        // by matching text. The cleaner removes the far end from the
-        // audio instead, so a local segment is judged on its own
-        // detector reading and never against what the far end said.
-        let remote = RawTranscriptChunk(
-            id: "remote_chunk_001", track: .remote, timelineOffset: 0,
-            durationSeconds: 1000, model: "gpt-4o-transcribe-diarize",
-            responseFormat: "diarized_json",
-            segments: [
-                RawTranscriptSegment(
-                    start: 100, end: 104, text: "so what I would do is run three nodes", speaker: "A"
-                )
-            ]
-        )
-        let local = chunk([(101, 103, "so what I would do is run three nodes")])
-        let transcript = TranscriptAssembler().assemble(
-            raw: RawTranscript(chunks: [remote, local]), diarization: RawDiarization(),
-            speech: evidence(
-                seconds: 1000,
-                spans: [
-                    Span(start: 101, end: 103, mic: -20, far: -18, probability: 0.97)
-                ]),
-            micTrackIsLocalUser: true, generatedAt: Date(timeIntervalSince1970: 0)
-        )
-        #expect(transcript.utterances.filter { $0.track == .mic }.count == 1)
-    }
-
     @Test("a meeting with no evidence assembles exactly as it did before")
     func aMeetingWithNoEvidenceAssemblesExactlyAsItDidBefore() async throws {
         // Every meeting already on disk. Measuring nothing must not

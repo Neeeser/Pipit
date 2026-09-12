@@ -202,8 +202,13 @@ public struct TranscriptAssembler: Sendable {
             )
             utterances.append(contentsOf: assembled)
         }
-        // After both tracks exist, because a line divides where the other
-        // track starts.
+        // After both tracks exist. A microphone line that is the far end's
+        // own words at the same moment is the far end, back through the
+        // speakers, and goes before the lines are divided against each other.
+        if micTrackIsLocalUser {
+            utterances = FarEndOverlap.drop(utterances)
+        }
+        // A line divides where the other track starts.
         utterances = TurnInterleaving.apply(utterances)
         utterances.sort { lhs, rhs in
             lhs.start == rhs.start ? lhs.track.rawValue < rhs.track.rawValue : lhs.start < rhs.start
