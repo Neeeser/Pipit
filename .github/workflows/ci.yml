@@ -53,7 +53,7 @@ jobs:
         # object compiled without that flag is reused as compiled. That is
         # fine here: this job sets the flag on every build, so a cache written
         # by it was compiled with the gate on.
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: .build
           key: spm-${{ runner.os }}-${{ steps.toolchain.outputs.xcode }}-${{ hashFiles('Package.resolved', 'Package.swift') }}
