@@ -1,0 +1,231 @@
+{
+ "model": "dtln-aec-512",
+ "units": 512,
+ "bins": 257,
+ "block": 512,
+ "hop": 128,
+ "bytes": 41485332,
+ "sha256": "df98981891afaeccd41e3afecf96588abc2fbfc5e944d1f42ba1886483d22431",
+ "tensors": [
+  {
+   "name": "p1.mic.gamma",
+   "shape": [
+    257
+   ],
+   "offset": 0,
+   "count": 257
+  },
+  {
+   "name": "p1.mic.beta",
+   "shape": [
+    257
+   ],
+   "offset": 1028,
+   "count": 257
+  },
+  {
+   "name": "p1.lpb.gamma",
+   "shape": [
+    257
+   ],
+   "offset": 2056,
+   "count": 257
+  },
+  {
+   "name": "p1.lpb.beta",
+   "shape": [
+    257
+   ],
+   "offset": 3084,
+   "count": 257
+  },
+  {
+   "name": "p1.lstm1.kernel",
+   "shape": [
+    514,
+    2048
+   ],
+   "offset": 4112,
+   "count": 1052672
+  },
+  {
+   "name": "p1.lstm1.recurrent",
+   "shape": [
+    512,
+    2048
+   ],
+   "offset": 4214800,
+   "count": 1048576
+  },
+  {
+   "name": "p1.lstm1.bias",
+   "shape": [
+    2048
+   ],
+   "offset": 8409104,
+   "count": 2048
+  },
+  {
+   "name": "p1.lstm2.kernel",
+   "shape": [
+    512,
+    2048
+   ],
+   "offset": 8417296,
+   "count": 1048576
+  },
+  {
+   "name": "p1.lstm2.recurrent",
+   "shape": [
+    512,
+    2048
+   ],
+   "offset": 12611600,
+   "count": 1048576
+  },
+  {
+   "name": "p1.lstm2.bias",
+   "shape": [
+    2048
+   ],
+   "offset": 16805904,
+   "count": 2048
+  },
+  {
+   "name": "p1.dense.kernel",
+   "shape": [
+    512,
+    257
+   ],
+   "offset": 16814096,
+   "count": 131584
+  },
+  {
+   "name": "p1.dense.bias",
+   "shape": [
+    257
+   ],
+   "offset": 17340432,
+   "count": 257
+  },
+  {
+   "name": "p2.encoder",
+   "shape": [
+    512,
+    512
+   ],
+   "offset": 17341460,
+   "count": 262144
+  },
+  {
+   "name": "p2.est.gamma",
+   "shape": [
+    512
+   ],
+   "offset": 18390036,
+   "count": 512
+  },
+  {
+   "name": "p2.est.beta",
+   "shape": [
+    512
+   ],
+   "offset": 18392084,
+   "count": 512
+  },
+  {
+   "name": "p2.lpb.gamma",
+   "shape": [
+    512
+   ],
+   "offset": 18394132,
+   "count": 512
+  },
+  {
+   "name": "p2.lpb.beta",
+   "shape": [
+    512
+   ],
+   "offset": 18396180,
+   "count": 512
+  },
+  {
+   "name": "p2.lstm1.kernel",
+   "shape": [
+    1024,
+    2048
+   ],
+   "offset": 18398228,
+   "count": 2097152
+  },
+  {
+   "name": "p2.lstm1.recurrent",
+   "shape": [
+    512,
+    2048
+   ],
+   "offset": 26786836,
+   "count": 1048576
+  },
+  {
+   "name": "p2.lstm1.bias",
+   "shape": [
+    2048
+   ],
+   "offset": 30981140,
+   "count": 2048
+  },
+  {
+   "name": "p2.lstm2.kernel",
+   "shape": [
+    512,
+    2048
+   ],
+   "offset": 30989332,
+   "count": 1048576
+  },
+  {
+   "name": "p2.lstm2.recurrent",
+   "shape": [
+    512,
+    2048
+   ],
+   "offset": 35183636,
+   "count": 1048576
+  },
+  {
+   "name": "p2.lstm2.bias",
+   "shape": [
+    2048
+   ],
+   "offset": 39377940,
+   "count": 2048
+  },
+  {
+   "name": "p2.dense.kernel",
+   "shape": [
+    512,
+    512
+   ],
+   "offset": 39386132,
+   "count": 262144
+  },
+  {
+   "name": "p2.dense.bias",
+   "shape": [
+    512
+   ],
+   "offset": 40434708,
+   "count": 512
+  },
+  {
+   "name": "p2.decoder",
+   "shape": [
+    512,
+    512
+   ],
+   "offset": 40436756,
+   "count": 262144
+  }
+ ]
+}

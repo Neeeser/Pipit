@@ -229,6 +229,45 @@ struct PipelineTests {
         #expect(failed, "an empty response for audible audio fails")
     }
 
+    @Test("an empty response for audio that was audible for seconds is the audio's own answer")
+    func anEmptyResponseForBrieflyAudibleAudioIsAccepted() async throws {
+        // A cleaned microphone of a user who said two words in an hour: loud
+        // for a couple of moments and silent otherwise. Failing that for
+        // good on its peak left the whole meeting failed on 11 September
+        // 2026. A chunk a backend dropped holds minutes of speech.
+        let brief = AudioLevel(peakDBFS: -20, rmsDBFS: -68, audibleSeconds: 5.5, seconds: 3479)
+        try ProcessingPipeline.requireTranscribedOrSilent(
+            response: TranscriptionOutput(segments: [], text: ""),
+            audio: URL(fileURLWithPath: "/nonexistent.caf"),
+            chunkID: "mic_full", purpose: .words, level: { _ in brief }
+        )
+        let dropped = AudioLevel(peakDBFS: -20, rmsDBFS: -39, audibleSeconds: 120, seconds: 168)
+        var failed = false
+        do {
+            try ProcessingPipeline.requireTranscribedOrSilent(
+                response: TranscriptionOutput(segments: [], text: ""),
+                audio: URL(fileURLWithPath: "/nonexistent.caf"),
+                chunkID: "mic_0", purpose: .words, level: { _ in dropped }
+            )
+        } catch {
+            failed = true
+        }
+        #expect(failed, "minutes of audible audio with no words is a dropped chunk")
+        #expect(
+            EmptyTranscriptPolicy.decide(
+                hasSegments: false, hasText: false,
+                level: AudioLevel(peakDBFS: -20, rmsDBFS: -30, audibleSeconds: 4, seconds: 5)
+            ) == .fail,
+            "a short chunk audible from end to end is a dropped chunk"
+        )
+        #expect(
+            EmptyTranscriptPolicy.decide(
+                hasSegments: false, hasText: false, level: AudioLevel(peakDBFS: -20, rmsDBFS: -68)
+            ) == .fail,
+            "a level measured without audible seconds is read as audible throughout"
+        )
+    }
+
     @Test("an empty response whose audio cannot be read fails retryably")
     func anEmptyResponseWhoseAudioCannotBeReadFailsRetryably() async throws {
         // Nothing proves the audio was silent, so the chunk cannot be

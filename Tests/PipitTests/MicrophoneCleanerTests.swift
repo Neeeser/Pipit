@@ -12,25 +12,75 @@ import Testing
 /// of the words on the microphone were the far end's, arriving through the air
 /// from the speakers. Every earlier attempt worked on the transcript, guessing
 /// which words to delete, and deleted the local user's 3957 words instead.
+///
+/// Every fixture here is speech. The canceller that ships is a network trained
+/// on speech, and it takes a steady tone for something to remove, so a tone
+/// would measure the wrong thing on both sides: the far end would come down
+/// with no echo path at all, and the user would be taken out with it.
 @Suite("MicrophoneCleaner")
 struct MicrophoneCleanerTests {
-    /// The second, to a fiftieth of one, at which a tone starts.
+    /// The second, to a fiftieth of one, at which the user starts talking.
     ///
-    /// The first 20 ms window past `after` whose energy at that frequency
-    /// passes half the level it holds once the tone is running.
-    private static func onset(
-        of samples: [Float], frequency: Double, after: Double, steady: Double
-    ) -> Double {
+    /// The first 20 ms window past `after` whose broadband energy passes half
+    /// of `steady`, the level the user holds once they are talking.
+    private static func onset(of samples: [Float], after: Double, steady: Double) -> Double {
         let step = Int(0.02 * MicrophoneCleaningFixtures.rate)
         var index = Int(after * MicrophoneCleaningFixtures.rate)
         while index + step <= samples.count {
             let window = Array(samples[index..<(index + step)])
-            if MicrophoneCleaningFixtures.toneEnergy(window, frequency: frequency) > steady / 2 {
+            if MicrophoneCleaningFixtures.energy(window) > steady / 2 {
                 return Double(index) / MicrophoneCleaningFixtures.rate
             }
             index += step
         }
         return .infinity
+    }
+
+    /// The recording and the cleaned track, sample for sample.
+    private static func rawAndClean(
+        store: MeetingStore, timeline: RecordingTimeline
+    ) throws -> (raw: [Float], clean: [Float]) {
+        let metadata = try store.readMetadata()
+        let raw = try MicrophoneCleaningFixtures.samples(
+            store.rawTrackAudioLocation(track: .mic, metadata: metadata, timeline: timeline))
+        let clean = try MicrophoneCleaningFixtures.samples(
+            store.trackAudioLocation(track: .mic, metadata: metadata, timeline: timeline))
+        return (raw, clean)
+    }
+
+    /// The tap's timestamps can run a few milliseconds behind the microphone's,
+    /// so the manifest lines the far end up just after its own echo. On the
+    /// Zoom call of 11 September 2026 the pair sat 2.4 ms the wrong way and the
+    /// canceller then shipped took 10 dB off the far end where the same pass
+    /// 30 ms either side took 30. The far end is handed over with a lead, and
+    /// the canceller finds the lag itself.
+    @Test("a far end that arrives ahead of the tap's clock still comes out")
+    func aFarEndThatArrivesAheadOfTheTapsClockStillComesOut() async throws {
+        // Both delays through the same fixture: the causal one says the
+        // fixture can be cleaned at all, the other is the fault.
+        for delay in [0.003, -0.0024] {
+            let root = try TestPaths.makeTemporaryDirectory()
+            defer { try? FileManager.default.removeItem(at: root) }
+            let meeting = try MicrophoneCleaningFixtures.makeCallOnSpeakers(
+                root: root, echoDelaySeconds: delay
+            )
+            let store = meeting.store
+            let timeline = try store.readTimeline()
+            var carried = meeting.metadata
+            let outcome = try MicrophoneCleaner().clean(
+                store: store, metadata: &carried, timeline: timeline
+            )
+            #expect(outcome == CleaningOutcome.cleaned, "delay \(delay)")
+            let (raw, clean) = try Self.rawAndClean(store: store, timeline: timeline)
+
+            // The last ten seconds hold the far end alone.
+            let removed = MicrophoneCleaningFixtures.dropDB(before: raw, after: clean, from: 20, to: 30)
+            #expect(removed > 15, "at \(delay * 1000) ms the far end came down only \(removed) dB")
+
+            // And 12 to 16 s hold the user alone.
+            let lost = MicrophoneCleaningFixtures.dropDB(before: raw, after: clean, from: 12, to: 16)
+            #expect(abs(lost) < 1.5, "at \(delay * 1000) ms the user's own voice moved \(lost) dB")
+        }
     }
 
     @Test("the cleaned microphone loses the far end and keeps the user")
@@ -61,71 +111,45 @@ struct MicrophoneCleanerTests {
             "expected 30 ± 0.2, got \(cleaned.track.seconds)"
         )
 
-        let raw = try MicrophoneCleaningFixtures.samples(
-            store.rawTrackAudioLocation(
-                track: .mic, metadata: metadata, timeline: timeline
-            ))
-        let clean = try MicrophoneCleaningFixtures.samples(
-            store.trackAudioLocation(
-                track: .mic, metadata: metadata, timeline: timeline
-            ))
+        let (raw, clean) = try Self.rawAndClean(store: store, timeline: timeline)
         #expect(clean.count == raw.count, "the cleaned track runs as long as the recording")
 
-        // Measured over the last third, where the user is silent. The
-        // first third is not comparable: the canceller reports nothing
-        // until it has heard 2.5 s of far-end activity, and the far end
-        // here does not start until two seconds in. Measured at 88.1 dB.
-        let farBefore = MicrophoneCleaningFixtures.toneEnergy(
-            MicrophoneCleaningFixtures.seconds(20, 30, of: raw),
-            frequency: MicrophoneCleaningFixtures.farToneA
-        )
-        let farAfter = MicrophoneCleaningFixtures.toneEnergy(
-            MicrophoneCleaningFixtures.seconds(20, 30, of: clean),
-            frequency: MicrophoneCleaningFixtures.farToneA
-        )
-        let removed = MicrophoneCleaningFixtures.dropDB(from: farBefore, to: farAfter)
+        // The far end, over the last ten seconds, where the user has stopped
+        // and the microphone holds only the echo. Measured at 46.4 dB.
+        let removed = MicrophoneCleaningFixtures.dropDB(before: raw, after: clean, from: 20, to: 30)
         #expect(removed > 20, "the far end came down only \(removed) dB")
 
-        // And the user, over the middle third, where they are talking
-        // across the far end. This is the number every earlier attempt got
-        // wrong. Measured at 0.33 dB.
-        let userBefore = MicrophoneCleaningFixtures.toneEnergy(
-            MicrophoneCleaningFixtures.seconds(10, 20, of: raw),
-            frequency: MicrophoneCleaningFixtures.nearTone
-        )
-        let userAfter = MicrophoneCleaningFixtures.toneEnergy(
-            MicrophoneCleaningFixtures.seconds(10, 20, of: clean),
-            frequency: MicrophoneCleaningFixtures.nearTone
-        )
-        let lost = MicrophoneCleaningFixtures.dropDB(from: userBefore, to: userAfter)
-        #expect(lost < 3, "the user lost \(lost) dB of their own voice")
+        // The user alone, over 12 to 16 s, where the far end pauses. This
+        // is the number every earlier attempt got wrong. Measured at 0.03 dB.
+        let lost = MicrophoneCleaningFixtures.dropDB(before: raw, after: clean, from: 12, to: 16)
+        #expect(abs(lost) < 1.5, "the user's own voice moved \(lost) dB")
+
+        // And the user talking across the far end, over 10 to 12 s and 16 to
+        // 18 s. The echo carries a sixteenth of the energy there, so taking
+        // all of it out moves the stretch by 0.3 dB, and anything past that
+        // came out of the user. Measured at 0.24 and 0.27 dB.
+        for (from, to) in [(10.0, 12.0), (16.0, 18.0)] {
+            let both = MicrophoneCleaningFixtures.dropDB(before: raw, after: clean, from: from, to: to)
+            #expect(both < 2, "over \(from) to \(to) s the user talking across the far end lost \(both) dB")
+        }
 
         // And it sits on the same clock the recording does. An encoder that
         // put its own priming frames at the front would move every
-        // timestamp in the transcript by that much.
-        let steady = MicrophoneCleaningFixtures.toneEnergy(
-            MicrophoneCleaningFixtures.seconds(15, 15.02, of: raw),
-            frequency: MicrophoneCleaningFixtures.nearTone
-        )
-        let rawOnset = Self.onset(
-            of: raw,
-            frequency: MicrophoneCleaningFixtures.nearTone,
-            after: 9,
-            steady: steady
-        )
-        let cleanOnset = Self.onset(
-            of: clean,
-            frequency: MicrophoneCleaningFixtures.nearTone,
-            after: 9,
-            steady: steady
-        )
+        // timestamp in the transcript by that much. The user starts at 10 s,
+        // and the level they hold over their first tenth of a second is what
+        // their onset is found against: the far end's echo in the windows
+        // before it sits at a third of that at its loudest.
+        let steady = MicrophoneCleaningFixtures.energy(
+            MicrophoneCleaningFixtures.seconds(10, 10.1, of: raw))
+        let rawOnset = Self.onset(of: raw, after: 9.5, steady: steady)
+        let cleanOnset = Self.onset(of: clean, after: 9.5, steady: steady)
         #expect(
-            abs((rawOnset) - (10)) <= 0.03,
-            "expected 10 ± 0.03, got \(rawOnset) — within one 20 ms window"
+            rawOnset >= 10 && rawOnset <= 10.05,
+            "expected the user's onset at 10 s, got \(rawOnset)"
         )
         #expect(
             abs((cleanOnset) - (rawOnset)) <= 0.03,
-            "expected \(rawOnset) ± \(0.03), got \(cleanOnset) — within one 20 ms window"
+            "expected \(rawOnset) ± \(0.03), got \(cleanOnset), within one 20 ms window"
         )
     }
 
@@ -151,22 +175,10 @@ struct MicrophoneCleanerTests {
         )
         #expect(outcome == CleaningOutcome.cleaned)
 
-        let metadata = try store.readMetadata()
-        let raw = try MicrophoneCleaningFixtures.samples(
-            store.rawTrackAudioLocation(track: .mic, metadata: metadata, timeline: timeline)
-        )
-        let clean = try MicrophoneCleaningFixtures.samples(
-            store.trackAudioLocation(track: .mic, metadata: metadata, timeline: timeline)
-        )
-        let farBefore = MicrophoneCleaningFixtures.toneEnergy(
-            MicrophoneCleaningFixtures.seconds(28, 40, of: raw),
-            frequency: MicrophoneCleaningFixtures.farToneA
-        )
-        let farAfter = MicrophoneCleaningFixtures.toneEnergy(
-            MicrophoneCleaningFixtures.seconds(28, 40, of: clean),
-            frequency: MicrophoneCleaningFixtures.farToneA
-        )
-        let removed = MicrophoneCleaningFixtures.dropDB(from: farBefore, to: farAfter)
+        // The last twelve seconds hold the far end alone: the user stops at
+        // 20 s. Measured at 56.2 dB.
+        let (raw, clean) = try Self.rawAndClean(store: store, timeline: timeline)
+        let removed = MicrophoneCleaningFixtures.dropDB(before: raw, after: clean, from: 28, to: 40)
         #expect(removed > 20, "the far end came down only \(removed) dB")
     }
 
@@ -317,23 +329,33 @@ struct MicrophoneCleanerTests {
             try cleaner.clean(store: store, metadata: &carried, timeline: timeline) == CleaningOutcome.cleaned
         )
         let first = try #require(carried.cleanedMic)
+        let (raw, firstClean) = try Self.rawAndClean(store: store, timeline: timeline)
 
         // The second run reads the recording again. A run that took the
         // first run's output as its input would find a microphone the far
-        // end has already been taken out of, report no echo path, and throw
-        // away a track that was good.
+        // end has already been taken out of, and would work on the residue
+        // the first run left rather than on the echo.
         #expect(
             try cleaner.clean(store: store, metadata: &carried, timeline: timeline) == CleaningOutcome.cleaned
         )
         let second = try #require(carried.cleanedMic)
-        #expect(
-            abs((second.echoRemovedMedianDB) - (first.echoRemovedMedianDB)) <= 1,
-            """
-            expected \(first.echoRemovedMedianDB) ± 1, got \(second.echoRemovedMedianDB) — \
-            the second pass found the same echo path the first did
-            """
-        )
         #expect(second.track.frameCount == first.track.frameCount)
+        let (_, secondClean) = try Self.rawAndClean(store: store, timeline: timeline)
+        #expect(secondClean.count == firstClean.count)
+
+        // Same input, same pass, same output. Over the last ten seconds the
+        // recording holds the far end alone, and what the first run left of
+        // it is what a second run over that residue would work on. The two
+        // runs' outputs differ there by far less than that residue.
+        // Measured 45 dB under it.
+        let residue = MicrophoneCleaningFixtures.energy(
+            MicrophoneCleaningFixtures.seconds(20, 30, of: firstClean))
+        let difference = MicrophoneCleaningFixtures.energy(
+            MicrophoneCleaningFixtures.seconds(20, 30, of: zip(firstClean, secondClean).map { $0 - $1 }))
+        let apart = MicrophoneCleaningFixtures.dropDB(from: residue, to: difference)
+        #expect(apart > 20, "the second run's output sits only \(apart) dB under the first's residue")
+        let removed = MicrophoneCleaningFixtures.dropDB(before: raw, after: secondClean, from: 20, to: 30)
+        #expect(removed > 20, "the second run took only \(removed) dB off the far end")
     }
 
     @Test("a run that decides against cleaning clears what an earlier run left")
@@ -391,35 +413,31 @@ struct MicrophoneCleanerTests {
         // padded to it. Subtracting the two lead-ins the other way round
         // pads the reference instead of skipping into it. That moves the
         // pair by four seconds and puts the echo in the microphone ahead of
-        // the far end that caused it. No filter can model that. The far end
-        // still plays in bursts, so the suppressor keeps gating with them.
-        // With the sign flipped, the pass cleared the 6 dB threshold and
-        // returned `.cleaned` after taking out 5.0 dB. A wrong sign is not
-        // self-announcing, and no outcome value separates it from a good
-        // run. That is why the check at the end of this test reads the
+        // the far end that caused it. No filter can model that. A wrong sign
+        // is not self-announcing, and no outcome value separates it from a
+        // good run. That is why the check at the end of this test reads the
         // far-end energy left in the cleaned track rather than the outcome.
         let root = try TestPaths.makeTemporaryDirectory()
         defer { try? FileManager.default.removeItem(at: root) }
         let count = Int(30 * MicrophoneCleaningFixtures.rate)
         let offset = -2.0
 
-        // Built here rather than from `makeCallOnSpeakers`, whose far end
-        // is a tone that never stops. Such a tone is the same tone after
-        // any shift, so a pair moved by four seconds cancels just as well
-        // and the sign of the offset does not show. This far end plays in
-        // bursts of 0.7 s every 1.3 s, which a shift does move.
-        var remote = MicrophoneCleaningFixtures.tone(
-            count: count, frequency: MicrophoneCleaningFixtures.farToneA, amplitude: 0.5
+        // Built here rather than from `makeCallOnSpeakers`, because the far
+        // end has to start first. It talks in sentences with pauses between
+        // them, which a four-second shift moves: a far end that never
+        // stopped would be the same far end after any shift, and the sign
+        // of the offset would not show.
+        let remote = MicrophoneCleaningFixtures.talking(
+            voice: MicrophoneCleaningFixtures.farVoice, texts: MicrophoneCleaningFixtures.farText,
+            count: count
         )
-        for index in 0..<count {
-            let phase = (Double(index) / MicrophoneCleaningFixtures.rate).truncatingRemainder(dividingBy: 1.3)
-            if phase > 0.7 { remote[index] = 0 }
-        }
         // The user, over the middle third of their own track.
-        var mic = MicrophoneCleaningFixtures.tone(
-            count: count, frequency: MicrophoneCleaningFixtures.nearTone, amplitude: 0.3,
-            from: count / 3, upTo: 2 * count / 3
+        var mic = [Float](repeating: 0, count: count)
+        let user = MicrophoneCleaningFixtures.talking(
+            voice: MicrophoneCleaningFixtures.userVoice, texts: MicrophoneCleaningFixtures.userText,
+            count: count / 3
         )
+        for index in 0..<user.count { mic[count / 3 + index] = user[index] }
         // The far end's first frame landed two seconds before the
         // microphone's, so far-end sample j was in the room at microphone
         // sample j - 2 s + 3 ms, and the last two seconds of the microphone
@@ -436,7 +454,7 @@ struct MicrophoneCleanerTests {
         #expect(
             abs((timeline.leadIn(track: .mic)) - (2)) <= 0.01,
             """
-            expected 2 ± 0.01, got \(timeline.leadIn(track: .mic)) — the microphone is the \
+            expected 2 ± 0.01, got \(timeline.leadIn(track: .mic)), the microphone is the \
             track that starts late here
             """
         )
@@ -448,26 +466,11 @@ struct MicrophoneCleanerTests {
         )
         #expect(outcome == CleaningOutcome.cleaned)
 
-        let metadata = try store.readMetadata()
-        let raw = try MicrophoneCleaningFixtures.samples(
-            store.rawTrackAudioLocation(
-                track: .mic, metadata: metadata, timeline: timeline
-            ))
-        let clean = try MicrophoneCleaningFixtures.samples(
-            store.trackAudioLocation(
-                track: .mic, metadata: metadata, timeline: timeline
-            ))
-        // Up to 28 s, past which the far end's track has run out and the
-        // microphone carries no echo to remove.
-        let before = MicrophoneCleaningFixtures.toneEnergy(
-            MicrophoneCleaningFixtures.seconds(20, 27, of: raw),
-            frequency: MicrophoneCleaningFixtures.farToneA
-        )
-        let after = MicrophoneCleaningFixtures.toneEnergy(
-            MicrophoneCleaningFixtures.seconds(20, 27, of: clean),
-            frequency: MicrophoneCleaningFixtures.farToneA
-        )
-        let removed = MicrophoneCleaningFixtures.dropDB(from: before, to: after)
+        // The far end alone, from where the user stops at 20 s up to 27 s,
+        // past which the far end's track has run out and the microphone
+        // carries no echo to remove. Measured at 40.1 dB.
+        let (raw, clean) = try Self.rawAndClean(store: store, timeline: timeline)
+        let removed = MicrophoneCleaningFixtures.dropDB(before: raw, after: clean, from: 20, to: 27)
         #expect(removed > 20, "the far end came down only \(removed) dB")
     }
 

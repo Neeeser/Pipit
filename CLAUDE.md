@@ -41,13 +41,18 @@ constructs `PipitRuntime`, `SetupModel`, or `LocalModelManager`.
 | Module | Responsibility |
 | --- | --- |
 | `PipitCore` | Pure models, policy, storage layout, and transcript assembly |
-| `PipitAudio` | Capture, process taps, audio files, import, and mixdown |
+| `PipitAudio` | Capture, process taps, audio files, import, mixdown, and the echo canceller |
 | `PipitDetection` | Accessibility, window, process, and browser evidence |
 | `PipitIntegrations` | OpenAI, Keychain, EventKit, notifications, and permissions |
 | `PipitLocalAI` | On-device speech models and model installation |
 | `PipitSpeakers` | Voice profiles and speaker resolution |
 | `PipitServices` | Runtime wiring, meeting storage, and processing pipeline |
 | `PipitUI` | Menu bar, setup, settings, meetings window, and people |
+
+`CLocalVQE` is vendored C++ (LocalVQE and ggml) that `PipitAudio` links; see
+`Sources/CLocalVQE/UPDATING.md` before touching it. `Benchmarks/aec` is the
+echo canceller bake-off, and `Sources/PipitAudio/Resources/EchoModels` holds
+the model files the pass ships with, produced by `Benchmarks/aec/export_dtln.py`.
 
 `PipitServices` also holds `EchoMeasurement`, which nothing in the application
 calls. It measures what `MicrophoneCleaner` does to a recording and is run from

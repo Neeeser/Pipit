@@ -27,6 +27,12 @@ The application suite covers these areas:
 | Interface | Settings, meeting review, file selection, and model pickers |
 | Benchmarks | Ground-truth parsing, scorer behavior, suite policy, and baseline gates |
 
+The echo canceller tests synthesize their speech with the system `say`
+command, voices Daniel and Karen, rendered once per test process. A machine
+without those voices fails those tests at the first fixture rather than
+measuring a tone, because the canceller that ships is a network trained on
+speech and removes a tone as noise.
+
 The extension suite covers event ordering, stale tab state, provider detection,
 and manifest generation.
 

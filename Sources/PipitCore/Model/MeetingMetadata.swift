@@ -185,12 +185,12 @@ public struct CleanedMicrophone: Codable, Sendable, Equatable {
     /// The file, in the same coordinates a compacted track carries, so a reader
     /// gets the same shape whichever representation it is handed.
     public var track: AudioArchive.Track
-    /// Median decibels the canceller reported removing, over the quarter-second
-    /// windows where the far end was actually playing.
+    /// Median decibels the microphone came down by over the quarter-second
+    /// windows where the far end was playing, measured on the audio.
     ///
-    /// The figure comes from the canceller's linear filter, so it says whether
-    /// the filter locked on to an echo path. It is not a measure of what the
-    /// suppressor after it did to the audio.
+    /// Recordings made before 12 September 2026 hold the canceller's own
+    /// report here instead, a figure from its linear filter that read near
+    /// zero on calls the pass had cleaned.
     public var echoRemovedMedianDB: Double
     /// How many of those windows there were. The median above cannot be read
     /// without it. A high figure over a handful of windows says the far end

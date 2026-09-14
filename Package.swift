@@ -1,6 +1,32 @@
 // swift-tools-version: 6.0
 import PackageDescription
 
+// The C and C++ halves of CLocalVQE take the same defines and search paths.
+// SwiftPM types the two setting lists differently, so the list is written
+// once here and mapped into each.
+enum LocalVQESetting {
+    case define(String, String?)
+    case headerSearchPath(String)
+}
+
+let localVQESettings: [LocalVQESetting] = [
+    .headerSearchPath("ggml/include"),
+    .headerSearchPath("ggml/src"),
+    .headerSearchPath("ggml/src/ggml-cpu"),
+    .headerSearchPath("localvqe"),
+    .define("GGML_USE_CPU", nil),
+    .define("GGML_USE_ACCELERATE", nil),
+    .define("GGML_USE_CPU_REPACK", nil),
+    .define("GGML_SCHED_MAX_COPIES", "4"),
+    .define("ACCELERATE_NEW_LAPACK", nil),
+    .define("ACCELERATE_LAPACK_ILP64", nil),
+    .define("_DARWIN_C_SOURCE", nil),
+    .define("_XOPEN_SOURCE", "600"),
+    .define("GGML_VERSION", "\"0.9.8\""),
+    .define("GGML_COMMIT", "\"c044a8ee\""),
+    .define("NDEBUG", nil),
+]
+
 // Pipit is built with SwiftPM rather than xcodebuild. scripts/bundle-app.sh
 // assembles the SwiftPM products into Pipit.app.
 let package = Package(
@@ -35,37 +61,37 @@ let package = Package(
         // deterministic and directly testable.
         .target(name: "PipitCore"),
 
-        // WebRTC's acoustic echo canceller, vendored, behind a C surface of six
-        // functions. BSD-3-Clause, from the freedesktop audio-processing tree
-        // (v2.1, WebRTC M131) with abseil, both unmodified. `UPDATING.md` in
-        // that directory says where it came from and how to take a newer one.
-        //
-        // Vendored rather than depended on because nobody publishes this for
-        // SwiftPM: the WebRTC XCFrameworks that exist reach the canceller only
-        // through a live peer connection, and have no offline entry point.
-        // Source rather than a binary so CI builds what ships.
-        //
-        // The x86 and MIPS kernels are left out; the NEON ones are compiled.
+        // LocalVQE's echo canceller and the ggml it runs on, vendored as
+        // source (Apache-2.0 and MIT, see Sources/CLocalVQE/UPDATING.md). CPU
+        // only, with Accelerate for the matrix work: the model is a few
+        // thousand parameters and a GPU round trip per 16 ms hop would cost
+        // more than the arithmetic. No GTCRN line, no BLAS backend, no Metal.
         .target(
-            name: "CWebRTCAEC3",
+            name: "CLocalVQE",
+            path: "Sources/CLocalVQE",
+            exclude: ["UPDATING.md", "LICENSE-LocalVQE", "LICENSE-ggml"],
             publicHeadersPath: "include",
-            cxxSettings: [
-                .headerSearchPath("webrtc"),
-                .headerSearchPath("."),
-                .headerSearchPath("absl"),
-                .define("WEBRTC_POSIX"),
-                .define("WEBRTC_MAC"),
-                .define("WEBRTC_LIBRARY_IMPL"),
-                .define("WEBRTC_APM_DEBUG_DUMP", to: "0"),
-                .define("WEBRTC_ARCH_ARM64"),
-                .define("WEBRTC_HAS_NEON"),
-                .define("NDEBUG"),
-            ]
+            cSettings: localVQESettings.map { setting -> CSetting in
+                switch setting {
+                case .define(let name, let value): return .define(name, to: value)
+                case .headerSearchPath(let path): return .headerSearchPath(path)
+                }
+            },
+            cxxSettings: localVQESettings.map { setting -> CXXSetting in
+                switch setting {
+                case .define(let name, let value): return .define(name, to: value)
+                case .headerSearchPath(let path): return .headerSearchPath(path)
+                }
+            },
+            linkerSettings: [.linkedFramework("Accelerate")]
         ),
 
-        // AVFoundation + CoreAudio capture: microphone engine, process taps,
-        // segment writing, pre-roll, import, mixdown, energy analysis.
-        .target(name: "PipitAudio", dependencies: ["PipitCore", "CWebRTCAEC3"]),
+        // The echo canceller's model files ride along as resources, so the
+        // pass can run offline on any Mac the app is installed on.
+        .target(
+            name: "PipitAudio", dependencies: ["PipitCore", "CLocalVQE"],
+            resources: [.copy("Resources/EchoModels")]
+        ),
 
         // Accessibility, window titles, CoreAudio process observation, browser sensor
         // transport. Turns OS signals into provider evidence.

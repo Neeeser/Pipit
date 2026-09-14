@@ -139,16 +139,29 @@ failure.
 `transcribing` begins by subtracting the far end from the microphone. A call
 taken on speakers puts the far end back into the microphone through the air.
 Pipit records that far end separately through the process tap, and that
-recording is the reference WebRTC's echo canceller needs. The result is written
-to `raw/audio/mic.cleaned.m4a`, and every stage from transcription onward reads
-it in place of the recording, which is the segment chain before compaction and
-`mic.m4a` after it. The recording itself is never written to. The cleaned file
-is kept unless the pass measurably took the user's own speech down: over the
-windows where the far end was quiet and the microphone held something, the
-level must not have dropped more than 2 dB at the median, and no more than one
-window in ten may have dropped by more than 10 dB. The canceller's own reported enhancement is recorded but decides
-nothing, because it read 0.2 to 1.8 dB on calls the pass had cleaned by 4 to
-18 dB. Four cases keep the microphone exactly as it was captured: a pass that
+recording is the reference an echo canceller needs. The canceller is two stages:
+LocalVQE's adaptive filter, which lines the far end up on its own and removes
+the linear part of the echo path, then DTLN-aec, a network trained on speech
+that removes the distortion a loud laptop speaker adds. Both are vendored, the
+filter as C++ under `Sources/CLocalVQE` and the network as Swift over
+Accelerate in `PipitAudio`, with their model files as resources of that module.
+`Benchmarks/aec` is the harness that chose them: over four tiers of recordings,
+scored by the far-end words a transcript would put under the user's name and
+the user's own words it would lose, this pair leaked 1 word in 20 minutes of
+loud double talk where the WebRTC canceller that shipped before it leaked 13
+and kept 52% of the user's words. The far end is handed to the canceller
+10 ms early, because the tap's timestamps can run a few milliseconds behind
+the microphone's and no canceller models an echo that arrives before its
+reference.
+
+The result is written to `raw/audio/mic.cleaned.m4a`, and every stage from
+transcription onward reads it in place of the recording, which is the segment
+chain before compaction and `mic.m4a` after it. The recording itself is never
+written to. The cleaned file is kept unless the pass measurably took the user's
+own speech down: over the windows where the far end was quiet and the
+microphone held something, the level must not have dropped more than 2 dB at
+the median, and no more than one window in ten may have dropped by more than
+10 dB. Four cases keep the microphone exactly as it was captured: a pass that
 damaged the user's own windows, a meeting whose far-end track holds nothing, a
 meeting whose far end played for under ten seconds or an imported single-track
 recording, and a meeting whose cleaning pass failed.
@@ -162,10 +175,8 @@ whole meeting on every resumed run of a machine that cannot write the file.
 One decision covers the whole meeting. The median is taken over every window
 where the far end was playing, and the cleaned file is kept or thrown away
 entire. A call that starts on speakers and moves to headphones half way through
-keeps the cleaned track across the headphone stretch, and the canceller takes
-about 40 dB out of a microphone holding only the user, measured on a tone with
-no echo path. Plugging in headphones mid-call is ordinary. Deciding per window
-rather than per meeting is not built.
+keeps the cleaned track across the headphone stretch. Plugging in headphones
+mid-call is ordinary. Deciding per window rather than per meeting is not built.
 
 A cleaned meeting keeps a third audio file. `mic.cleaned.m4a` sits beside the
 two archived tracks at the same 48 kbps mono, so a cleaned meeting costs about

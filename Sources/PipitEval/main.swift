@@ -29,6 +29,9 @@ struct Arguments {
     var transcript: URL?
     var meeting: URL?
     var json: URL?
+    /// `aec` only: the microphone recording and the far end that was played.
+    var microphone: URL?
+    var reference: URL?
     /// Replaces the reference offset the manifest holds, for measuring a
     /// misaligned pair on purpose. `echo` only.
     var referenceOffset: Double?
@@ -94,6 +97,8 @@ struct Arguments {
             case "--transcript": transcript = URL(fileURLWithPath: value)
             case "--meeting": meeting = URL(fileURLWithPath: value)
             case "--json": json = URL(fileURLWithPath: value)
+            case "--mic": microphone = URL(fileURLWithPath: value)
+            case "--reference": reference = URL(fileURLWithPath: value)
             case "--backups": backups = URL(fileURLWithPath: value)
             // Refused rather than dropped. A dropped --offset would measure
             // the pair as the manifest lines it up and be written down as a
@@ -149,7 +154,10 @@ func usage() -> Never {
     note(
         """
         usage:
-          pipit-eval asr      --audio FILE [--engine whisper|parakeet|cohere]
+          pipit-eval asr      --audio FILE [--audio FILE ...] [--engine whisper|parakeet|cohere]
+                                 [--json OUT]   # every file, with word timings
+          pipit-eval aec      --mic FILE --reference FILE --out FILE [--offset SECONDS]
+                                 [--json OUT]
           pipit-eval align    --audio FILE --transcript FILE
           pipit-eval diarize  --audio FILE [--fa 0.07 --fa 0.20] [--speakers N]
           pipit-eval identity --audio FILE [--audio FILE ...]
@@ -191,6 +199,22 @@ case "asr":
         backend = CohereTranscriptionBackend(models: manager)
     default:
         usage()
+    }
+    // A batch: every file through the one loaded model, written as JSON with
+    // word timings, so a harness scoring hundreds of clips pays the model
+    // load once.
+    if let json = arguments.json {
+        var results: [AsrBatchResult] = []
+        for file in arguments.audio {
+            let output = try await backend.transcribe(audio: file) { _ in }
+            results.append(AsrBatchResult(file: file.path, output: output))
+            note("asr: \(file.lastPathComponent) \(output.wordCount) words")
+        }
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+        try encoder.encode(results).write(to: json, options: .atomic)
+        print("wrote           \(json.path) (\(results.count) files)")
+        break
     }
     let seconds = MonoAudioDecoder.durationSeconds(audio)
     let started = Date()
@@ -393,6 +417,16 @@ case "gate":
     guard let folder = arguments.meeting else { usage() }
     let code = await GateCommand.run(
         meeting: folder, applicationSupport: arguments.applicationSupport
+    )
+    if code != 0 { exit(code) }
+
+case "aec":
+    guard let microphone = arguments.microphone, let reference = arguments.reference,
+        let output = arguments.bench.out
+    else { usage() }
+    let code = AecCommand.run(
+        microphone: microphone, reference: reference, output: output,
+        referenceOffset: arguments.referenceOffset, json: arguments.json
     )
     if code != 0 { exit(code) }
 

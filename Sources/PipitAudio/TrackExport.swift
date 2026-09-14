@@ -154,13 +154,33 @@ public enum MonoAudioDecoder {
         }
         var peak: Double = 0
         var sumOfSquares: Double = 0
+        // Quarter-second windows, the grid every other level in Pipit is on.
+        let window = 4_000
+        var windowSquares: Double = 0
+        var inWindow = 0
+        var audibleWindows = 0
         for sample in samples {
             let magnitude = Double(abs(sample))
             if magnitude > peak { peak = magnitude }
             sumOfSquares += magnitude * magnitude
+            windowSquares += magnitude * magnitude
+            inWindow += 1
+            if inWindow == window {
+                if decibels((windowSquares / Double(window)).squareRoot())
+                    > EmptyTranscriptPolicy.silentPeakDBFS
+                {
+                    audibleWindows += 1
+                }
+                windowSquares = 0
+                inWindow = 0
+            }
         }
         let mean = (sumOfSquares / Double(samples.count)).squareRoot()
-        return AudioLevel(peakDBFS: decibels(peak), rmsDBFS: decibels(mean))
+        return AudioLevel(
+            peakDBFS: decibels(peak), rmsDBFS: decibels(mean),
+            audibleSeconds: Double(audibleWindows * window) / 16_000,
+            seconds: Double(samples.count) / 16_000
+        )
     }
 
     private static func decibels(_ amplitude: Double) -> Double {
