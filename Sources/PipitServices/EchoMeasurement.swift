@@ -15,6 +15,12 @@ import PipitCore
 /// It does not read `mic.cleaned.m4a` and does not care whether one exists.
 /// Most of the archive was recorded before the cleaner did, and those meetings
 /// are the ones worth measuring.
+///
+/// Nothing in the application calls this. `pipit-eval echo` runs it. It lives
+/// in `PipitServices` and ships in the app binary for two reasons. The test
+/// target cannot link an executable target, so it cannot live in the tool. It
+/// also shares `EchoCancellationPass` with `MicrophoneCleaner`, so a
+/// measurement describes the pass that ships and not a second copy of it.
 public enum EchoMeasurement: Sendable, Equatable {
     /// Why a meeting had nothing to measure. None of these is a removal of
     /// zero decibels, and keeping them out of `Report` is what stops one being
