@@ -707,7 +707,7 @@ struct CaptureEngineHardeningTests {
             makeTap: { sink, _ in EmittingTap(sink: sink) },
             delegate: delegate
         )
-        await engine.arm(bundlePrefixes: [], capturesRemote: false)
+        await engine.arm(scope: .bundlePrefixes([]), capturesRemote: false)
         try await engine.commit(layout: layout, meetingID: "m", source: .googleMeet)
         microphone.withLock { $0?.emit(seconds: 1, hostTime: 100) }
         await engine.pause(reason: "provider_evidence_gone")
