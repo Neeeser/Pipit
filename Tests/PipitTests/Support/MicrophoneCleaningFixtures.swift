@@ -79,6 +79,22 @@ public enum MicrophoneCleaningFixtures {
 
     // MARK: - building a meeting
 
+    /// One recording run: what a pair of writers captured between a start and
+    /// the pause that ended it, with the capture-clock time each track began at.
+    public struct Run {
+        public var mic: [Float]
+        public var remote: [Float]?
+        public var micHostTime: Double
+        public var remoteHostTime: Double
+
+        public init(mic: [Float], remote: [Float]?, micHostTime: Double, remoteHostTime: Double) {
+            self.mic = mic
+            self.remote = remote
+            self.micHostTime = micHostTime
+            self.remoteHostTime = remoteHostTime
+        }
+    }
+
     /// A recorded two-track meeting whose audio is exactly the samples given.
     ///
     /// `remoteStartOffset` puts the far end's first frame that many seconds
@@ -88,6 +104,21 @@ public enum MicrophoneCleaningFixtures {
     public static func makeMeeting(
         root: URL, source: MeetingSource = .slackHuddle,
         mic: [Float], remote: [Float]?, remoteStartOffset: Double = 0
+    ) throws -> (metadata: MeetingMetadata, store: MeetingStore, repository: MeetingRepository) {
+        try makeMeeting(
+            root: root, source: source,
+            runs: [
+                Run(
+                    mic: mic, remote: remote, micHostTime: 100,
+                    remoteHostTime: 100 + remoteStartOffset)
+            ])
+    }
+
+    /// A meeting recorded as several runs under one manifest, the way a call
+    /// that dropped and was rejoined is: each run opens fresh writers that
+    /// continue the segment numbering, and a pause closes the one before.
+    public static func makeMeeting(
+        root: URL, source: MeetingSource = .slackHuddle, runs: [Run]
     ) throws -> (metadata: MeetingMetadata, store: MeetingStore, repository: MeetingRepository) {
         let repository = MeetingRepository(root: root)
         let started = Date(timeIntervalSince1970: 1_787_070_000)
@@ -105,30 +136,37 @@ public enum MicrophoneCleaningFixtures {
                 )))
         let format = AVAudioFormat(standardFormatWithSampleRate: rate, channels: 1)!
 
-        let micWriter = SegmentWriter(
-            track: .mic, layout: created.store.layout, manifest: manifest,
-            format: format, segmentSeconds: 600
-        )
-        micWriter.enqueueSynchronously(AudioBufferPacket(buffer: buffer(mic, format: format), hostTime: 100))
-        micWriter.finish(reason: "test")
-
-        if let remote {
-            let remoteWriter = SegmentWriter(
-                track: .remote, layout: created.store.layout, manifest: manifest,
-                format: format, segmentSeconds: 600
+        for (index, run) in runs.enumerated() {
+            if index > 0 { manifest.append(.marker(.init(label: "resume"))) }
+            // Every run here is shorter than a segment, so each track writes
+            // exactly one segment per run.
+            let micWriter = SegmentWriter(
+                track: .mic, layout: created.store.layout, manifest: manifest,
+                format: format, segmentSeconds: 600, firstSegmentIndex: index + 1
             )
-            remoteWriter.enqueueSynchronously(
-                AudioBufferPacket(
-                    buffer: buffer(remote, format: format), hostTime: 100 + remoteStartOffset
-                ))
-            remoteWriter.finish(reason: "test")
+            micWriter.enqueueSynchronously(
+                AudioBufferPacket(buffer: buffer(run.mic, format: format), hostTime: run.micHostTime))
+            micWriter.finish(reason: "test")
+
+            if let remote = run.remote {
+                let remoteWriter = SegmentWriter(
+                    track: .remote, layout: created.store.layout, manifest: manifest,
+                    format: format, segmentSeconds: 600, firstSegmentIndex: index + 1
+                )
+                remoteWriter.enqueueSynchronously(
+                    AudioBufferPacket(
+                        buffer: buffer(remote, format: format), hostTime: run.remoteHostTime
+                    ))
+                remoteWriter.finish(reason: "test")
+            }
+            if index < runs.count - 1 { manifest.append(.marker(.init(label: "pause:test"))) }
         }
-        let seconds = Double(mic.count) / rate
+        let seconds = Double(runs.reduce(0) { $0 + $1.mic.count }) / rate
         manifest.append(
             .sessionEnd(
                 .init(
                     reason: "test", micSeconds: seconds,
-                    remoteSeconds: remote.map { Double($0.count) / rate } ?? 0
+                    remoteSeconds: Double(runs.reduce(0) { $0 + ($1.remote?.count ?? 0) }) / rate
                 )))
         manifest.close()
 
@@ -279,6 +317,48 @@ public enum MicrophoneCleaningFixtures {
         return try makeMeeting(
             root: root, mic: mic, remote: remote, remoteStartOffset: remoteStartOffset
         )
+    }
+
+    /// A call that dropped and was rejoined, recorded as two runs under one
+    /// manifest.
+    ///
+    /// Each run is a `makeSpokenCall`: the far end carries it, and the user
+    /// answers once. The manifest puts the far end `remoteStartOffset` after
+    /// the microphone in both. The second run's microphone dropped
+    /// `secondRunMicLostSeconds` of audio with nothing written for it, which
+    /// is how a stalled input at a rejoin leaves it, so in that run the echo
+    /// sits that much earlier than the manifest says and the far end is
+    /// somewhere else against the microphone than it was in the first.
+    public static func makeRejoinedCall(
+        root: URL, runSeconds: Double = 40, remoteStartOffset: Double = 2,
+        secondRunMicLostSeconds: Double = 3.2
+    ) throws -> (metadata: MeetingMetadata, store: MeetingStore, repository: MeetingRepository) {
+        let count = Int(runSeconds * rate)
+        func run(texts: [String], micLostSeconds: Double, hostTime: Double) -> Run {
+            let remote = talking(voice: farVoice, texts: texts, count: count)
+            var mic = [Float](repeating: 0, count: count)
+            let user = talking(voice: userVoice, texts: userText, count: Int(6 * rate))
+            let from = Int(14 * rate)
+            for index in 0..<user.count where from + index < count { mic[from + index] = 0.5 * user[index] }
+            let shift =
+                Int(remoteStartOffset * rate) + echoDelaySamples - Int(micLostSeconds * rate)
+            for index in max(0, shift)..<count where index - shift < count {
+                mic[index] += echoGain * remote[index - shift]
+            }
+            return Run(
+                mic: mic, remote: remote, micHostTime: hostTime,
+                remoteHostTime: hostTime + remoteStartOffset)
+        }
+        return try makeMeeting(
+            root: root,
+            runs: [
+                run(texts: farText, micLostSeconds: 0, hostTime: 100),
+                // The second run opens a minute of wall time later, on the same
+                // capture clock, with its own sentences.
+                run(
+                    texts: farText.reversed(), micLostSeconds: secondRunMicLostSeconds,
+                    hostTime: 100 + runSeconds + 60),
+            ])
     }
 }
 

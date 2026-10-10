@@ -329,6 +329,15 @@ public struct MeetingMetadata: Codable, Sendable, Equatable, Identifiable {
     /// What the cleaner decided. Written whatever the answer, and what stops it
     /// running a second time.
     public var cleaningOutcome: CleaningOutcome?
+    /// Set while the user's microphone is being cleaned and transcribed again,
+    /// and holding when they asked.
+    ///
+    /// The marker is what makes that redo resumable. The meeting is moved back
+    /// to the transcription stage for the length of it, and a stage that is
+    /// interrupted is picked up at launch like any other. Without a marker the
+    /// resumed stage would be a first transcription, which also redoes the far
+    /// end. Cleared in the same write that marks the meeting complete again.
+    public var microphoneRedoRequestedAt: Date?
     /// When the user took this meeting out of the list. Every file it holds
     /// stays where it is. Archiving changes which list a meeting is in and
     /// nothing else.
@@ -394,6 +403,7 @@ public struct MeetingMetadata: Codable, Sendable, Equatable, Identifiable {
         self.audioArchive = nil
         self.cleanedMic = nil
         self.cleaningOutcome = nil
+        self.microphoneRedoRequestedAt = nil
         self.archivedAt = nil
         self.folderName = nil
         self.folderSuggestionDeclined = nil
@@ -411,6 +421,16 @@ public struct MeetingMetadata: Codable, Sendable, Equatable, Identifiable {
     }
 
     public var isProcessingComplete: Bool { processing.state == .complete }
+
+    /// Whether the microphone can be cleaned and transcribed again: a finished
+    /// meeting with a microphone track of its own and a far end recorded apart
+    /// from it. An in-person or imported recording has one track holding
+    /// everyone, so there is no far end to take out of it. Whether the far end
+    /// was actually recorded is a fact about the files and is checked against
+    /// them when the action runs.
+    public var canRedoMicrophone: Bool {
+        source.micTrackIsLocalUser && processing.state == .complete
+    }
 
     /// How this meeting is named in the log.
     ///

@@ -61,11 +61,11 @@ private final class EmittingTap: ProcessTapController, @unchecked Sendable {
         lock.unlock()
     }
 
-    func resolveTargets(bundlePrefixes: [String]) -> [RemoteAudioTarget] {
+    func resolveTargets(scope: RemoteTargetScope) -> [RemoteAudioTarget] {
         lock.lock()
         defer { lock.unlock() }
         return targets.filter { target in
-            bundlePrefixes.contains { target.bundleIdentifier.hasPrefix($0) }
+            scope.selects(target, ownProcessID: -1)
         }
     }
 
@@ -120,19 +120,21 @@ private final class EmittingTap: ProcessTapController, @unchecked Sendable {
 
 private final class SilentDelegate: CaptureEngineDelegate, @unchecked Sendable {
     private let lock = NSLock()
-    private(set) var snapshots: [CaptureHealthSnapshot] = []
-    private(set) var warnings: [CaptureWarning] = []
+    private var storedSnapshots: [CaptureHealthSnapshot] = []
+    private var storedWarnings: [CaptureWarning] = []
+
+    // Read under the lock as well: a test polls these while the engine's
+    // control queue is still appending, and an unguarded read of an array
+    // mid-append crashed the suite.
+    var snapshots: [CaptureHealthSnapshot] { lock.withLock { storedSnapshots } }
+    var warnings: [CaptureWarning] { lock.withLock { storedWarnings } }
 
     func captureEngineDidUpdateHealth(_ snapshot: CaptureHealthSnapshot) {
-        lock.lock()
-        snapshots.append(snapshot)
-        lock.unlock()
+        lock.withLock { storedSnapshots.append(snapshot) }
     }
 
     func captureEngineDidRaiseWarning(_ warning: CaptureWarning) {
-        lock.lock()
-        warnings.append(warning)
-        lock.unlock()
+        lock.withLock { storedWarnings.append(warning) }
     }
 }
 
@@ -178,7 +180,7 @@ struct CaptureEngineHardeningTests {
         tap.withLock {
             $0?.format = AudioFormatDescriptor(sampleRate: 48_000, channelCount: channels)
         }
-        await engine.arm(bundlePrefixes: ["com.example.app"], capturesRemote: true)
+        await engine.arm(scope: .bundlePrefixes(["com.example.app"]), capturesRemote: true)
         try await engine.commit(layout: layout, meetingID: "m", source: .googleMeet)
         tap.withLock {
             $0?.setTargets([makeTarget(pid: 42, bundle: "com.example.app", producing: true)])
@@ -228,7 +230,7 @@ struct CaptureEngineHardeningTests {
         // 'init', which is `kAudioUnitErr_Initialized`.
         microphone.withLock { $0?.deviceSelectionStatus = 1_768_843_636 }
 
-        await engine.arm(bundlePrefixes: [], capturesRemote: false)
+        await engine.arm(scope: .bundlePrefixes([]), capturesRemote: false)
         try await engine.commit(layout: layout, meetingID: "m", source: .googleMeet)
         microphone.withLock { $0?.emit(seconds: 1, hostTime: 100) }
         _ = await engine.stop(reason: "test")
@@ -277,7 +279,7 @@ struct CaptureEngineHardeningTests {
 
         // The provider's audio process does not exist yet, which is the
         // normal state the instant a huddle or a call is joined.
-        await engine.arm(bundlePrefixes: ["com.example.app"], capturesRemote: true)
+        await engine.arm(scope: .bundlePrefixes(["com.example.app"]), capturesRemote: true)
         try await engine.commit(layout: layout, meetingID: "m", source: .googleMeet)
 
         // It appears a moment later and starts producing audio.
@@ -327,7 +329,7 @@ struct CaptureEngineHardeningTests {
             },
             delegate: delegate
         )
-        await engine.arm(bundlePrefixes: ["com.example.app"], capturesRemote: true)
+        await engine.arm(scope: .bundlePrefixes(["com.example.app"]), capturesRemote: true)
         try await engine.commit(layout: layout, meetingID: "m", source: .googleMeet)
 
         // Nothing can be created in the segments directory any more.
@@ -402,7 +404,7 @@ struct CaptureEngineHardeningTests {
             },
             delegate: delegate
         )
-        await engine.arm(bundlePrefixes: ["com.example.app"], capturesRemote: true)
+        await engine.arm(scope: .bundlePrefixes(["com.example.app"]), capturesRemote: true)
         tap.withLock {
             $0?.setTargets([makeTarget(pid: 42, bundle: "com.example.app", producing: true)])
         }
@@ -474,7 +476,7 @@ struct CaptureEngineHardeningTests {
             delegate: SilentDelegate()
         )
 
-        await engine.arm(bundlePrefixes: [], capturesRemote: false)
+        await engine.arm(scope: .bundlePrefixes([]), capturesRemote: false)
         // Three seconds of candidate audio, held only in memory.
         for index in 0..<3 {
             microphone.withLock { $0?.emit(seconds: 1, hostTime: Double(index)) }
@@ -577,7 +579,7 @@ struct CaptureEngineHardeningTests {
             makeTap: { sink, _ in EmittingTap(sink: sink) },
             delegate: SilentDelegate()
         )
-        await engine.arm(bundlePrefixes: [], capturesRemote: false)
+        await engine.arm(scope: .bundlePrefixes([]), capturesRemote: false)
         try await engine.commit(layout: layout, meetingID: "m", source: .googleMeet)
         microphone.withLock { $0?.emit(seconds: 2, hostTime: 100) }
 
@@ -639,7 +641,7 @@ struct CaptureEngineHardeningTests {
             makeTap: { sink, _ in EmittingTap(sink: sink) },
             delegate: delegate
         )
-        await engine.arm(bundlePrefixes: [], capturesRemote: false)
+        await engine.arm(scope: .bundlePrefixes([]), capturesRemote: false)
         // Into the pre-roll ring, so committing flushes it and opens the seam.
         microphone.withLock { $0?.emit(seconds: 0.5, hostTime: 100) }
         try await engine.commit(layout: layout, meetingID: "m", source: .googleMeet)
@@ -672,6 +674,74 @@ struct CaptureEngineHardeningTests {
         #expect(timeline.restarts.contains { $0.track == .mic })
     }
 
+    @Test("a rebuild during the reconnect window writes the silence it cost")
+    func aRebuildDuringTheReconnectWindowWritesTheSilenceItCost() async throws {
+        // The rebuild that matters can happen before there is a writer to tell.
+        // While the session waits out a reconnect the sources run into the ring
+        // and the writers are gone, so a stall at the end of the window was
+        // reported to nobody. On a call of 5 October 2026 the microphone
+        // stalled for 3.3 s at the end of the window, was rebuilt twice, and
+        // came back after the ring was flushed. The recording lost the 3.3 s,
+        // the microphone ran that far ahead of the far end for the rest of the
+        // call, and the echo canceller was handed a reference 3.2 s out of
+        // step.
+        let root = try TestPaths.makeTemporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let layout = MeetingLayout(root: root)
+        try FileManager.default.createDirectory(
+            at: layout.segments, withIntermediateDirectories: true
+        )
+
+        let microphone = LockedBox<EmittingMicrophone?>(nil)
+        let delegate = SilentDelegate()
+        let engine = CaptureEngine(
+            thresholds: CaptureThresholds(
+                rebuildGrace: 0.02, micCallbackTimeout: 0.05, pollInterval: 0.02
+            ),
+            segmentSeconds: 600,
+            makeMicrophone: { sink, _ in
+                let source = EmittingMicrophone(sink: sink)
+                microphone.withLock { $0 = source }
+                return source
+            },
+            makeTap: { sink, _ in EmittingTap(sink: sink) },
+            delegate: delegate
+        )
+        await engine.arm(scope: .bundlePrefixes([]), capturesRemote: false)
+        try await engine.commit(layout: layout, meetingID: "m", source: .googleMeet)
+        microphone.withLock { $0?.emit(seconds: 1, hostTime: 100) }
+        await engine.pause(reason: "provider_evidence_gone")
+        let restartsBeforeTheWindow = delegate.snapshots.last?.micRestarts ?? 0
+
+        // The window's last frame, and then the microphone stops delivering.
+        microphone.withLock { $0?.emit(seconds: 0.5, hostTime: 101) }
+        var waited = 0
+        while (delegate.snapshots.last?.micRestarts ?? 0) == restartsBeforeTheWindow, waited < 300 {
+            try await Task.sleep(nanoseconds: 10_000_000)
+            waited += 1
+        }
+        #expect(
+            (delegate.snapshots.last?.micRestarts ?? 0) > restartsBeforeTheWindow,
+            "the watchdog never rebuilt the microphone during the window, so this proves nothing"
+        )
+
+        await engine.resume()
+        // Capture comes back 2.5 s after the last frame the ring held.
+        microphone.withLock { $0?.emit(seconds: 0.5, hostTime: 104) }
+        _ = await engine.stop(reason: "test")
+
+        let timeline = try ManifestReader.timeline(contentsOf: layout.manifest)
+        // 1 s before the pause, 0.5 s from the ring, the 2.5 s the stall cost,
+        // and 0.5 s after.
+        #expect(
+            abs(timeline.duration(track: .mic) - 4.5) <= 0.05,
+            """
+            expected 4.5 ± 0.05, got \(timeline.duration(track: .mic)) — 2 s of audio \
+            plus the 2.5 s the stall cost
+            """
+        )
+    }
+
     @Test("the stop snapshot counts every run, not only the last")
     func theStopSnapshotCountsEveryRunNotOnlyTheLast() async throws {
         // A pause closes the writers and a resume opens fresh ones, so the
@@ -696,7 +766,7 @@ struct CaptureEngineHardeningTests {
             makeTap: { sink, _ in EmittingTap(sink: sink) },
             delegate: SilentDelegate()
         )
-        await engine.arm(bundlePrefixes: [], capturesRemote: false)
+        await engine.arm(scope: .bundlePrefixes([]), capturesRemote: false)
         try await engine.commit(layout: layout, meetingID: "m", source: .googleMeet)
         microphone.withLock { $0?.emit(seconds: 2, hostTime: 100) }
         await engine.pause(reason: "provider_evidence_gone")
@@ -1286,7 +1356,7 @@ struct LiveCaptureTests {
         let delegate = SilentDelegate()
         let engine = CaptureEngine(segmentSeconds: 3, delegate: delegate)
         await engine.arm(
-            bundlePrefixes: ["org.mozilla.firefox", "com.tinyspeck.slackmacgap"],
+            scope: .bundlePrefixes(["org.mozilla.firefox", "com.tinyspeck.slackmacgap"]),
             capturesRemote: true
         )
         try await Task.sleep(nanoseconds: 2_000_000_000)
@@ -1452,7 +1522,7 @@ struct SoakTests {
         let delegate = SilentDelegate()
         let engine = CaptureEngine(segmentSeconds: 30, delegate: delegate)
         await engine.arm(
-            bundlePrefixes: ["org.mozilla.firefox", "com.tinyspeck.slackmacgap"],
+            scope: .bundlePrefixes(["org.mozilla.firefox", "com.tinyspeck.slackmacgap"]),
             capturesRemote: true
         )
         try await engine.commit(layout: layout, meetingID: "soak", source: .manual)

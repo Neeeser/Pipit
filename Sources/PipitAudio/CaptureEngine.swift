@@ -97,6 +97,12 @@ public final class CaptureEngine: Sendable {
         /// zero seconds above 74 s of audio on disk.
         var micSecondsClosed: Double = 0
         var remoteSecondsClosed: Double = 0
+        /// Tracks whose source was rebuilt while the session was armed and has
+        /// delivered nothing since. Only the engine can say so: a writer does
+        /// not exist until the ring is flushed, and a rebuild reported before
+        /// that reached nobody. Cleared by the next packet into the ring, which
+        /// ends the stall, and by the flush that acts on it.
+        var stalledWhileArmed: Set<CaptureTrack> = []
     }
 
     private let state = LockedBox(State())
@@ -190,7 +196,7 @@ public final class CaptureEngine: Sendable {
     /// Building an `AVAudioEngine` and creating a process tap take hundreds of
     /// milliseconds, so this returns once the work is done on the control queue
     /// rather than doing it on the caller's thread.
-    public func arm(bundlePrefixes: [String], capturesRemote: Bool) async {
+    public func arm(scope: RemoteTargetScope, capturesRemote: Bool) async {
         await onControlQueue {
             self.state.withLock { state in
                 state.mode = .armed
@@ -204,6 +210,7 @@ public final class CaptureEngine: Sendable {
                 // whichever meeting commits next, dated before that meeting
                 // began.
                 state.pendingEvents.removeAll()
+                state.stalledWhileArmed.removeAll()
                 state.micLastSegmentIndex = 0
                 state.remoteLastSegmentIndex = 0
                 state.micSecondsClosed = 0
@@ -212,8 +219,8 @@ public final class CaptureEngine: Sendable {
             self.micPreRoll.discard()
             self.remotePreRoll.discard()
             self.micCoordinator.start()
-            if capturesRemote, !bundlePrefixes.isEmpty {
-                self.remoteCoordinator.start(bundlePrefixes: bundlePrefixes)
+            if capturesRemote, !scope.isEmpty {
+                self.remoteCoordinator.start(scope: scope)
             }
             self.startPolling()
         }
@@ -346,6 +353,11 @@ public final class CaptureEngine: Sendable {
                 // Live capture resumes at whatever moment it resumed at, which
                 // across a reconnect is deliberately later than the ring ends.
                 micWriter.breakContinuity()
+                // Unless the source was rebuilt after the ring's last packet and
+                // has delivered nothing since: then the space before its next
+                // packet is audio it lost, and the writer is told so exactly as
+                // it would be for a rebuild after the flush.
+                if state.stalledWhileArmed.contains(.mic) { micWriter.resumeContinuity() }
                 summaries.append((.mic, frames, seconds, earliest))
             }
             if let remoteWriter {
@@ -360,9 +372,11 @@ public final class CaptureEngine: Sendable {
                         remoteWriter.enqueue(packet)
                     }
                     remoteWriter.breakContinuity()
+                    if state.stalledWhileArmed.contains(.remote) { remoteWriter.resumeContinuity() }
                     summaries.append((.remote, frames, seconds, earliest))
                 }
             }
+            state.stalledWhileArmed.removeAll()
             state.mode = .recording
             return summaries
         }
@@ -420,12 +434,13 @@ public final class CaptureEngine: Sendable {
         }
     }
 
-    /// Rebinds the remote tap to a new provider target set, which happens when a
-    /// meeting moves between applications or a second provider takes over.
-    public func retarget(bundlePrefixes: [String]) async {
+    /// Rebinds the remote tap to a new target scope, which happens when a
+    /// meeting moves between applications, a second provider takes over, or a
+    /// manual recording starts while a call candidate is pre-rolling.
+    public func retarget(scope: RemoteTargetScope) async {
         guard state.withLock({ $0.capturesRemote }) else { return }
         await onControlQueue {
-            self.remoteCoordinator.start(bundlePrefixes: bundlePrefixes)
+            self.remoteCoordinator.start(scope: scope)
         }
     }
 
@@ -539,6 +554,7 @@ public final class CaptureEngine: Sendable {
                 return .drop
             case .armed:
                 (track == .mic ? micPreRoll : remotePreRoll).append(packet)
+                state.stalledWhileArmed.remove(track)
                 return .drop
             case .recording:
                 if track == .mic {
@@ -717,10 +733,27 @@ public final class CaptureEngine: Sendable {
     /// the rebuilt source can deliver. Takes the state lock and hands off to
     /// the writer's own queue, and touches neither the control queue nor the
     /// delegate, so there is nothing here for a caller to wait on.
+    ///
+    /// While the session is armed there is no writer to tell, because the
+    /// sources run into the ring and the writers are gone or not yet opened.
+    /// A rebuild is held until the ring is flushed instead, and a packet that
+    /// arrives into the ring first retires it, since that stall is then inside
+    /// the ring and the writer finds it between the packets. On a call of
+    /// 5 October 2026 the microphone stalled for 3.3 s at the end of a
+    /// reconnect window, was rebuilt twice with nobody to tell, and came back
+    /// after the flush. Nothing was written for the hole, and the microphone
+    /// ran 3.3 s ahead of the far end for the rest of the call.
     fileprivate func noteRestart(track: CaptureTrack) {
         let writer = state.withLock { state -> SegmentWriter? in
-            guard state.mode == .recording else { return nil }
-            return track == .mic ? state.micWriter : state.remoteWriter
+            switch state.mode {
+            case .recording:
+                return track == .mic ? state.micWriter : state.remoteWriter
+            case .armed:
+                state.stalledWhileArmed.insert(track)
+                return nil
+            case .idle:
+                return nil
+            }
         }
         writer?.resumeContinuity()
     }

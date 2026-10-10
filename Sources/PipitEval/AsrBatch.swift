@@ -19,9 +19,12 @@ struct AsrBatchResult: Codable {
     init(file: String, output: TranscriptionOutput) {
         self.file = file
         text = output.text
+        // Every backend reports word timings from the start of the file, the
+        // same clock as the segment's own start, so adding the two counted the
+        // segment's start twice.
         words = output.segments.flatMap { segment in
             (segment.words ?? []).map { word in
-                Word(start: segment.start + word.start, end: segment.start + word.end, text: word.text)
+                Word(start: word.start, end: word.end, text: word.text)
             }
         }
     }

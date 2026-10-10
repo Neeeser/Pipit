@@ -76,8 +76,7 @@ public enum SpeechEvidenceBuilder {
             // measurement: levels alone still remove most of what a model
             // invents, and the evidence records that nothing judged the audio.
             do {
-                let reader = try SampleReader(stream: stream)
-                let readings = try await detector.probabilities(reading: { try await reader.next() })
+                let readings = try await detect(stream: stream, detector: detector)
                 speechWindowSeconds = readings.windowSeconds
                 speech = padded(
                     readings.values.map { Int8(max(0, min(100, ($0 * 100).rounded()))) },
@@ -105,6 +104,15 @@ public enum SpeechEvidenceBuilder {
             micSpeech: speech,
             detector: detectorIdentifier
         )
+    }
+
+    /// Runs the detector over one track from its first frame, reading only as
+    /// much as the model asks for.
+    static func detect(
+        stream: TrackAudioStream, detector: any VoiceActivityBackend
+    ) async throws -> VoiceActivityProfile {
+        let reader = try SampleReader(stream: stream)
+        return try await detector.probabilities(reading: { try await reader.next() })
     }
 
     /// Moves a track's own measurements onto the meeting timeline by filling

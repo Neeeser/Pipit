@@ -1820,6 +1820,116 @@ public actor SpeakerStore {
         return doomed.count
     }
 
+    /// How many anonymous copies `foldAnonymousTwins` folded, by what they
+    /// were folded into. Counts only: nothing here names a person.
+    public struct TwinConsolidation: Sendable, Equatable {
+        public var intoPeople = 0
+        public var intoLocalUser = 0
+        public var total: Int { intoPeople + intoLocalUser }
+
+        public init() {}
+    }
+
+    /// Folds anonymous identities that are stored copies of a named person into
+    /// that person.
+    ///
+    /// Recognition used to seed an anonymous identity from every cluster of a
+    /// known voice that missed the naming margin. Each copy then scored within
+    /// a hundredth of the person and split the margin of the next meeting, which
+    /// seeded another. A copy is an anonymous identity, ephemeral or recurring,
+    /// whose centroid is at least `twinCentroidSimilarity` from exactly one
+    /// person's. With two people that close the copy is left alone, since
+    /// choosing one would be a guess.
+    ///
+    /// This is `merge`, so the copy keeps its rows, its occurrences read as the
+    /// person through the tombstone, and `unmerge` undoes any single fold. The
+    /// person's profile is not changed: `recomputeProfiles` builds a named
+    /// centroid from human-verified vectors only, and a copy's vectors are
+    /// provisional seeds nobody confirmed.
+    ///
+    /// A copy that holds a human-verified vector is left for the person who
+    /// verified it. Merging it would add that vector to the named profile, which
+    /// is what a user merge does on purpose and an automatic one should not.
+    ///
+    /// Idempotent: a folded copy is a tombstone and drops out of the gallery,
+    /// and every decision is made from the centroids as they were on entry.
+    @discardableResult
+    public func foldAnonymousTwins(
+        model: EmbeddingModelIdentifier = .fluidAudioOffline, now: Date = Date()
+    ) throws -> TwinConsolidation {
+        let profiles = try allProfiles(model: model)
+        let people = profiles.filter { $0.identity.kind == .person }
+        var result = TwinConsolidation()
+        guard !people.isEmpty else { return result }
+        for copy in profiles where copy.identity.kind == .anonymous {
+            let matches = people.filter {
+                VoiceVector.cosine($0.centroid, copy.centroid) >= policy.twinCentroidSimilarity
+            }
+            guard matches.count == 1, let person = matches.first,
+                try !holdsVerifiedVector(copy.identity.id)
+            else { continue }
+            try merge(copy.identity.id, into: person.identity.id, now: now)
+            if person.identity.isLocalUser {
+                result.intoLocalUser += 1
+            } else {
+                result.intoPeople += 1
+            }
+        }
+        return result
+    }
+
+    /// Forgets unconfirmed candidates that are a blend of a named person rather
+    /// than a voice of their own.
+    ///
+    /// A candidate qualifies when it is ephemeral, was heard in one meeting,
+    /// holds no verified vector, and its centroid is at least
+    /// `blendedCandidateSimilarity` from some person's but short of
+    /// `twinCentroidSimilarity`, where it would be folded as a copy instead.
+    /// Such a candidate came from a microphone that also held the far end, and
+    /// left in the gallery it can take a person's naming margin. Forgetting it
+    /// loses nothing a person saw: an ephemeral candidate is never shown, and
+    /// expires on its own after `ephemeralExpiryDays`.
+    ///
+    /// Runs after `foldAnonymousTwins`, so a copy is folded rather than
+    /// deleted.
+    @discardableResult
+    public func forgetBlendedCandidates(
+        model: EmbeddingModelIdentifier = .fluidAudioOffline
+    ) throws -> Int {
+        let profiles = try allProfiles(model: model)
+        let people = profiles.filter { $0.identity.kind == .person }
+        guard !people.isEmpty else { return 0 }
+        var forgotten = 0
+        for candidate in profiles
+        where candidate.identity.kind == .anonymous && candidate.identity.state == .ephemeral
+            && candidate.recordingCount <= 1
+        {
+            let closest = people.map { VoiceVector.cosine($0.centroid, candidate.centroid) }.max() ?? 0
+            guard closest >= policy.blendedCandidateSimilarity, closest < policy.twinCentroidSimilarity,
+                try !holdsVerifiedVector(candidate.identity.id)
+            else { continue }
+            try delete(candidate.identity.id)
+            forgotten += 1
+        }
+        return forgotten
+    }
+
+    /// Whether the identity, or anything merged into it, holds a vector a person
+    /// confirmed.
+    private func holdsVerifiedVector(_ id: IdentityID) throws -> Bool {
+        let family = try identityFamily(id)
+        let placeholders = family.map { _ in "?" }.joined(separator: ",")
+        var found = false
+        try database.query(
+            """
+            SELECT 1 FROM voice_embedding
+            WHERE identity_id IN (\(placeholders)) AND is_human_verified = 1 LIMIT 1
+            """,
+            family.map { SQLValue.int64($0) }
+        ) { _ in found = true }
+        return found
+    }
+
     /// Counts, for Settings. No names and no vectors leave this call.
     public func statistics() throws -> Statistics {
         var stats = Statistics()

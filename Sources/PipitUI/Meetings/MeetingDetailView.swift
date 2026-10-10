@@ -13,6 +13,7 @@ public struct MeetingDetailView: View {
     let detail: MeetingReviewModel
     /// Confirms a copy for two seconds, because the clipboard says nothing.
     @State private var copied = false
+    @State private var confirmingMicrophoneRedo = false
 
     public init(model: MeetingsWindowModel, detail: MeetingReviewModel) {
         self.model = model
@@ -28,6 +29,10 @@ public struct MeetingDetailView: View {
             // then the last read rather than what is on disk, and nothing else
             // here says so.
             if let message = detail.errorMessage {
+                noticeBar(message)
+                Divider()
+            }
+            if let message = detail.microphoneRedoMessage {
                 noticeBar(message)
                 Divider()
             }
@@ -62,6 +67,25 @@ public struct MeetingDetailView: View {
             content
         }
         .background(Color(nsColor: .textBackgroundColor))
+        .confirmationDialog(
+            "Remove echo from your side?", isPresented: $confirmingMicrophoneRedo,
+            titleVisibility: .visible
+        ) {
+            Button("Remove echo") { detail.redoMicrophone() }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("Corrections and splits on your own lines are removed.")
+        }
+    }
+
+    /// Redoes the microphone straight away, or after asking when that would
+    /// remove corrections the user made to their own lines.
+    private func requestMicrophoneRedo() {
+        if detail.microphoneLineEdits > 0 {
+            confirmingMicrophoneRedo = true
+        } else {
+            detail.redoMicrophone()
+        }
     }
 
     // MARK: - header
@@ -145,6 +169,11 @@ public struct MeetingDetailView: View {
                     Button("Rebuild transcript") { model.rebuildFocusedMeeting() }
                         .buttonStyle(.link)
                         .help("Re-assembles the transcript from the model output already on disk. Makes no request.")
+                }
+                if detail.transcript != nil, detail.canRedoMicrophone {
+                    Button("Remove echo") { requestMicrophoneRedo() }
+                        .buttonStyle(.link)
+                        .help("Transcribes your side again without the other side's sound.")
                 }
                 Spacer(minLength: 0)
             }
