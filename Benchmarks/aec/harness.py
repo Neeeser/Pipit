@@ -116,6 +116,9 @@ def meeting_cases(meetings: Path, work: Path, start: float, seconds: float | Non
         stem = f"m{key}"
         mic_wav = decode(mic, work / "input" / f"{stem}.mic.wav", start, seconds)
         ref_wav = decode(ref, work / "input" / f"{stem}.ref.wav", start, seconds)
+        # A meeting that ended before `start` decodes to an empty file.
+        if min(sf.info(mic_wav).duration, sf.info(ref_wav).duration) < 10:
+            continue
         cases.append(Case(stem, "meetings", mic_wav, ref_wav, None, "dt", sf.info(mic_wav).duration))
     return cases
 
@@ -267,8 +270,11 @@ def main() -> int:
     parser.add_argument("--no-aecmos", action="store_true")
     parser.add_argument("--skip-seconds", type=float, default=0.0, help="leave each clip's opening out of the transcript scores")
     args = parser.parse_args()
+    # pipit-eval reports the absolute path of each file, which is how the
+    # transcripts are matched back to their files.
+    args.work = args.work.resolve()
 
-    work = args.work / args.tier
+    work =args.work / args.tier
     work.mkdir(parents=True, exist_ok=True)
     if args.tier == "synthetic":
         cases = synthetic_cases(args.limit)

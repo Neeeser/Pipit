@@ -145,13 +145,16 @@ the linear part of the echo path, then DTLN-aec, a network trained on speech
 that removes the distortion a loud laptop speaker adds. Both are vendored, the
 filter as C++ under `Sources/CLocalVQE` and the network as Swift over
 Accelerate in `PipitAudio`, with their model files as resources of that module.
-`Benchmarks/aec` is the harness that chose them: over four tiers of recordings,
-scored by the far-end words a transcript would put under the user's name and
-the user's own words it would lose, this pair leaked 1 word in 20 minutes of
-loud double talk where the WebRTC canceller that shipped before it leaked 13
-and kept 52% of the user's words. The far end is handed to the canceller
-10 ms early, because the tap's timestamps can run a few milliseconds behind
-the microphone's and no canceller models an echo that arrives before its
+`Benchmarks/aec` is the harness that chose them. It scores a canceller by the
+far-end words a transcript would put under the user's name and the user's own
+words it would lose. Measured on 10 October 2026, this pair leaked 0.18 words
+per minute on clips with a nonlinear far end, as a loud laptop speaker
+produces, and kept 76.6% of the near-end words, where the WebRTC canceller
+that shipped before it kept 60.4%. On real-device recordings the pair leaked
+0.56 words per minute and kept 92.8% (WebRTC: 0.85 and 98.3%), and on 65
+recorded meetings the two scored the same. The far end is handed to the
+canceller 10 ms early, because the tap's timestamps can run a few milliseconds
+behind the microphone's and no canceller models an echo that arrives before its
 reference.
 
 The result is written to `raw/audio/mic.cleaned.m4a`, and every stage from
