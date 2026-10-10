@@ -32,6 +32,7 @@ cd "$REPO_ROOT"
 echo "==> building ($CONFIG)"
 swift build --configuration "$CONFIG" "${PIPIT_SWIFT_FLAGS[@]+"${PIPIT_SWIFT_FLAGS[@]}"}" --product Pipit
 swift build --configuration "$CONFIG" "${PIPIT_SWIFT_FLAGS[@]+"${PIPIT_SWIFT_FLAGS[@]}"}" --product pipit-nativehost
+swift build --configuration "$CONFIG" "${PIPIT_SWIFT_FLAGS[@]+"${PIPIT_SWIFT_FLAGS[@]}"}" --product pipit-cli
 
 echo "==> building the browser extension"
 "$REPO_ROOT/extension/build.sh" >/dev/null
@@ -44,6 +45,12 @@ cp "$BIN_DIR/Pipit" "$APP_DIR/Contents/MacOS/Pipit"
 # The native messaging host sits next to the app executable so the installer can
 # copy it to a stable absolute path outside any TCC-protected directory.
 cp "$BIN_DIR/pipit-nativehost" "$APP_DIR/Contents/MacOS/pipit-nativehost"
+# The command line tool. `pipit` would collide with the `Pipit` executable on a
+# case-insensitive volume, so the file is pipit-cli and `pipit-cli install`
+# links the name `pipit` to it. The skill it installs ships beside it.
+cp "$BIN_DIR/pipit-cli" "$APP_DIR/Contents/MacOS/pipit-cli"
+mkdir -p "$APP_DIR/Contents/Resources/skills"
+cp -R "$REPO_ROOT/skills/pipit" "$APP_DIR/Contents/Resources/skills/pipit"
 cp -R "$REPO_ROOT/extension/dist" "$APP_DIR/Contents/Resources/extension"
 # The signed add-on, when scripts/sign-extension.sh has produced one. Without it
 # the app falls back to walking the user through about:debugging, which loads the
@@ -128,6 +135,11 @@ codesign --force --sign "$IDENTITY" \
     --options runtime \
     "${TIMESTAMP[@]}" \
     "$APP_DIR/Contents/MacOS/pipit-nativehost"
+codesign --force --sign "$IDENTITY" \
+    --identifier "com.pipit.cli" \
+    --options runtime \
+    "${TIMESTAMP[@]}" \
+    "$APP_DIR/Contents/MacOS/pipit-cli"
 codesign --force --sign "$IDENTITY" \
     --identifier "$BUNDLE_ID" \
     --options runtime \

@@ -36,12 +36,15 @@ let package = Package(
         .executable(name: "Pipit", targets: ["PipitApp"]),
         .executable(name: "pipit-nativehost", targets: ["PipitNativeHost"]),
         .executable(name: "pipit-eval", targets: ["PipitEval"]),
+        .executable(name: "pipit-cli", targets: ["PipitCLI"]),
         // The three libraries the application links. The Xcode target in
         // project.yml compiles Sources/PipitApp and links these, so it builds
         // the same modules `swift build` does.
         .library(name: "PipitCore", targets: ["PipitCore"]),
         .library(name: "PipitServices", targets: ["PipitServices"]),
         .library(name: "PipitUI", targets: ["PipitUI"]),
+        // Linked by the pipit-cli tool target in project.yml, the same way.
+        .library(name: "PipitCLIKit", targets: ["PipitCLIKit"]),
     ],
     // Pinned to the exact versions the local-processing and speaker-scale probes
     // measured. A newer revision changes transcription and embedding behaviour,
@@ -131,7 +134,9 @@ let package = Package(
         // SwiftUI/AppKit surfaces.
         .target(
             name: "PipitUI",
-            dependencies: ["PipitServices", .product(name: "Sparkle", package: "Sparkle")]
+            dependencies: [
+                "PipitServices", "PipitCLIKit", .product(name: "Sparkle", package: "Sparkle"),
+            ]
         ),
 
         // The rpath is what lets the executable find Sparkle.framework after
@@ -149,6 +154,17 @@ let package = Package(
         // Firefox native messaging host. A compiled binary, because Firefox spawns
         // hosts with a minimal PATH and an interpreter shebang silently fails.
         .executableTarget(name: "PipitNativeHost", dependencies: ["PipitCore"]),
+
+        // The command-line tool's commands, kept apart from its entry point so
+        // the test suite can run them. PipitCore only: it reads the archive's
+        // files and loads no speech model.
+        .target(name: "PipitCLIKit", dependencies: ["PipitCore"]),
+
+        // The `pipit` command for people and for the agents they run. Ships in
+        // Contents/MacOS as `pipit-cli`, because `pipit` would collide with the
+        // `Pipit` executable on a case-insensitive volume; installing it links
+        // the name `pipit` to this file.
+        .executableTarget(name: "PipitCLI", dependencies: ["PipitCLIKit"]),
 
         // The benchmark meter: ground-truth model, scorer and suite manifest.
         // Foundation only, so the same arithmetic runs in the test suite and in
@@ -173,7 +189,7 @@ let package = Package(
             dependencies: [
                 "PipitCore", "PipitAudio", "PipitDetection",
                 "PipitIntegrations", "PipitSpeakers", "PipitLocalAI",
-                "PipitServices", "PipitUI", "PipitBench",
+                "PipitServices", "PipitUI", "PipitBench", "PipitCLIKit",
             ],
             path: "Tests/PipitTests"
         ),

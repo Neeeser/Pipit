@@ -52,6 +52,14 @@ targets:
       # must not ship.
       - path: Assets/Pipit/AppIcons/Pipit.icns
         buildPhase: resources
+      # The skill `pipit-cli install` copies into an agent's skills folder, at
+      # Contents/Resources/skills/pipit as scripts/bundle-app.sh lays it out.
+      - path: skills/pipit
+        type: folder
+        buildPhase:
+          copyFiles:
+            destination: resources
+            subpath: skills
       - path: Assets/Pipit/MenuBar/pipit-idle.png
         buildPhase: resources
       - path: Assets/Pipit/MenuBar/pipit-idle@2x.png
@@ -86,6 +94,14 @@ targets:
       # the browser installer copies it from. scripts/bundle-app.sh puts it in
       # the same place.
       - target: pipit-nativehost
+        embed: true
+        link: false
+        copy:
+          destination: executables
+      # The command line tool lands beside it. `pipit` would collide with the
+      # `Pipit` executable on a case-insensitive volume, so the file is
+      # pipit-cli and `pipit-cli install` links the name `pipit` to it.
+      - target: pipit-cli
         embed: true
         link: false
         copy:
@@ -162,6 +178,20 @@ targets:
         # The app recognises its own relay by this identifier when the relay
         # connects to the sensor socket.
         PRODUCT_BUNDLE_IDENTIFIER: com.pipit.nativehost
+        ENABLE_HARDENED_RUNTIME: YES
+
+  pipit-cli:
+    type: tool
+    platform: macOS
+    sources:
+      - path: Sources/PipitCLI
+    dependencies:
+      - package: Pipit
+        product: PipitCLIKit
+    settings:
+      base:
+        PRODUCT_NAME: pipit-cli
+        PRODUCT_BUNDLE_IDENTIFIER: com.pipit.cli
         ENABLE_HARDENED_RUNTIME: YES
 
 schemes:

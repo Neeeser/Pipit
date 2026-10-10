@@ -25,6 +25,20 @@ the menu bar.
 
 Pipit checks for a new version once a day and installs the update in place.
 
+## Use with coding agents
+
+Pipit includes a `pipit` command and an agent skill that let Claude Code, Codex,
+and other agents list your meetings and read their transcripts. Install both
+from the Agents page in Settings, or with:
+
+```sh
+/Applications/Pipit.app/Contents/MacOS/pipit-cli install
+```
+
+`pipit-cli uninstall` removes them. `pipit meetings list --json` lists meetings
+and `pipit meetings show ID --json` names the files of one. The command only
+reads. The skill is also in [`skills/pipit`](skills/pipit) for skill installers.
+
 ## Features
 
 - Detects Slack Huddles, Google Meet, and Zoom calls
@@ -35,6 +49,8 @@ Pipit checks for a new version once a day and installs the update in place.
   recorder wrote
 - Opens every past meeting in one window, searched by title, speaker, and transcript
 - Saves editable transcripts, summaries, notes, and source audio to disk
+- Lets coding agents find and read your meetings through the `pipit` command and
+  an agent skill
 
 ## How it works
 
