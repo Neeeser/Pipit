@@ -291,6 +291,25 @@ Sensor names sit at an origin above a voice match and below the microphone
 track, so a person's own correction always wins. The sensor never sets the
 diarizer's speaker count and never moves a boundary.
 
+The far-end track never holds the local user, so a participant who is the local
+user is marked and kept out of word attribution and cluster naming. The meeting
+client's own flag is used where it is authoritative. Otherwise the participant
+the microphone heard speaking is marked, and so is any participant whose name is
+the local user's name or one of their aliases. The marking is applied each time
+the record is read; `sensors.raw.json` keeps what the client said.
+
+A confident voice outranks a client name that names somebody else. After voice
+matching, a cluster that resolved to a named person at the high band is compared
+with the name the client put on it. If the client's name belongs to another
+known person, or to nobody the voice's person could be, the cluster and the
+participant's `sensor_` key take the voice's person. If the name is another
+spelling of the same person ("Firstname Lastname" for a stored "Firstname L"),
+the speaker shows the stored name and the client's spelling is added to that
+person's aliases. A client name that equals a stored name or alias, ignoring
+case and diacritics, links to that person even without a voice match, and no new
+person is made from it. Where no voice match is confident the client's name
+names the speaker as before. Names a person set or confirmed are never touched.
+
 A cluster split evenly between two people is named for neither, a timeline
 covering too little of the diarized speech names nobody, which is what
 disagreeing clocks look like, and a floor nobody confirmed ends at the last

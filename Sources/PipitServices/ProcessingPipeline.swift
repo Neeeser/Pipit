@@ -808,7 +808,7 @@ public actor ProcessingPipeline {
             raw: try store.readRawTranscriptForAssembly(),
             diarization: try store.readRawDiarization(),
             speech: evidence,
-            sensors: sensorRecord(store: store, metadata: metadata),
+            sensors: await sensorRecord(store: store, metadata: metadata),
             micTrackIsLocalUser: micHoldsLocalUserAlone(metadata, evidence: evidence),
             generatedAt: clock.now
         )
@@ -1672,7 +1672,9 @@ public actor ProcessingPipeline {
     ) async {
         guard let service = backends.speakers, let extractor = backends.embeddings else { return }
         guard let sensors = store.readRawSensors() else { return }
-        let marked = sensors.markingSelf(using: store.readSpeechEvidence())
+        let marked = sensors.markingSelf(
+            using: store.readSpeechEvidence(), localNames: await localUserNames()
+        )
         // The extractor reads the submitted audio, whose zero is the track's
         // own first frame rather than the meeting timeline's.
         let intervals = SensorAttribution.enrollmentIntervals(
@@ -1862,10 +1864,41 @@ public actor ProcessingPipeline {
     ///
     /// Only remote meetings: the record describes the far-end track, and an
     /// in-person or imported recording has none by construction.
-    private func sensorRecord(store: MeetingStore, metadata: MeetingMetadata) -> RawSensors? {
+    private func sensorRecord(store: MeetingStore, metadata: MeetingMetadata) async -> RawSensors? {
         guard metadata.source.micTrackIsLocalUser else { return nil }
         guard let sensors = store.readRawSensors() else { return nil }
-        return sensors.markingSelf(using: store.readSpeechEvidence())
+        return sensors.markingSelf(
+            using: store.readSpeechEvidence(), localNames: await localUserNames()
+        )
+    }
+
+    /// The names the local user answers to: the one in Settings, and the name
+    /// and aliases the people list holds for them.
+    ///
+    /// What lets a participant rendering the user's own name be recognised as
+    /// the user. The settings name is often a short form while the meeting
+    /// client renders the account's full name, which reaches the people list
+    /// as an alias once a voice match ties the two together.
+    private func localUserNames() async -> [String] {
+        let settings = settingsProvider()
+        var names = [settings.localUserName]
+        if let service = backends.speakers {
+            let store = await service.speakerStore
+            // `localUser()` reads the row alone, and the aliases are the point.
+            let flagged = (try? await store.localUser())?.id
+            let identity: Identity?
+            if let id = flagged ?? settings.processing.localUserIdentityID {
+                identity = try? await store.current(id)
+            } else {
+                identity = nil
+            }
+            if let identity {
+                if let name = identity.displayName { names.append(name) }
+                names.append(contentsOf: identity.aliases)
+            }
+        }
+        return names.map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
     }
 
     /// Names speakers from what the meeting client said, where it said enough.
@@ -1882,7 +1915,7 @@ public actor ProcessingPipeline {
     private func applySensorNames(
         store: MeetingStore, metadata: MeetingMetadata,
         diarization: RawDiarization, into speakers: inout SpeakerMap
-    ) {
+    ) async {
         // Before the guard below, because a name this build refuses has to go
         // whether or not the record it came from still reads. Applying sensor
         // names only ever adds, so a stale one stays until it is taken out.
@@ -1892,7 +1925,7 @@ public actor ProcessingPipeline {
                 "sensor names refused dropped=\(dropped, privacy: .public)"
             )
         }
-        guard let marked = sensorRecord(store: store, metadata: metadata) else { return }
+        guard let marked = await sensorRecord(store: store, metadata: metadata) else { return }
         let people = SensorAttribution.speakerEntries(sensors: marked)
         for entry in people {
             speakers.applySuggestion(entry.assignment, for: entry.key)
@@ -1924,7 +1957,7 @@ public actor ProcessingPipeline {
         store: MeetingStore, metadata: MeetingMetadata, into speakers: inout SpeakerMap
     ) async {
         guard let service = backends.speakers else { return }
-        guard let sensors = sensorRecord(store: store, metadata: metadata),
+        guard let sensors = await sensorRecord(store: store, metadata: metadata),
             let provider = SensorAttribution.handleProvider(source: sensors.source)
         else { return }
         let selfIDs = Set(sensors.participants.filter(\.isSelf).map(\.id))
@@ -1957,6 +1990,31 @@ public actor ProcessingPipeline {
         }
         if named > 0 {
             Log.processing.info("sensor handles named=\(named, privacy: .public)")
+        }
+    }
+
+    /// The people list as far as name comparison needs it.
+    private func knownPeople() async -> [KnownPerson] {
+        guard let service = backends.speakers else { return [] }
+        let store = await service.speakerStore
+        guard let people = try? await store.identities(kind: .person) else { return [] }
+        return people.filter(\.isNamed).map {
+            KnownPerson(id: $0.id, name: $0.resolvedName, aliases: $0.aliases)
+        }
+    }
+
+    /// Names a speaker the meeting client labelled after the person whose name
+    /// that is, where one person answers to it.
+    ///
+    /// Needs no audio: the platform string equals a name or an alias in the
+    /// people list. It is what stops "Firstname Lastname" from sitting beside
+    /// "Firstname L" as two people once the first has been recorded as an
+    /// alias of the second.
+    private func linkPlatformNames(into speakers: inout SpeakerMap) async {
+        let people = await knownPeople()
+        let linked = speakers.linkPlatformNames(to: people)
+        if linked > 0 {
+            Log.processing.info("platform names linked count=\(linked, privacy: .public)")
         }
     }
 
@@ -2186,15 +2244,18 @@ public actor ProcessingPipeline {
         let transcript = assembler.assemble(
             raw: raw, diarization: diarization,
             speech: evidence,
-            sensors: sensorRecord(store: store, metadata: metadata),
+            sensors: await sensorRecord(store: store, metadata: metadata),
             micTrackIsLocalUser: micIsLocalUser,
             generatedAt: clock.now
         )
         try store.writeCanonicalTranscript(transcript)
 
         var speakers = try store.readSpeakerMap()
-        applySensorNames(store: store, metadata: metadata, diarization: diarization, into: &speakers)
+        await applySensorNames(
+            store: store, metadata: metadata, diarization: diarization, into: &speakers
+        )
         await applySensorHandles(store: store, metadata: metadata, into: &speakers)
+        await linkPlatformNames(into: &speakers)
         // Not where the user cleared it. The microphone track is the local user
         // by construction, but "Leave unnamed" is offered on that chip like any
         // other, and writing the name back on the next pass made the control do
@@ -2278,18 +2339,18 @@ public actor ProcessingPipeline {
     /// key move through those paths on the same terms.
     private func audioBehind(
         _ key: String, store: MeetingStore, metadata: MeetingMetadata
-    ) throws -> (run: DiarizationRun, spans: [AudioSpan])? {
+    ) async throws -> (run: DiarizationRun, spans: [AudioSpan])? {
         let diarization = try store.readRawDiarization()
-        return clusterAudio(key, in: diarization)
-            ?? sensorAudio(key, store: store, metadata: metadata, diarization: diarization)
+        if let cluster = clusterAudio(key, in: diarization) { return cluster }
+        return await sensorAudio(key, store: store, metadata: metadata, diarization: diarization)
     }
 
     private func sensorAudio(
         _ key: String, store: MeetingStore, metadata: MeetingMetadata,
         diarization: RawDiarization
-    ) -> (run: DiarizationRun, spans: [AudioSpan])? {
+    ) async -> (run: DiarizationRun, spans: [AudioSpan])? {
         guard SpeakerLabel.sensorParticipantID(from: key) != nil,
-            let sensors = sensorRecord(store: store, metadata: metadata)
+            let sensors = await sensorRecord(store: store, metadata: metadata)
         else { return nil }
         for run in diarization.activeRuns where run.track == .remote {
             let spans = SensorAttribution.enrollmentIntervals(
@@ -2404,6 +2465,7 @@ public actor ProcessingPipeline {
         // is written at that rank and outranks the roster.
         let micIsDiarized = !micHoldsLocalUserAlone(metadata, evidence: store.readSpeechEvidence())
         let localUser = settings.processing.localUserIdentityID
+        var confidentVoices: [VoiceMatch] = []
         for result in resolved {
             guard let identity = result.identity, result.resolution.outcome.isAutomatic else { continue }
             let provenance = SpeakerProvenance(
@@ -2436,6 +2498,9 @@ public actor ProcessingPipeline {
                 identity.id, to: result.clusterID,
                 named: identity.isNamed ? identity.resolvedName : nil
             )
+            if let match = Self.confidentVoice(of: result, provenance: provenance) {
+                confidentVoices.append(match)
+            }
             if micIsDiarized, result.track == .mic, let localUser, identity.id == localUser,
                 result.resolution.band == .high
             {
@@ -2459,10 +2524,67 @@ public actor ProcessingPipeline {
                     ))
             }
         }
+        await reconcilePlatformNames(
+            in: &speakers, with: confidentVoices, speakerStore: speakerStore
+        )
         try store.writeSpeakerMap(speakers)
         Log.processing.info(
             "resolved \(resolved.count, privacy: .public) clusters, \(resolved.filter { $0.resolution.outcome.isAutomatic }.count, privacy: .public) named"
         )
+    }
+
+    /// A recognised voice at the high band, as the reconciliation needs it.
+    ///
+    /// A cluster the meeting already knew from a confirmation is not a voice
+    /// judgement, and a medium score is a suggestion, so neither counts.
+    private static func confidentVoice(
+        of result: ResolvedCluster, provenance: SpeakerProvenance
+    ) -> VoiceMatch? {
+        guard let identity = result.identity, identity.isNamed,
+            case .assign = result.resolution.outcome, result.resolution.band == .high,
+            result.source == .voiceProfile
+        else { return nil }
+        return VoiceMatch(
+            clusterKey: result.clusterID,
+            person: KnownPerson(
+                id: identity.id, name: identity.resolvedName, aliases: identity.aliases
+            ),
+            confidence: result.resolution.best?.score,
+            speechSeconds: result.resolution.speechSeconds,
+            provenance: provenance
+        )
+    }
+
+    /// Settles the speaker map where the meeting client's names and the voice
+    /// meet. The client's name stands unless a confident voice names somebody
+    /// else, and where the two are spellings of one person the client's is
+    /// kept as an alias.
+    private func reconcilePlatformNames(
+        in speakers: inout SpeakerMap, with voices: [VoiceMatch], speakerStore: SpeakerStore
+    ) async {
+        let people = await knownPeople()
+        let before = speakers
+        let aliases = speakers.reconcilePlatformNames(with: voices, among: people)
+        for request in aliases {
+            do {
+                try await speakerStore.addAlias(request.alias, to: request.identityID)
+            } catch {
+                Log.processing.notice(
+                    "platform name alias skipped: \(logSafeDescription(error), privacy: .public)"
+                )
+            }
+        }
+        // A name learned just now applies to the rest of this meeting as well:
+        // the same person on a second device carries the same string, and has
+        // no cluster of their own to be judged by.
+        if !aliases.isEmpty {
+            speakers.linkPlatformNames(to: await knownPeople())
+        }
+        if speakers != before {
+            Log.processing.info(
+                "platform names reconciled aliases=\(aliases.count, privacy: .public)"
+            )
+        }
     }
 
     /// Makes sure every cluster has a vector to be matched against.
@@ -2952,7 +3074,7 @@ public actor ProcessingPipeline {
             raw: raw,
             diarization: diarization,
             speech: found.store.readSpeechEvidence(),
-            sensors: sensorRecord(store: found.store, metadata: found.metadata),
+            sensors: await sensorRecord(store: found.store, metadata: found.metadata),
             micTrackIsLocalUser: micHoldsLocalUserAlone(
                 found.metadata, evidence: found.store.readSpeechEvidence()
             ),
@@ -3088,7 +3210,7 @@ public actor ProcessingPipeline {
         guard let service = backends.speakers else { return }
         let store = await service.speakerStore
         if let found = repository.findMeeting(id: meetingID, includingMerged: true),
-            let audio = try audioBehind(
+            let audio = try await audioBehind(
                 clusterID, store: found.store, metadata: found.metadata
             )
         {
@@ -3621,8 +3743,11 @@ public actor ProcessingPipeline {
         // cluster-level fallback names are applied again here. Without this,
         // re-analysing a meeting silently threw away its names.
         var reNamed = try store.readSpeakerMap()
-        applySensorNames(store: store, metadata: metadata, diarization: diarization, into: &reNamed)
+        await applySensorNames(
+            store: store, metadata: metadata, diarization: diarization, into: &reNamed
+        )
         await applySensorHandles(store: store, metadata: metadata, into: &reNamed)
+        await linkPlatformNames(into: &reNamed)
         try store.writeSpeakerMap(reNamed)
 
         // Deliberately not deleting this meeting's confirmed enrolments here.
@@ -3650,7 +3775,7 @@ public actor ProcessingPipeline {
         let transcript = TranscriptAssembler().assemble(
             raw: raw, diarization: diarization,
             speech: store.readSpeechEvidence(),
-            sensors: sensorRecord(store: store, metadata: metadata),
+            sensors: await sensorRecord(store: store, metadata: metadata),
             micTrackIsLocalUser: micHoldsLocalUserAlone(
                 metadata, evidence: store.readSpeechEvidence()
             ),
@@ -3731,7 +3856,7 @@ public actor ProcessingPipeline {
     private func sensorAccount(
         store: MeetingStore, metadata: MeetingMetadata, key: String
     ) async throws -> IdentityHandle? {
-        guard let sensors = sensorRecord(store: store, metadata: metadata),
+        guard let sensors = await sensorRecord(store: store, metadata: metadata),
             let provider = SensorAttribution.handleProvider(source: sensors.source)
         else { return nil }
         var participantID = SpeakerLabel.sensorParticipantID(from: key)
@@ -3807,14 +3932,10 @@ public actor ProcessingPipeline {
         guard let service = backends.speakers else { return nil }
         let store = await service.speakerStore
         let people = try await store.identities(kind: .person)
-        if let exact = people.first(where: {
-            $0.resolvedName.compare(name, options: .caseInsensitive) == .orderedSame
-        }) {
+        if let exact = people.first(where: { PersonName.isSame($0.resolvedName, name) }) {
             return exact.id
         }
-        return people.first {
-            $0.aliases.contains { $0.compare(name, options: .caseInsensitive) == .orderedSame }
-        }?.id
+        return people.first { $0.aliases.contains { PersonName.isSame($0, name) } }?.id
     }
 
     private func confirmCluster(
@@ -3833,7 +3954,7 @@ public actor ProcessingPipeline {
         // nothing to retract later, so the confirmation writes the name and
         // learns no voice from it.
         guard let found = repository.findMeeting(id: meetingID, includingMerged: true),
-            let audio = try audioBehind(
+            let audio = try await audioBehind(
                 clusterID, store: found.store, metadata: found.metadata
             ), !audio.spans.isEmpty
         else { return }
