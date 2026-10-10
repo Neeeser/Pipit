@@ -163,6 +163,25 @@ enum EchoCommand {
         print("  meeting is read on the microphone it recorded.")
     }
 
+    /// A call that dropped and was rejoined, with the far end placed in each
+    /// run on its own. The figures above describe the first run.
+    private static func printRuns(_ report: EchoMeasurement.Report) {
+        print("runs            \(report.runs.count) under one manifest, each lined up on its own")
+        for (index, run) in report.runs.enumerated() {
+            let source =
+                !run.farEndRecorded
+                ? "no far end recorded"
+                : (run.measuredOffsetIsUsable ? "measured off the recording" : "from the manifest")
+            print(
+                String(
+                    format: "  run %d         from %.1fs for %.1fs, far end moved %+.2fs, %@, "
+                        + "envelopes agree %.3f there and %.3f at the manifest's offset",
+                    index + 1, run.startSeconds, run.seconds, run.referenceOffsetSeconds, source,
+                    run.measuredOffsetCorrelation, run.timelineOffsetCorrelation
+                ))
+        }
+    }
+
     private static func printReport(_ report: EchoMeasurement.Report) {
         let offset = String(format: "%+.2f", report.referenceOffsetSeconds)
         let source =
@@ -183,6 +202,7 @@ enum EchoCommand {
                 report.timelineOffsetCorrelation,
                 report.measuredOffsetIsUsable ? "used" : "not used"
             ))
+        if report.runs.count > 1 { printRuns(report) }
         print(
             String(
                 format: "far end         above %.1f dBFS in %d windows, %.1f%% of the meeting",
