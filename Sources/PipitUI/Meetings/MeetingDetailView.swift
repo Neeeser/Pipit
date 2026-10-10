@@ -74,10 +74,7 @@ public struct MeetingDetailView: View {
             Button("Remove echo") { detail.redoMicrophone() }
             Button("Cancel", role: .cancel) {}
         } message: {
-            Text(
-                "Your side is written again, so corrections and splits you made on your own "
-                    + "lines are removed. A copy of what is replaced is kept."
-            )
+            Text("Corrections and splits on your own lines are removed.")
         }
     }
 
@@ -176,10 +173,7 @@ public struct MeetingDetailView: View {
                 if detail.transcript != nil, detail.canRedoMicrophone {
                     Button("Remove echo") { requestMicrophoneRedo() }
                         .buttonStyle(.link)
-                        .help(
-                            "Transcribes your side again with the other side's sound taken out. "
-                                + "The other side, speaker names, notes and summary stay."
-                        )
+                        .help("Transcribes your side again without the other side's sound.")
                 }
                 Spacer(minLength: 0)
             }
