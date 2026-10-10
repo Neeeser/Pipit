@@ -1056,6 +1056,53 @@ struct SensorIdentityLinkTests {
         #expect(result.matches.first?.displayName == "Grace")
     }
 
+    @Test("a tile reading the local user's name or alias is the local user")
+    func aTileReadingTheLocalUserSNameOrAliasIsTheLocalUser() async throws {
+        // A Meet call where the page marked nobody as the user, no microphone
+        // evidence exists, and the tile rendering the user's full name held
+        // the floor over a far-end voice. The far end is a mixdown of everyone
+        // else, so that tile's turns cannot name a cluster.
+        let raw = sensors(
+            participants: [
+                participant("d1", "Marlow Fenn"),
+                participant("d2", "Zoë Marsh"),
+            ],
+            turns: [("d1", 0, 60), ("d2", 60, 120)]
+        )
+        let intervals = [interval("a", 0, 60), interval("b", 60, 120)]
+
+        // The setting reads the short form and nothing stores the long one yet.
+        let unmatched = raw.markingSelf(using: nil, localNames: ["Marlow"])
+        #expect(unmatched.participants.allSatisfy { !$0.isSelf })
+
+        // Once the long form is an alias, case and diacritics do not matter.
+        let matched = raw.markingSelf(using: nil, localNames: ["Marlow", "marlow  fenn"])
+        #expect(matched.participants.filter(\.isSelf).map(\.id) == ["d1"])
+        let result = SensorAttribution.attribute(intervals: intervals, sensors: matched)
+        #expect(result.matches.map(\.displayName) == ["Zoë Marsh"])
+        #expect(
+            SensorAttribution.wordIntervals(sensors: matched)
+                .allSatisfy { $0.clusterID == SpeakerLabel.sensor(participantID: "d2") }
+        )
+
+        let diacritic = raw.markingSelf(using: nil, localNames: ["Zoe Marsh"])
+        #expect(diacritic.participants.filter(\.isSelf).map(\.id) == ["d2"])
+    }
+
+    @Test("a tile the platform named as the user keeps its namesake out of it")
+    func aTileThePlatformNamedAsTheUserKeepsItsNamesakeOutOfIt() async throws {
+        var raw = sensors(
+            participants: [
+                participant("U1", "Marlow Fenn", isSelf: true),
+                participant("U2", "Marlow Fenn"),
+            ],
+            turns: [("U2", 0, 60)]
+        )
+        raw.selfIsAuthoritative = true
+        let marked = raw.markingSelf(using: nil, localNames: ["Marlow Fenn"])
+        #expect(marked.participants.filter(\.isSelf).map(\.id) == ["U1"])
+    }
+
     @Test("two tiles under one name are told apart")
     func twoTilesUnderOneNameAreToldApart() async throws {
         // A real recording: the local user appears on two Meet devices
