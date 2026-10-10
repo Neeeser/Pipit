@@ -299,6 +299,12 @@ public final class MeetingReviewModel {
     @ObservationIgnored public let picker = PeoplePickerModel()
     public var reanalyzeCount = ""
     public var isReanalyzing = false
+    public var isRedoingMicrophone = false
+    /// Why the last attempt to redo the microphone did not start.
+    public var microphoneRedoMessage: String?
+    /// Corrections and splits on the user's own lines, across every recording
+    /// of the conversation. They are removed when the microphone is redone.
+    public private(set) var microphoneLineEdits = 0
 
     @ObservationIgnored let runtime: PipitRuntime
     @ObservationIgnored public let meetingID: String
@@ -414,6 +420,9 @@ public final class MeetingReviewModel {
         // to lose one's place in the search.
         navigation = navigation?.refreshed(in: CombinedLineBlock.blocks(from: combinedLines))
         correctedLines = Set(combinedLines.filter(\.isCorrected).map(\.id))
+        microphoneLineEdits = logical.recordings.reduce(0) {
+            $0 + (((try? $1.store.readSpeakerMap())?.microphoneLineEditCount) ?? 0)
+        }
         metadata = found.metadata
         directory = found.store.layout.root
         continuationSuggestion = found.metadata.possibleContinuationOf
@@ -687,6 +696,28 @@ public final class MeetingReviewModel {
             speakerCount: reanalyzeSpeakerCount
         ) { [weak self] in
             self?.isReanalyzing = false
+        }
+    }
+
+    /// Whether the user's side of the call can be cleaned and transcribed again.
+    /// A finished meeting with a microphone of its own, which is any call Pipit
+    /// recorded and no in-person or imported recording.
+    public var canRedoMicrophone: Bool {
+        !isRedoingMicrophone && recordings.contains { $0.canRedoMicrophone }
+    }
+
+    /// Takes the far end out of the microphone again and transcribes the
+    /// microphone again, in every recording of the conversation that has one.
+    public func redoMicrophone() {
+        guard canRedoMicrophone else { return }
+        isRedoingMicrophone = true
+        microphoneRedoMessage = nil
+        let ids = recordings.filter(\.canRedoMicrophone).map(\.id)
+        runtime.redoMicrophone(meetingIDs: ids) { [weak self] refusal in
+            guard let self else { return }
+            isRedoingMicrophone = false
+            microphoneRedoMessage = refusal
+            reload()
         }
     }
 

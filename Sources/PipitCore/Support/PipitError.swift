@@ -51,6 +51,43 @@ public enum StorageError: LogSafeError, Equatable {
     }
 }
 
+/// Why cleaning the microphone and transcribing it again was refused.
+///
+/// Raised before anything on disk is touched, so a refusal leaves the meeting
+/// exactly as it was.
+public enum MicrophoneRedoError: LogSafeError, Equatable {
+    /// An in-person or imported recording: one track holds everyone, so there is
+    /// no far end recorded apart from the microphone to take out of it.
+    case oneTrack
+    /// The meeting is still being recorded or processed, or processing stopped
+    /// before it finished. Redoing the microphone is for a finished transcript.
+    case notFinished
+    /// A job is writing into this meeting's folder right now.
+    case busy
+    /// A track has no audio, or the far end holds nothing. The microphone is
+    /// then read as it was recorded whatever is done to it.
+    case noFarEnd
+
+    public var logSafeDescription: String {
+        switch self {
+        case .oneTrack: "microphoneRedo.oneTrack"
+        case .notFinished: "microphoneRedo.notFinished"
+        case .busy: "microphoneRedo.busy"
+        case .noFarEnd: "microphoneRedo.noFarEnd"
+        }
+    }
+
+    /// Worded for the person who pressed the button.
+    public var message: String {
+        switch self {
+        case .oneTrack: "This recording has no separate microphone to redo."
+        case .notFinished: "Wait for this meeting to finish processing first."
+        case .busy: "This meeting is being worked on. Try again in a moment."
+        case .noFarEnd: "The other side was not recorded in this meeting, so there is no echo to remove."
+        }
+    }
+}
+
 /// Failures from the AI backend. `retryable` drives the processing state machine:
 /// a retryable failure keeps the job alive, a permanent one stops the retry loop
 /// but never touches the source audio.

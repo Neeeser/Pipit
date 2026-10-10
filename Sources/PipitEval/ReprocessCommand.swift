@@ -45,9 +45,7 @@ enum ReprocessCommand {
             return 1
         }
 
-        let stamp = ISO8601DateFormatter().string(from: Date())
-            .replacingOccurrences(of: ":", with: "-")
-        let backup = backups.appendingPathComponent("\(original.id)/\(stamp)", isDirectory: true)
+        let backup = Reprocessing.backupDirectory(under: backups, meetingID: original.id, at: Date())
         do {
             try Reprocessing.backUp(store: store, to: backup)
             try Reprocessing.reset(store: store)

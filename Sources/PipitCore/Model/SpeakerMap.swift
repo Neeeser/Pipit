@@ -259,6 +259,29 @@ public struct SpeakerMap: Codable, Sendable, Equatable {
         lineCuts.append(cut)
     }
 
+    /// How many corrections and boundaries are attached to lines of the
+    /// microphone track.
+    public var microphoneLineEditCount: Int {
+        utteranceOverrides.filter { $0.track == .mic }.count
+            + lineCuts.filter { $0.track == .mic }.count
+    }
+
+    /// Takes off every correction and boundary that refers to a microphone line,
+    /// and returns how many went.
+    ///
+    /// Both are anchored to seconds on the microphone track and to the chunk a
+    /// line came from. Transcribing that track again produces different words,
+    /// different line boundaries and, for a chunked backend, different chunks,
+    /// so nothing recorded against the old lines can be said to still apply.
+    /// Everything on the far end's track, and every cluster name, stays.
+    @discardableResult
+    public mutating func removeMicrophoneLineEdits() -> Int {
+        let count = microphoneLineEditCount
+        utteranceOverrides.removeAll { $0.track == .mic }
+        lineCuts.removeAll { $0.track == .mic }
+        return count
+    }
+
     /// The cuts that divide one line, earliest first.
     public func cuts(dividing utterance: Utterance) -> [LineCut] {
         lineCuts.filter { $0.divides(utterance) }.sorted { $0.atSeconds < $1.atSeconds }
