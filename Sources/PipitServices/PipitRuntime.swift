@@ -597,13 +597,12 @@ public final class PipitRuntime {
     // MARK: - manual commands
 
     public func startManualRecording() {
-        let bundlePrefixes = BrowserKind.firefox.bundleIdentifiers + ["com.tinyspeck.slackmacgap"]
         var titles = TitleCandidates(
             timestampFallback: MeetingRepository.timestampTitle(startedAt: clock.now, source: .manual)
         )
         titles.window = nil
         let actions = sessionController.startManual(
-            source: .manual, bundlePrefixes: bundlePrefixes, titles: titles,
+            source: .manual, scope: .anyApplication, titles: titles,
             now: clock.monotonicSeconds, wallClock: clock.now
         )
         syncStatusFromSession()
@@ -615,7 +614,7 @@ public final class PipitRuntime {
             timestampFallback: MeetingRepository.timestampTitle(startedAt: clock.now, source: .inPerson)
         )
         let actions = sessionController.startManual(
-            source: .inPerson, bundlePrefixes: [], titles: titles,
+            source: .inPerson, scope: .bundlePrefixes([]), titles: titles,
             now: clock.monotonicSeconds, wallClock: clock.now
         )
         syncStatusFromSession()
@@ -1206,7 +1205,7 @@ public final class PipitRuntime {
         }
         for action in actions {
             switch action {
-            case .armCapture(let prefixes, let capturesRemote):
+            case .armCapture(let scope, let capturesRemote):
                 // A new session. What the last one raised belongs to it and
                 // was written into its meeting when it ended.
                 sessionWarnings = []
@@ -1261,9 +1260,9 @@ public final class PipitRuntime {
                         raisePermissionNotice(missing: [.screenRecording])
                     }
                 }
-                await captureEngine.arm(bundlePrefixes: prefixes, capturesRemote: capturesRemote)
-            case .retargetCapture(let prefixes):
-                await captureEngine.retarget(bundlePrefixes: prefixes)
+                await captureEngine.arm(scope: scope, capturesRemote: capturesRemote)
+            case .retargetCapture(let scope):
+                await captureEngine.retarget(scope: scope)
             case .commitRecording(let request):
                 // A commit that fails leaves nothing behind and cancels the rest
                 // of the batch, so no "recording started" notice is delivered for

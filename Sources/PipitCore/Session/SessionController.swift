@@ -68,9 +68,9 @@ public struct ProviderPolicies: Codable, Sendable, Equatable {
 /// What the runtime should do next.
 public enum SessionAction: Sendable, Equatable {
     /// Start both capture sources into the pre-roll ring.
-    case armCapture(bundlePrefixes: [String], capturesRemote: Bool)
+    case armCapture(scope: RemoteTargetScope, capturesRemote: Bool)
     /// Point the remote tap at a different application.
-    case retargetCapture(bundlePrefixes: [String])
+    case retargetCapture(scope: RemoteTargetScope)
     /// Create the meeting directory and start writing segments, flushing pre-roll.
     case commitRecording(CommitRequest)
     /// The meeting's evidence is gone and the reconnect window has started.
@@ -220,10 +220,10 @@ public struct SessionController: Sendable {
     /// waits for an answer, so reading the answer's subject from it recorded
     /// whichever call happened to be strongest when the user clicked.
     private var askedAbout: (provider: MeetingProvider, application: String)?
-    /// Bundle prefixes the process tap is currently bound to, so a change of
-    /// provider between arming and confirming retargets it instead of recording
-    /// the wrong application.
-    private var armedPrefixes: [String] = []
+    /// What the process tap is currently pointed at, so a change of provider
+    /// between arming and confirming retargets it instead of recording the
+    /// wrong application.
+    private var armedScope: RemoteTargetScope = .bundlePrefixes([])
 
     public init(
         configuration: Configuration = Configuration(),
@@ -278,10 +278,10 @@ public struct SessionController: Sendable {
             snapshot.provider = best.provider
             snapshot.title = best.title
             snapshot.providerMeetingID = best.meetingID
-            armedPrefixes = best.audioBundlePrefixes
+            armedScope = .bundlePrefixes(best.audioBundlePrefixes)
             actions.append(
                 .armCapture(
-                    bundlePrefixes: best.audioBundlePrefixes, capturesRemote: true
+                    scope: .bundlePrefixes(best.audioBundlePrefixes), capturesRemote: true
                 ))
             if best.confidence == .confirmed {
                 actions.append(contentsOf: confirm(best, now: now, wallClock: wallClock))
@@ -363,7 +363,7 @@ public struct SessionController: Sendable {
                 var resumed = absorbEvidence(best)
                 resumed.insert(.beginRun(reason: "reconnected"), at: 0)
                 if !best.audioBundlePrefixes.isEmpty {
-                    resumed.append(.retargetCapture(bundlePrefixes: best.audioBundlePrefixes))
+                    resumed.append(.retargetCapture(scope: .bundlePrefixes(best.audioBundlePrefixes)))
                 }
                 return resumed
             }
@@ -388,7 +388,7 @@ public struct SessionController: Sendable {
 
     /// Manual remote recording, in-person recording, or a provisional unknown call.
     public mutating func startManual(
-        source: MeetingSource, bundlePrefixes: [String], titles: TitleCandidates,
+        source: MeetingSource, scope: RemoteTargetScope, titles: TitleCandidates,
         now: Double, wallClock: Date, isProvisional: Bool = false,
         applicationBundleID: String? = nil
     ) -> [SessionAction] {
@@ -417,9 +417,9 @@ public struct SessionController: Sendable {
         let reuseArmedCapture = wasCandidate && source.capturesRemoteAudio
         let capture: SessionAction =
             reuseArmedCapture
-            ? .retargetCapture(bundlePrefixes: bundlePrefixes)
-            : .armCapture(bundlePrefixes: bundlePrefixes, capturesRemote: source.capturesRemoteAudio)
-        armedPrefixes = bundlePrefixes
+            ? .retargetCapture(scope: scope)
+            : .armCapture(scope: scope, capturesRemote: source.capturesRemoteAudio)
+        armedScope = scope
         var actions: [SessionAction] = [
             capture,
             .commitRecording(
@@ -613,9 +613,10 @@ public struct SessionController: Sendable {
         // The candidate may have been armed for a different application: a generic
         // call that turns into a Meet tab arms on the unknown app and confirms on
         // Firefox. Retargeting keeps the ring, which arming again would discard.
-        if !best.audioBundlePrefixes.isEmpty, best.audioBundlePrefixes != armedPrefixes {
-            armedPrefixes = best.audioBundlePrefixes
-            actions.insert(.retargetCapture(bundlePrefixes: best.audioBundlePrefixes), at: 0)
+        let providerScope = RemoteTargetScope.bundlePrefixes(best.audioBundlePrefixes)
+        if !providerScope.isEmpty, providerScope != armedScope {
+            armedScope = providerScope
+            actions.insert(.retargetCapture(scope: providerScope), at: 0)
         }
         if snapshot.isProvisional, let bundle = best.applicationBundleID {
             askedAbout = (provider: best.provider, application: bundle)
@@ -658,7 +659,7 @@ public struct SessionController: Sendable {
         reconnectingSince = nil
         evidence = nil
         announcedOtherTabs = false
-        armedPrefixes = []
+        armedScope = .bundlePrefixes([])
         askedAbout = nil
     }
 

@@ -3,10 +3,10 @@ import Synchronization
 
 /// The CoreAudio process-tap operations the remote coordinator needs.
 public protocol ProcessTapController: AnyObject, Sendable {
-    /// Every audio process object whose bundle identifier starts with one of the
-    /// prefixes. Resolved live on every poll, because provider audio moves between
-    /// helper processes and survives application restarts under a new PID.
-    func resolveTargets(bundlePrefixes: [String]) -> [RemoteAudioTarget]
+    /// Every audio process object the scope covers. Resolved live on every poll,
+    /// because provider audio moves between helper processes and survives
+    /// application restarts under a new PID.
+    func resolveTargets(scope: RemoteTargetScope) -> [RemoteAudioTarget]
     func teardown()
     /// Creates the tap and aggregate device, returning what was bound.
     func bind(to targets: [RemoteAudioTarget]) throws -> RemoteTapBinding
@@ -69,7 +69,7 @@ public struct TapCallbackReading: Sendable, Equatable {
 public final class RemoteTapCoordinator: Sendable {
     private struct State {
         var policy: RemoteRecoveryPolicy
-        var bundlePrefixes: [String] = []
+        var scope: RemoteTargetScope = .bundlePrefixes([])
         var activeFormat: AudioFormatDescriptor?
         var health: CaptureHealthState = .idle
         var wakeRequestedAt: Double?
@@ -108,9 +108,9 @@ public final class RemoteTapCoordinator: Sendable {
     public var bindCount: Int { state.withLock { $0.policy.bindCount } }
     public var boundProcessIDs: [Int32] { state.withLock { $0.policy.boundProcessIDs } }
 
-    public func start(bundlePrefixes: [String]) {
+    public func start(scope: RemoteTargetScope) {
         state.withLock { state in
-            state.bundlePrefixes = bundlePrefixes
+            state.scope = scope
             state.policy.start()
         }
         bind(reason: .sessionStart)
@@ -194,10 +194,10 @@ public final class RemoteTapCoordinator: Sendable {
             return
         }
 
-        let (prefixes, running) = state.withLock { ($0.bundlePrefixes, $0.policy.isRunning) }
+        let (scope, running) = state.withLock { ($0.scope, $0.policy.isRunning) }
         guard running else { return }
         reportFirstCallback()
-        let targets = controller.resolveTargets(bundlePrefixes: prefixes)
+        let targets = controller.resolveTargets(scope: scope)
         let decision = state.withLock { $0.policy.evaluate(targets: targets, at: now) }
         switch decision {
         case .none:
@@ -267,10 +267,10 @@ public final class RemoteTapCoordinator: Sendable {
 
     private func bind(reason: RebuildReason, resolved: [RemoteAudioTarget]? = nil) {
         let now = clock.monotonicSeconds
-        let prefixes = state.withLock { $0.bundlePrefixes }
+        let scope = state.withLock { $0.scope }
         let backoffUntil = state.withLock { $0.nextBindAllowedAt }
         if reason != .sessionStart, now < backoffUntil { return }
-        let targets = resolved ?? controller.resolveTargets(bundlePrefixes: prefixes)
+        let targets = resolved ?? controller.resolveTargets(scope: scope)
 
         if reason != .sessionStart {
             delegate.captureDidRestart(track: .remote, reason: reason, restartCount: bindCount)

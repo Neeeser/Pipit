@@ -52,11 +52,11 @@ struct SessionControllerTests {
             evidence: [DetectionFixtures.meetEvidence(confidence: .candidate)], now: 100, wallClock: wall
         )
         #expect(controller.snapshot.state == .candidate)
-        guard case .armCapture(let prefixes, let capturesRemote) = actions.first else {
+        guard case .armCapture(let scope, let capturesRemote) = actions.first else {
             Issue.record("expected capture to be armed, got \(actions)")
             return
         }
-        #expect(prefixes == ["org.mozilla.firefox"])
+        #expect(scope == .bundlePrefixes(["org.mozilla.firefox"]))
         #expect(capturesRemote)
         #expect(
             !(actions.contains { if case .commitRecording = $0 { true } else { false } }),
@@ -84,8 +84,8 @@ struct SessionControllerTests {
             evidence: [DetectionFixtures.meetEvidence(confidence: .confirmed)], now: 104, wallClock: wall
         )
         let retargetIndex = actions.firstIndex { action in
-            if case .retargetCapture(let prefixes) = action {
-                return prefixes == ["org.mozilla.firefox"]
+            if case .retargetCapture(let scope) = action {
+                return scope == .bundlePrefixes(["org.mozilla.firefox"])
             }
             return false
         }
@@ -115,7 +115,7 @@ struct SessionControllerTests {
         #expect(controller.snapshot.state == .candidate)
 
         let actions = controller.startManual(
-            source: .manual, bundlePrefixes: ["org.mozilla.firefox"],
+            source: .manual, scope: .anyApplication,
             titles: TitleCandidates(timestampFallback: "manual"),
             now: 104, wallClock: wall
         )
@@ -129,6 +129,24 @@ struct SessionControllerTests {
             actions.contains { if case .commitRecording = $0 { true } else { false } },
             "the recording still starts: \(actions)"
         )
+        // The candidate's process is not named, because it may be outside any
+        // list the menu item could carry. The tap follows every application.
+        #expect(
+            actions.contains { $0 == .retargetCapture(scope: .anyApplication) },
+            "the tap must widen to the whole machine, not narrow to a provider: \(actions)"
+        )
+    }
+
+    @Test("a manual recording arms the remote tap on every application")
+    func aManualRecordingArmsTheRemoteTapOnEveryApplication() async throws {
+        var controller = SessionController()
+        let wall = Date(timeIntervalSince1970: 1_787_070_000)
+        let actions = controller.startManual(
+            source: .manual, scope: .anyApplication,
+            titles: TitleCandidates(timestampFallback: "manual"),
+            now: 100, wallClock: wall
+        )
+        #expect(actions.first == .armCapture(scope: .anyApplication, capturesRemote: true))
     }
 
     @Test("confirmation commits the recording and flushes the pre-roll")
@@ -317,7 +335,7 @@ struct SessionControllerTests {
         var controller = SessionController()
         let wall = Date(timeIntervalSince1970: 1_787_070_000)
         _ = controller.startManual(
-            source: .manual, bundlePrefixes: ["org.mozilla.firefox"],
+            source: .manual, scope: .bundlePrefixes(["org.mozilla.firefox"]),
             titles: TitleCandidates(human: "Ad-hoc call", timestampFallback: "f"),
             now: 100, wallClock: wall
         )
@@ -345,14 +363,15 @@ struct SessionControllerTests {
         var controller = SessionController()
         let wall = Date(timeIntervalSince1970: 1_787_070_000)
         let actions = controller.startManual(
-            source: .inPerson, bundlePrefixes: [],
+            source: .inPerson, scope: .bundlePrefixes([]),
             titles: TitleCandidates(timestampFallback: "f"), now: 100, wallClock: wall
         )
-        guard case .armCapture(_, let capturesRemote) = actions.first else {
+        guard case .armCapture(let scope, let capturesRemote) = actions.first else {
             Issue.record("expected capture to be armed, got \(actions)")
             return
         }
         #expect(!capturesRemote)
+        #expect(scope.isEmpty)
         #expect(controller.snapshot.source == .inPerson)
     }
 
@@ -361,7 +380,7 @@ struct SessionControllerTests {
         var controller = SessionController()
         let wall = Date(timeIntervalSince1970: 1_787_070_000)
         let actions = controller.startManual(
-            source: .genericCall, bundlePrefixes: ["com.example.videochat"],
+            source: .genericCall, scope: .bundlePrefixes(["com.example.videochat"]),
             titles: TitleCandidates(window: "Team call", timestampFallback: "f"),
             now: 100, wallClock: wall, isProvisional: true,
             applicationBundleID: "com.example.videochat"
@@ -392,7 +411,7 @@ struct SessionControllerTests {
         var controller = SessionController()
         let wall = Date(timeIntervalSince1970: 1_787_070_000)
         _ = controller.startManual(
-            source: .genericCall, bundlePrefixes: ["com.example.videochat"],
+            source: .genericCall, scope: .bundlePrefixes(["com.example.videochat"]),
             titles: TitleCandidates(timestampFallback: "f"), now: 100, wallClock: wall,
             isProvisional: true, applicationBundleID: "com.example.videochat"
         )
@@ -413,7 +432,7 @@ struct SessionControllerTests {
         #expect(controller.snapshot.state == .idle)
 
         let manual = controller.startManual(
-            source: .manual, bundlePrefixes: [],
+            source: .manual, scope: .bundlePrefixes([]),
             titles: TitleCandidates(timestampFallback: "f"), now: 100, wallClock: wall
         )
         #expect(!manual.isEmpty)
