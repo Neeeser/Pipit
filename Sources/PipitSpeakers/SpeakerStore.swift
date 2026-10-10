@@ -1878,6 +1878,42 @@ public actor SpeakerStore {
         return result
     }
 
+    /// Forgets unconfirmed candidates that are a blend of a named person rather
+    /// than a voice of their own.
+    ///
+    /// A candidate qualifies when it is ephemeral, was heard in one meeting,
+    /// holds no verified vector, and its centroid is at least
+    /// `blendedCandidateSimilarity` from some person's but short of
+    /// `twinCentroidSimilarity`, where it would be folded as a copy instead.
+    /// Such a candidate came from a microphone that also held the far end, and
+    /// left in the gallery it can take a person's naming margin. Forgetting it
+    /// loses nothing a person saw: an ephemeral candidate is never shown, and
+    /// expires on its own after `ephemeralExpiryDays`.
+    ///
+    /// Runs after `foldAnonymousTwins`, so a copy is folded rather than
+    /// deleted.
+    @discardableResult
+    public func forgetBlendedCandidates(
+        model: EmbeddingModelIdentifier = .fluidAudioOffline
+    ) throws -> Int {
+        let profiles = try allProfiles(model: model)
+        let people = profiles.filter { $0.identity.kind == .person }
+        guard !people.isEmpty else { return 0 }
+        var forgotten = 0
+        for candidate in profiles
+        where candidate.identity.kind == .anonymous && candidate.identity.state == .ephemeral
+            && candidate.recordingCount <= 1
+        {
+            let closest = people.map { VoiceVector.cosine($0.centroid, candidate.centroid) }.max() ?? 0
+            guard closest >= policy.blendedCandidateSimilarity, closest < policy.twinCentroidSimilarity,
+                try !holdsVerifiedVector(candidate.identity.id)
+            else { continue }
+            try delete(candidate.identity.id)
+            forgotten += 1
+        }
+        return forgotten
+    }
+
     /// Whether the identity, or anything merged into it, holds a vector a person
     /// confirmed.
     private func holdsVerifiedVector(_ id: IdentityID) throws -> Bool {

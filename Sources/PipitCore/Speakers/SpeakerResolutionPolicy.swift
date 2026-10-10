@@ -97,6 +97,22 @@ public struct SpeakerResolutionPolicy: Sendable, Equatable, Codable {
     /// wrong name against the human and sensor confirmed ones.
     public var twinCentroidSimilarity: Double
 
+    /// How close an unconfirmed one-meeting candidate can come to a named
+    /// person before it is read as a blend of that person rather than a voice
+    /// of its own.
+    ///
+    /// Recordings made before the far end was cleaned out of the microphone,
+    /// and calls whose far end was never recorded, put the other side into the
+    /// microphone's clusters. Those clusters were remembered as candidates that
+    /// sit between a person and nobody: on one real store nine of sixty
+    /// candidates scored 0.60 to 0.78 against a named person, each heard in a
+    /// single meeting, while every candidate that was a distinct voice scored
+    /// under 0.60. A blend at 0.78 is close enough to a person's own 0.85 to
+    /// take the naming margin, so it is forgotten. Two different named people
+    /// are at most 0.459 apart and impostor scores top out near 0.55, so a
+    /// genuine stranger does not reach this.
+    public var blendedCandidateSimilarity: Double
+
     /// Below this, the identity is Unknown whatever it scored. At 9 seconds of
     /// speech the 1st percentile of genuine scores is 0.282.
     public var hardUnknownSpeechSeconds: Double
@@ -138,6 +154,7 @@ public struct SpeakerResolutionPolicy: Sendable, Equatable, Codable {
         anonymousSuggestScore: Double = 0.65,
         anonymousSuggestSpeechSeconds: Double = 20,
         twinCentroidSimilarity: Double = 0.80,
+        blendedCandidateSimilarity: Double = 0.60,
         hardUnknownSpeechSeconds: Double = 10,
         enrolmentSpeechSeconds: Double = 45,
         maximumEmbeddingsPerIdentity: Int = 20,
@@ -157,6 +174,7 @@ public struct SpeakerResolutionPolicy: Sendable, Equatable, Codable {
         self.anonymousSuggestScore = anonymousSuggestScore
         self.anonymousSuggestSpeechSeconds = anonymousSuggestSpeechSeconds
         self.twinCentroidSimilarity = twinCentroidSimilarity
+        self.blendedCandidateSimilarity = blendedCandidateSimilarity
         self.hardUnknownSpeechSeconds = hardUnknownSpeechSeconds
         self.enrolmentSpeechSeconds = enrolmentSpeechSeconds
         self.maximumEmbeddingsPerIdentity = maximumEmbeddingsPerIdentity

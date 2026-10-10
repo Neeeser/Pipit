@@ -228,4 +228,45 @@ struct SpeakerTwinTests {
         #expect(result.total == 0)
         #expect(try await store.current(voice.id)?.id == voice.id)
     }
+
+    // MARK: blended candidates
+
+    /// Cosine ~0.71 to `personVoice`: part of the person, not a copy of them.
+    private static let blendedVoice = SpeakerFixtures.blended(
+        personVoice, with: SpeakerFixtures.vector(seed: 507), towards: 0.5)
+
+    @Test("a one-meeting candidate that blends a person's voice is forgotten")
+    func aOneMeetingCandidateThatBlendsAPersonsVoiceIsForgotten() async throws {
+        let (store, root) = try SpeakerFixtures.makeStore()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let ann = try await Self.enrolPerson(
+            store, name: "Ann", vector: Self.personVoice, meeting: "m0")
+        let blend = try await Self.seedVoice(store, vector: Self.blendedVoice, meeting: "m1")
+        let similarity = VoiceVector.cosine(Self.blendedVoice, Self.personVoice)
+        #expect(similarity > 0.6 && similarity < 0.8, "fixture is \(similarity)")
+
+        #expect(try await store.forgetBlendedCandidates() == 1)
+        #expect(try await store.current(blend.id) == nil)
+        #expect(try await store.current(ann.id)?.id == ann.id)
+    }
+
+    @Test("a distinct stranger, a recurring voice and a copy are not forgotten")
+    func aDistinctStrangerARecurringVoiceAndACopyAreNotForgotten() async throws {
+        let (store, root) = try SpeakerFixtures.makeStore()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let ann = try await Self.enrolPerson(
+            store, name: "Ann", vector: Self.personVoice, meeting: "m0")
+        let stranger = try await Self.seedVoice(store, vector: Self.strangerVoice, meeting: "m1")
+        let recurring = try await Self.seedVoice(
+            store, vector: Self.blendedVoice, meeting: "m2", state: .persistent)
+        let copy = try await Self.seedVoice(store, vector: Self.twinVoice, meeting: "m3")
+
+        #expect(try await store.forgetBlendedCandidates() == 0)
+        #expect(try await store.current(stranger.id)?.id == stranger.id)
+        #expect(try await store.current(recurring.id)?.id == recurring.id)
+        // A copy is above the blend band, and the fold that runs first takes it.
+        #expect(try await store.current(copy.id)?.id == copy.id)
+        #expect(try await store.foldAnonymousTwins().total == 1)
+        #expect(try await store.current(copy.id)?.id == ann.id)
+    }
 }

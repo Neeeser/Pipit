@@ -363,6 +363,10 @@ extension PipitRuntime {
                     "folded \(folded.total, privacy: .public) unnamed copies into known voices (\(folded.intoLocalUser, privacy: .public) into the local user)"
                 )
             }
+            let forgotten = try await store.forgetBlendedCandidates()
+            if forgotten > 0 {
+                Log.app.info("forgot \(forgotten, privacy: .public) unnamed candidates that blend a known voice")
+            }
         } catch {
             Log.app.error(
                 "voice consolidation failed: \(logSafeDescription(error), privacy: .public)")
