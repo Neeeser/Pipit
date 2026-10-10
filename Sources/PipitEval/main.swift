@@ -432,9 +432,9 @@ case "aec":
 
 case "echo":
     guard let folder = arguments.meeting else { usage() }
-    let code = EchoCommand.run(
-        meeting: folder, json: arguments.json, referenceOffset: arguments.referenceOffset,
-        fullIdentifier: arguments.fullIdentifier
+    let code = await EchoCommand.run(
+        meeting: folder, applicationSupport: arguments.applicationSupport, json: arguments.json,
+        referenceOffset: arguments.referenceOffset, fullIdentifier: arguments.fullIdentifier
     )
     if code != 0 { exit(code) }
 

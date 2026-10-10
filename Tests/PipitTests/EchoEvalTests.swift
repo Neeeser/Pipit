@@ -485,10 +485,14 @@ struct EchoEvalTests {
         }
         // Room tone, so the microphone has a floor to be judged against.
         let room = (0..<30).map { _ in window(far: -90, before: -80, after: -80) }
+        // The second after the far end stops, which no window is judged in.
+        let settle = (0..<EchoCancellationPass.echoTailWindows).map { _ in
+            window(far: -90, before: -80, after: -80)
+        }
         // A call on speakers: the far end plays for most of it and the
         // user's own windows lose nothing.
         let speakers =
-            (0..<60).map { _ in window(far: -25, before: -30, after: -55) }
+            (0..<60).map { _ in window(far: -25, before: -30, after: -55) } + settle
             + (0..<30).map { _ in window(far: -90, before: -30, after: -30.3) } + room
         let kept = EchoCancellationPass.judge(windows: speakers)
         #expect(kept.outcome == CleaningOutcome.cleaned)
@@ -501,7 +505,7 @@ struct EchoEvalTests {
 
         // The same call with the user's solo speech gutted.
         let gutted =
-            (0..<60).map { _ in window(far: -25, before: -30, after: -55) }
+            (0..<60).map { _ in window(far: -25, before: -30, after: -55) } + settle
             + (0..<30).map { _ in window(far: -90, before: -30, after: -45) } + room
         let dropped = EchoCancellationPass.judge(windows: gutted)
         #expect(dropped.outcome == CleaningOutcome.bypassedNoEchoPath)
@@ -514,7 +518,7 @@ struct EchoEvalTests {
         // Enough gated windows is enough: the median holds and the share
         // does not.
         let tail =
-            (0..<60).map { _ in window(far: -25, before: -30, after: -55) }
+            (0..<60).map { _ in window(far: -25, before: -30, after: -55) } + settle
             + (0..<26).map { _ in window(far: -90, before: -30, after: -30) }
             + (0..<4).map { _ in window(far: -90, before: -30, after: -60) } + room
         #expect(
@@ -523,7 +527,7 @@ struct EchoEvalTests {
 
         // Too few user-only windows to judge harm on: kept.
         let brief =
-            (0..<60).map { _ in window(far: -25, before: -30, after: -55) }
+            (0..<60).map { _ in window(far: -25, before: -30, after: -55) } + settle
             + (0..<5).map { _ in window(far: -90, before: -30, after: -60) } + room
         let unjudged = EchoCancellationPass.judge(windows: brief)
         #expect(unjudged.outcome == CleaningOutcome.cleaned)
@@ -538,4 +542,115 @@ struct EchoEvalTests {
         )
     }
 
+    // MARK: - which windows the decision judges
+
+    private static func judgementWindow(
+        far: Double, before: Double, after: Double
+    ) -> EchoCancellationPass.Window {
+        EchoCancellationPass.Window(
+            farEndDBFS: far, echoRemovedDB: 0, microphoneBeforeDBFS: before,
+            microphoneAfterDBFS: after
+        )
+    }
+
+    /// One probability per measurement window, from a flag per window.
+    private static func speech(_ held: [Bool]) -> MicrophoneSpeech {
+        MicrophoneSpeech(
+            windowSeconds: 0.25,
+            probabilities: held.map { $0 ? 0.9 : 0.05 }
+        )
+    }
+
+    /// Room tone, so the microphone has a floor well under the speech.
+    private static let roomWindows = (0..<30).map { _ in
+        judgementWindow(far: -90, before: -80, after: -80)
+    }
+
+    @Test("windows in the echo's tail are not the user's own, whatever they lost")
+    func windowsInTheEchosTailAreNotTheUsersOwn() {
+        // Five turns of the far end, each followed by the second its echo takes
+        // to die out of the room, where the canceller removes 25 dB, and then
+        // the user speaking with nothing lost.
+        var windows: [EchoCancellationPass.Window] = []
+        for _ in 0..<5 {
+            windows += (0..<12).map { _ in Self.judgementWindow(far: -25, before: -30, after: -55) }
+            windows += (0..<4).map { _ in Self.judgementWindow(far: -90, before: -30, after: -55) }
+            windows += (0..<8).map { _ in Self.judgementWindow(far: -90, before: -30, after: -30.2) }
+        }
+        windows += Self.roomWindows
+
+        // On levels alone, which is the fallback with no detector.
+        let judgement = EchoCancellationPass.judge(windows: windows)
+        #expect(judgement.outcome == CleaningOutcome.cleaned)
+        #expect(judgement.userWindows == 40)
+        #expect(judgement.userHarmShare == 0)
+
+        // And with a detector that hears speech all through the tail.
+        let heard = EchoCancellationPass.judge(
+            windows: windows, microphoneSpeech: Self.speech(windows.map { _ in true })
+        )
+        #expect(heard.outcome == CleaningOutcome.cleaned)
+        #expect(heard.userWindows == 40)
+    }
+
+    @Test("quiet windows the detector does not call speech are not the user's own")
+    func quietWindowsTheDetectorDoesNotCallSpeechAreNotTheUsersOwn() {
+        // The network stage takes room noise at -37 dBFS down to -60, which is
+        // above this microphone's floor. The user's speech at -22 is untouched.
+        let farEnd = (0..<60).map { _ in Self.judgementWindow(far: -25, before: -30, after: -55) }
+        let settle = (0..<EchoCancellationPass.echoTailWindows).map { _ in
+            Self.judgementWindow(far: -90, before: -80, after: -80)
+        }
+        let noise = (0..<30).map { _ in Self.judgementWindow(far: -90, before: -37, after: -60) }
+        let talking = (0..<30).map { _ in Self.judgementWindow(far: -90, before: -22, after: -22.2) }
+        let windows = farEnd + settle + noise + talking + Self.roomWindows
+        let heard = Self.speech(
+            windows.indices.map { index in
+                index >= farEnd.count + settle.count + noise.count
+                    && index < farEnd.count + settle.count + noise.count + talking.count
+            })
+
+        let judgement = EchoCancellationPass.judge(windows: windows, microphoneSpeech: heard)
+        #expect(judgement.outcome == CleaningOutcome.cleaned)
+        #expect(judgement.judgedOnSpeech)
+        #expect(judgement.userWindows == 30)
+
+        // Without a detector the noise is counted, and the pass is thrown away.
+        let fallback = EchoCancellationPass.judge(windows: windows)
+        #expect(fallback.outcome == CleaningOutcome.bypassedNoEchoPath)
+        #expect(!fallback.judgedOnSpeech)
+        #expect(fallback.userWindows == 60)
+    }
+
+    @Test("a pass that took the user's speech down is still thrown away")
+    func aPassThatTookTheUsersSpeechDownIsStillThrownAway() {
+        let farEnd = (0..<60).map { _ in Self.judgementWindow(far: -25, before: -30, after: -55) }
+        let settle = (0..<EchoCancellationPass.echoTailWindows).map { _ in
+            Self.judgementWindow(far: -90, before: -80, after: -80)
+        }
+        // The far end is silent, the tail is over and the detector hears the
+        // user, and the pass took 15 dB off every window.
+        let gutted = (0..<30).map { _ in Self.judgementWindow(far: -90, before: -30, after: -45) }
+        let windows = farEnd + settle + gutted + Self.roomWindows
+        let heard = Self.speech(
+            windows.indices.map { $0 >= farEnd.count + settle.count && $0 < farEnd.count + settle.count + gutted.count }
+        )
+
+        let judgement = EchoCancellationPass.judge(windows: windows, microphoneSpeech: heard)
+        #expect(judgement.outcome == CleaningOutcome.bypassedNoEchoPath)
+        #expect(judgement.userWindows == 30)
+        #expect(judgement.userHarmMedianDB == 15)
+    }
+
+    @Test("a speech series reads the window it covers and nothing past its end")
+    func aSpeechSeriesReadsTheWindowItCoversAndNothingPastItsEnd() {
+        // The detector's grid is 256 ms, so a quarter-second window does not
+        // start where one of its readings does.
+        let series = MicrophoneSpeech(windowSeconds: 0.256, probabilities: [0.1, 0.5, 0.49])
+        #expect(!series.holdsSpeech(at: 0.1))
+        #expect(series.holdsSpeech(at: 0.3))
+        #expect(!series.holdsSpeech(at: 0.6))
+        #expect(!series.holdsSpeech(at: 5))
+        #expect(!series.holdsSpeech(at: -1))
+    }
 }

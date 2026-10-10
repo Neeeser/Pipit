@@ -50,11 +50,19 @@ public struct MicrophoneCleaner: Sendable {
     /// the recording. Only `.cleaned` leaves a file and a `cleanedMic` record.
     /// Every other outcome clears both, including a stale one an earlier run
     /// left behind. The caller owns `metadata.cleaningOutcome`.
+    ///
+    /// - Parameter microphoneSpeech: the detector's reading of the raw
+    ///   microphone, which `EchoCancellationPass.judge` uses to pick the
+    ///   windows that hold the user's speech. Nil judges on levels alone.
     public func clean(
-        store: MeetingStore, metadata: inout MeetingMetadata, timeline: RecordingTimeline
+        store: MeetingStore, metadata: inout MeetingMetadata, timeline: RecordingTimeline,
+        microphoneSpeech: MicrophoneSpeech? = nil
     ) throws -> CleaningOutcome {
         do {
-            return try attempt(store: store, metadata: &metadata, timeline: timeline)
+            return try attempt(
+                store: store, metadata: &metadata, timeline: timeline,
+                microphoneSpeech: microphoneSpeech
+            )
         } catch {
             // A throw is one more answer that is not `.cleaned`, and it leaves
             // this meeting where every other one of them does. The caller
@@ -69,7 +77,8 @@ public struct MicrophoneCleaner: Sendable {
     /// The pass itself. Every exit but a throw is already an outcome that has
     /// dealt with the record. `clean` deals with the throw.
     private func attempt(
-        store: MeetingStore, metadata: inout MeetingMetadata, timeline: RecordingTimeline
+        store: MeetingStore, metadata: inout MeetingMetadata, timeline: RecordingTimeline,
+        microphoneSpeech: MicrophoneSpeech?
     ) throws -> CleaningOutcome {
         // One track holding everyone, which is every import and every in-person
         // session. There is no separate far end, and the only thing there is to
@@ -114,7 +123,9 @@ public struct MicrophoneCleaner: Sendable {
             microphone: try EchoCancellationPass.location(of: partial, track: .mic),
             reference: reference, timelineOffset: lined.offset
         )
-        let judgement = EchoCancellationPass.judge(windows: pass.windows)
+        let judgement = EchoCancellationPass.judge(
+            windows: pass.windows, microphoneSpeech: microphoneSpeech
+        )
         let median = judgement.measuredMedianDB
         let active = judgement.activeWindows
         guard judgement.outcome == .cleaned else {

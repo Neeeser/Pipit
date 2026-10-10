@@ -170,9 +170,18 @@ public enum EchoMeasurement: Sendable, Equatable {
         /// Share of all windows the far end was above its floor in.
         public let farEndDutyCycle: Double
         public let minimumActiveWindows: Int
-        /// The user-only windows the decision was judged on, and what they
-        /// lost. Nil where fewer than `minimumUserWindows` existed.
+        /// The windows the decision was judged on, and what they lost. These
+        /// are not the `userOnly` class: they are the ones with the far end
+        /// quiet for `echoTailSeconds` before them and, when
+        /// `userWindowsPickedBySpeech` is set, the raw microphone holding
+        /// speech. Nil where fewer than `minimumUserWindows` existed.
         public let userWindowsJudged: Int
+        /// True when the voice detector picked the judged windows. False when
+        /// none was given and the microphone's level did.
+        public let userWindowsPickedBySpeech: Bool
+        /// Seconds after the far end played that a window is left out of the
+        /// judged ones.
+        public let echoTailSeconds: Double
         public let userHarmMedianDB: Double?
         /// Share of those windows that lost more than `harmNotableLossDB`.
         public let userHarmShare: Double?
@@ -251,9 +260,12 @@ public enum EchoMeasurement: Sendable, Equatable {
     ///   as well as cancelled through it, so a wrong one compares the two
     ///   tracks at moments that are not the same moment and moves the window
     ///   classes along with the cancellation.
+    /// - Parameter microphoneSpeech: the detector's reading of the raw
+    ///   microphone, as `MicrophoneCleaner` is given it. Nil judges on levels
+    ///   alone, which is also what the cleaner does with no detector.
     public static func measure(
         store: MeetingStore, metadata: MeetingMetadata, timeline: RecordingTimeline,
-        referenceOffset: Double? = nil
+        referenceOffset: Double? = nil, microphoneSpeech: MicrophoneSpeech? = nil
     ) throws -> EchoMeasurement {
         guard metadata.source.micTrackIsLocalUser else { return .noReference(.oneTrack) }
         // Both read as recorded. A meeting that has already been cleaned has
@@ -283,7 +295,9 @@ public enum EchoMeasurement: Sendable, Equatable {
 
         // The microphone's floor comes from the microphone, so it can only be
         // settled once the whole pass has been read.
-        let judgement = EchoCancellationPass.judge(windows: pass.windows)
+        let judgement = EchoCancellationPass.judge(
+            windows: pass.windows, microphoneSpeech: microphoneSpeech
+        )
         let quiet = EchoCancellationPass.percentile(pass.windows.map(\.microphoneBeforeDBFS), 0.05)
         let microphoneFloor = judgement.microphoneFloorDBFS
         let log = pass.windows.enumerated().map { index, window in
@@ -324,6 +338,8 @@ public enum EchoMeasurement: Sendable, Equatable {
                 farEndDutyCycle: log.isEmpty ? 0 : Double(active) / Double(log.count),
                 minimumActiveWindows: EchoCancellationPass.minimumActiveWindows,
                 userWindowsJudged: judgement.userWindows,
+                userWindowsPickedBySpeech: judgement.judgedOnSpeech,
+                echoTailSeconds: EchoCancellationPass.echoTailSeconds,
                 userHarmMedianDB: judgement.userHarmMedianDB,
                 userHarmShare: judgement.userHarmShare,
                 minimumUserWindows: EchoCancellationPass.minimumUserWindows,

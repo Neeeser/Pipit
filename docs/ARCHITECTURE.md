@@ -161,10 +161,17 @@ The result is written to `raw/audio/mic.cleaned.m4a`, and every stage from
 transcription onward reads it in place of the recording, which is the segment
 chain before compaction and `mic.m4a` after it. The recording itself is never
 written to. The cleaned file is kept unless the pass measurably took the user's
-own speech down: over the windows where the far end was quiet and the
-microphone held something, the level must not have dropped more than 2 dB at
-the median, and no more than one window in ten may have dropped by more than
-10 dB. Four cases keep the microphone exactly as it was captured: a pass that
+own speech down. Before cleaning, Silero voice activity detection runs over the
+raw microphone. The judged windows are the quarter-second windows where that
+detector marks speech, the microphone is above its floor (its quietest twentieth
+plus 10 dB), and the far end was quiet in the window and for the second before
+it. The second after the far end is left out because the room's reverberant tail
+of the echo is still arriving and the canceller is right to remove it. Quiet room
+noise is left out because the speech network stage suppresses it by design.
+Over the judged windows the level must not have dropped more than 2 dB at the
+median, and no more than one window in ten may have dropped by more than 10 dB.
+Where no detector is installed the speech requirement is dropped and the level
+floor and the one-second tail pick the windows alone. Four cases keep the microphone exactly as it was captured: a pass that
 damaged the user's own windows, a meeting whose far-end track holds nothing, a
 meeting whose far end played for under ten seconds or an imported single-track
 recording, and a meeting whose cleaning pass failed.
