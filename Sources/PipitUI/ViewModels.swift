@@ -47,6 +47,8 @@ public final class SettingsModel {
     }
 
     @ObservationIgnored let runtime: PipitRuntime
+    /// What the Agents page installs and removes.
+    let agents = AgentsModel()
 
     public init(runtime: PipitRuntime) {
         self.runtime = runtime

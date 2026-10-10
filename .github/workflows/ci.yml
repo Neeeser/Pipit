@@ -148,6 +148,8 @@ jobs:
         run: |
           test -x dist/Pipit.app/Contents/MacOS/Pipit
           test -x dist/Pipit.app/Contents/MacOS/pipit-nativehost
+          test -x dist/Pipit.app/Contents/MacOS/pipit-cli
+          test -f dist/Pipit.app/Contents/Resources/skills/pipit/SKILL.md
           test -f dist/Pipit.app/Contents/Resources/extension/firefox/manifest.json
           test -f dist/Pipit.app/Contents/Resources/Pipit.icns
           test -f dist/Pipit.app/Contents/Resources/EchoModels/localvqe-v1.4-aec-2.7K-f32.gguf

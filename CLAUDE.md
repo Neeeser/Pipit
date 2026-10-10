@@ -45,6 +45,8 @@ constructs `PipitRuntime`, `SetupModel`, or `LocalModelManager`.
 | `PipitUI` | Menu bar, setup, settings, meetings window, and people |
 | `PipitApp` | Application entry point |
 | `PipitNativeHost` | Browser native-messaging host (`pipit-nativehost`) |
+| `PipitCLIKit` | Commands of the `pipit` command line tool, read-only over the archive |
+| `PipitCLI` | Entry point of `pipit-cli`, bundled in `Contents/MacOS` |
 | `PipitBench` | Benchmark ground truth, scoring, and suite manifest |
 | `PipitEval` | Developer evaluation tool (`pipit-eval`), not bundled in the app |
 

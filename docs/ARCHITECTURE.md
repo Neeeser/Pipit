@@ -18,6 +18,7 @@ PipitApp
         └── PipitCore
 
 pipit-nativehost    browser event relay
+pipit-cli           command line tool for people and agents
 pipit-eval          benchmark and diagnostic tool
 ```
 
@@ -353,6 +354,33 @@ date the file was copied. Pipit reads the container's creation date, then a
 timestamp in the filename, then the file's date on this Mac, and refuses anything
 before 1990 or more than a day ahead. `metadata.json` records which of the three
 it used. The manifest remains the authority on how long the audio runs.
+
+## Command line and agent skill
+
+`pipit-cli` ships in `Pipit.app/Contents/MacOS` and links only `PipitCore`. It
+reads the archive the same way the application does and loads no speech model.
+`pipit root`, `pipit meetings list`, and `pipit meetings show` print the
+meetings folder chosen in Settings, the meetings in it, and the files of one
+meeting. `--json` output carries a `schemaVersion`, and a change that is not
+additive raises it.
+
+The file is named `pipit-cli` because `pipit` would collide with the `Pipit`
+executable on a case-insensitive volume. `pipit-cli install` links the name
+`pipit` into `~/.local/bin` and copies the skill from `Contents/Resources/skills`
+into the skills folder of each agent found in the home directory
+(`~/.claude/skills` and `~/.agents/skills`). It replaces a skill folder only when
+its `SKILL.md` is named `pipit`, and refuses to link from a disk image.
+
+Settings has an Agents page that does the same through `AgentInstaller`, the one
+type both the tool and the page call. Each row reads Installed, Update available
+(the installed copy differs from the one in the app), or Not installed, and
+Remove deletes only a link to a `pipit-cli` or a skill folder named `pipit`.
+`pipit-cli uninstall` does the same from a terminal.
+
+`skills/pipit/SKILL.md` is the skill. It tells an agent to run `pipit` and read
+the files it names, and it leaves the archive layout to the command so a layout
+change does not leave installed skills pointing at old paths. The same folder is
+discoverable from the repository by skill installers.
 
 ## Browser sensor
 
