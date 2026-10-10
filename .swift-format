@@ -23,7 +23,7 @@
   },
   "orderedImports" : {
     "includeConditionalImports" : false,
-    "shouldGroupImports" : false
+    "shouldGroupImports" : true
   },
   "prioritizeKeepingFunctionOutputTogether" : false,
   "reflowMultilineStringLiterals" : "never",
