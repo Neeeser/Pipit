@@ -193,8 +193,8 @@ noise is left out because the speech network stage suppresses it by design.
 Over the judged windows the level must not have dropped more than 2 dB at the
 median, and no more than one window in ten may have dropped by more than 10 dB.
 Where no detector is installed the speech requirement is dropped and the level
-floor and the one-second tail pick the windows alone. Four cases keep the microphone exactly as it was captured: a pass that
-damaged the user's own windows, a meeting whose far-end track holds nothing, a
+floor and the one-second tail pick the windows alone. Four cases keep the
+microphone exactly as it was captured: a pass that damaged the user's own windows, a meeting whose far-end track holds nothing, a
 meeting whose far end played for under ten seconds or an imported single-track
 recording, and a meeting whose cleaning pass failed.
 
@@ -290,6 +290,25 @@ onto the stretches the sensor did not see.
 Sensor names sit at an origin above a voice match and below the microphone
 track, so a person's own correction always wins. The sensor never sets the
 diarizer's speaker count and never moves a boundary.
+
+The far-end track never holds the local user, so a participant who is the local
+user is marked and kept out of word attribution and cluster naming. The meeting
+client's own flag is used where it is authoritative. Otherwise the participant
+the microphone heard speaking is marked, and so is any participant whose name is
+the local user's name or one of their aliases. The marking is applied each time
+the record is read; `sensors.raw.json` keeps what the client said.
+
+A confident voice outranks a client name that names somebody else. After voice
+matching, a cluster that resolved to a named person at the high band is compared
+with the name the client put on it. If the client's name belongs to another
+known person, or to nobody the voice's person could be, the cluster and the
+participant's `sensor_` key take the voice's person. If the name is another
+spelling of the same person ("Firstname Lastname" for a stored "Firstname L"),
+the speaker shows the stored name and the client's spelling is added to that
+person's aliases. A client name that equals a stored name or alias, ignoring
+case and diacritics, links to that person even without a voice match, and no new
+person is made from it. Where no voice match is confident the client's name
+names the speaker as before. Names a person set or confirmed are never touched.
 
 A cluster split evenly between two people is named for neither, a timeline
 covering too little of the diarized speech names nobody, which is what

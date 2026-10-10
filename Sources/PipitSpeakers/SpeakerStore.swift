@@ -374,9 +374,15 @@ public actor SpeakerStore {
         )
     }
 
+    /// Records another name for a person. A name they already answer to, by
+    /// case or diacritics alone, is not a new one.
     public func addAlias(_ alias: String, to id: IdentityID) throws {
         let trimmed = alias.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return }
+        if let identity = try loadIdentity(id) {
+            let known = [identity.displayName ?? ""] + identity.aliases
+            guard !known.contains(where: { PersonName.isSame($0, trimmed) }) else { return }
+        }
         try database.run(
             "INSERT OR IGNORE INTO identity_alias(identity_id, alias) VALUES(?, ?)",
             [.int64(id.rawValue), .text(trimmed)]

@@ -262,12 +262,21 @@ public struct RawSensors: Codable, Sendable, Equatable {
     /// What replaced the guess is not another guess. While the client says a
     /// participant holds the floor, either the microphone is carrying that
     /// person or it is not, and the recording already measured that for
-    /// `LocalSpeechPolicy`. Matching the configured display name was the
-    /// previous answer and it is deliberately gone: it never fired here, where
-    /// the roster reads "Marlow Fenn" and the setting reads "Marlow", and
-    /// where it does fire it cannot tell two tiles under one name apart. One
-    /// recording has exactly that, and marking both would have deleted a real
-    /// participant's speech.
+    /// `LocalSpeechPolicy`. Matching the configured display name alone was
+    /// the previous answer and it never fired here, where the roster reads
+    /// "Marlow Fenn" and the setting reads "Marlow", and where it does fire it
+    /// cannot tell two tiles under one name apart.
+    ///
+    /// The name still counts, as a second way of finding the local user and
+    /// not as the only one. `localNames` is the local user's name and the
+    /// aliases the people list holds for them. A participant rendering exactly
+    /// one of those is the local user, and is marked beside whoever the
+    /// microphone picks. The tile that reads the user's own name is the user's
+    /// own join, and a Meet recording had one whose floor indicator followed
+    /// the far end: 348 seconds of a colleague's speech went out under the
+    /// user's name because that tile was treated as a remote person. A real
+    /// namesake in the call is the cost; their turns go to the diarizer, which
+    /// names them by voice.
     ///
     /// What the reading measures is how much of a participant's turn the
     /// detector heard the microphone carrying. On a clean microphone that
@@ -278,7 +287,9 @@ public struct RawSensors: Codable, Sendable, Equatable {
     /// user's, so only the highest is marked. Being wrong here deletes a real
     /// participant's turns outright, and marking every reading that cleared the
     /// bar deleted five of them at once.
-    public func markingSelf(using evidence: SpeechEvidence?) -> RawSensors {
+    public func markingSelf(
+        using evidence: SpeechEvidence?, localNames: [String] = []
+    ) -> RawSensors {
         // A fallback, not a supplement. Where the reader authoritatively named
         // the local user, a second self is always wrong: marking one was the
         // whole bug, because they left the speaker count, the recording
@@ -286,6 +297,25 @@ public struct RawSensors: Codable, Sendable, Equatable {
         // A colleague on a leaking line whose share crossed the threshold would
         // otherwise be marked beside a self the platform already named.
         guard !(selfIsAuthoritative && participants.contains(where: \.isSelf)) else { return self }
+        return markingSelfByName(localNames).markingSelfByMicrophone(using: evidence)
+    }
+
+    /// Marks every participant whose rendered name is one of `names`.
+    func markingSelfByName(_ names: [String]) -> RawSensors {
+        guard !names.isEmpty else { return self }
+        var marked = self
+        marked.participants = participants.map { person in
+            guard let name = person.personName,
+                names.contains(where: { PersonName.isSame($0, name) })
+            else { return person }
+            var updated = person
+            updated.isSelf = true
+            return updated
+        }
+        return marked
+    }
+
+    private func markingSelfByMicrophone(using evidence: SpeechEvidence?) -> RawSensors {
         // Absent evidence is not evidence that nobody is the local user. A
         // meeting recorded before the measurement existed comes back untouched,
         // which is the behaviour those meetings already have.
