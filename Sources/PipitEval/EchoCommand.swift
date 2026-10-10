@@ -1,5 +1,6 @@
 import Foundation
 import PipitCore
+import PipitLocalAI
 import PipitServices
 
 /// Runs the echo canceller over one recorded meeting and prints what it did.
@@ -23,8 +24,9 @@ enum EchoCommand {
     }
 
     static func run(
-        meeting: URL, json: URL?, referenceOffset: Double?, fullIdentifier: Bool
-    ) -> Int32 {
+        meeting: URL, applicationSupport: URL, json: URL?, referenceOffset: Double?,
+        fullIdentifier: Bool
+    ) async -> Int32 {
         let store = MeetingStore(layout: MeetingLayout(root: meeting))
         let metadata: MeetingMetadata
         let timeline: RecordingTimeline
@@ -37,11 +39,15 @@ enum EchoCommand {
         }
         let name = identifier(metadata, full: fullIdentifier)
 
+        let speech = await rawMicrophoneSpeech(
+            store: store, metadata: metadata, timeline: timeline,
+            applicationSupport: applicationSupport
+        )
         let measurement: EchoMeasurement
         do {
             measurement = try EchoMeasurement.measure(
                 store: store, metadata: metadata, timeline: timeline,
-                referenceOffset: referenceOffset
+                referenceOffset: referenceOffset, microphoneSpeech: speech
             )
         } catch {
             note("cannot measure \(name): \(error)")
@@ -81,6 +87,35 @@ enum EchoCommand {
             }
         }
         return 0
+    }
+
+    /// The detector's reading of the raw microphone, which is what the app
+    /// hands the cleaner so that this command judges the windows it does. Nil
+    /// where the meeting has no far end to subtract or the detector is
+    /// unavailable, and the decision is then made on levels alone, as the
+    /// report says.
+    private static func rawMicrophoneSpeech(
+        store: MeetingStore, metadata: MeetingMetadata, timeline: RecordingTimeline,
+        applicationSupport: URL
+    ) async -> MicrophoneSpeech? {
+        guard metadata.source.micTrackIsLocalUser else { return nil }
+        let microphone = store.rawTrackAudioLocation(
+            track: .mic, metadata: metadata, timeline: timeline
+        )
+        let reference = store.rawTrackAudioLocation(
+            track: .remote, metadata: metadata, timeline: timeline
+        )
+        guard !microphone.isEmpty, !reference.isEmpty else { return nil }
+        let manager = LocalModelManager(applicationSupport: applicationSupport)
+        do {
+            _ = try await manager.install(units: [.voiceActivity])
+            return try await MicrophoneSpeech.measure(
+                microphone: microphone, detector: FluidAudioVoiceActivityBackend(models: manager)
+            )
+        } catch {
+            note("voice detector unavailable, judging on levels alone: \(error)")
+            return nil
+        }
     }
 
     /// A name for this meeting that carries no meeting content.
@@ -175,6 +210,11 @@ enum EchoCommand {
             report.reportedEnhancementMedianDB.map { "\(fixed($0)) dB" }
             ?? "no far-end-active window"
         print("reported        \(median) median enhancement, which nothing is decided on")
+        let judged =
+            report.userWindowsPickedBySpeech
+            ? "speech windows with the far end quiet for \(fixed(report.echoTailSeconds))s"
+            : "windows above the microphone floor with the far end quiet for "
+                + "\(fixed(report.echoTailSeconds))s, no voice detector"
         if let harmMedian = report.userHarmMedianDB, let harmShare = report.userHarmShare {
             print(
                 String(
@@ -186,6 +226,7 @@ enum EchoCommand {
                 "user alone      \(report.userWindowsJudged) windows, under the \(report.minimumUserWindows) a judgement needs"
             )
         }
+        print("                judged on \(judged)")
         print(
             String(
                 format:
@@ -201,8 +242,8 @@ enum EchoCommand {
         print("  loudest windows decide it. The per-window columns are where a passage")
         print("  gated to silence shows up. A window is classed from the two recorded")
         print("  levels alone, and those levels cannot tell the user from the far end's")
-        print("  own echo in the microphone. The user only row is the one that says what")
-        print("  the user kept.")
+        print("  own echo in the microphone. The user only row is therefore wider than")
+        print("  the windows the decision judges, which are listed on the user alone line.")
     }
 
     /// Which of the two floors decided the microphone's, and the level the

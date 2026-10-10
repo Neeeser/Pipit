@@ -774,12 +774,22 @@ public actor ProcessingPipeline {
         // is Sendable, and the meeting's own copy comes back with the outcome.
         let cleaner = MicrophoneCleaner(clock: clock)
         let snapshot = metadata
+        // Read off the raw microphone before the canceller touches it. The
+        // decision to keep the cleaned track is judged on the windows that
+        // held the user's speech, and the cleaned track no longer holds the
+        // speech that was over the far end.
+        let speech = await rawMicrophoneSpeech(store: store, metadata: metadata)
+        // A stopped job has not answered the question. Recording the fallback
+        // judgement would settle it for good, since the outcome below is what
+        // keeps this from running again.
+        if Task.isCancelled { return }
         let outcome: CleaningOutcome
         do {
             let pass = try await Task.detached(priority: .utility) {
                 var carried = snapshot
                 let outcome = try cleaner.clean(
-                    store: store, metadata: &carried, timeline: try store.readTimeline()
+                    store: store, metadata: &carried, timeline: try store.readTimeline(),
+                    microphoneSpeech: speech
                 )
                 return (outcome, carried)
             }.value
@@ -826,6 +836,50 @@ public actor ProcessingPipeline {
         } catch {
             Log.processing.notice(
                 "cleaning outcome not recorded: \(logSafeDescription(error), privacy: .public)"
+            )
+        }
+    }
+
+    /// The detector's reading of the microphone as it was recorded, for the
+    /// cleaner's decision. Nil where the cleaner has nothing to subtract, where
+    /// there is no detector, or where it failed, and the decision is then made
+    /// on levels alone.
+    private func rawMicrophoneSpeech(
+        store: MeetingStore, metadata: MeetingMetadata
+    ) async -> MicrophoneSpeech? {
+        guard metadata.source.micTrackIsLocalUser, backends.voiceActivity != nil,
+            let timeline = try? store.readTimeline()
+        else { return nil }
+        let microphone = store.rawTrackAudioLocation(
+            track: .mic, metadata: metadata, timeline: timeline
+        )
+        let reference = store.rawTrackAudioLocation(
+            track: .remote, metadata: metadata, timeline: timeline
+        )
+        // The cleaner returns before it judges anything on either of these.
+        guard !microphone.isEmpty, !reference.isEmpty else { return nil }
+        await prepareVoiceDetector()
+        return try? await MicrophoneSpeech.measure(
+            microphone: microphone, detector: backends.voiceActivity
+        )
+    }
+
+    /// Installs the voice detector if it is missing. A failure is logged and
+    /// leaves the caller to work without one.
+    ///
+    /// The detector by name, and 1.1 MB of it. The rule that voice memory
+    /// may wait for an install but never start one is about not pulling
+    /// gigabytes onto a machine that chose the cloud. This is a correctness
+    /// guard on the transcript the user asked for, every configuration
+    /// already requires it, and the catch-up exists for machines installed
+    /// before the unit did.
+    private func prepareVoiceDetector() async {
+        guard let prepare = backends.prepareVoiceActivity else { return }
+        do {
+            try await prepare()
+        } catch {
+            Log.processing.notice(
+                "voice detector unavailable: \(logSafeDescription(error), privacy: .public)"
             )
         }
     }
@@ -1732,21 +1786,7 @@ public actor ProcessingPipeline {
     private func measureSpeech(store: MeetingStore, metadata: MeetingMetadata) async {
         guard metadata.source.micTrackIsLocalUser else { return }
         guard store.readSpeechEvidence() == nil else { return }
-        // The detector by name, and 1.1 MB of it. The rule that voice memory
-        // may wait for an install but never start one is about not pulling
-        // gigabytes onto a machine that chose the cloud. This is a correctness
-        // guard on the transcript the user asked for, every configuration
-        // already requires it, and the catch-up exists for machines installed
-        // before the unit did.
-        if let prepare = backends.prepareVoiceActivity {
-            do {
-                try await prepare()
-            } catch {
-                Log.processing.notice(
-                    "voice detector unavailable: \(logSafeDescription(error), privacy: .public)"
-                )
-            }
-        }
+        await prepareVoiceDetector()
         do {
             let evidence = try await SpeechEvidenceBuilder.build(
                 store: store, metadata: metadata, timeline: try store.readTimeline(),

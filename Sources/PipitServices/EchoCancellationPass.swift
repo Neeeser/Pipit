@@ -476,10 +476,13 @@ public struct EchoCancellationPass {
         public let measuredMedianDB: Double
         public let activeWindows: Int
         public let microphoneFloorDBFS: Double
-        /// Windows where the far end was quiet and the microphone held
-        /// something, which is the user alone. The only class in which a
-        /// level drop is a loss.
+        /// Windows the decision judged harm on: the far end quiet and out of
+        /// its echo tail, and the microphone holding speech. The only class in
+        /// which a level drop is a loss.
         public let userWindows: Int
+        /// Whether the detector's speech series picked those windows. False
+        /// when none was given and the microphone's level alone did.
+        public let judgedOnSpeech: Bool
         public let userHarmMedianDB: Double?
         /// Share of those windows that lost more than `notableLossDB`.
         public let userHarmShare: Double?
@@ -515,6 +518,21 @@ public struct EchoCancellationPass {
     public static let harmMedianLimitDB = 2.0
     public static let notableLossDB = 10.0
     public static let harmShareLimit = 0.10
+    /// Seconds after the far end last played during which a window is not
+    /// counted as the user's own, whatever the microphone holds.
+    ///
+    /// The far end's echo outlasts it: the speaker's sound keeps arriving
+    /// through the room's reverberation after the tap has gone quiet, and the
+    /// canceller is right to remove it. Counted as the user's own, that
+    /// removal reads as harm. Over 46 calls on speakers, 10 were bypassed
+    /// this way, and in one of them 61 of the 92 windows that lost more than
+    /// 10 dB came within 0.5 s of a far-end window. With this tail and the
+    /// speech requirement in `judge`, all 10 pass with a median loss of 0.0
+    /// to 0.5 dB, and the transcripts of their cleaned tracks leak 0.19
+    /// far-end words a minute.
+    public static let echoTailSeconds = 1.0
+    /// `echoTailSeconds` in measurement windows.
+    public static let echoTailWindows = Int((echoTailSeconds / windowSeconds).rounded(.up))
 
     /// Decides whether the pass is worth keeping, from what it measured.
     ///
@@ -524,17 +542,27 @@ public struct EchoCancellationPass {
     /// end played over the user, so the rule refused the meetings it would
     /// have helped. What the bypass exists to prevent is damage to the user's
     /// own speech, and that is measured directly: over the windows where the
-    /// far end was quiet and the microphone held something, the level must not
-    /// have dropped.
-    public static func judge(windows: [Window]) -> Judgement {
+    /// user was speaking alone, the level must not have dropped.
+    ///
+    /// Those are the windows where the far end was quiet and had been for
+    /// `echoTailSeconds`, and where the raw microphone held speech. Quiet room
+    /// noise is left out because the speech network stage suppresses it by
+    /// design, and a loss of it takes nothing from the transcript.
+    ///
+    /// - Parameter microphoneSpeech: the detector's reading of the raw
+    ///   microphone. Without one (no detector installed, or a caller with only
+    ///   levels) the speech requirement is dropped and the microphone merely
+    ///   has to clear its level floor, which is the rule as it stood before the
+    ///   detector was consulted. The echo tail still applies.
+    public static func judge(
+        windows: [Window], microphoneSpeech: MicrophoneSpeech? = nil
+    ) -> Judgement {
         let active = windows.filter { $0.farEndDBFS > farEndActiveDBFS }
         let reported = median(of: active.map(\.echoRemovedDB))
         let measured = median(of: active.map { $0.microphoneBeforeDBFS - $0.microphoneAfterDBFS })
         let quiet = percentile(windows.map(\.microphoneBeforeDBFS), 0.05)
         let floor = microphoneFloorDBFS(quietWindowDBFS: quiet)
-        let user = windows.filter {
-            $0.farEndDBFS <= farEndActiveDBFS && $0.microphoneBeforeDBFS > floor
-        }
+        let user = userWindows(windows, floor: floor, microphoneSpeech: microphoneSpeech)
         let harm = user.map { $0.microphoneBeforeDBFS - $0.microphoneAfterDBFS }
         let judgeable = user.count >= minimumUserWindows
         let harmMedian = judgeable ? percentile(harm, 0.5) : nil
@@ -546,7 +574,8 @@ public struct EchoCancellationPass {
                 outcome: outcome, reason: reason, reportedMedianDB: reported,
                 measuredMedianDB: measured,
                 activeWindows: active.count, microphoneFloorDBFS: floor,
-                userWindows: user.count, userHarmMedianDB: harmMedian, userHarmShare: harmShare
+                userWindows: user.count, judgedOnSpeech: microphoneSpeech != nil,
+                userHarmMedianDB: harmMedian, userHarmShare: harmShare
             )
         }
         guard active.count >= minimumActiveWindows else {
@@ -574,6 +603,32 @@ public struct EchoCancellationPass {
             "the user's own windows \(held) over \(user.count) windows, and the far end "
                 + "played in \(active.count)"
         )
+    }
+
+    /// The windows a level drop counts against: the far end quiet in them and
+    /// in the `echoTailSeconds` before, the microphone above its floor, and
+    /// the raw microphone holding speech where a series says so.
+    private static func userWindows(
+        _ windows: [Window], floor: Double, microphoneSpeech: MicrophoneSpeech?
+    ) -> [Window] {
+        var user: [Window] = []
+        // Consecutive quiet far-end windows just before this one, capped at
+        // the tail's length. A pass starts with the tail already clear.
+        var quietRun = echoTailWindows
+        for (index, window) in windows.enumerated() {
+            let farEndQuiet = window.farEndDBFS <= farEndActiveDBFS
+            defer { quietRun = farEndQuiet ? min(quietRun + 1, echoTailWindows) : 0 }
+            guard farEndQuiet, quietRun >= echoTailWindows, window.microphoneBeforeDBFS > floor
+            else { continue }
+            if let microphoneSpeech {
+                // Judged at the window's middle, because the detector's grid
+                // is 256 ms and does not line up with ours.
+                let middle = (Double(index) + 0.5) * windowSeconds
+                guard microphoneSpeech.holdsSpeech(at: middle) else { continue }
+            }
+            user.append(window)
+        }
+        return user
     }
 
     /// The level the microphone clears to count as holding something: this
