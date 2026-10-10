@@ -349,6 +349,30 @@ extension PipitRuntime {
         }
     }
 
+    /// Folds unnamed copies of a known voice into the person they copy.
+    ///
+    /// Older recognition passes seeded a copy from every meeting where a known
+    /// voice missed the naming margin, and the copies kept it missing. Runs at
+    /// launch; a second run finds nothing to fold.
+    public func consolidateVoiceTwins() async {
+        guard let store = speakerStore else { return }
+        do {
+            let folded = try await store.foldAnonymousTwins()
+            if folded.total > 0 {
+                Log.app.info(
+                    "folded \(folded.total, privacy: .public) unnamed copies into known voices (\(folded.intoLocalUser, privacy: .public) into the local user)"
+                )
+            }
+            let forgotten = try await store.forgetBlendedCandidates()
+            if forgotten > 0 {
+                Log.app.info("forgot \(forgotten, privacy: .public) unnamed candidates that blend a known voice")
+            }
+        } catch {
+            Log.app.error(
+                "voice consolidation failed: \(logSafeDescription(error), privacy: .public)")
+        }
+    }
+
     // MARK: - the people list
 
     public func speakerDirectory(kind: IdentityKind? = nil) async -> [SpeakerDirectoryEntry] {
