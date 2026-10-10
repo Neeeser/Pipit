@@ -195,10 +195,10 @@ public final class FakeProcessTap: ProcessTapController, Sendable {
         state.withLock { $0.failNextBind = error }
     }
 
-    public func resolveTargets(bundlePrefixes: [String]) -> [RemoteAudioTarget] {
+    public func resolveTargets(scope: RemoteTargetScope) -> [RemoteAudioTarget] {
         state.withLock { state in
             state.targets.filter { target in
-                bundlePrefixes.contains { target.bundleIdentifier.hasPrefix($0) }
+                scope.selects(target, ownProcessID: -1)
             }
         }
     }

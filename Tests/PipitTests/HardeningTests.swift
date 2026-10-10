@@ -61,11 +61,11 @@ private final class EmittingTap: ProcessTapController, @unchecked Sendable {
         lock.unlock()
     }
 
-    func resolveTargets(bundlePrefixes: [String]) -> [RemoteAudioTarget] {
+    func resolveTargets(scope: RemoteTargetScope) -> [RemoteAudioTarget] {
         lock.lock()
         defer { lock.unlock() }
         return targets.filter { target in
-            bundlePrefixes.contains { target.bundleIdentifier.hasPrefix($0) }
+            scope.selects(target, ownProcessID: -1)
         }
     }
 
@@ -178,7 +178,7 @@ struct CaptureEngineHardeningTests {
         tap.withLock {
             $0?.format = AudioFormatDescriptor(sampleRate: 48_000, channelCount: channels)
         }
-        await engine.arm(bundlePrefixes: ["com.example.app"], capturesRemote: true)
+        await engine.arm(scope: .bundlePrefixes(["com.example.app"]), capturesRemote: true)
         try await engine.commit(layout: layout, meetingID: "m", source: .googleMeet)
         tap.withLock {
             $0?.setTargets([makeTarget(pid: 42, bundle: "com.example.app", producing: true)])
@@ -228,7 +228,7 @@ struct CaptureEngineHardeningTests {
         // 'init', which is `kAudioUnitErr_Initialized`.
         microphone.withLock { $0?.deviceSelectionStatus = 1_768_843_636 }
 
-        await engine.arm(bundlePrefixes: [], capturesRemote: false)
+        await engine.arm(scope: .bundlePrefixes([]), capturesRemote: false)
         try await engine.commit(layout: layout, meetingID: "m", source: .googleMeet)
         microphone.withLock { $0?.emit(seconds: 1, hostTime: 100) }
         _ = await engine.stop(reason: "test")
@@ -277,7 +277,7 @@ struct CaptureEngineHardeningTests {
 
         // The provider's audio process does not exist yet, which is the
         // normal state the instant a huddle or a call is joined.
-        await engine.arm(bundlePrefixes: ["com.example.app"], capturesRemote: true)
+        await engine.arm(scope: .bundlePrefixes(["com.example.app"]), capturesRemote: true)
         try await engine.commit(layout: layout, meetingID: "m", source: .googleMeet)
 
         // It appears a moment later and starts producing audio.
@@ -327,7 +327,7 @@ struct CaptureEngineHardeningTests {
             },
             delegate: delegate
         )
-        await engine.arm(bundlePrefixes: ["com.example.app"], capturesRemote: true)
+        await engine.arm(scope: .bundlePrefixes(["com.example.app"]), capturesRemote: true)
         try await engine.commit(layout: layout, meetingID: "m", source: .googleMeet)
 
         // Nothing can be created in the segments directory any more.
@@ -402,7 +402,7 @@ struct CaptureEngineHardeningTests {
             },
             delegate: delegate
         )
-        await engine.arm(bundlePrefixes: ["com.example.app"], capturesRemote: true)
+        await engine.arm(scope: .bundlePrefixes(["com.example.app"]), capturesRemote: true)
         tap.withLock {
             $0?.setTargets([makeTarget(pid: 42, bundle: "com.example.app", producing: true)])
         }
@@ -474,7 +474,7 @@ struct CaptureEngineHardeningTests {
             delegate: SilentDelegate()
         )
 
-        await engine.arm(bundlePrefixes: [], capturesRemote: false)
+        await engine.arm(scope: .bundlePrefixes([]), capturesRemote: false)
         // Three seconds of candidate audio, held only in memory.
         for index in 0..<3 {
             microphone.withLock { $0?.emit(seconds: 1, hostTime: Double(index)) }
@@ -577,7 +577,7 @@ struct CaptureEngineHardeningTests {
             makeTap: { sink, _ in EmittingTap(sink: sink) },
             delegate: SilentDelegate()
         )
-        await engine.arm(bundlePrefixes: [], capturesRemote: false)
+        await engine.arm(scope: .bundlePrefixes([]), capturesRemote: false)
         try await engine.commit(layout: layout, meetingID: "m", source: .googleMeet)
         microphone.withLock { $0?.emit(seconds: 2, hostTime: 100) }
 
@@ -639,7 +639,7 @@ struct CaptureEngineHardeningTests {
             makeTap: { sink, _ in EmittingTap(sink: sink) },
             delegate: delegate
         )
-        await engine.arm(bundlePrefixes: [], capturesRemote: false)
+        await engine.arm(scope: .bundlePrefixes([]), capturesRemote: false)
         // Into the pre-roll ring, so committing flushes it and opens the seam.
         microphone.withLock { $0?.emit(seconds: 0.5, hostTime: 100) }
         try await engine.commit(layout: layout, meetingID: "m", source: .googleMeet)
@@ -696,7 +696,7 @@ struct CaptureEngineHardeningTests {
             makeTap: { sink, _ in EmittingTap(sink: sink) },
             delegate: SilentDelegate()
         )
-        await engine.arm(bundlePrefixes: [], capturesRemote: false)
+        await engine.arm(scope: .bundlePrefixes([]), capturesRemote: false)
         try await engine.commit(layout: layout, meetingID: "m", source: .googleMeet)
         microphone.withLock { $0?.emit(seconds: 2, hostTime: 100) }
         await engine.pause(reason: "provider_evidence_gone")
@@ -1286,7 +1286,7 @@ struct LiveCaptureTests {
         let delegate = SilentDelegate()
         let engine = CaptureEngine(segmentSeconds: 3, delegate: delegate)
         await engine.arm(
-            bundlePrefixes: ["org.mozilla.firefox", "com.tinyspeck.slackmacgap"],
+            scope: .bundlePrefixes(["org.mozilla.firefox", "com.tinyspeck.slackmacgap"]),
             capturesRemote: true
         )
         try await Task.sleep(nanoseconds: 2_000_000_000)
@@ -1452,7 +1452,7 @@ struct SoakTests {
         let delegate = SilentDelegate()
         let engine = CaptureEngine(segmentSeconds: 30, delegate: delegate)
         await engine.arm(
-            bundlePrefixes: ["org.mozilla.firefox", "com.tinyspeck.slackmacgap"],
+            scope: .bundlePrefixes(["org.mozilla.firefox", "com.tinyspeck.slackmacgap"]),
             capturesRemote: true
         )
         try await engine.commit(layout: layout, meetingID: "soak", source: .manual)

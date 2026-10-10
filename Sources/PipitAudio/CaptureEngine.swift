@@ -190,7 +190,7 @@ public final class CaptureEngine: Sendable {
     /// Building an `AVAudioEngine` and creating a process tap take hundreds of
     /// milliseconds, so this returns once the work is done on the control queue
     /// rather than doing it on the caller's thread.
-    public func arm(bundlePrefixes: [String], capturesRemote: Bool) async {
+    public func arm(scope: RemoteTargetScope, capturesRemote: Bool) async {
         await onControlQueue {
             self.state.withLock { state in
                 state.mode = .armed
@@ -212,8 +212,8 @@ public final class CaptureEngine: Sendable {
             self.micPreRoll.discard()
             self.remotePreRoll.discard()
             self.micCoordinator.start()
-            if capturesRemote, !bundlePrefixes.isEmpty {
-                self.remoteCoordinator.start(bundlePrefixes: bundlePrefixes)
+            if capturesRemote, !scope.isEmpty {
+                self.remoteCoordinator.start(scope: scope)
             }
             self.startPolling()
         }
@@ -420,12 +420,13 @@ public final class CaptureEngine: Sendable {
         }
     }
 
-    /// Rebinds the remote tap to a new provider target set, which happens when a
-    /// meeting moves between applications or a second provider takes over.
-    public func retarget(bundlePrefixes: [String]) async {
+    /// Rebinds the remote tap to a new target scope, which happens when a
+    /// meeting moves between applications, a second provider takes over, or a
+    /// manual recording starts while a call candidate is pre-rolling.
+    public func retarget(scope: RemoteTargetScope) async {
         guard state.withLock({ $0.capturesRemote }) else { return }
         await onControlQueue {
-            self.remoteCoordinator.start(bundlePrefixes: bundlePrefixes)
+            self.remoteCoordinator.start(scope: scope)
         }
     }
 

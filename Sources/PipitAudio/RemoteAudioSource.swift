@@ -50,10 +50,11 @@ public final class RemoteAudioSource: ProcessTapController, Sendable {
 
     deinit { teardown() }
 
-    public func resolveTargets(bundlePrefixes: [String]) -> [RemoteAudioTarget] {
-        CoreAudioSystem.processes()
-            .filter { process in bundlePrefixes.contains { process.bundleIdentifier.hasPrefix($0) } }
+    public func resolveTargets(scope: RemoteTargetScope) -> [RemoteAudioTarget] {
+        let ownProcessID = ProcessInfo.processInfo.processIdentifier
+        return CoreAudioSystem.processes()
             .map(\.remoteTarget)
+            .filter { scope.selects($0, ownProcessID: ownProcessID) }
     }
 
     public func teardown() {
