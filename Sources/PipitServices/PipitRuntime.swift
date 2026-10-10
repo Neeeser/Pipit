@@ -885,6 +885,43 @@ public final class PipitRuntime {
         }
     }
 
+    /// Where the files a redo replaces are copied first.
+    public var backupsDirectory: URL {
+        applicationSupport.appendingPathComponent("Backups", isDirectory: true)
+    }
+
+    /// Cleans the microphone of each recording again and transcribes it again,
+    /// leaving the far end, the names, the title, notes and summary as they are.
+    ///
+    /// Takes every recording of a conversation, because a call that dropped and
+    /// was rejoined has an echo in each half. A recording that cannot be redone
+    /// is skipped, and the first reason is handed to `completion` as a message
+    /// for the pane; the rest still run.
+    public func redoMicrophone(
+        meetingIDs: [String],
+        completion: @escaping @Sendable @MainActor (String?) -> Void = { _ in }
+    ) {
+        runProcessing { [weak self] in
+            guard let self else { return completion(nil) }
+            var refusal: String?
+            for meetingID in meetingIDs {
+                do {
+                    try await pipeline.redoMicrophone(meetingID: meetingID, backups: backupsDirectory)
+                } catch let error as MicrophoneRedoError {
+                    refusal = refusal ?? error.message
+                } catch {
+                    Log.app.error(
+                        "microphone redo failed: \(logSafeDescription(error), privacy: .public)"
+                    )
+                    refusal = refusal ?? "The microphone could not be redone. Nothing was changed."
+                }
+                onProcessingUpdate?(meetingID)
+            }
+            refreshRecentMeetings()
+            completion(refusal)
+        }
+    }
+
     /// Asks the model to name the speakers this meeting never named.
     public func suggestSpeakers(
         meetingID: String, completion: @escaping @Sendable @MainActor () -> Void = {}

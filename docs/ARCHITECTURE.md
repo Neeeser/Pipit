@@ -213,6 +213,26 @@ never cleaned, and the user keeps the transcript they would have had before the
 cleaner existed. Retrying instead would repeat a full decode and encode of the
 whole meeting on every resumed run of a machine that cannot write the file.
 
+A person can run it again on a finished call (Remove echo in the meeting
+header), for a meeting recorded before the current canceller or cleaned under
+an older rule. `ProcessingPipeline.redoMicrophone` refuses a one-track
+recording, a meeting that is not finished, and one with no far end recorded.
+Otherwise it copies the files it will replace to
+`Application Support/Pipit/Backups/<meeting>/<time>/`, sets
+`microphoneRedoRequestedAt`, moves the meeting back to `transcribing`, and runs
+that stage as a microphone-only pass: drop the microphone's raw chunks,
+alignments and `speech.json`, clean the recording again (the cleaner reads the
+recording, never its own output), transcribe the microphone, then assemble the
+transcript and markdown again and rebuild the mixdown. The far end's words, the
+diarization runs, every cluster name, the local user's name, titles, notes and
+the summary are not touched. Corrections and line cuts on microphone lines are
+removed, because they are anchored to the old words and chunks. Corrections on
+the far end's lines stay. The marker is cleared in the same write that marks
+the meeting complete, so a crash or a failure leaves the old transcript
+readable and the launch sweep or Retry finishes the pass. Voice profiles are
+not re-learned, and enrolments that came from a removed correction are not
+retracted.
+
 The alignment is per run and the decision is not: one decision covers the whole
 meeting. The median is taken over every window where the far end was playing,
 whichever run it fell in, and the cleaned file is kept or thrown away entire. A

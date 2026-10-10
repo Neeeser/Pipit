@@ -254,6 +254,7 @@ public actor ProcessingPipeline {
         var metadata = found.metadata
         let store = found.store
         let settings = settingsProvider()
+        let redoingMicrophone = metadata.microphoneRedoRequestedAt != nil
 
         while let stage = metadata.processing.resumeStage, stage != .complete {
             if discardIfGone(metadata.id, store: store) { return }
@@ -317,6 +318,22 @@ public actor ProcessingPipeline {
                 case .audioSafe:
                     metadata.processing.advance(to: .transcribing, at: clock.now)
                 case .transcribing:
+                    if metadata.microphoneRedoRequestedAt != nil {
+                        try await runMicrophoneRedo(
+                            store: store, metadata: &metadata, settings: settings
+                        )
+                        // The rest of the pipeline is not run: the far end, its
+                        // speakers and the summary are what they were. Straight
+                        // to complete, in the write that clears the marker.
+                        metadata.processing.advance(to: .complete, at: clock.now)
+                        let finished = metadata.processing
+                        metadata = try store.updateMetadata {
+                            $0.microphoneRedoRequestedAt = nil
+                            $0.processing = finished
+                        }
+                        scratch.discard(meetingID: metadata.id)
+                        break
+                    }
                     await cleanMicrophone(store: store, metadata: &metadata)
                     try await runTranscription(store: store, metadata: &metadata, settings: settings)
                     metadata.processing.advance(to: .diarizing, at: clock.now)
@@ -441,7 +458,12 @@ public actor ProcessingPipeline {
         // carries whatever was known when recording started. Skipped when
         // something else is in the folder too: a re-analysis queued on the job
         // slot captured this folder's paths before it started waiting.
-        if !heldByOthers(meetingID, besidesSelf: true) {
+        //
+        // Not after redoing the microphone, which is a request to change one
+        // track of a meeting that has long had its title and its folder.
+        // Filing it now would apply rules written since to a meeting the user
+        // never asked to move.
+        if !heldByOthers(meetingID, besidesSelf: true), !redoingMicrophone {
             // Before the rename: filing changes which directory the meeting is
             // in, and renaming works inside whichever that turns out to be.
             await placeInFolder(metadata: metadata, settings: settings)
@@ -647,6 +669,171 @@ public actor ProcessingPipeline {
         metadata.processing.advance(to: stage, at: clock.now)
         try? persist(metadata, to: found.store)
         await process(meetingID: meetingID)
+    }
+
+    /// Cleans a finished meeting's microphone again with the canceller this
+    /// build ships, and transcribes only that track again.
+    ///
+    /// For a meeting recorded before the canceller improved, or cleaned under an
+    /// older rule: the far end's words can still sit under the local user's
+    /// name, and the cleaning pass otherwise runs once per meeting.
+    ///
+    /// Kept: everything about the far end. Its words, the diarization runs, the
+    /// names on its speakers, the local user's name, titles, notes and the
+    /// summary. Echo only reaches the microphone, so none of that can have
+    /// changed. Redone: `cleaningOutcome` and the cleaned track, the
+    /// microphone's raw transcription and alignments, `speech.json` (measured
+    /// on whichever microphone the words are read from), the assembled
+    /// transcript and its markdown, and the mixdown.
+    ///
+    /// Corrections and line cuts on microphone lines are removed. They are keyed
+    /// to seconds and chunks of the old words and have nothing to attach to in
+    /// the new ones.
+    ///
+    /// The files that are replaced are copied under `backups` first. This
+    /// validates and backs up, then marks the meeting and hands it to `process`,
+    /// which does the work as a resumable `transcribing` stage. A crash or a
+    /// failure leaves the meeting waiting at that stage with the marker set, and
+    /// the launch sweep or Retry finishes it. Until the new microphone is
+    /// transcribed the meeting reads the old transcript.
+    public func redoMicrophone(meetingID: String, backups: URL) async throws {
+        guard let found = repository.findMeeting(id: meetingID, includingMerged: true) else {
+            throw StorageError.meetingNotFound(id: meetingID)
+        }
+        guard !running.contains(meetingID), foldersHeld[meetingID] == nil else {
+            throw MicrophoneRedoError.busy
+        }
+        let store = found.store
+        let metadata = (try? store.readMetadata()) ?? found.metadata
+        guard metadata.source.micTrackIsLocalUser else { throw MicrophoneRedoError.oneTrack }
+        guard metadata.processing.state == .complete, metadata.microphoneRedoRequestedAt == nil
+        else { throw MicrophoneRedoError.notFinished }
+        let timeline = try store.readTimeline()
+        // Both tracks as recorded, and a far end that carried sound. A meeting
+        // whose far end never reached its track has the whole call on the
+        // microphone, which is diarized rather than cleaned, and redoing it
+        // would only transcribe the same audio again.
+        guard
+            !store.rawTrackAudioLocation(track: .mic, metadata: metadata, timeline: timeline).isEmpty,
+            !store.rawTrackAudioLocation(track: .remote, metadata: metadata, timeline: timeline).isEmpty,
+            micHoldsLocalUserAlone(metadata, evidence: store.readSpeechEvidence())
+        else { throw MicrophoneRedoError.noFarEnd }
+
+        // Before anything is replaced, and a failure to copy stops here.
+        let now = clock.now
+        try Reprocessing.backUp(
+            store: store, files: Reprocessing.microphoneDerivedFiles(store: store),
+            to: Reprocessing.backupDirectory(under: backups, meetingID: metadata.id, at: now)
+        )
+        try store.updateMetadata {
+            $0.microphoneRedoRequestedAt = now
+            // Clearing the outcome is what lets the cleaner run. The cleaned
+            // track itself is replaced or removed by the cleaner, so a reader
+            // is never pointed at a file that is not there.
+            $0.cleaningOutcome = nil
+            $0.processing.advance(to: .transcribing, at: now)
+            $0.processing.attempts[ProcessingState.transcribing.rawValue] = nil
+        }
+        Log.processing.info(
+            "microphone redo started meeting=\(metadata.logIdentifier, privacy: .public)"
+        )
+        await process(meetingID: meetingID)
+    }
+
+    /// The transcribing stage of a microphone redo.
+    ///
+    /// Ordered so that every interruption leaves the meeting readable and the
+    /// next run can carry on. The old microphone transcription is dropped
+    /// before the cleaner runs, and only while the outcome is still unrecorded,
+    /// so words from the new microphone are never dropped by a resumed run and
+    /// words from the old one are never left standing beside it. Until the new
+    /// transcript is assembled, `transcript.json` still holds the old lines.
+    private func runMicrophoneRedo(
+        store: MeetingStore, metadata: inout MeetingMetadata, settings: AppSettings
+    ) async throws {
+        if metadata.cleaningOutcome == nil {
+            try dropMicrophoneTranscription(store: store)
+            await cleanMicrophone(store: store, metadata: &metadata)
+        }
+        try await runTranscription(
+            store: store, metadata: &metadata, settings: settings, onlyTrack: .mic
+        )
+        try await reassembleAfterMicrophoneRedo(store: store, metadata: metadata)
+    }
+
+    /// Removes what the previous microphone produced: its raw chunks with their
+    /// alignments and stored responses, and the speech evidence measured on it.
+    ///
+    /// The alignments go first. A chunk is aligned only when none is on disk,
+    /// and a chunk identifier can come back the same, so a file left behind by
+    /// a crash here would be read as the new chunk's timings.
+    private func dropMicrophoneTranscription(store: MeetingStore) throws {
+        let layout = store.layout
+        let manager = FileManager.default
+        var raw = try store.readRawTranscript()
+        let micChunks = raw.chunks.filter { $0.track == .mic }
+        for chunk in micChunks {
+            try? manager.removeItem(at: layout.alignmentFile(chunkID: chunk.id))
+            if let response = chunk.rawResponseFile {
+                try? manager.removeItem(at: layout.raw.appendingPathComponent(response))
+            }
+        }
+        let prefix = "\(CaptureTrack.mic.rawValue)_"
+        for name in (try? manager.contentsOfDirectory(atPath: layout.alignments.path)) ?? []
+        where name.hasPrefix(prefix) {
+            try? manager.removeItem(at: layout.alignments.appendingPathComponent(name))
+        }
+        if !micChunks.isEmpty {
+            raw.chunks.removeAll { $0.track == .mic }
+            try store.writeRawTranscript(raw)
+        }
+        try? manager.removeItem(at: layout.speechEvidence)
+    }
+
+    /// Puts the new microphone words into the transcript, the markdown and the
+    /// mixdown, with the far end exactly as it was.
+    private func reassembleAfterMicrophoneRedo(
+        store: MeetingStore, metadata: MeetingMetadata
+    ) async throws {
+        var speakers = try store.readSpeakerMap()
+        let removed = speakers.removeMicrophoneLineEdits()
+        if removed > 0 {
+            try store.writeSpeakerMap(speakers)
+            Log.processing.info(
+                "microphone redo removed line edits count=\(removed, privacy: .public)"
+            )
+        }
+        let evidence = store.readSpeechEvidence()
+        let transcript = TranscriptAssembler().assemble(
+            raw: try store.readRawTranscriptForAssembly(),
+            diarization: try store.readRawDiarization(),
+            speech: evidence,
+            sensors: sensorRecord(store: store, metadata: metadata),
+            micTrackIsLocalUser: micHoldsLocalUserAlone(metadata, evidence: evidence),
+            generatedAt: clock.now
+        )
+        try store.writeCanonicalTranscript(transcript)
+        await recordLocalUserOccurrence(
+            meetingID: metadata.id, transcript: transcript, speakers: speakers
+        )
+        try await rerenderMarkdown(store: store, metadata: metadata)
+
+        // The mixdown holds the microphone, so it holds the old one. Replaced
+        // by the mixer only once the new file is whole, and a failure leaves
+        // the old mixdown in place. Detached for the reason the cleaner is.
+        let timeline = try store.readTimeline()
+        let microphone = store.trackAudioLocation(track: .mic, metadata: metadata, timeline: timeline)
+        let remote = store.trackAudioLocation(track: .remote, metadata: metadata, timeline: timeline)
+        let destination = store.layout.recordingAudio
+        let mixed = await Task.detached(priority: .utility) {
+            do {
+                try AudioMixer().mix(mic: microphone, remote: remote, to: destination)
+                return true
+            } catch {
+                return false
+            }
+        }.value
+        if !mixed { Log.processing.notice("mixdown not rebuilt after microphone redo") }
     }
 
     /// Writes back only the fields this pipeline owns.
@@ -890,8 +1077,12 @@ public actor ProcessingPipeline {
     /// whenever the diarization backend does not return words of its own. The
     /// cloud diarizer transcribes as it diarizes; the local one decides speakers
     /// only, so its track is transcribed here.
+    ///
+    /// `onlyTrack` limits it to one track, which is how the microphone is
+    /// transcribed again with the far end's words left as they are.
     private func runTranscription(
-        store: MeetingStore, metadata: inout MeetingMetadata, settings: AppSettings
+        store: MeetingStore, metadata: inout MeetingMetadata, settings: AppSettings,
+        onlyTrack: CaptureTrack? = nil
     ) async throws {
         let transcriber = backends.transcription(settings, settings.models.transcription)
         let diarizer = backends.diarization(settings, settings.models.diarization)
@@ -917,6 +1108,7 @@ public actor ProcessingPipeline {
             let track = diarizedTrack(metadata, evidence: evidence)
             if !tracks.contains(track) { tracks.append(track) }
         }
+        if let onlyTrack { tracks.removeAll { $0 != onlyTrack } }
         guard !tracks.isEmpty else { return }
 
         if transcriber.isLocal { try await prepareLocalModels(metadata: metadata) }
