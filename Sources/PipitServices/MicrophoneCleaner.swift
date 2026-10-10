@@ -113,15 +113,15 @@ public struct MicrophoneCleaner: Sendable {
             .appendingPathExtension("m4a")
         let lined = try alignment(microphone: microphone, reference: reference, timeline: timeline)
         let pass = try subtract(
-            microphone: microphone, reference: reference, referenceOffset: lined.offset,
-            to: partial
+            microphone: microphone, reference: reference,
+            placements: EchoCancellationPass.placements(of: lined), to: partial
         )
         // The same envelope measurement over the cleaned track says whether
         // the far end is still in it. Taken on the file the pass wrote, so it
         // describes what every reader is about to be handed.
-        let after = try EchoCancellationPass.measureAlignment(
-            microphone: try EchoCancellationPass.location(of: partial, track: .mic),
-            reference: reference, timelineOffset: lined.offset
+        let after = try EchoCancellationPass.correlation(
+            cleaned: try EchoCancellationPass.location(of: partial, track: .mic),
+            reference: reference, runs: lined
         )
         let judgement = EchoCancellationPass.judge(
             windows: pass.windows, microphoneSpeech: microphoneSpeech
@@ -183,8 +183,8 @@ public struct MicrophoneCleaner: Sendable {
                 ),
                 echoRemovedMedianDB: median,
                 farEndActiveWindows: active,
-                echoCorrelationBefore: lined.measured.correlation,
-                echoCorrelationAfter: after.correlation,
+                echoCorrelationBefore: EchoCancellationPass.correlation(of: lined.map(\.measured)),
+                echoCorrelationAfter: after,
                 producedAt: clock.now
             )
         }
@@ -264,35 +264,40 @@ public struct MicrophoneCleaner: Sendable {
 
     // MARK: - the pass over both tracks
 
-    /// Where the far end has to be put before the canceller sees it.
+    /// Where the far end has to be put before the canceller sees it, once for
+    /// each run of the recording.
     ///
     /// The manifest's own answer unless the recording says otherwise. A track
     /// that lost audio mid-recording ends up shifted against the other one
     /// while its first frame still reads correct, so the manifest describes a
     /// pair that no longer exists and the filter is given a reference that
-    /// cannot explain what it is subtracting from.
+    /// cannot explain what it is subtracting from. A call that was rejoined
+    /// has that happen differently in each run, so each is placed from its own
+    /// host times and measured on its own audio.
     ///
     /// Never a guess. The measurement has to find a peak, beat the manifest's
     /// offset by a clear margin and be bigger than the filter absorbs by
-    /// itself, and a recording that clears none of those is cancelled exactly
-    /// as it was before this existed.
+    /// itself, and a run that clears none of those is cancelled exactly as it
+    /// was before this existed.
     private func alignment(
         microphone: TrackAudioLocation, reference: TrackAudioLocation,
         timeline: RecordingTimeline
-    ) throws -> (offset: Double, measured: EchoCancellationPass.Alignment) {
-        let fromTimeline = EchoCancellationPass.referenceOffset(timeline: timeline)
-        let measured = try EchoCancellationPass.measureAlignment(
-            microphone: microphone, reference: reference, timelineOffset: fromTimeline
+    ) throws -> [EchoCancellationPass.AlignedRun] {
+        let runs = try EchoCancellationPass.alignRuns(
+            microphone: microphone, reference: reference, timeline: timeline
         )
-        guard measured.isUsable else { return (fromTimeline, measured) }
-        Log.processing.info(
-            """
-            far end realigned by \(String(format: "%.2f", measured.offsetSeconds - fromTimeline), privacy: .public)s \
-            correlation \(String(format: "%.3f", measured.correlation), privacy: .public) \
-            was \(String(format: "%.3f", measured.correlationAtTimeline), privacy: .public)
-            """
-        )
-        return (measured.offsetSeconds, measured)
+        for (index, run) in runs.enumerated() where run.measured.isUsable {
+            let shift = run.measured.offsetSeconds - (run.timelineOffsetSeconds ?? 0)
+            Log.processing.info(
+                """
+                run \(index + 1, privacy: .public) of \(runs.count, privacy: .public): \
+                far end realigned by \(String(format: "%.2f", shift), privacy: .public)s \
+                correlation \(String(format: "%.3f", run.measured.correlation), privacy: .public) \
+                was \(String(format: "%.3f", run.measured.correlationAtTimeline), privacy: .public)
+                """
+            )
+        }
+        return runs
     }
 
     /// Runs `EchoCancellationPass` over the pair and encodes what comes back.
@@ -303,7 +308,7 @@ public struct MicrophoneCleaner: Sendable {
     /// if anything throws.
     private func subtract(
         microphone: TrackAudioLocation, reference: TrackAudioLocation,
-        referenceOffset: Double, to destination: URL
+        placements: [EchoCancellationPass.Placement], to destination: URL
     ) throws -> EchoCancellationPass.Result {
         guard
             let format = AVAudioFormat(
@@ -337,7 +342,7 @@ public struct MicrophoneCleaner: Sendable {
         var pending: [Float] = []
         let pass = try EchoCancellationPass.run(
             microphone: microphone, reference: reference,
-            referenceOffset: referenceOffset, canceller: makeCanceller
+            placements: placements, canceller: makeCanceller
         ) { cleaned in
             pending += cleaned
             if pending.count >= Self.writeFrames {

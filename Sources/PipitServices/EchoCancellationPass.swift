@@ -60,19 +60,6 @@ public struct EchoCancellationPass {
         var windows: [Window]
     }
 
-    /// How far the far end has to move to line up with the microphone.
-    ///
-    /// The microphone is read from its own first frame, so a position in the
-    /// cleaned file is the same position in the recording and every timestamp
-    /// downstream still lands where it did. The far end is moved onto that
-    /// clock. `leadIn` says how long after the earliest track each one started,
-    /// so their difference is how far the far end has to move: a far end that
-    /// started later is padded with the silence Pipit did not record, and one
-    /// that started earlier has that much of it read and thrown away.
-    static func referenceOffset(timeline: RecordingTimeline) -> Double {
-        timeline.leadIn(track: .remote) - timeline.leadIn(track: .mic)
-    }
-
     /// Seconds the far end is handed to the canceller early, on top of
     /// wherever the pair was lined up.
     ///
@@ -101,14 +88,34 @@ public struct EchoCancellationPass {
     /// written anywhere.
     ///
     /// - Parameter referenceOffset: seconds the far end has to move to line up
-    ///   with the microphone. `referenceOffset(timeline:)` is what a real run
-    ///   uses. A caller passing anything else is deliberately measuring a
+    ///   with the microphone, held for the whole recording. A caller passing
+    ///   anything but what the recording says is deliberately measuring a
     ///   misalignment. The far end is then handed to the canceller
     ///   `referenceLeadSeconds` earlier than that.
     /// - Parameter canceller: the canceller to run. The shipped one by default.
     static func run(
         microphone: TrackAudioLocation, reference: TrackAudioLocation,
         referenceOffset: Double,
+        canceller makeCanceller: () throws -> any EchoCancelling = {
+            try EchoModels.shippedCanceller(sampleRate: Int(readFormat.sampleRate))
+        },
+        sink: (ArraySlice<Float>) throws -> Void
+    ) throws -> Result {
+        try run(
+            microphone: microphone, reference: reference,
+            placements: [Placement(startSeconds: 0, offsetSeconds: referenceOffset)],
+            canceller: makeCanceller, sink: sink
+        )
+    }
+
+    /// The same pass with the far end placed once per run.
+    ///
+    /// - Parameter placements: where the far end sits against the microphone
+    ///   from each point on, in the microphone's order. `placements(of:)` is
+    ///   what a real run uses.
+    static func run(
+        microphone: TrackAudioLocation, reference: TrackAudioLocation,
+        placements: [Placement],
         canceller makeCanceller: () throws -> any EchoCancelling = {
             try EchoModels.shippedCanceller(sampleRate: Int(readFormat.sampleRate))
         },
@@ -133,17 +140,17 @@ public struct EchoCancellationPass {
         guard
             let microphoneReader = TimelineTrackReader(
                 location: microphone, format: readFormat, offsetSeconds: 0
-            ),
-            let referenceReader = TimelineTrackReader(
-                location: reference, format: readFormat,
-                offsetSeconds: referenceOffset - referenceLeadSeconds
-            ),
-            let alignedReferenceReader = TimelineTrackReader(
-                location: reference, format: readFormat, offsetSeconds: referenceOffset
             )
         else {
             throw ProcessingError.audioUnreadable(path: microphone.directory.lastPathComponent)
         }
+        let referenceReader = try PlacedReferenceReader(
+            location: reference, format: readFormat, placements: placements,
+            leadSeconds: referenceLeadSeconds
+        )
+        let alignedReferenceReader = try PlacedReferenceReader(
+            location: reference, format: readFormat, placements: placements, leadSeconds: 0
+        )
 
         var result = Result(frames: 0, windows: [])
         // The window grid counts samples, not blocks, so a canceller whose
@@ -282,6 +289,18 @@ public struct EchoCancellationPass {
         /// Whether every bar below was cleared. A measurement that was not is
         /// still returned, because the figures explain the decision.
         public let isUsable: Bool
+        /// Seconds of recording the correlations were taken over. Zero where
+        /// nothing could be compared, which is what lets a figure for a whole
+        /// meeting weight each run by the audio it was measured on.
+        public let measuredSeconds: Double
+
+        /// A measurement that found nothing to compare, at zero agreement.
+        static func unmeasured(timelineOffset: Double) -> Alignment {
+            Alignment(
+                offsetSeconds: timelineOffset, correlation: 0, correlationAtTimeline: 0,
+                isUsable: false, measuredSeconds: 0
+            )
+        }
     }
 
     /// Envelope window the search runs on. Fine enough to place a shift inside
@@ -339,27 +358,39 @@ public struct EchoCancellationPass {
     /// echo is the far end played out of a speaker and heard again across a
     /// room, so it arrives filtered, quieter and reverberant, and its waveform
     /// no longer resembles what was played. Its loudness over time still does.
+    ///
+    /// - Parameter start: first second of the microphone to measure, for a
+    ///   recording measured one run at a time. `timelineOffset` is still the
+    ///   far end's offset on the microphone's whole clock, and what comes back
+    ///   is in the same terms.
+    /// - Parameter length: seconds to measure from `start`, or to the end of
+    ///   the recording when nil.
+    /// - Parameter farEnd: the part of the far end's track that belongs to the
+    ///   stretch measured. Nothing outside it is compared.
     static func measureAlignment(
-        microphone: TrackAudioLocation, reference: TrackAudioLocation, timelineOffset: Double
+        microphone: TrackAudioLocation, reference: TrackAudioLocation, timelineOffset: Double,
+        from start: Double = 0, length: Double? = nil, farEnd: ClosedRange<Double> = 0...Double.infinity
     ) throws -> Alignment {
         // Nothing to compare, so the timeline's own offset is the only answer
         // and it is reported as measured at zero agreement.
-        let unusable = Alignment(
-            offsetSeconds: timelineOffset, correlation: 0, correlationAtTimeline: 0, isUsable: false
-        )
+        let unusable = Alignment.unmeasured(timelineOffset: timelineOffset)
         // Both read on the timeline the pass itself will use, so what comes back
         // is what still has to be corrected rather than a second absolute
-        // answer that has to be reconciled with the first.
+        // answer that has to be reconciled with the first. A run that starts
+        // part way in reads each track from its own start, which moves the far
+        // end's offset by the same amount.
         guard
             let microphoneReader = TimelineTrackReader(
-                location: microphone, format: readFormat, offsetSeconds: 0
+                location: microphone, format: readFormat, offsetSeconds: -start
             ),
-            let referenceReader = TimelineTrackReader(
-                location: reference, format: readFormat, offsetSeconds: timelineOffset
+            let referenceReader = RunReferenceReader(
+                location: reference, format: readFormat, micStartSeconds: start,
+                offsetSeconds: timelineOffset, leadSeconds: 0, farEnd: farEnd
             )
         else { return unusable }
-        let near = try envelope(of: microphoneReader)
-        let far = try envelope(of: referenceReader)
+        let limit = length.map { Int(($0 / alignmentWindowSeconds).rounded()) }
+        let near = try envelope(limit: limit) { try microphoneReader.next(count: $0) }
+        let far = try envelope(limit: limit) { try referenceReader.nextUnpadded(count: $0) }
         let count = min(near.count, far.count)
         let span = Int((alignmentSearchSeconds / alignmentWindowSeconds).rounded())
         // Two search widths of usable recording, so the correlation at the
@@ -393,20 +424,25 @@ public struct EchoCancellationPass {
             offsetSeconds: timelineOffset + shift,
             correlation: best,
             correlationAtTimeline: atTimeline,
-            isUsable: usable
+            isUsable: usable,
+            measuredSeconds: Double(count) * alignmentWindowSeconds
         )
     }
 
-    /// Root-mean-square loudness, one window at a time, to the end of the track.
-    private static func envelope(of reader: TimelineTrackReader) throws -> [Double] {
+    /// Root-mean-square loudness, one window at a time, to the end of the track
+    /// or to `limit` windows.
+    private static func envelope(
+        limit: Int? = nil, read: (Int) throws -> [Float]
+    ) throws -> [Double] {
         let window = Int((alignmentWindowSeconds * readFormat.sampleRate).rounded())
         var out: [Double] = []
-        while true {
-            let samples = try reader.next(count: window)
+        while limit.map({ out.count < $0 }) ?? true {
+            let samples = try read(window)
             if samples.isEmpty { return out }
             out.append((squares(samples) / Double(samples.count)).squareRoot())
             if samples.count < window { return out }
         }
+        return out
     }
 
     private static func centred(_ values: [Double]) -> [Double] {

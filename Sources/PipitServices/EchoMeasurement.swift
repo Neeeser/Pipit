@@ -128,6 +128,29 @@ public enum EchoMeasurement: Sendable, Equatable {
         public let windowsOverLossThreshold: Int
     }
 
+    /// Where the far end sat against the microphone in one run of the
+    /// recording, and what the pass used there.
+    ///
+    /// A call that dropped and was rejoined is several runs under one
+    /// manifest, and the far end is not the same distance from the microphone
+    /// in all of them. The figures are `Report`'s alignment figures, taken over
+    /// this run alone.
+    public struct RunAlignment: Sendable, Codable, Equatable {
+        /// Seconds from the microphone's first frame at which the run begins.
+        public let startSeconds: Double
+        public let seconds: Double
+        /// False where the far end recorded nothing in this run, which is
+        /// handed to the canceller as silence. The offsets below read zero.
+        public let farEndRecorded: Bool
+        public let timelineOffsetSeconds: Double
+        public let measuredOffsetSeconds: Double
+        public let measuredOffsetCorrelation: Double
+        public let timelineOffsetCorrelation: Double
+        public let measuredOffsetIsUsable: Bool
+        /// The offset the pass ran this run at.
+        public let referenceOffsetSeconds: Double
+    }
+
     public struct Report: Sendable, Codable, Equatable {
         /// Microphone seconds the pass read, which is the recording's length.
         public let seconds: Double
@@ -144,16 +167,23 @@ public enum EchoMeasurement: Sendable, Equatable {
         /// it sits far below, the far end's -60 dBFS did.
         public let microphoneQuietWindowDBFS: Double?
         /// Seconds the far end was moved by to line up with the microphone.
+        /// For a recording made of several runs this is the first run's, and
+        /// `runs` has every run's.
         public let referenceOffsetSeconds: Double
         /// True when a caller supplied that offset instead of the timeline.
+        /// The offset is then held for the whole recording.
         public let referenceOffsetIsOverride: Bool
         /// Where the recording itself says the far end sits, and how well the
         /// two loudness envelopes agree there and at the timeline's offset.
         /// Reported on every run, used only when `measuredOffsetIsUsable`.
+        /// For a recording made of several runs these are the first run's.
         public let measuredOffsetSeconds: Double
         public let measuredOffsetCorrelation: Double
         public let timelineOffsetCorrelation: Double
         public let measuredOffsetIsUsable: Bool
+        /// The same alignment figures for every run, in order. One entry for a
+        /// call that was never paused.
+        public let runs: [RunAlignment]
         /// Every class, in declaration order, including empty ones.
         public let classes: [ClassSummary]
         /// Every window, in order. What `classes` was summarised from.
@@ -247,9 +277,10 @@ public enum EchoMeasurement: Sendable, Equatable {
     }
 
     /// How far the far end has to move to line up with the microphone, as the
-    /// recording's own manifest says.
+    /// recording's own manifest says. For a recording made of several runs, in
+    /// the first.
     public static func timelineReferenceOffset(_ timeline: RecordingTimeline) -> Double {
-        EchoCancellationPass.referenceOffset(timeline: timeline)
+        EchoCancellationPass.placements(timeline: timeline).first?.offsetSeconds ?? 0
     }
 
     /// Runs the canceller over the recorded pair and reports what happened.
@@ -282,15 +313,19 @@ public enum EchoMeasurement: Sendable, Equatable {
             return .noReference(.recordedSilence)
         }
 
-        let fromTimeline = timelineReferenceOffset(timeline)
         // Measured whatever the caller does with it, so a run pinned to an
         // offset by hand still reports where the far end actually sits.
-        let alignment = try EchoCancellationPass.measureAlignment(
-            microphone: microphone, reference: reference, timelineOffset: fromTimeline
+        let lined = try EchoCancellationPass.alignRuns(
+            microphone: microphone, reference: reference, timeline: timeline
         )
-        let offset = referenceOffset ?? (alignment.isUsable ? alignment.offsetSeconds : fromTimeline)
+        let lead = lined.first { $0.timelineOffsetSeconds != nil } ?? lined[0]
+        let alignment = lead.measured
+        let offset = referenceOffset ?? lead.offsetSeconds ?? 0
+        let placements =
+            referenceOffset.map { [EchoCancellationPass.Placement(startSeconds: 0, offsetSeconds: $0)] }
+            ?? EchoCancellationPass.placements(of: lined)
         let pass = try EchoCancellationPass.run(
-            microphone: microphone, reference: reference, referenceOffset: offset
+            microphone: microphone, reference: reference, placements: placements
         ) { _ in }
 
         // The microphone's floor comes from the microphone, so it can only be
@@ -330,6 +365,7 @@ public enum EchoMeasurement: Sendable, Equatable {
                 measuredOffsetCorrelation: alignment.correlation,
                 timelineOffsetCorrelation: alignment.correlationAtTimeline,
                 measuredOffsetIsUsable: alignment.isUsable,
+                runs: lined.map { RunAlignment($0) },
                 classes: classes,
                 windowLog: log,
                 notableLossDB: notableLossDB,
@@ -400,6 +436,21 @@ public enum EchoMeasurement: Sendable, Equatable {
 
     private static func fixed(_ value: Double) -> String {
         String(format: "%.1f", value)
+    }
+}
+
+extension EchoMeasurement.RunAlignment {
+    init(_ run: EchoCancellationPass.AlignedRun) {
+        self.init(
+            startSeconds: run.startSeconds, seconds: run.seconds,
+            farEndRecorded: run.timelineOffsetSeconds != nil,
+            timelineOffsetSeconds: run.timelineOffsetSeconds ?? 0,
+            measuredOffsetSeconds: run.measured.offsetSeconds,
+            measuredOffsetCorrelation: run.measured.correlation,
+            timelineOffsetCorrelation: run.measured.correlationAtTimeline,
+            measuredOffsetIsUsable: run.measured.isUsable,
+            referenceOffsetSeconds: run.offsetSeconds ?? 0
+        )
     }
 }
 

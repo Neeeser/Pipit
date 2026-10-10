@@ -79,6 +79,12 @@ reports output and callbacks stop arriving, and when the callbacks keep arriving
 carrying nothing but zero samples. Silence that survives that rebuild is
 reported to the user.
 
+Each track is written against the capture clock. When a source stops delivering,
+the writer fills the missing time with silence, up to a bound, so the audio after
+the hole is not placed early against the other track. That covers a stall that
+began while the session waited out a reconnect: the engine holds the rebuild it
+saw while no writer existed and reports it when the memory ring is flushed.
+
 Capture writes 30-second CAF segments and appends lifecycle records to
 `raw/manifest.jsonl`. Each segment records its own sample rate and frame count.
 Recovery reads the manifest and file lengths, adopts complete audio after a
@@ -157,6 +163,21 @@ canceller 10 ms early, because the tap's timestamps can run a few milliseconds
 behind the microphone's and no canceller models an echo that arrives before its
 reference.
 
+The far end is lined up with the microphone once per run of the recording. A
+call that dropped and was rejoined holds several runs under one manifest, and
+each run opens writers of its own. A source that stalled around the rejoin lost
+a different amount of audio on each track, so the far end can sit seconds from
+where it sat in the run before: on one 59 minute call it had to move +1.76 s onto
+the microphone's clock before the rejoin and -1.46 s after. Each run is placed from
+its own host times, then measured. The loudness envelopes of that run's
+microphone and far end are compared, and the measured offset replaces the
+manifest's when the peak is clear, beats the manifest's offset by a margin and is
+larger than the filter absorbs on its own. A run too short to measure keeps the
+manifest's offset, and a run in which the far end recorded nothing is handed to
+the canceller as silence. The canceller runs once, in order, over the whole
+microphone and is given the far end at each run's own offset. The cleaned file
+stays one file on the microphone's clock.
+
 The result is written to `raw/audio/mic.cleaned.m4a`, and every stage from
 transcription onward reads it in place of the recording, which is the segment
 chain before compaction and `mic.m4a` after it. The recording itself is never
@@ -179,7 +200,8 @@ recording, and a meeting whose cleaning pass failed.
 The record of a cleaned meeting holds what happened to the far end, measured
 on the audio: the median drop over the windows it was playing in, and how well
 the microphone's loudness envelope followed the far end's before and after the
-pass. A cleaned track whose envelope still follows the far end holds the
+pass, averaged over the runs with each weighted by the audio it was measured on.
+A cleaned track whose envelope still follows the far end holds the
 speakers, and the meeting shows a line saying so, because the transcript may
 then show the other side's words as the user's. The assembler also drops a
 microphone line that is mostly the far end's own words said at the same
@@ -191,11 +213,12 @@ never cleaned, and the user keeps the transcript they would have had before the
 cleaner existed. Retrying instead would repeat a full decode and encode of the
 whole meeting on every resumed run of a machine that cannot write the file.
 
-One decision covers the whole meeting. The median is taken over every window
-where the far end was playing, and the cleaned file is kept or thrown away
-entire. A call that starts on speakers and moves to headphones half way through
-keeps the cleaned track across the headphone stretch. Plugging in headphones
-mid-call is ordinary. Deciding per window rather than per meeting is not built.
+The alignment is per run and the decision is not: one decision covers the whole
+meeting. The median is taken over every window where the far end was playing,
+whichever run it fell in, and the cleaned file is kept or thrown away entire. A
+call that starts on speakers and moves to headphones half way through keeps the
+cleaned track across the headphone stretch. Plugging in headphones mid-call is
+ordinary. Deciding per window rather than per meeting is not built.
 
 A cleaned meeting keeps a third audio file. `mic.cleaned.m4a` sits beside the
 two archived tracks at the same 48 kbps mono, so a cleaned meeting costs about
