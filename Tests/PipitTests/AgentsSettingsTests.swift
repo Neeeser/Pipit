@@ -1,7 +1,8 @@
 import Foundation
 import PipitCLIKit
-@testable import PipitUI
 import Testing
+
+@testable import PipitUI
 
 /// The Agents page's model, over a scratch home directory and an invented app
 /// bundle.

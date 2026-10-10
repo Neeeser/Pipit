@@ -1,7 +1,8 @@
 import Foundation
-@testable import PipitCLIKit
 import PipitCore
 import Testing
+
+@testable import PipitCLIKit
 
 /// The `pipit` command, run against scratch archives with invented meetings.
 @Suite("Command line")
