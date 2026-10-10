@@ -75,11 +75,11 @@
 /* Begin PBXFileReference section */
 		064FAC8B1390A57B8638A0FB /* pipit */ = {isa = PBXFileReference; lastKnownFileType = folder; name = pipit; path = skills/pipit; sourceTree = SOURCE_ROOT; };
 		1285D5E7B50171265DD11DF8 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
+		1A9FA47A63F5FFB29A6E7F9C /* Pipit */ = {isa = PBXFileReference; lastKnownFileType = folder; name = Pipit; path = .; sourceTree = SOURCE_ROOT; };
 		22EFBC85987D961C7C8CAA85 /* Pipit.icns */ = {isa = PBXFileReference; lastKnownFileType = image.icns; path = Pipit.icns; sourceTree = "<group>"; };
 		2D7A38581127B6E94CAC574A /* pipit-idle.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = "pipit-idle.png"; sourceTree = "<group>"; };
 		37155903C8D9E58F149C8AEE /* Pipit.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = Pipit.entitlements; sourceTree = "<group>"; };
 		47809F16D1A04B353EA7AD4F /* pipit-paused.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = "pipit-paused.png"; sourceTree = "<group>"; };
-		5A55CF2CAF20888B64676DF9 /* pipit-integration-options-39e1d3 */ = {isa = PBXFileReference; lastKnownFileType = folder; name = "pipit-integration-options-39e1d3"; path = .; sourceTree = SOURCE_ROOT; };
 		7FA445934522AB5AC18F6DB8 /* main.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = main.swift; sourceTree = "<group>"; };
 		80CADB95C82DE44384D66658 /* pipit-recording@2x.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = "pipit-recording@2x.png"; sourceTree = "<group>"; };
 		957D0D58BA4B90F5ED74BA3D /* main.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = main.swift; sourceTree = "<group>"; };
@@ -229,7 +229,7 @@
 		C3F5AEB0AE40EB2D5EE6807D /* Packages */ = {
 			isa = PBXGroup;
 			children = (
-				5A55CF2CAF20888B64676DF9 /* pipit-integration-options-39e1d3 */,
+				1A9FA47A63F5FFB29A6E7F9C /* Pipit */,
 			);
 			name = Packages;
 			sourceTree = "<group>";
@@ -487,7 +487,7 @@
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				MARKETING_VERSION = 0.1.7;
+				MARKETING_VERSION = 0.1.8;
 				PRODUCT_BUNDLE_IDENTIFIER = com.pipit.app;
 				PRODUCT_NAME = Pipit;
 				SDKROOT = macosx;
@@ -508,7 +508,7 @@
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				MARKETING_VERSION = 0.1.7;
+				MARKETING_VERSION = 0.1.8;
 				PRODUCT_BUNDLE_IDENTIFIER = com.pipit.app;
 				PRODUCT_NAME = Pipit;
 				SDKROOT = macosx;
