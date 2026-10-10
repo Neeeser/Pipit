@@ -193,8 +193,8 @@ noise is left out because the speech network stage suppresses it by design.
 Over the judged windows the level must not have dropped more than 2 dB at the
 median, and no more than one window in ten may have dropped by more than 10 dB.
 Where no detector is installed the speech requirement is dropped and the level
-floor and the one-second tail pick the windows alone. Four cases keep the microphone exactly as it was captured: a pass that
-damaged the user's own windows, a meeting whose far-end track holds nothing, a
+floor and the one-second tail pick the windows alone. Four cases keep the
+microphone exactly as it was captured: a pass that damaged the user's own windows, a meeting whose far-end track holds nothing, a
 meeting whose far end played for under ten seconds or an imported single-track
 recording, and a meeting whose cleaning pass failed.
 
