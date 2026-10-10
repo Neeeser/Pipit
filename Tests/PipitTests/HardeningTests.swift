@@ -120,19 +120,21 @@ private final class EmittingTap: ProcessTapController, @unchecked Sendable {
 
 private final class SilentDelegate: CaptureEngineDelegate, @unchecked Sendable {
     private let lock = NSLock()
-    private(set) var snapshots: [CaptureHealthSnapshot] = []
-    private(set) var warnings: [CaptureWarning] = []
+    private var storedSnapshots: [CaptureHealthSnapshot] = []
+    private var storedWarnings: [CaptureWarning] = []
+
+    // Read under the lock as well: a test polls these while the engine's
+    // control queue is still appending, and an unguarded read of an array
+    // mid-append crashed the suite.
+    var snapshots: [CaptureHealthSnapshot] { lock.withLock { storedSnapshots } }
+    var warnings: [CaptureWarning] { lock.withLock { storedWarnings } }
 
     func captureEngineDidUpdateHealth(_ snapshot: CaptureHealthSnapshot) {
-        lock.lock()
-        snapshots.append(snapshot)
-        lock.unlock()
+        lock.withLock { storedSnapshots.append(snapshot) }
     }
 
     func captureEngineDidRaiseWarning(_ warning: CaptureWarning) {
-        lock.lock()
-        warnings.append(warning)
-        lock.unlock()
+        lock.withLock { storedWarnings.append(warning) }
     }
 }
 
