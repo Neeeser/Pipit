@@ -176,6 +176,12 @@ public actor SpeakerRecognitionService {
         return results
     }
 
+    private static func centroids(of profiles: [SpeakerProfile]) -> [IdentityID: [Float]] {
+        Dictionary(
+            profiles.map { ($0.identity.id, $0.centroid) }, uniquingKeysWith: { first, _ in first }
+        )
+    }
+
     /// Identities already speaking over this cluster's audio.
     private func concurrent(
         with cluster: SpeakerClusterInput, claimed: [IdentityID: [AudioSpan]]
@@ -213,7 +219,8 @@ public actor SpeakerRecognitionService {
             }
         let resolution = policy.resolve(
             candidates: candidates, speechSeconds: cluster.speechSeconds,
-            concurrent: concurrent(with: cluster, claimed: claimed)
+            concurrent: concurrent(with: cluster, claimed: claimed),
+            centroids: Self.centroids(of: profiles)
         )
 
         var identity: Identity?
@@ -273,7 +280,14 @@ public actor SpeakerRecognitionService {
             // A voice with enough clean speech is worth remembering even when
             // nobody knows who it is. Below the bar it stays a speaker number in
             // this meeting and leaves nothing behind.
-            if settings.rememberRecurringVoices, !probe.isEmpty,
+            //
+            // Not a voice that already scores like a remembered one. That is a
+            // known voice the margin could not separate, and a copy of it would
+            // score within a hundredth of the original in every later meeting,
+            // fail the margin again and be copied again. It stays a suggestion.
+            let knownVoice =
+                (candidates.map(\.score).max() ?? 0) >= policy.namedHighScore
+            if settings.rememberRecurringVoices, !probe.isEmpty, !knownVoice,
                 policy.qualifiesForAnonymousProfile(speechSeconds: cluster.speechSeconds)
             {
                 switch try await sameMeetingCandidate(
@@ -448,6 +462,7 @@ public actor SpeakerRecognitionService {
             )
         }
 
+        let centroids = Self.centroids(of: profiles)
         var results: [UnnamedVoiceMatch] = []
         for profile in unnamed {
             let probe = VoiceVector.l2Normalized(profile.centroid)
@@ -475,7 +490,8 @@ public actor SpeakerRecognitionService {
             }
 
             let resolution = policy.resolve(
-                candidates: candidates, speechSeconds: profile.speechSeconds
+                candidates: candidates, speechSeconds: profile.speechSeconds,
+                centroids: centroids
             )
             // The naming bar, not the suggestion bar. Every match offered here
             // is one the first pass would have applied by itself had the

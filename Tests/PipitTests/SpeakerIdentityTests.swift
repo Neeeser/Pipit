@@ -211,6 +211,96 @@ struct SpeakerPolicyTests {
         #expect(!policy.qualifiesForEnrolment(speechSeconds: 30))
         #expect(policy.qualifiesForEnrolment(speechSeconds: 60))
     }
+
+    // MARK: twins
+
+    /// Centroids for the twin tests: a person's voice, an anonymous copy of it
+    /// at cosine ~0.97, and a different voice at cosine ~0.5 to it.
+    private static let personVoice = SpeakerFixtures.vector(seed: 31)
+    private static let twinVoice = SpeakerFixtures.blended(
+        personVoice, with: SpeakerFixtures.vector(seed: 32), towards: 0.2)
+    private static let strangerVoice = SpeakerFixtures.blended(
+        personVoice, with: SpeakerFixtures.vector(seed: 33), towards: 0.63)
+    private static let otherPersonVoice = SpeakerFixtures.vector(seed: 34)
+
+    @Test("the twin fixtures sit where the measurements put them")
+    func theTwinFixturesSitWhereTheMeasurementsPutThem() async throws {
+        #expect(VoiceVector.cosine(Self.personVoice, Self.twinVoice) > policy.twinCentroidSimilarity)
+        #expect(VoiceVector.cosine(Self.personVoice, Self.strangerVoice) < 0.6)
+    }
+
+    @Test("an anonymous copy of the best person does not take their margin")
+    func anAnonymousCopyOfTheBestPersonDoesNotTakeTheirMargin() async throws {
+        // A person at 0.96 and their own anonymous twin at 0.95: the margin
+        // is 0.01, which used to block the name, and the twin used to be
+        // what got seeded in the first place.
+        let resolved = policy.resolve(
+            candidates: [Self.person(1, 0.96), Self.anonymous(9, 0.95), Self.person(2, 0.30)],
+            speechSeconds: 120,
+            centroids: [
+                IdentityID(1): Self.personVoice, IdentityID(9): Self.twinVoice,
+                IdentityID(2): Self.otherPersonVoice,
+            ]
+        )
+        #expect(resolved.outcome == .assign(IdentityID(1)))
+        #expect(resolved.runnerUp?.identityID == IdentityID(2), "the twin is not an alternative")
+        #expect(abs((resolved.margin ?? 0) - 0.66) <= 0.001)
+    }
+
+    @Test("a twin that outscores its person resolves to the person")
+    func aTwinThatOutscoresItsPersonResolvesToThePerson() async throws {
+        let resolved = policy.resolve(
+            candidates: [Self.anonymous(9, 0.97), Self.person(1, 0.96), Self.person(2, 0.30)],
+            speechSeconds: 120,
+            centroids: [
+                IdentityID(1): Self.personVoice, IdentityID(9): Self.twinVoice,
+                IdentityID(2): Self.otherPersonVoice,
+            ]
+        )
+        #expect(resolved.outcome == .assign(IdentityID(1)))
+        #expect(resolved.best?.identityID == IdentityID(1))
+    }
+
+    @Test("a different voice at 0.95 still blocks the name")
+    func aDifferentVoiceAt095StillBlocksTheName() async throws {
+        let anonymousRival = policy.resolve(
+            candidates: [Self.person(1, 0.96), Self.anonymous(9, 0.95)],
+            speechSeconds: 120,
+            centroids: [IdentityID(1): Self.personVoice, IdentityID(9): Self.strangerVoice]
+        )
+        #expect(!anonymousRival.outcome.isAutomatic)
+        #expect(anonymousRival.runnerUp?.identityID == IdentityID(9))
+
+        // Two named people are never collapsed, however alike they score.
+        let personRival = policy.resolve(
+            candidates: [Self.person(1, 0.96), Self.person(2, 0.95)],
+            speechSeconds: 120,
+            centroids: [IdentityID(1): Self.personVoice, IdentityID(2): Self.twinVoice]
+        )
+        #expect(!personRival.outcome.isAutomatic)
+    }
+
+    @Test("without centroids nothing is treated as a twin")
+    func withoutCentroidsNothingIsTreatedAsATwin() async throws {
+        let resolved = policy.resolve(
+            candidates: [Self.person(1, 0.96), Self.anonymous(9, 0.95)], speechSeconds: 120
+        )
+        #expect(!resolved.outcome.isAutomatic)
+    }
+
+    @Test("a twin is not offered as a suggestion beside the voice it copies")
+    func aTwinIsNotOfferedAsASuggestionBesideTheVoiceItCopies() async throws {
+        let resolved = policy.resolve(
+            candidates: [Self.person(1, 0.66), Self.anonymous(9, 0.65), Self.person(2, 0.60)],
+            speechSeconds: 120,
+            centroids: [
+                IdentityID(1): Self.personVoice, IdentityID(9): Self.twinVoice,
+                IdentityID(2): Self.otherPersonVoice,
+            ]
+        )
+        #expect(resolved.outcome == .suggest)
+        #expect(resolved.suggestions.map(\.identityID) == [IdentityID(1), IdentityID(2)])
+    }
 }
 @Suite("VoiceVector")
 struct VoiceVectorTests {

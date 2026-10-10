@@ -425,6 +425,7 @@ public final class PipitRuntime {
             await ensureLocalUserIdentity()
             await backfillLocalUserOccurrences()
             await refreshLocalModelState()
+            await consolidateVoiceTwins()
             await pruneVoiceMemory()
             await pipeline.resumeInterrupted()
             refreshRecentMeetings()
