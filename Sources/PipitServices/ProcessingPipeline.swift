@@ -50,6 +50,10 @@ public actor ProcessingPipeline {
     /// The cloud client. Still the only thing that writes titles, summaries and
     /// textual speaker suggestions, and still optional in every configuration.
     private let backend: any AIBackend
+    /// The model that reads a transcript and writes about it, chosen from the
+    /// settings in force each time it is needed. It is `backend` unless the
+    /// person picked another provider for titles, summaries and speaker names.
+    private let languageModels: @Sendable (AppSettings) -> any LanguageModelBackend
     private let backends: ProcessingBackends
     private let gate: any ProcessingGate
     private let scratch: ProcessingScratch
@@ -143,6 +147,7 @@ public actor ProcessingPipeline {
         repository: MeetingRepository,
         backend: any AIBackend,
         backends: ProcessingBackends? = nil,
+        languageModels: (@Sendable (AppSettings) -> any LanguageModelBackend)? = nil,
         gate: any ProcessingGate = AlwaysAllowed(),
         scratch: ProcessingScratch = ProcessingScratch(root: ProcessingScratch.defaultRoot()),
         calendar: CalendarService? = nil,
@@ -157,6 +162,11 @@ public actor ProcessingPipeline {
     ) {
         self.repository = repository
         self.backend = backend
+        if let languageModels {
+            self.languageModels = languageModels
+        } else {
+            self.languageModels = { _ in backend }
+        }
         self.backends = backends ?? .openAIOnly(backend)
         self.gate = gate
         self.scratch = scratch
@@ -632,6 +642,9 @@ public actor ProcessingPipeline {
     /// `Retry-After` wins when it sent one.
     private func retryDelay(after failure: ProcessingError, attempt: Int) -> TimeInterval {
         if case .rateLimited(let retryAfter) = failure, let retryAfter {
+            return min(max(retryAfter, 0), Self.maxRetryDelaySeconds)
+        }
+        if case .languageModel(_, .rateLimited(let retryAfter)) = failure, let retryAfter {
             return min(max(retryAfter, 0), Self.maxRetryDelaySeconds)
         }
         let index = min(max(attempt - 1, 0), Self.retryDelaysSeconds.count - 1)
@@ -2831,7 +2844,8 @@ public actor ProcessingPipeline {
         // that is not retryable and stop the meeting before the markdown and
         // the mixdown are written. Nothing here was asked for by a user who
         // never configured the cloud.
-        guard await backend.isConfigured() else { return }
+        let reasoner = languageModels(settings)
+        guard await reasoner.isConfigured() else { return }
         guard let transcript = try store.readCanonicalTranscript() else { return }
         let speakers = try store.readSpeakerMap()
         let labels = transcript.speakerKeys.filter {
@@ -2861,9 +2875,9 @@ public actor ProcessingPipeline {
         var hints = metadata.calendar?.attendees ?? []
         hints.append(contentsOf: metadata.participants.map(\.displayName))
 
-        let suggestions = try await backend.resolveSpeakers(
+        let suggestions = try await reasoner.resolveSpeakers(
             SpeakerResolutionRequest(
-                transcript: String(rendered.prefix(60_000)),
+                transcript: String(rendered.prefix(Self.transcriptLimit(settings, openAI: 60_000))),
                 labels: labels,
                 humanContext: store.readNotes(),
                 nameHints: Array(Set(hints)).sorted(),
@@ -2902,6 +2916,15 @@ public actor ProcessingPipeline {
         )
     }
 
+    /// How much transcript one reasoning stage reads.
+    ///
+    /// OpenAI reads a bounded amount in a single request. The other providers
+    /// split a long meeting into parts that fit the window the person set, so
+    /// nothing needs cutting off before they see it.
+    private static func transcriptLimit(_ settings: AppSettings, openAI: Int) -> Int {
+        settings.models.metadataProvider == .openAI ? openAI : openAI * 5
+    }
+
     /// Whether the cloud stages this meeting wanted were passed over for want
     /// of a key.
     ///
@@ -2917,7 +2940,7 @@ public actor ProcessingPipeline {
             metadata.processing.skippedForMissingKey = false
             return
         }
-        metadata.processing.skippedForMissingKey = await !backend.isConfigured()
+        metadata.processing.skippedForMissingKey = await !languageModels(settings).isConfigured()
     }
 
     private func runEnrichment(
@@ -2928,7 +2951,8 @@ public actor ProcessingPipeline {
         // Same reason as the speaker suggestion above: titles and summaries are
         // the one part of Pipit that needs the cloud, and wanting them by
         // default must not fail a meeting for someone who runs everything here.
-        guard await backend.isConfigured() else { return }
+        let reasoner = languageModels(settings)
+        guard await reasoner.isConfigured() else { return }
         guard let transcript = try store.readCanonicalTranscript(), !transcript.utterances.isEmpty else {
             return
         }
@@ -2936,9 +2960,9 @@ public actor ProcessingPipeline {
         let renderer = TranscriptRenderer()
         let text = renderer.plainText(transcript: transcript, speakers: speakers)
 
-        let enrichment = try await backend.enrich(
+        let enrichment = try await reasoner.enrich(
             EnrichmentRequest(
-                transcript: String(text.prefix(120_000)),
+                transcript: String(text.prefix(Self.transcriptLimit(settings, openAI: 120_000))),
                 humanNotes: store.readNotes(),
                 participants: speakers.entries.values.map(\.displayName),
                 provider: metadata.provider,

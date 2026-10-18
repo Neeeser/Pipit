@@ -2,37 +2,15 @@ import PipitCore
 import PipitServices
 import SwiftUI
 
-/// The OpenAI key and what it is used for.
+/// Which model writes titles, summaries and notes, and what it writes.
 struct AIFeaturesSettingsPane: View {
     let model: SettingsModel
     private var runtime: PipitRuntime { model.runtime }
 
     var body: some View {
         Form {
-            Section("API key") {
-                SecureField("sk-…", text: model.text(\.apiKey))
-                HStack {
-                    Button("Save") { model.saveKey() }.disabled(model.apiKey.isEmpty)
-                    Button("Test Connection") { Task { await model.testConnection() } }
-                        .disabled(!model.hasStoredKey && model.apiKey.isEmpty)
-                    Button("Remove") { model.removeKey() }.disabled(!model.hasStoredKey)
-                    switch model.testState {
-                    case .idle: EmptyView()
-                    case .testing: ProgressView().controlSize(.small)
-                    case .success:
-                        Label("The key works", systemImage: "checkmark.circle.fill")
-                            .foregroundStyle(.green).font(.caption)
-                    case .failure(let message):
-                        Label(message, systemImage: "xmark.circle.fill")
-                            .foregroundStyle(.red).font(.caption)
-                    }
-                }
-                Text("Stored in the macOS keychain.")
-                    .font(.caption).foregroundStyle(.secondary)
-            }
-            Section("Model") {
-                LabeledContent("Model") { MetadataModelPicker(runtime: runtime) }
-            }
+            Section("Provider") { ProviderChoice(model: model) }
+            Section(model.provider.displayName) { ProviderSettingsRows(model: model) }
             Section("Features") {
                 EnrichmentToggles(runtime: runtime)
             }
@@ -40,6 +18,10 @@ struct AIFeaturesSettingsPane: View {
         .formStyle(.grouped)
         // Reads the keychain, which can block on an authorisation prompt.
         .task { await model.refresh() }
+        // Ollama is looked for whichever provider is chosen, so the list can
+        // say it is there.
+        .task { await model.probeOllama() }
+        .task(id: model.provider) { await model.refreshProvider() }
     }
 }
 
@@ -92,7 +74,7 @@ struct MetadataModelPicker: View {
     }
 }
 
-/// The five switches for what OpenAI writes. Shared by Settings and the setup
+/// The five switches for what the model writes. Shared by Settings and the setup
 /// wizard so both offer the same list.
 struct EnrichmentToggles: View {
     let runtime: PipitRuntime

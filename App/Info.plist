@@ -38,6 +38,16 @@
     <string>Pipit matches recordings to calendar events for titles and attendees.</string>
     <key>NSDocumentsFolderUsageDescription</key>
     <string>Pipit saves your recordings and transcripts here.</string>
+    <key>NSLocalNetworkUsageDescription</key>
+    <string>Pipit connects to a model server on your network to write titles and summaries.</string>
+    <!-- A model server on this Mac or the local network is usually plain http.
+         This lets those connections through and leaves every other address
+         held to https. -->
+    <key>NSAppTransportSecurity</key>
+    <dict>
+        <key>NSAllowsLocalNetworking</key>
+        <true/>
+    </dict>
     <!-- Sparkle. The feed is written by the release workflow and served from
          GitHub Pages. SUPublicEDKey holds the EdDSA public key whose private
          half signs each archive. The placeholder is replaced once the

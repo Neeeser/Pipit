@@ -219,7 +219,7 @@ public struct MeetingDetailView: View {
     private var missingKeyBar: some View {
         HStack(spacing: 8) {
             Image(systemName: "exclamationmark.circle.fill").foregroundStyle(.orange)
-            Text("No API key stored, so summary, notes and speaker suggestions were skipped")
+            Text("No model is set up, so summary, notes and speaker suggestions were skipped")
                 .font(.callout)
             Spacer(minLength: 8)
             Button("Open Settings") { model.openSettings() }
