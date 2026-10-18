@@ -179,10 +179,9 @@ struct SpeakerLanesView: View {
                         }
                 )
                 .onContinuousHover { phase in
-                    switch phase {
-                    case .active(let point):
-                        hover = width > 0 ? min(max(point.x / width, 0), 1) : nil
-                    case .ended:
+                    if case .active(let point) = phase, width > 0 {
+                        hover = min(max(point.x / width, 0), 1)
+                    } else {
                         hover = nil
                     }
                 }
@@ -194,10 +193,10 @@ struct SpeakerLanesView: View {
                 TranscriptRenderer().timecode(playback.timeline.timelineSeconds(at: playback.position))
             )
             .accessibilityAdjustableAction { direction in
-                switch direction {
-                case .increment: playback.skip(by: 5)
-                case .decrement: playback.skip(by: -5)
-                @unknown default: break
+                if direction == .increment {
+                    playback.skip(by: 5)
+                } else if direction == .decrement {
+                    playback.skip(by: -5)
                 }
             }
         }

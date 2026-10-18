@@ -47,7 +47,7 @@ struct PlaybackTimelineTests {
         #expect(Self.split.locate(75)?.seconds == 15)
         #expect(Self.split.locate(500)?.seconds == 40, "past the end is the last moment")
         #expect(Self.split.locate(-5)?.seconds == 0)
-        #expect(PlaybackTimeline().locate(10) == nil, "nothing to play, nowhere to be")
+        #expect(PlaybackTimeline().locate(10)?.part == nil, "nothing to play, nowhere to be")
     }
 
     @Test("the clock printed is the one the transcript headers read")
