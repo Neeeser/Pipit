@@ -165,7 +165,12 @@ public actor ProcessingPipeline {
         if let languageModels {
             self.languageModels = languageModels
         } else {
-            self.languageModels = { _ in backend }
+            // With no keys to offer, any provider but OpenAI reports itself not
+            // configured, so a tool that loads the real settings never sends
+            // another provider's model name to OpenAI.
+            self.languageModels = { settings in
+                LanguageModelFactory.make(models: settings.models, openAI: backend, keys: { _ in nil })
+            }
         }
         self.backends = backends ?? .openAIOnly(backend)
         self.gate = gate
@@ -2311,7 +2316,18 @@ public actor ProcessingPipeline {
                 "local voice profile skipped: \(logSafeDescription(error), privacy: .public)"
             )
         }
-        try await suggestSpeakerNames(store: store, metadata: metadata, settings: settings)
+        do {
+            try await suggestSpeakerNames(store: store, metadata: metadata, settings: settings)
+        } catch ProcessingError.languageModel(_, let failure) {
+            // A name is a suggestion. A model server that is closed, which is
+            // the usual state of one running on this Mac, must not stop the
+            // meeting reaching the stage that writes the markdown and the
+            // mixdown. Enrichment, which comes after, still reports its own
+            // failure and offers the retry.
+            Log.processing.notice(
+                "speaker suggestions skipped: \(failure.logSafeDescription, privacy: .public)"
+            )
+        }
     }
 
     /// The audio one cluster covers, on the meeting timeline.
@@ -2936,8 +2952,15 @@ public actor ProcessingPipeline {
         _ metadata: inout MeetingMetadata, settings: AppSettings
     ) async {
         let wantsCloud = settings.enrichment.wantsAnything || settings.enrichment.suggestSpeakers
-        guard wantsCloud, !settings.models.metadata.isEmpty else {
+        guard wantsCloud else {
             metadata.processing.skippedForMissingKey = false
+            return
+        }
+        // An empty model is a half-typed identifier for OpenAI. For any other
+        // provider it means none was ever chosen, and the stages were passed
+        // over for that, which the person is told rather than left to wonder.
+        guard !settings.models.metadata.isEmpty else {
+            metadata.processing.skippedForMissingKey = settings.models.metadataProvider != .openAI
             return
         }
         metadata.processing.skippedForMissingKey = await !languageModels(settings).isConfigured()

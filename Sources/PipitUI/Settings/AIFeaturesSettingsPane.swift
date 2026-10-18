@@ -18,9 +18,6 @@ struct AIFeaturesSettingsPane: View {
         .formStyle(.grouped)
         // Reads the keychain, which can block on an authorisation prompt.
         .task { await model.refresh() }
-        // Ollama is looked for whichever provider is chosen, so the list can
-        // say it is there.
-        .task { await model.probeOllama() }
         .task(id: model.provider) { await model.refreshProvider() }
     }
 }
@@ -35,7 +32,7 @@ struct MetadataModelPicker: View {
     private static let customModelTag = "custom"
 
     var body: some View {
-        let current = runtime.settings.models.metadata
+        let current = runtime.settings.models.metadataModel(for: .openAI)
         let isPreset = AIModelSettings.metadataChoices.contains(current)
         VStack(alignment: .leading, spacing: 2) {
             Picker(
@@ -44,7 +41,7 @@ struct MetadataModelPicker: View {
                     get: { isPreset ? current : Self.customModelTag },
                     set: { newValue in
                         var settings = runtime.settings
-                        settings.models.metadata = newValue == Self.customModelTag ? "" : newValue
+                        settings.models.setMetadataModel(newValue == Self.customModelTag ? "" : newValue, for: .openAI)
                         runtime.update(settings: settings)
                     }
                 )
@@ -60,10 +57,10 @@ struct MetadataModelPicker: View {
                 TextField(
                     "model identifier",
                     text: Binding(
-                        get: { runtime.settings.models.metadata },
+                        get: { runtime.settings.models.metadataModel(for: .openAI) },
                         set: { newValue in
                             var settings = runtime.settings
-                            settings.models.metadata = newValue
+                            settings.models.setMetadataModel(newValue, for: .openAI)
                             runtime.update(settings: settings)
                         }
                     )

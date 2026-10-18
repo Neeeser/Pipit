@@ -48,6 +48,10 @@ struct ProviderSettingsRows: View {
         case .custom:
             CustomEndpointRows(model: model)
         }
+        if model.runtime.settings.models.metadata.isEmpty, model.provider != .ollama || model.ollamaIsRunning {
+            Text("Choose a model to write titles, summaries and notes.")
+                .font(.caption).foregroundStyle(.orange)
+        }
     }
 }
 
@@ -58,16 +62,22 @@ struct ProviderKeyRows: View {
 
     private var needsKey: Bool { model.provider.keyRequirement == .required }
 
+    /// OpenRouter lists its models to anyone, so only a request for a model
+    /// shows whether the key works.
+    private var needsModelToTest: Bool {
+        model.provider == .openRouter && model.runtime.settings.models.metadata.isEmpty
+    }
+
     var body: some View {
         SecureField("API key", text: model.text(\.apiKey), prompt: Text(model.provider.keyPlaceholder))
         HStack {
             Button("Save") { model.saveKey() }.disabled(model.apiKey.isEmpty)
             Button("Test Connection") { Task { await model.testConnection() } }
-                .disabled(needsKey && !model.hasStoredKey && model.apiKey.isEmpty)
+                .disabled((needsKey && !model.hasStoredKey && model.apiKey.isEmpty) || needsModelToTest)
             Button("Remove") { model.removeKey() }.disabled(!model.hasStoredKey)
             testStatus
         }
-        if needsKey {
+        if model.provider.acceptsKey {
             Text("Stored in the macOS keychain.")
                 .font(.caption).foregroundStyle(.secondary)
         }
@@ -101,7 +111,7 @@ struct ModelListPicker: View {
 
     var body: some View {
         VStack(alignment: .trailing, spacing: 4) {
-            if model.typesModelName || model.modelListState == .failed {
+            if model.typesModelName || (model.modelListState != .loaded && model.modelListState != .loading) {
                 TextField("Model", text: model.binding(\.models.metadata), prompt: Text("model identifier"))
                     .labelsHidden()
                     .frame(width: 280)

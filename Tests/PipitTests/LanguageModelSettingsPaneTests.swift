@@ -15,7 +15,9 @@ struct LanguageModelSettingsPaneTests {
     private func makeModel() throws -> (SettingsModel, URL) {
         let root = try TestPaths.makeTemporaryDirectory()
         let runtime = RuntimeFixtures.makeRuntime(root: root)
-        return (SettingsModel(runtime: runtime), root)
+        // No lookup reaches the login keychain, which can raise a prompt on a
+        // build it does not trust.
+        return (SettingsModel(runtime: runtime, storedKeyLookup: { _ in false }), root)
     }
 
     @Test("each provider keeps the model chosen for it")

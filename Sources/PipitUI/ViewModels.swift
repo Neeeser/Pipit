@@ -68,11 +68,21 @@ public final class SettingsModel {
     }
 
     @ObservationIgnored let runtime: PipitRuntime
+    /// Whether a key is stored for a provider. Injected so a test never raises
+    /// the login-keychain prompt this lookup can raise on a build the item does
+    /// not trust.
+    @ObservationIgnored private let storedKeyLookup: @Sendable (LanguageModelProvider) async -> Bool
     /// What the Agents page installs and removes.
     let agents = AgentsModel()
 
-    public init(runtime: PipitRuntime) {
+    public init(
+        runtime: PipitRuntime,
+        storedKeyLookup: @escaping @Sendable (LanguageModelProvider) async -> Bool = { provider in
+            await Task.detached { KeychainAPIKeyStore(provider: provider).hasKey }.value
+        }
+    ) {
         self.runtime = runtime
+        self.storedKeyLookup = storedKeyLookup
         // Deliberately not read here. A keychain lookup can block on an
         // authorisation prompt, and building a view is not the place to
         // discover that: the panel would hang with nothing on screen.
@@ -88,7 +98,11 @@ public final class SettingsModel {
         // trust the binary, which every unsigned rebuild produces. Run inline
         // it froze the whole window, and the panel behind the prompt was the
         // one that would have explained it.
-        hasStoredKey = await keyPresence(for: provider)
+        let asked = provider
+        let stored = await keyPresence(for: asked)
+        // The keychain can sit on a prompt for as long as a person takes to
+        // answer it, and the page may have moved to another provider since.
+        if provider == asked { hasStoredKey = stored }
     }
 
     /// Keeps the browser rows current while that page is open.
@@ -127,7 +141,7 @@ public final class SettingsModel {
     /// reason `refresh` gives.
     private func keyPresence(for provider: LanguageModelProvider) async -> Bool {
         guard provider.acceptsKey else { return false }
-        return await Task.detached { KeychainAPIKeyStore(provider: provider).hasKey }.value
+        return await storedKeyLookup(provider)
     }
 
     public func selectProvider(_ chosen: LanguageModelProvider) {
@@ -186,23 +200,26 @@ public final class SettingsModel {
                 .verifyCredentials(model: models.metadata)
                 await refreshProvider()
             }
-            testState = .success
+            if provider == current { testState = .success }
         } catch ProcessingError.languageModel(let name, let failure) {
-            testState = .failure(failure.message(provider: name))
+            if provider == current { testState = .failure(failure.statement(provider: name)) }
         } catch let error as ProcessingError {
-            testState = .failure(error.userMessage)
+            if provider == current { testState = .failure(error.userMessage) }
         } catch {
-            testState = .failure("Could not reach \(current.displayName)")
+            if provider == current { testState = .failure("Could not reach \(current.displayName)") }
         }
     }
 
     /// What to look up when the page opens or the provider changes.
     public func refreshProvider() async {
+        // Ollama is looked for whichever provider is chosen, so the provider
+        // list can say it is there.
+        async let ollama: Void = probeOllama()
         switch provider {
-        case .openAI: break
+        case .openAI, .ollama: break
         case .openRouter, .custom: await loadModelList()
-        case .ollama: await probeOllama()
         }
+        await ollama
     }
 
     /// The models the selected server lists. A server that does not list them
@@ -223,11 +240,11 @@ public final class SettingsModel {
         )
         do {
             let options = try await catalogue.fetch()
-            guard provider == asked else { return }
+            guard provider == asked, !Task.isCancelled else { return }
             modelList = options
             modelListState = options.isEmpty ? .failed : .loaded
         } catch {
-            guard provider == asked else { return }
+            guard provider == asked, !Task.isCancelled else { return }
             modelList = []
             modelListState = .failed
         }
@@ -294,7 +311,7 @@ public final class SettingsModel {
             return
         }
         let maximum = await OllamaServer().maximumContext(of: chosen)
-        guard runtime.settings.models.metadata == chosen else { return }
+        guard provider == .ollama, runtime.settings.models.metadata == chosen else { return }
         ollamaMaximumContext = maximum
         // A window set for another model may be more than this one holds.
         if let largest = ContextWindow.sizes(upTo: maximum).last, contextTokens > largest {

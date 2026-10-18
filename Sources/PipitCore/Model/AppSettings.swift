@@ -44,12 +44,22 @@ public struct AIModelSettings: Codable, Sendable, Equatable {
     /// summaries and notes. Empty means none is chosen yet, and those stages
     /// wait for one.
     public var metadata: String {
-        get { metadataSelections[metadataProvider.rawValue]?.model ?? metadataProvider.defaultModel }
-        set {
-            var choice = metadataSelections[metadataProvider.rawValue] ?? LanguageModelChoice()
-            choice.model = newValue
-            metadataSelections[metadataProvider.rawValue] = choice
-        }
+        get { metadataModel(for: metadataProvider) }
+        set { setMetadataModel(newValue, for: metadataProvider) }
+    }
+
+    /// The model chosen for one provider, whichever provider is selected. A
+    /// control that is about OpenAI, such as the setup wizard's, reads and
+    /// writes this rather than `metadata`, so it never touches the choice made
+    /// for another provider.
+    public func metadataModel(for provider: LanguageModelProvider) -> String {
+        metadataSelections[provider.rawValue]?.model ?? provider.defaultModel
+    }
+
+    public mutating func setMetadataModel(_ model: String, for provider: LanguageModelProvider) {
+        var choice = metadataSelections[provider.rawValue] ?? LanguageModelChoice()
+        choice.model = model
+        metadataSelections[provider.rawValue] = choice
     }
 
     /// The context window the selected provider's requests are sized to.

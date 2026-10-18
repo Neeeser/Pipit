@@ -50,6 +50,19 @@ struct LanguageModelSettingsTests {
         )
     }
 
+    @Test("a control about one provider can read and write its model whichever is selected")
+    func aControlAboutOneProviderCanReadAndWriteItsModelWhicheverIsSelected() {
+        var settings = AIModelSettings()
+        settings.metadataProvider = .ollama
+        settings.metadata = "llama3.1:8b"
+
+        #expect(settings.metadataModel(for: .openAI) == AIModelSettings.defaultMetadataModel)
+        settings.setMetadataModel("gpt-4.1", for: .openAI)
+        #expect(settings.metadataModel(for: .openAI) == "gpt-4.1")
+        #expect(settings.metadata == "llama3.1:8b", "the selected provider's model is untouched")
+        #expect(settings.metadataProvider == .ollama)
+    }
+
     @Test("the model in use is still written under the key an older build reads")
     func theModelInUseIsStillWrittenUnderTheKeyAnOlderBuildReads() throws {
         var settings = AIModelSettings()
