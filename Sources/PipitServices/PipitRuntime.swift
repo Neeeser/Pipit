@@ -19,6 +19,8 @@ public struct RuntimeStatus: Sendable, Equatable {
     public var isProvisional = false
     public var detectionPaused = false
     public var sensorConnection: BrowserSensorTracker.Connection = .absent
+    /// Every browser's add-on. `sensorConnection` is the Firefox entry.
+    public var browserSensors: [BrowserKind: BrowserSensorTracker.Connection] = [:]
     /// Whether the Firefox add-on has ever connected on this machine, carried
     /// from settings so the menu bar can tell "dropped" from "never installed".
     public var firefoxSensorHasConnected = false
@@ -509,10 +511,14 @@ public final class PipitRuntime {
             Log.app.notice("native messaging host binary not found in the bundle")
             return
         }
+        let installer = NativeMessagingInstaller()
         do {
-            _ = try NativeMessagingInstaller().install(hostBinary: hostBinary)
+            _ = try installer.install(hostBinary: hostBinary)
         } catch {
             Log.app.error("host install failed: \(logSafeDescription(error), privacy: .public)")
+        }
+        if let chromeAddOn = NativeMessagingInstaller.bundledChromeAddOnURL() {
+            installer.installChromeAddOn(from: chromeAddOn, onlyIfPresent: true)
         }
     }
 
@@ -533,6 +539,7 @@ public final class PipitRuntime {
 
     func detectionDidUpdate(_ snapshot: DetectionSnapshot) {
         status.sensorConnection = snapshot.browserSensor
+        status.browserSensors = snapshot.browserSensors
         status.isFirefoxRunning = BrowserPresence.isRunning(.firefox)
         // A live connection is proof enough. The profile is read only when
         // nothing is talking and the person has allowed the read, which they

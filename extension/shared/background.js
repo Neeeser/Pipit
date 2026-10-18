@@ -1,11 +1,14 @@
 // Relays content-script observations to the native host, and counts audible tabs.
 //
-// `relayEnvelope` comes from shared/relay.js, which the build concatenates in
-// front of this file.
-/* global relayEnvelope, helloMessage */
+// The helpers come from shared/relay.js, which the build concatenates in front
+// of this file.
+/* global relayEnvelope, helloMessage, otherAudibleTabs, usesNativePort */
+/* global SAFARI_HELLO_MINUTES */
 
 const api = globalThis.browser ?? globalThis.chrome;
 const HOST_NAME = 'com.pipit.sensor';
+const NATIVE_PORT = usesNativePort(api.runtime.getURL(''));
+const HELLO_ALARM = 'pipit-hello';
 
 let port = null;
 
@@ -48,7 +51,25 @@ function connect() {
   return port;
 }
 
+// Safari's route: one message per request to the app extension inside Pipit.
+// A refusal means Pipit is not running, which the next message retries.
+async function sendToApp(message) {
+  try {
+    await api.runtime.sendNativeMessage(HOST_NAME, message);
+  } catch {
+    // Nothing to do: the app treats a silent sensor as absent.
+  }
+}
+
+function sayHello() {
+  sendToApp(helloMessage(api.runtime.getManifest().version));
+}
+
 function post(message) {
+  if (!NATIVE_PORT) {
+    sendToApp(message);
+    return;
+  }
   const active = connect();
   if (!active) return;
   try {
@@ -58,13 +79,12 @@ function post(message) {
   }
 }
 
-// Firefox routes every tab through one CoreAudio object, so meeting audio cannot
-// be separated from a video playing in another tab. The count is reported so the
-// app can say so; it never blocks or delays recording.
+// A browser plays every tab through the same audio process, so meeting audio
+// cannot be separated from a video playing in another tab. The count is
+// reported so the app can say so; it never blocks or delays recording.
 async function countOtherAudibleTabs(senderTabId) {
   try {
-    const tabs = await api.tabs.query({ audible: true });
-    return tabs.filter((tab) => tab.id !== senderTabId).length;
+    return otherAudibleTabs(await api.tabs.query({ audible: true }), senderTabId);
   } catch {
     return undefined;
   }
@@ -90,11 +110,13 @@ const CONTENT_FILES = ['shared/provider.js', 'shared/content.js'];
 // time. Firefox ships MV2 here, so both paths are needed.
 async function injectInto(tabId) {
   if (api.scripting && api.scripting.executeScript) {
-    await api.scripting.executeScript({
-      target: { tabId },
-      files: CONTENT_FILES,
-      injectImmediately: true,
-    });
+    const details = { target: { tabId }, files: CONTENT_FILES };
+    try {
+      await api.scripting.executeScript({ ...details, injectImmediately: true });
+    } catch {
+      // Safari rejects an option it does not know rather than ignoring it.
+      await api.scripting.executeScript(details);
+    }
     return;
   }
   for (const file of CONTENT_FILES) {
@@ -128,4 +150,19 @@ injectIntoOpenTabs();
 // one. Waiting for the first meeting made the two look identical, so Settings
 // reported "not installed" for an add-on that was loaded and working, and the
 // menu bar could not warn when a temporary add-on was dropped.
-connect();
+//
+// Safari has no connection to hold, so it says hello when its background page
+// starts and again on an alarm. The listener is registered at the top level
+// because Safari only wakes a background page for listeners that exist when it
+// first runs.
+if (NATIVE_PORT) {
+  connect();
+} else {
+  sayHello();
+  if (api.alarms) {
+    api.alarms.onAlarm.addListener((alarm) => {
+      if (alarm && alarm.name === HELLO_ALARM) sayHello();
+    });
+    api.alarms.create(HELLO_ALARM, { periodInMinutes: SAFARI_HELLO_MINUTES });
+  }
+}

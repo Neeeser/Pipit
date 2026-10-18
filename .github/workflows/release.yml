@@ -247,9 +247,11 @@ jobs:
         # PIPIT_RELEASE asks scripts/app-version.sh for the plain version from
         # VERSION. Without it the bundle would read <VERSION>-dev.<short sha>,
         # which is what every other build carries. The build number comes from
-        # the commit count and needs nothing here.
+        # the commit count and needs nothing here. PIPIT_TEAM_ID prefixes the
+        # app group the Safari extension shares with the app.
         env:
           PIPIT_SIGN_IDENTITY: ${{ steps.signing.outputs.identity }}
+          PIPIT_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
           PIPIT_RELEASE: '1'
         run: ./scripts/bundle-app.sh release
 

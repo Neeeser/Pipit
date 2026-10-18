@@ -241,7 +241,22 @@ The disk image on the GitHub release is the install route.
 
 ## Browser extension
 
-The application bundle includes the browser sensor and native host. Firefox
+The application bundle includes the browser sensor and native host.
+
+Safari's add-on ships inside the app as `Contents/PlugIns/PipitSafariExtension.appex`,
+which `scripts/bundle-app.sh` assembles and signs before the app. Safari only
+loads it from a Developer ID signature; a local build needs Safari's "Allow
+unsigned extensions" developer setting. Both the app and the extension are
+signed into the app group `<team>.com.pipit.sensor`, with the team read from
+the signing certificate (`PIPIT_TEAM_ID` overrides it).
+
+The Chrome add-on has no store listing yet. Settings copies it to
+`~/Library/Application Support/Pipit/Chrome Add-on` for the browser's Load
+unpacked button. Its identifier comes from the `key` in
+`extension/chrome/manifest.json`; a Chrome Web Store listing gets an identifier
+of its own, which has to be added to `NativeMessagingInstaller`'s allowed list.
+
+Firefox
 distribution through addons.mozilla.org uses the extension identifier
 `sensor@pipit.app`. Keep that identifier aligned with
 `extension/firefox/manifest.json` when publishing an updated XPI.

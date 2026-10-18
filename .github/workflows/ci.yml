@@ -151,6 +151,10 @@ jobs:
           test -x dist/Pipit.app/Contents/MacOS/pipit-cli
           test -f dist/Pipit.app/Contents/Resources/skills/pipit/SKILL.md
           test -f dist/Pipit.app/Contents/Resources/extension/firefox/manifest.json
+          test -f dist/Pipit.app/Contents/Resources/extension/chrome/manifest.json
+          test -x dist/Pipit.app/Contents/PlugIns/PipitSafariExtension.appex/Contents/MacOS/PipitSafariExtension
+          test -f dist/Pipit.app/Contents/PlugIns/PipitSafariExtension.appex/Contents/Resources/manifest.json
+          codesign --verify --verbose=1 dist/Pipit.app/Contents/PlugIns/PipitSafariExtension.appex
           test -f dist/Pipit.app/Contents/Resources/Pipit.icns
           test -f dist/Pipit.app/Contents/Resources/EchoModels/localvqe-v1.4-aec-2.7K-f32.gguf
           test -f dist/Pipit.app/Contents/Resources/EchoModels/dtln-aec-512.weights
@@ -185,7 +189,7 @@ jobs:
         run: ./extension/build.sh
       - name: Check the manifests parse
         run: |
-          for browser in firefox chrome; do
+          for browser in firefox chrome safari; do
             node -e "JSON.parse(require('fs').readFileSync('extension/dist/$browser/manifest.json','utf8'))"
           done
 

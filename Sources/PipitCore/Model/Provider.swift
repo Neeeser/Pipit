@@ -139,6 +139,10 @@ public enum CaptureTrack: String, Codable, Sendable, CaseIterable {
 }
 
 /// Browsers Pipit can accept sensor events from.
+///
+/// `chrome` is the Chromium family. Brave, Edge, Arc and Vivaldi load the
+/// Chrome extension unchanged and speak to the same relay, so one case covers
+/// them all.
 public enum BrowserKind: String, Codable, Sendable, CaseIterable {
     case firefox
     case chrome
@@ -148,9 +152,41 @@ public enum BrowserKind: String, Codable, Sendable, CaseIterable {
     public var bundleIdentifiers: [String] {
         switch self {
         case .firefox: ["org.mozilla.firefox", "org.mozilla.firefoxdeveloperedition", "org.mozilla.nightly"]
-        case .chrome: ["com.google.Chrome", "com.google.Chrome.beta", "com.brave.Browser", "com.microsoft.edgemac"]
-        case .safari: ["com.apple.Safari"]
+        case .chrome:
+            [
+                "com.google.Chrome", "com.google.Chrome.beta", "com.google.Chrome.canary",
+                "com.brave.Browser", "com.brave.Browser.beta", "com.microsoft.edgemac",
+                "com.microsoft.edgemac.Beta", "company.thebrowser.Browser", "com.vivaldi.Vivaldi",
+                "org.chromium.Chromium",
+            ]
+        case .safari: ["com.apple.Safari", "com.apple.SafariTechnologyPreview"]
         case .unknown: []
+        }
+    }
+
+    /// Bundle-identifier prefixes of the processes that carry this browser's
+    /// audio.
+    ///
+    /// Firefox and Chromium play and capture from their own helpers, under the
+    /// browser's identifier. Safari does neither: WebKit opens the microphone
+    /// and plays a page's audio from its GPU process, which CoreAudio names
+    /// `com.apple.WebKit.GPU`, so matching on Safari's own identifier saw no
+    /// audio at all. Other applications that embed WebKit share that name, which
+    /// is the same limit Firefox has between its own tabs.
+    public var audioBundlePrefixes: [String] {
+        switch self {
+        case .safari: bundleIdentifiers + ["com.apple.WebKit.GPU", "com.apple.WebKit.WebContent"]
+        default: bundleIdentifiers
+        }
+    }
+
+    /// The name a person knows the browser by.
+    public var displayName: String {
+        switch self {
+        case .firefox: "Firefox"
+        case .chrome: "Chrome"
+        case .safari: "Safari"
+        case .unknown: "Browser"
         }
     }
 }

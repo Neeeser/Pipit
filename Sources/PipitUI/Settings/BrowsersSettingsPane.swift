@@ -1,5 +1,6 @@
 import AppKit
 import PipitCore
+import PipitDetection
 import PipitServices
 import SwiftUI
 
@@ -13,6 +14,20 @@ struct BrowsersSettingsPane: View {
     let model: SettingsModel
     private var runtime: PipitRuntime { model.runtime }
 
+    private var safariState: BrowserAddOnState {
+        BrowserAddOnState(
+            connection: runtime.status.browserSensors[.safari] ?? .absent,
+            isBundled: SafariAddOn.isBundled
+        )
+    }
+
+    private var chromeState: BrowserAddOnState {
+        BrowserAddOnState(
+            connection: runtime.status.browserSensors[.chrome] ?? .absent,
+            isBundled: NativeMessagingInstaller.bundledChromeAddOnURL() != nil
+        )
+    }
+
     private var addOnState: FirefoxAddOnState {
         FirefoxAddOnState(
             connection: runtime.status.sensorConnection,
@@ -25,6 +40,24 @@ struct BrowsersSettingsPane: View {
 
     var body: some View {
         Form {
+            Section("Safari") {
+                BrowserAddOnRow(
+                    symbol: "safari",
+                    title: safariState.title,
+                    detail: safariState.detail(browsers: "Safari"),
+                    statusSymbol: safariState.symbol,
+                    statusColor: safariState.color
+                )
+                if safariState.offersSetUp {
+                    HStack(spacing: 10) {
+                        Button("Turn on in Safari") { SafariAddOn.openSettings() }
+                            .buttonStyle(.borderedProminent)
+                        Text("Then allow it on your meeting sites")
+                            .font(.caption).foregroundStyle(.tertiary)
+                    }
+                }
+            }
+
             Section("Firefox") {
                 BrowserAddOnRow(
                     symbol: "globe",
@@ -53,14 +86,24 @@ struct BrowsersSettingsPane: View {
                 )
             }
 
-            Section("Chrome") {
+            Section("Chrome, Brave, Edge and Arc") {
                 BrowserAddOnRow(
                     symbol: "globe",
-                    title: "No add-on yet",
-                    detail: "Chrome calls are still detected.",
-                    statusSymbol: nil,
-                    statusColor: .secondary
+                    title: chromeState.title,
+                    detail: chromeState.detail(browsers: "Chrome, Brave, Edge and Arc"),
+                    statusSymbol: chromeState.symbol,
+                    statusColor: chromeState.color
                 )
+                if chromeState.offersSetUp {
+                    Button("Set up the add-on") { model.setUpChromeAddOn() }
+                        .buttonStyle(.borderedProminent)
+                    Text(
+                        "Open the browser's Extensions page, turn on Developer mode, "
+                            + "choose Load unpacked, and pick the folder Pipit shows."
+                    )
+                    .font(.caption).foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                }
             }
 
             Section {

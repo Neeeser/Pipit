@@ -298,7 +298,7 @@ public struct BrowserMeetingDetector: Sendable {
             otherAudibleTabs: event.otherAudibleTabs,
             browser: browser,
             applicationBundleID: browser.bundleIdentifiers.first,
-            audioBundlePrefixes: browser.bundleIdentifiers
+            audioBundlePrefixes: browser.audioBundlePrefixes
         )
     }
 
@@ -338,7 +338,7 @@ public struct BrowserMeetingDetector: Sendable {
             otherAudibleTabs: nil,
             browser: browser,
             applicationBundleID: browser.bundleIdentifiers.first,
-            audioBundlePrefixes: browser.bundleIdentifiers
+            audioBundlePrefixes: browser.audioBundlePrefixes
         )
     }
 }
