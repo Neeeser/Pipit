@@ -121,6 +121,11 @@ immutable. Titles, notes, speaker mappings, and meeting metadata are mutable.
 Markdown, summaries, and the mixed recording are derived files and can be
 regenerated.
 
+`recording.m4a` is aligned to the same timeline as `transcript.json`, so the
+Meetings window plays it and follows the transcript word by word.
+`PlaybackTimeline` lays the mixdowns of a call recorded in parts end to end and
+maps a playback position to a recording, a turn, and a word.
+
 Completed source tracks are compacted from CAF segments into AAC after Pipit
 verifies their decoded duration. Segment deletion starts only after the archive
 and metadata are durable. An interrupted compaction resumes during startup.

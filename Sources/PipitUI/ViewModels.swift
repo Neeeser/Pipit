@@ -299,6 +299,8 @@ public final class MeetingReviewModel {
     /// What is typed into the picker and which row the arrow keys are on. Held
     /// here rather than in the popover, which is rebuilt on every assignment.
     @ObservationIgnored public let picker = PeoplePickerModel()
+    /// The recording, and where in the transcript it is playing.
+    @ObservationIgnored public let playback = MeetingPlaybackModel()
     public var reanalyzeCount = ""
     public var isReanalyzing = false
     public var isRedoingMicrophone = false
@@ -422,6 +424,16 @@ public final class MeetingReviewModel {
         // to lose one's place in the search.
         navigation = navigation?.refreshed(in: CombinedLineBlock.blocks(from: combinedLines))
         correctedLines = Set(combinedLines.filter(\.isCorrected).map(\.id))
+        playback.update(
+            recordings: logical.recordings.map { recording in
+                MeetingPlaybackModel.Recording(
+                    id: recording.metadata.id,
+                    audio: recording.store.layout.recordingAudio,
+                    timelineOffset: recording.metadata.startedAt.timeIntervalSince(logical.startedAt)
+                )
+            },
+            lines: combinedLines
+        )
         microphoneLineEdits = logical.recordings.reduce(0) {
             $0 + (((try? $1.store.readSpeakerMap())?.microphoneLineEditCount) ?? 0)
         }
@@ -454,6 +466,7 @@ public final class MeetingReviewModel {
     /// The parts that need the identity store, which the file read does not.
     public func reloadSpeakers() async {
         speakerRows = await runtime.speakers(inMeeting: meetingID).filter(\.hasSpeechToShow)
+        playback.setLaneOrder(speakerRows.map(\.displayName))
         speakerSuggestions = runtime.speakerSuggestions(inMeeting: meetingID)
         unnamedSpeakerCount = runtime.unnamedSpeakerCount(inMeeting: meetingID)
         knownPeople = await runtime.speakerDirectory(kind: .person)

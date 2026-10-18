@@ -37,6 +37,11 @@ struct MeetingTranscriptView: View {
                             .padding(.trailing, 20)
                     }
                 }
+                .overlay(alignment: .bottom) {
+                    if playback.isPlaying, !playback.follows {
+                        backToPlaying
+                    }
+                }
                 .onChange(of: detail.navigation?.current) { _, target in
                     guard let target else { return }
                     // Animated, so the eye follows the page to the turn rather
@@ -45,8 +50,50 @@ struct MeetingTranscriptView: View {
                         proxy.scrollTo(target.blockID, anchor: .top)
                     }
                 }
+                .onChange(of: playback.cursor?.blockID) { _, blockID in
+                    guard playback.follows, playback.isPlaying, let blockID else { return }
+                    follow(blockID, with: proxy)
+                }
+                .onChange(of: playback.follows) { _, follows in
+                    guard follows, let blockID = playback.cursor?.blockID else { return }
+                    follow(blockID, with: proxy)
+                }
+                // Scrolling by hand while it plays means the reader wants to
+                // look elsewhere, so the page stops chasing the recording
+                // until they ask for it back.
+                .onScrollPhaseChange { _, phase in
+                    if phase == .interacting, playback.isPlaying, playback.follows {
+                        playback.follows = false
+                    }
+                }
             }
         }
+    }
+
+    private var playback: MeetingPlaybackModel { detail.playback }
+
+    /// Puts the turn being played a third of the way down, where the next
+    /// lines are still in view.
+    private func follow(_ blockID: String, with proxy: ScrollViewProxy) {
+        withAnimation(.easeInOut(duration: 0.3)) {
+            proxy.scrollTo(blockID, anchor: UnitPoint(x: 0, y: 0.3))
+        }
+    }
+
+    private var backToPlaying: some View {
+        Button {
+            playback.follows = true
+        } label: {
+            Label("Back to playing", systemImage: "play.fill")
+                .font(.caption)
+                .foregroundStyle(Color(nsColor: .textBackgroundColor))
+                .padding(.horizontal, 12)
+                .padding(.vertical, 6)
+                .background(Capsule().fill(Color.primary))
+                .shadow(color: .black.opacity(0.2), radius: 6, y: 3)
+        }
+        .buttonStyle(.plain)
+        .padding(.bottom, 16)
     }
 
     private var waiting: some View {
@@ -122,12 +169,23 @@ struct MeetingTranscriptView: View {
         let paragraph = block.paragraph()
         let matches = detail.navigation?.matches(in: block.id)
         let isCurrentTurn = detail.navigation?.isSearch == false && matches?.current != nil
+        let playing = playback.cursor?.blockID == block.id ? playback.cursor : nil
+        let speakerTint = tint(for: block.speakerName)
+        let canPlay = playback.canPlay(recordingID: block.recordingID)
         return VStack(alignment: .leading, spacing: 3) {
             HStack(spacing: 6) {
                 blockMenu(for: block)
-                Text(range(of: block))
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
+                if canPlay {
+                    TurnTimeButton(label: range(of: block)) {
+                        playback.play(
+                            recordingID: block.recordingID, seconds: block.lines[0].utterance.start
+                        )
+                    }
+                } else {
+                    Text(range(of: block))
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                }
                 if block.lines.contains(where: { detail.correctedLines.contains($0.id) }) {
                     Image(systemName: "pencil.circle.fill")
                         .font(.caption2)
@@ -151,12 +209,27 @@ struct MeetingTranscriptView: View {
                     detail.beginNaming(.range(target(action, in: block), in: block.id))
                 },
                 highlights: (matches?.all ?? []).map { NSRange(location: $0.location, length: $0.length) },
-                currentHighlight: matches?.current.map { NSRange(location: $0.location, length: $0.length) }
+                currentHighlight: matches?.current.map { NSRange(location: $0.location, length: $0.length) },
+                playingWord: playing?.word.map { NSRange(location: $0.location, length: $0.length) },
+                playingColor: NSColor(speakerTint).withAlphaComponent(0.28),
+                onPlay: canPlay ? playFromWord(in: block) : nil
             )
             // Anchored on the block, because the menu that raised it is an
             // AppKit one and has already closed by the time this opens.
             .popover(isPresented: pickingRange(in: block), arrowEdge: .bottom) {
                 if let open = detail.namingRange(inBlock: block.id) { picker(open) }
+            }
+        }
+        // The turn being played, tinted in the speaker's colour. Drawn past
+        // the block's edges rather than padded into it, so the text does not
+        // move as playback walks down the page. Stronger where the line has
+        // no word timings, because the tint is then the only mark.
+        .background {
+            if let playing {
+                RoundedRectangle(cornerRadius: 8)
+                    .fill(speakerTint.opacity(playing.isSpeaking && playing.word == nil ? 0.14 : 0.07))
+                    .padding(.horizontal, -10)
+                    .padding(.vertical, -6)
             }
         }
         // The turn the reader was taken to, marked with a band so the eye
@@ -174,6 +247,11 @@ struct MeetingTranscriptView: View {
             }
         }
         .padding(.leading, isCurrentTurn ? -12 : 0)
+    }
+
+    /// Plays from a double-clicked word, in the recording the turn came from.
+    private func playFromWord(in block: CombinedLineBlock) -> (TranscriptWordSpan) -> Void {
+        { span in playback.play(recordingID: block.recordingID, seconds: span.startSeconds) }
     }
 
     private func pickingRange(in block: CombinedLineBlock) -> Binding<Bool> {
@@ -314,6 +392,37 @@ struct MeetingTranscriptView: View {
             get: { detail.isNaming(id) },
             set: { open in if !open, detail.isNaming(id) { detail.cancelNaming() } }
         )
+    }
+}
+
+/// A turn's time range, which plays the turn from its start.
+///
+/// Reads as the caption it always was until the pointer is on it, so a
+/// transcript with audio does not look like a page of buttons.
+private struct TurnTimeButton: View {
+    let label: String
+    let action: () -> Void
+    @State private var hovered = false
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 3) {
+                Image(systemName: "play.fill")
+                    .font(.system(size: 7))
+                    .opacity(hovered ? 1 : 0)
+                Text(label)
+            }
+            .font(.caption2)
+            .foregroundStyle(hovered ? .primary : .secondary)
+            .padding(.horizontal, 5)
+            .padding(.vertical, 1)
+            .background(
+                RoundedRectangle(cornerRadius: 4).fill(Color.primary.opacity(hovered ? 0.07 : 0))
+            )
+        }
+        .buttonStyle(.plain)
+        .onHover { hovered = $0 }
+        .help("Play from here")
     }
 }
 

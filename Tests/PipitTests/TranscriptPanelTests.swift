@@ -200,6 +200,24 @@ struct TranscriptPanelTests {
         }
     }
 
+    @Test("a double-click plays from the word under it")
+    func aDoubleClickPlaysFromTheWordUnderIt() async throws {
+        await MainActor.run {
+            // "we ship on friday", one word per second.
+            let view = TranscriptTextView()
+            view.spans = (0..<4).map {
+                TranscriptWordSpan(
+                    location: $0 * 5, length: 4, startSeconds: Double($0),
+                    endSeconds: Double($0) + 0.8, utteranceID: "l1"
+                )
+            }
+            #expect(view.span(at: 6)?.startSeconds == 1.0, "inside the second word")
+            #expect(view.span(at: 9)?.startSeconds == 1.0, "the space after a word is that word's")
+            #expect(view.span(at: 0)?.startSeconds == 0.0, "the first word")
+            #expect(view.span(at: 99)?.startSeconds == 3.0, "past the end is the last word")
+        }
+    }
+
     @Test("a block measures taller as the column narrows")
     func aBlockMeasuresTallerAsTheColumnNarrows() async throws {
         await MainActor.run {
