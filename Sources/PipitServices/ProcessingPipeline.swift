@@ -146,8 +146,8 @@ public actor ProcessingPipeline {
     public init(
         repository: MeetingRepository,
         backend: any AIBackend,
-        backends: ProcessingBackends? = nil,
         languageModels: (@Sendable (AppSettings) -> any LanguageModelBackend)? = nil,
+        backends: ProcessingBackends? = nil,
         gate: any ProcessingGate = AlwaysAllowed(),
         scratch: ProcessingScratch = ProcessingScratch(root: ProcessingScratch.defaultRoot()),
         calendar: CalendarService? = nil,
