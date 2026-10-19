@@ -130,8 +130,8 @@ The following paths have been exercised outside unit tests:
   Choose Don't Allow and confirm the page says macOS blocked the check, and
   that quitting and relaunching raises no prompt. Choose Allow on another
   account and confirm the add-on's state is read on every later launch.
-- Language model providers: none of these has been run against a live service.
-  For each of OpenRouter, a local Ollama and a custom endpoint (LM Studio or
+- Language model providers: for each of OpenRouter, a local Ollama and a custom
+  endpoint (LM Studio or
   llama.cpp), choose it under AI Features, pick a model, press Test
   Connection, then reprocess a short meeting and confirm a title, summary and
   notes arrive. With Ollama, also confirm that "Found" shows beside it while it
