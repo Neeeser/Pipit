@@ -129,6 +129,13 @@ public final class MeetingPlaybackModel {
         guard hasAudio else { return }
         engaged = true
         position = min(max(target, 0), timeline.duration)
+        // AVAudioPlayer can restart the final file when its currentTime is
+        // set to the file's duration while it is playing.
+        if position == timeline.duration {
+            stop()
+            refreshCursor()
+            return
+        }
         if isPlaying {
             if !load(at: position) || player?.isPlaying != true {
                 isPlaying = false
