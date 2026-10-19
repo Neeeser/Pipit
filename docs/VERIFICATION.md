@@ -130,6 +130,16 @@ The following paths have been exercised outside unit tests:
   Choose Don't Allow and confirm the page says macOS blocked the check, and
   that quitting and relaunching raises no prompt. Choose Allow on another
   account and confirm the add-on's state is read on every later launch.
+- Language model providers: for each of OpenRouter, a local Ollama and a custom
+  endpoint (LM Studio or
+  llama.cpp), choose it under AI Features, pick a model, press Test
+  Connection, then reprocess a short meeting and confirm a title, summary and
+  notes arrive. With Ollama, also confirm that "Found" shows beside it while it
+  runs, that quitting it turns the row to "isn't running", that a meeting
+  longer than the chosen window is processed in parts (the log reports the
+  count, not the content), and that the summary of a meeting that fits only
+  after raising the slider covers the end of the call. Remove a key and
+  confirm the stage is passed over rather than failed.
 - Setup marks: continue past Calendar and alerts with both off, past AI
   Features with no key, and past Firefox without installing the add-on, quit
   and relaunch, and confirm all three show a blue check. Turn calendar and notifications on and confirm the row
@@ -151,6 +161,15 @@ The following paths have been exercised outside unit tests:
   and confirm every match is tinted, the current one bright and scrolled
   into view, the count reads "1 of N", Return and Shift-Return step, and
   Escape closes the strip and clears the tint.
+- Meeting playback: open a finished meeting and confirm a player sits
+  between the speakers and the tabs, with one lane per speaker in the chip
+  colours. Press Space, or the play button, and confirm the word being
+  spoken is tinted, its turn is banded, the speaker's chip is ringed, and
+  the transcript scrolls with the audio. Double-click a word and confirm
+  playback jumps to it; click a turn's time and confirm it plays that turn.
+  Scroll the transcript while it plays and confirm "Back to playing"
+  appears and returns to the playing turn. Space in a title or notes field
+  still types a space.
 - Local signing identity: run `scripts/make-signing-identity.sh`, rebuild and
   reinstall twice, and confirm Microphone, Accessibility and Screen & System
   Audio Recording stay granted across the second install.

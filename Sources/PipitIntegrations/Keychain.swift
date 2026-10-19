@@ -19,6 +19,12 @@ public struct KeychainAPIKeyStore: APIKeyProviding, Sendable {
         self.account = account
     }
 
+    /// The key stored for a provider that writes the meeting's titles and
+    /// summaries. OpenAI's is the one this type has always held.
+    public init(provider: LanguageModelProvider) {
+        self.init(service: provider.keychainService)
+    }
+
     public func apiKey() throws -> String {
         guard let key = read(), !key.isEmpty else { throw ProcessingError.missingAPIKey }
         return key
@@ -171,6 +177,36 @@ public final class CachingAPIKeyStore: APIKeyProviding, @unchecked Sendable {
         lock.lock()
         cached = key.isEmpty ? nil : key
         lock.unlock()
+    }
+}
+
+/// The stored key for each provider that takes one, each read once per
+/// process in the way `CachingAPIKeyStore` does it for OpenAI's.
+public final class LanguageModelKeyring: @unchecked Sendable {
+    private let lock = NSLock()
+    private var stores: [LanguageModelProvider: CachingAPIKeyStore]
+    private let make: @Sendable (LanguageModelProvider) -> any APIKeyProviding
+
+    /// `openAI` is the store the rest of the application already holds, so a
+    /// key saved through either is the same key. `make` builds the source for
+    /// any other provider the first time it is asked for.
+    public init(
+        openAI: CachingAPIKeyStore,
+        make: @escaping @Sendable (LanguageModelProvider) -> any APIKeyProviding
+    ) {
+        self.stores = [.openAI: openAI]
+        self.make = make
+    }
+
+    /// Nil for a provider that takes no key.
+    public func store(for provider: LanguageModelProvider) -> CachingAPIKeyStore? {
+        guard provider.acceptsKey else { return nil }
+        lock.lock()
+        defer { lock.unlock() }
+        if let held = stores[provider] { return held }
+        let created = CachingAPIKeyStore(make(provider))
+        stores[provider] = created
+        return created
     }
 }
 

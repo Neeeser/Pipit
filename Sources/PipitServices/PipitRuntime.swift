@@ -165,6 +165,9 @@ public final class PipitRuntime {
     /// The OpenAI key, read from the keychain once and held for the process.
     /// Exposed so saving a rotated key updates it without a relaunch.
     @ObservationIgnored public let apiKeys: CachingAPIKeyStore
+    /// The key for every provider that writes titles and summaries. OpenAI's is
+    /// `apiKeys`.
+    @ObservationIgnored public let languageModelKeys: LanguageModelKeyring
     // The disable is a pair rather than `disable:next` because a `//` line
     // between a doc comment and its declaration detaches the doc comment.
     // swiftlint:disable implicitly_unwrapped_optional
@@ -276,6 +279,18 @@ public final class PipitRuntime {
         // longer trusts.
         let cachedKeys = CachingAPIKeyStore(keyStore)
         apiKeys = cachedKeys
+        let keyring = LanguageModelKeyring(openAI: cachedKeys) { provider in
+            #if DEBUG
+                var layers: [any APIKeyProviding] = [KeychainAPIKeyStore(provider: provider)]
+                if let variable = provider.environmentKeyVariable {
+                    layers.append(EnvironmentAPIKeyStore(variableName: variable))
+                }
+                return LayeredAPIKeyStore(providers: layers)
+            #else
+                return KeychainAPIKeyStore(provider: provider)
+            #endif
+        }
+        languageModelKeys = keyring
         let cloud: any AIBackend = backend ?? OpenAIClient(keyProvider: cachedKeys)
         let modelManager = LocalModelManager(
             applicationSupport: settingsDirectory,
@@ -302,6 +317,11 @@ public final class PipitRuntime {
         pipeline = ProcessingPipeline(
             repository: repository,
             backend: cloud,
+            languageModels: { settings in
+                LanguageModelFactory.make(
+                    models: settings.models, openAI: cloud, keys: { keyring.store(for: $0) }
+                )
+            },
             backends: ProcessingBackends(
                 transcription: { settings, model in
                     ProcessingBackends.transcriptionBackend(

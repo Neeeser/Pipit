@@ -62,11 +62,21 @@ public struct MeetingDetailView: View {
             if let receipt = model.receipt, receipt.meetingID == detail.meetingID {
                 receiptBar(receipt.text)
             }
+            // Over the tabs, so the recording keeps playing and stays in reach
+            // whichever of them is open.
+            if detail.playback.hasAudio {
+                Divider()
+                MeetingPlayerBar(detail: detail)
+            } else if isPreparingAudio {
+                Divider()
+                MeetingPlayerPlaceholder()
+            }
             Divider()
             tabs
             content
         }
         .background(Color(nsColor: .textBackgroundColor))
+        .onDisappear { detail.playback.pause() }
         .confirmationDialog(
             "Remove echo from your side?", isPresented: $confirmingMicrophoneRedo,
             titleVisibility: .visible
@@ -76,6 +86,14 @@ public struct MeetingDetailView: View {
         } message: {
             Text("Corrections and splits on your own lines are removed.")
         }
+    }
+
+    /// Whether the recording is still to be written. It is mixed when
+    /// processing finishes, and a meeting that finished without one has none
+    /// to wait for.
+    private var isPreparingAudio: Bool {
+        guard let state = detail.metadata?.processing.state else { return false }
+        return state != .complete && state != .failed
     }
 
     /// Redoes the microphone straight away, or after asking when that would
@@ -219,7 +237,7 @@ public struct MeetingDetailView: View {
     private var missingKeyBar: some View {
         HStack(spacing: 8) {
             Image(systemName: "exclamationmark.circle.fill").foregroundStyle(.orange)
-            Text("No API key stored, so summary, notes and speaker suggestions were skipped")
+            Text("No model is set up, so summary, notes and speaker suggestions were skipped")
                 .font(.callout)
             Spacer(minLength: 8)
             Button("Open Settings") { model.openSettings() }
@@ -794,6 +812,8 @@ struct SpeakerChips: View {
         let unnamed = row.isUnnamed
         let walking = detail.isWalking(row)
         let showsArrow = walking || hovered == row.id
+        let speaking = isSpeaking(row)
+        let tint = PersonTint.color(identity: row.identity?.id, name: row.displayName)
         return HStack(spacing: 6) {
             SpeakerFace(
                 name: unnamed ? "" : row.displayName,
@@ -826,6 +846,13 @@ struct SpeakerChips: View {
             Text(Format.shortDuration(row.speechSeconds))
                 .font(.caption2)
                 .foregroundStyle(.secondary)
+            if speaking {
+                Image(systemName: "waveform")
+                    .font(.system(size: 9, weight: .semibold))
+                    .foregroundStyle(tint)
+                    .symbolEffect(.variableColor.iterative, isActive: detail.playback.isPlaying)
+                    .accessibilityLabel("Speaking")
+            }
             // The way to where they speak. Shown on hover, and kept while the
             // walk is on, so a second click steps to their next turn. The
             // name's own click still assigns, as before.
@@ -849,10 +876,18 @@ struct SpeakerChips: View {
         .padding(.trailing, showsArrow ? 4 : 8)
         .padding(.vertical, 3)
         .background {
-            Capsule().fill(unnamed ? Color.orange.opacity(0.12) : Color.primary.opacity(0.06))
+            Capsule().fill(
+                speaking
+                    ? tint.opacity(0.14)
+                    : unnamed ? Color.orange.opacity(0.12) : Color.primary.opacity(0.06)
+            )
         }
         .overlay {
-            if unnamed { Capsule().stroke(Color.orange.opacity(0.55), lineWidth: 1) }
+            if speaking {
+                Capsule().stroke(tint, lineWidth: 1.5)
+            } else if unnamed {
+                Capsule().stroke(Color.orange.opacity(0.55), lineWidth: 1)
+            }
         }
         .onHover { inside in hovered = inside ? row.id : (hovered == row.id ? nil : hovered) }
         .contextMenu {
@@ -864,6 +899,12 @@ struct SpeakerChips: View {
 
     private func target(_ row: MeetingSpeakerRow) -> SpeakerNamingTarget {
         .cluster(row.allClusterIDs, in: row.recordingID)
+    }
+
+    /// Whether the recording is on this speaker's voice right now.
+    private func isSpeaking(_ row: MeetingSpeakerRow) -> Bool {
+        guard let cursor = detail.playback.cursor, cursor.isSpeaking else { return false }
+        return cursor.speakerName == row.displayName && cursor.recordingID == row.recordingID
     }
 
     private func picking(_ row: MeetingSpeakerRow) -> Binding<Bool> {

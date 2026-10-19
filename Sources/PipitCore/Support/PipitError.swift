@@ -127,11 +127,16 @@ public enum ProcessingError: LogSafeError, Equatable {
     /// A stage that runs on this Mac failed. Carries its own message because
     /// the cloud wording is wrong for it and often wrong about the cause.
     case localProcessingFailed(reason: String, retryable: Bool)
+    /// A model that writes about the meeting failed. Carries the provider's
+    /// name because it is the wording that differs: the cases above speak of
+    /// OpenAI, which is wrong for Ollama or an endpoint the person typed.
+    case languageModel(provider: String, failure: LanguageModelFailure)
 
     public var isRetryable: Bool {
         switch self {
         case .rateLimited, .serverError, .transport, .emptyTranscript, .degenerateTranscript: true
         case .localProcessingFailed(_, let retryable): retryable
+        case .languageModel(_, let failure): failure.isRetryable
         case .missingAPIKey, .authenticationFailed, .requestTooLarge, .durationTooLong,
             .malformedResponse, .audioUnreadable, .utteranceNotFound, .cancelled:
             false
@@ -151,6 +156,7 @@ public enum ProcessingError: LogSafeError, Equatable {
         case .degenerateTranscript(let chunk): "degenerateTranscript(\(chunk))"
         case .transport(let reason): "transport(\(reason))"
         case .localProcessingFailed(let reason, _): "local(\(reason))"
+        case .languageModel(_, let failure): "languageModel(\(failure.logSafeDescription))"
         case .audioUnreadable(let path): "audioUnreadable(\(path))"
         case .utteranceNotFound: "utteranceNotFound"
         case .cancelled: "cancelled"
@@ -178,6 +184,67 @@ public enum ProcessingError: LogSafeError, Equatable {
             "That line has moved since the transcript was last analysed. Reopen the meeting and try again."
         case .cancelled: "Processing was cancelled. Your recording is safe."
         case .localProcessingFailed(let reason, _): "\(reason) Your recording is safe."
+        case .languageModel(let provider, let failure): "\(failure.message(provider: provider)) Your recording is safe."
+        }
+    }
+}
+
+/// How a request to a model that writes about the meeting went wrong.
+public enum LanguageModelFailure: Equatable, Sendable {
+    case authenticationFailed
+    /// Nothing answered: the server is not running, the network is down, or the
+    /// request timed out.
+    case unreachable
+    case rateLimited(retryAfter: TimeInterval?)
+    case serverError(status: Int)
+    /// The server does not have the model, or does not have the address.
+    case modelNotFound
+    /// The server refused the request itself, after the fallback that drops the
+    /// optional parts of it.
+    case rejected(status: Int)
+    case unexpectedResponse
+
+    public var isRetryable: Bool {
+        switch self {
+        case .unreachable, .rateLimited, .serverError: true
+        case .authenticationFailed, .modelNotFound, .rejected, .unexpectedResponse: false
+        }
+    }
+
+    public var logSafeDescription: String {
+        switch self {
+        case .authenticationFailed: "authenticationFailed"
+        case .unreachable: "unreachable"
+        case .rateLimited(let after): "rateLimited(retryAfter: \(after.map { String(format: "%.0f", $0) } ?? "-"))"
+        case .serverError(let status): "serverError(\(status))"
+        case .modelNotFound: "modelNotFound"
+        case .rejected(let status): "rejected(\(status))"
+        case .unexpectedResponse: "unexpectedResponse"
+        }
+    }
+
+    /// What happened, as a plain statement. Settings shows this beside the
+    /// button that was pressed.
+    public func statement(provider: String) -> String {
+        switch self {
+        case .authenticationFailed: "\(provider) rejected the API key"
+        case .unreachable: "Could not reach \(provider)"
+        case .rateLimited: "\(provider) is rate limiting requests"
+        case .serverError: "\(provider) returned a server error"
+        case .modelNotFound: "\(provider) does not have the selected model"
+        case .rejected: "\(provider) refused the request"
+        case .unexpectedResponse: "\(provider) returned an unexpected response"
+        }
+    }
+
+    /// The statement and what happens next, for a meeting that hit it.
+    public func message(provider: String) -> String {
+        let what = statement(provider: provider)
+        switch self {
+        case .unreachable, .rateLimited, .serverError: return "\(what). Pipit will retry."
+        case .modelNotFound: return "\(what). Choose another in Settings."
+        case .rejected: return "\(what). Try another model in Settings."
+        case .authenticationFailed, .unexpectedResponse: return "\(what)."
         }
     }
 }

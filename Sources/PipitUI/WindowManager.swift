@@ -376,7 +376,8 @@ public final class WindowManager {
         present(window, activating: activating)
     }
 
-    /// Command-F on the Transcript tab searches the transcript.
+    /// Command-F on the Transcript tab searches the transcript, and Space on
+    /// any tab plays and pauses the recording.
     ///
     /// A key monitor rather than a hidden button with a key equivalent: the
     /// sidebar's search field is the window's first responder, and it took
@@ -386,9 +387,14 @@ public final class WindowManager {
     private func installFindShortcut(for window: NSWindow) {
         findMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self, weak window] event in
             guard let self, let window, window.isKeyWindow,
-                let model = meetingsModel, model.tab == .transcript, let detail = model.detail
+                let model = meetingsModel, let detail = model.detail
             else { return event }
             let modifiers = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
+            if Self.isPlayPause(event, modifiers: modifiers, in: window), detail.playback.hasAudio {
+                detail.playback.toggle()
+                return nil
+            }
+            guard model.tab == .transcript else { return event }
             if modifiers == .command, event.charactersIgnoringModifiers == "f" {
                 detail.beginSearch()
                 return nil
@@ -405,6 +411,23 @@ public final class WindowManager {
             }
             return event
         }
+    }
+
+    /// Space plays and pauses the open meeting, except where it is typing.
+    ///
+    /// The sidebar's search field holds focus whenever nothing else does, so
+    /// an empty single-line field gives the key up: a leading space searches
+    /// for nothing. A field with text in it, and the notes editor, keep it.
+    private static func isPlayPause(
+        _ event: NSEvent, modifiers: NSEvent.ModifierFlags, in window: NSWindow
+    ) -> Bool {
+        let space: UInt16 = 49
+        guard event.keyCode == space, modifiers.isDisjoint(with: [.command, .option, .control, .shift])
+        else { return false }
+        if let text = window.firstResponder as? NSTextView, text.isEditable {
+            return text.isFieldEditor && text.string.isEmpty
+        }
+        return true
     }
 
     /// Where a finished recording lands.

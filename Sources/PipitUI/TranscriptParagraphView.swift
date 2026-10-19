@@ -48,6 +48,11 @@ struct TranscriptParagraph: NSViewRepresentable {
     /// Search matches to tint, and the one the reader is on.
     var highlights: [NSRange] = []
     var currentHighlight: NSRange?
+    /// The word the recording is on, and the tint to mark it with.
+    var playingWord: NSRange?
+    var playingColor: NSColor?
+    /// Double-clicked a word, to play from it. Nil where there is no audio.
+    var onPlay: ((TranscriptWordSpan) -> Void)?
 
     func makeNSView(context: Context) -> TranscriptTextView {
         let view = TranscriptTextView()
@@ -77,7 +82,11 @@ struct TranscriptParagraph: NSViewRepresentable {
         view.people = people
         view.onAction = onAction
         view.onSomeoneElse = onSomeoneElse
-        view.setHighlights(highlights, current: currentHighlight)
+        view.onPlay = onPlay
+        view.setHighlights(
+            highlights, current: currentHighlight,
+            playing: playingWord.map { (range: $0, color: playingColor ?? .controlAccentColor) }
+        )
     }
 
     func sizeThatFits(
@@ -98,18 +107,29 @@ public final class TranscriptTextView: NSTextView {
     var people: [SpeakerDirectoryEntry] = []
     var onAction: ((TranscriptParagraphAction, SpeakerDirectoryEntry?) -> Void)?
     var onSomeoneElse: ((TranscriptParagraphAction) -> Void)?
+    var onPlay: ((TranscriptWordSpan) -> Void)?
 
     private var highlighted: [NSRange] = []
     private var current: NSRange?
+    private var playing: (range: NSRange, color: NSColor)?
 
-    /// Tints search matches without touching the text. Temporary attributes
-    /// are drawn by the layout manager and never enter the string, so a copy
-    /// of the paragraph is still the paragraph.
-    func setHighlights(_ ranges: [NSRange], current: NSRange?) {
-        guard ranges != highlighted || current != self.current, let manager = layoutManager else { return }
+    /// Tints search matches and the word being played without touching the
+    /// text. Temporary attributes are drawn by the layout manager and never
+    /// enter the string, so a copy of the paragraph is still the paragraph.
+    func setHighlights(_ ranges: [NSRange], current: NSRange?, playing: (range: NSRange, color: NSColor)? = nil) {
+        guard
+            ranges != highlighted || current != self.current
+                || playing?.range != self.playing?.range || playing?.color != self.playing?.color,
+            let manager = layoutManager
+        else { return }
         let whole = NSRange(location: 0, length: (string as NSString).length)
         manager.removeTemporaryAttribute(.backgroundColor, forCharacterRange: whole)
         manager.removeTemporaryAttribute(.foregroundColor, forCharacterRange: whole)
+        // Under the search tints, so a match on the word being played still
+        // reads as a match.
+        if let playing, NSMaxRange(playing.range) <= whole.length {
+            manager.addTemporaryAttribute(.backgroundColor, value: playing.color, forCharacterRange: playing.range)
+        }
         for range in ranges where NSMaxRange(range) <= whole.length {
             manager.addTemporaryAttribute(
                 .backgroundColor, value: NSColor.systemYellow.withAlphaComponent(0.35), forCharacterRange: range
@@ -121,6 +141,22 @@ public final class TranscriptTextView: NSTextView {
         }
         highlighted = ranges
         self.current = current
+        self.playing = playing
+    }
+
+    /// A double-click still selects the word, as it does in any text, and
+    /// also plays from it.
+    public override func mouseDown(with event: NSEvent) {
+        super.mouseDown(with: event)
+        guard event.clickCount == 2, let onPlay else { return }
+        let point = convert(event.locationInWindow, from: nil)
+        if let span = span(at: characterIndexForInsertion(at: point)) { onPlay(span) }
+    }
+
+    /// The word holding a character index, or the one before it when the
+    /// index falls in the space after a word.
+    public func span(at index: Int) -> TranscriptWordSpan? {
+        spans.last { $0.location <= index } ?? spans.first
     }
 
     /// The height this paragraph needs at a given width. Laid out rather than

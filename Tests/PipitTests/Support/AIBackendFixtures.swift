@@ -28,6 +28,9 @@ public final class FakeAIBackend: AIBackend, @unchecked Sendable {
     public var failNextTranscription: ProcessingError?
     /// Fails every enrichment request, for the lost-connection path.
     public var failEnrichment: ProcessingError?
+    /// Fails every speaker suggestion request, for a model server that is not
+    /// running.
+    public var failSuggestions: ProcessingError?
     public var failNextDiarization: ProcessingError?
     /// Fails every request, for the bounded-retry path.
     public var alwaysFailTranscription: ProcessingError?
@@ -95,6 +98,7 @@ public final class FakeAIBackend: AIBackend, @unchecked Sendable {
         // What the real client does with no key, and the reason these stages
         // have to ask before calling: the error is not retryable.
         if !configured { throw ProcessingError.missingAPIKey }
+        if let failSuggestions { throw failSuggestions }
         return suggestions
     }
 
