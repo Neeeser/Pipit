@@ -9,23 +9,70 @@ public struct AIModelSettings: Codable, Sendable, Equatable {
     public var transcription: String
     /// Speaker-attributed transcription for the remote track.
     public var diarization: String
-    /// Reasoning model for speaker resolution, titles and summaries.
-    public var metadata: String
     /// Names and jargon the transcription should expect, comma or newline
     /// separated. Sent as keyword hints to models that take them, and only to
     /// them. Empty means nothing extra is sent anywhere.
     public var vocabularyHints: String
+    /// Who writes speaker suggestions, titles, summaries and notes.
+    public var metadataProvider: LanguageModelProvider
+    /// The model and context window picked for each provider, by raw value.
+    /// Kept for all of them so switching provider and back finds the last choice.
+    public var metadataSelections: [String: LanguageModelChoice]
+    /// The address typed for the custom endpoint.
+    public var customEndpoint: String
+
+    public static let defaultMetadataModel = "gpt-5.6-luna"
 
     public init(
         transcription: String = "gpt-4o-transcribe-diarize",
         diarization: String = "gpt-4o-transcribe-diarize",
-        metadata: String = "gpt-5.6-luna",
-        vocabularyHints: String = ""
+        metadata: String = AIModelSettings.defaultMetadataModel,
+        vocabularyHints: String = "",
+        metadataProvider: LanguageModelProvider = .openAI,
+        customEndpoint: String = ""
     ) {
         self.transcription = transcription
         self.diarization = diarization
-        self.metadata = metadata
         self.vocabularyHints = vocabularyHints
+        self.metadataProvider = metadataProvider
+        self.metadataSelections = [:]
+        self.customEndpoint = customEndpoint
+        self.metadata = metadata
+    }
+
+    /// The model the selected provider uses for speaker suggestions, titles,
+    /// summaries and notes. Empty means none is chosen yet, and those stages
+    /// wait for one.
+    public var metadata: String {
+        get { metadataModel(for: metadataProvider) }
+        set { setMetadataModel(newValue, for: metadataProvider) }
+    }
+
+    /// The model chosen for one provider, whichever provider is selected. A
+    /// control that is about OpenAI, such as the setup wizard's, reads and
+    /// writes this rather than `metadata`, so it never touches the choice made
+    /// for another provider.
+    public func metadataModel(for provider: LanguageModelProvider) -> String {
+        metadataSelections[provider.rawValue]?.model ?? provider.defaultModel
+    }
+
+    public mutating func setMetadataModel(_ model: String, for provider: LanguageModelProvider) {
+        var choice = metadataSelections[provider.rawValue] ?? LanguageModelChoice()
+        choice.model = model
+        metadataSelections[provider.rawValue] = choice
+    }
+
+    /// The context window the selected provider's requests are sized to.
+    public var metadataContextTokens: Int {
+        get {
+            metadataSelections[metadataProvider.rawValue]?.contextTokens
+                ?? metadataProvider.defaultContextTokens
+        }
+        set {
+            var choice = metadataSelections[metadataProvider.rawValue] ?? LanguageModelChoice()
+            choice.contextTokens = newValue
+            metadataSelections[metadataProvider.rawValue] = choice
+        }
     }
 
     /// The cloud transcription models Settings offers, default first.
@@ -66,12 +113,21 @@ public struct AIModelSettings: Codable, Sendable, Equatable {
             .filter { !$0.isEmpty }
     }
 
-    /// One missing key must not reset the other two.
+    private enum CodingKeys: String, CodingKey {
+        case transcription, diarization, metadata, vocabularyHints
+        case metadataProvider, metadataSelections, customEndpoint
+    }
+
+    /// One missing key must not reset the others.
     ///
     /// The synthesized decoder throws on an absent field, and the enclosing
     /// `AppSettings` decoder falls back to the whole default struct when this
     /// one throws, so adding a field here would silently discard every model
     /// identifier the user had chosen.
+    ///
+    /// `metadata` is still written, as the selected provider's model, so a file
+    /// read by an older build names the model that was in use. Read back, it is
+    /// the choice for the selected provider when `metadataSelections` has none.
     public init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         let defaults = AIModelSettings()
@@ -79,10 +135,35 @@ public struct AIModelSettings: Codable, Sendable, Equatable {
             try container.decodeIfPresent(String.self, forKey: .transcription) ?? defaults.transcription
         diarization =
             try container.decodeIfPresent(String.self, forKey: .diarization) ?? defaults.diarization
-        metadata = try container.decodeIfPresent(String.self, forKey: .metadata) ?? defaults.metadata
         vocabularyHints =
             try container.decodeIfPresent(String.self, forKey: .vocabularyHints)
             ?? defaults.vocabularyHints
+        // A provider a newer build wrote and this one does not know reads as
+        // the default, rather than failing the whole struct.
+        metadataProvider =
+            (try? container.decodeIfPresent(LanguageModelProvider.self, forKey: .metadataProvider))
+            ?? defaults.metadataProvider
+        customEndpoint =
+            try container.decodeIfPresent(String.self, forKey: .customEndpoint) ?? defaults.customEndpoint
+        metadataSelections =
+            (try? container.decodeIfPresent([String: LanguageModelChoice].self, forKey: .metadataSelections))
+            ?? [:]
+        if metadataSelections[metadataProvider.rawValue] == nil,
+            let legacy = try container.decodeIfPresent(String.self, forKey: .metadata)
+        {
+            metadata = legacy
+        }
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(transcription, forKey: .transcription)
+        try container.encode(diarization, forKey: .diarization)
+        try container.encode(metadata, forKey: .metadata)
+        try container.encode(vocabularyHints, forKey: .vocabularyHints)
+        try container.encode(metadataProvider, forKey: .metadataProvider)
+        try container.encode(metadataSelections, forKey: .metadataSelections)
+        try container.encode(customEndpoint, forKey: .customEndpoint)
     }
 
     /// Whether the responses endpoint accepts a `reasoning` parameter for this

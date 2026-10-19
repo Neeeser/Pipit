@@ -263,6 +263,33 @@ Optional enrichment reads the canonical transcript and can produce a title,
 summary, notes, and textual speaker suggestions. An enrichment failure leaves
 the recording and transcript available for retry.
 
+The model that does this is chosen separately from transcription, in Settings
+under AI Features. `LanguageModelProvider` lists the choices: OpenAI, which
+keeps the responses endpoint and the key it has always used; OpenRouter and any
+server that answers `POST {base}/chat/completions`, through
+`ChatCompletionsClient`; and Ollama, through `OllamaClient`. All of them read
+their instructions and answer schema from `LanguageModelPrompts`, so a provider
+changes the envelope and not the words. A new provider is a case in the enum, a
+case in `LanguageModelFactory`, and its own key in `LanguageModelKeyring`.
+
+Ollama is called on its own `/api/chat` endpoint, because only that request can
+set `num_ctx`. Its default window is small next to a meeting (4,096 tokens in
+the versions this was written against, scaled with memory in newer ones), and a
+longer prompt is truncated with a warning in Ollama's own log and no error to the
+caller. `ContextWindow` turns the window the person
+picks into a number of meeting minutes for the slider and a number of
+characters for the splitter. A meeting that does not fit is cut between lines
+by `TranscriptChunker`; `ChunkedLanguageModel` summarises each part, then asks
+for the title and summary of the whole meeting from the notes on the parts. The
+minutes figure assumes 250 tokens for a minute of conversation and holds 3,000
+tokens back for instructions and the answer. Both numbers are estimates chosen
+to split early, and neither has been measured against a tokenizer.
+
+An answer is asked for as a JSON schema first. A server that refuses the schema,
+or a model that answers in prose, gets one more request with the schema written
+into the instructions, and `ModelJSON` reads the object out of the reply
+whether it is fenced, preceded by prose, or preceded by thinking.
+
 ## Speaker identity
 
 Diarization writes immutable speaker intervals. `speakers.map.json` adds mutable

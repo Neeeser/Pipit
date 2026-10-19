@@ -148,6 +148,16 @@ public struct EnrichmentFolder: Sendable, Equatable {
     }
 }
 
+/// What the text in an enrichment request is.
+public enum EnrichmentSource: Sendable, Equatable {
+    case transcript
+    /// One part of a transcript too long for the model's context window.
+    case part(index: Int, of: Int)
+    /// The notes written for each part, in order, standing in for the
+    /// transcript when the parts are combined.
+    case partNotes(parts: Int)
+}
+
 public struct EnrichmentRequest: Sendable {
     public var transcript: String
     public var humanNotes: String?
@@ -162,11 +172,13 @@ public struct EnrichmentRequest: Sendable {
     /// request entirely, which is what happens when there are no folders yet
     /// or when the reach is set to recurring meetings only.
     public var folders: [EnrichmentFolder]
+    public var source: EnrichmentSource
 
     public init(
         transcript: String, humanNotes: String?, participants: [String], provider: MeetingProvider,
         durationSeconds: Double, wantsTitle: Bool, wantsDescription: Bool,
-        wantsSummary: Bool, wantsNotes: Bool, folders: [EnrichmentFolder] = []
+        wantsSummary: Bool, wantsNotes: Bool, folders: [EnrichmentFolder] = [],
+        source: EnrichmentSource = .transcript
     ) {
         self.transcript = transcript
         self.humanNotes = humanNotes
@@ -178,6 +190,7 @@ public struct EnrichmentRequest: Sendable {
         self.wantsSummary = wantsSummary
         self.wantsNotes = wantsNotes
         self.folders = folders
+        self.source = source
     }
 }
 
@@ -217,9 +230,12 @@ public struct SpeakerResolutionRequest: Sendable {
     }
 }
 
-/// The AI backend, behind a protocol so the pipeline can be tested without the
-/// network and so a different provider can be substituted later.
-public protocol AIBackend: Sendable {
+/// The part of the AI backend that reads a transcript and writes about it.
+///
+/// Separate from audio so that titles, summaries and speaker suggestions can
+/// come from a different provider than the transcript did: a person can
+/// transcribe with OpenAI and write notes with a model running on their Mac.
+public protocol LanguageModelBackend: Sendable {
     /// Whether this backend has what it needs to make a request.
     ///
     /// The optional cloud stages ask before calling, because the local pipeline
@@ -231,8 +247,13 @@ public protocol AIBackend: Sendable {
     func isConfigured() async -> Bool
 
     func verifyCredentials(model: String) async throws
-    func transcribe(_ request: TranscriptionRequest) async throws -> TranscriptionResponse
-    func diarize(_ request: DiarizationRequest) async throws -> TranscriptionResponse
     func resolveSpeakers(_ request: SpeakerResolutionRequest, model: String) async throws -> [SpeakerSuggestion]
     func enrich(_ request: EnrichmentRequest, model: String) async throws -> MeetingEnrichment
+}
+
+/// The AI backend, behind a protocol so the pipeline can be tested without the
+/// network and so a different provider can be substituted later.
+public protocol AIBackend: LanguageModelBackend {
+    func transcribe(_ request: TranscriptionRequest) async throws -> TranscriptionResponse
+    func diarize(_ request: DiarizationRequest) async throws -> TranscriptionResponse
 }

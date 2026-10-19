@@ -27,6 +27,20 @@ public final class SettingsModel {
     public var apiKey = ""
     public var hasStoredKey: Bool
     public var testState = TestState.idle
+    /// What the selected provider offers to choose from. Empty until it has
+    /// been asked.
+    public var modelList: [LanguageModelOption] = []
+    public var modelListState = ModelListState.idle
+    /// What the model list's search field holds.
+    public var modelSearch = ""
+    public var showsFreeModelsOnly = false
+    public var isChoosingModel = false
+    /// Whether the model is typed rather than chosen from the list.
+    public var typesModelName = false
+    /// Nil until Ollama has been looked for.
+    public var ollamaStatus: OllamaServer.Status?
+    /// The most context the chosen Ollama model supports, when Ollama says.
+    public var ollamaMaximumContext: Int?
     public var voiceStatistics: SpeakerStore.Statistics?
     /// What the archive costs on disk. Nil until the first walk finishes, which
     /// is what the Storage page draws "Calculating…" for.
@@ -46,12 +60,29 @@ public final class SettingsModel {
         case failure(String)
     }
 
+    public enum ModelListState: Equatable {
+        case idle
+        case loading
+        case loaded
+        case failed
+    }
+
     @ObservationIgnored let runtime: PipitRuntime
+    /// Whether a key is stored for a provider. Injected so a test never raises
+    /// the login-keychain prompt this lookup can raise on a build the item does
+    /// not trust.
+    @ObservationIgnored private let storedKeyLookup: @Sendable (LanguageModelProvider) async -> Bool
     /// What the Agents page installs and removes.
     let agents = AgentsModel()
 
-    public init(runtime: PipitRuntime) {
+    public init(
+        runtime: PipitRuntime,
+        storedKeyLookup: @escaping @Sendable (LanguageModelProvider) async -> Bool = { provider in
+            await Task.detached { KeychainAPIKeyStore(provider: provider).hasKey }.value
+        }
+    ) {
         self.runtime = runtime
+        self.storedKeyLookup = storedKeyLookup
         // Deliberately not read here. A keychain lookup can block on an
         // authorisation prompt, and building a view is not the place to
         // discover that: the panel would hang with nothing on screen.
@@ -67,7 +98,11 @@ public final class SettingsModel {
         // trust the binary, which every unsigned rebuild produces. Run inline
         // it froze the whole window, and the panel behind the prompt was the
         // one that would have explained it.
-        hasStoredKey = await Task.detached { KeychainAPIKeyStore().hasKey }.value
+        let asked = provider
+        let stored = await keyPresence(for: asked)
+        // The keychain can sit on a prompt for as long as a person takes to
+        // answer it, and the page may have moved to another provider since.
+        if provider == asked { hasStoredKey = stored }
     }
 
     /// Keeps the browser rows current while that page is open.
@@ -97,19 +132,52 @@ public final class SettingsModel {
         )
     }
 
+    // MARK: - AI Features
+
+    var provider: LanguageModelProvider { runtime.settings.models.metadataProvider }
+    var contextTokens: Int { runtime.settings.models.metadataContextTokens }
+
+    /// Whether a key is stored for a provider, asked off the main actor for the
+    /// reason `refresh` gives.
+    private func keyPresence(for provider: LanguageModelProvider) async -> Bool {
+        guard provider.acceptsKey else { return false }
+        return await storedKeyLookup(provider)
+    }
+
+    public func selectProvider(_ chosen: LanguageModelProvider) {
+        guard chosen != provider else { return }
+        var settings = runtime.settings
+        settings.models.metadataProvider = chosen
+        runtime.update(settings: settings)
+        apiKey = ""
+        testState = .idle
+        modelSearch = ""
+        isChoosingModel = false
+        typesModelName = false
+        modelList = []
+        modelListState = .idle
+        hasStoredKey = false
+        Task {
+            let stored = await self.keyPresence(for: chosen)
+            if self.provider == chosen { self.hasStoredKey = stored }
+        }
+    }
+
     public func saveKey() {
         let saved = apiKey
-        hasStoredKey = KeychainAPIKeyStore().save(saved)
+        let current = provider
+        hasStoredKey = KeychainAPIKeyStore(provider: current).save(saved)
         // The runtime holds the key for the process, so a rotated one has to be
         // handed over rather than waiting for a relaunch.
-        if hasStoredKey { runtime.apiKeys.adopt(saved) }
+        if hasStoredKey { runtime.languageModelKeys.store(for: current)?.adopt(saved) }
         apiKey = ""
         testState = .idle
     }
 
     public func removeKey() {
-        _ = KeychainAPIKeyStore().delete()
-        runtime.apiKeys.invalidateCachedKey()
+        let current = provider
+        _ = KeychainAPIKeyStore(provider: current).delete()
+        runtime.languageModelKeys.store(for: current)?.invalidateCachedKey()
         hasStoredKey = false
         testState = .idle
     }
@@ -117,14 +185,149 @@ public final class SettingsModel {
     public func testConnection() async {
         testState = .testing
         if !apiKey.isEmpty { saveKey() }
+        let current = provider
+        let keyring = runtime.languageModelKeys
         do {
-            try await OpenAIClient(keyProvider: runtime.apiKeys)
-                .verifyCredentials(model: runtime.settings.models.diarization)
-            testState = .success
+            if current == .openAI {
+                try await OpenAIClient(keyProvider: runtime.apiKeys)
+                    .verifyCredentials(model: runtime.settings.models.diarization)
+            } else {
+                let models = runtime.settings.models
+                try await LanguageModelFactory.make(
+                    models: models, openAI: OpenAIClient(keyProvider: runtime.apiKeys),
+                    keys: { keyring.store(for: $0) }
+                )
+                .verifyCredentials(model: models.metadata)
+                await refreshProvider()
+            }
+            if provider == current { testState = .success }
+        } catch ProcessingError.languageModel(let name, let failure) {
+            if provider == current { testState = .failure(failure.statement(provider: name)) }
         } catch let error as ProcessingError {
-            testState = .failure(error.userMessage)
+            if provider == current { testState = .failure(error.userMessage) }
         } catch {
-            testState = .failure("Could not reach OpenAI")
+            if provider == current { testState = .failure("Could not reach \(current.displayName)") }
+        }
+    }
+
+    /// What to look up when the page opens or the provider changes.
+    public func refreshProvider() async {
+        // Ollama is looked for whichever provider is chosen, so the provider
+        // list can say it is there.
+        async let ollama: Void = probeOllama()
+        switch provider {
+        case .openAI, .ollama: break
+        case .openRouter, .custom: await loadModelList()
+        }
+        await ollama
+    }
+
+    /// The models the selected server lists. A server that does not list them
+    /// leaves the field to be typed into.
+    public func loadModelList() async {
+        let asked = provider
+        let address =
+            asked == .openRouter
+            ? URL(string: asked.defaultBaseURL) : EndpointAddress.normalized(runtime.settings.models.customEndpoint)
+        guard asked == .openRouter || asked == .custom, let address else {
+            modelList = []
+            modelListState = .idle
+            return
+        }
+        modelListState = .loading
+        let catalogue = LanguageModelCatalogue(
+            provider: asked, baseURL: address, keyProvider: runtime.languageModelKeys.store(for: asked)
+        )
+        do {
+            let options = try await catalogue.fetch()
+            guard provider == asked, !Task.isCancelled else { return }
+            modelList = options
+            modelListState = options.isEmpty ? .failed : .loaded
+        } catch {
+            guard provider == asked, !Task.isCancelled else { return }
+            modelList = []
+            modelListState = .failed
+        }
+    }
+
+    /// The models that match the search box and the free switch.
+    var visibleModels: [LanguageModelOption] {
+        let query = modelSearch.trimmingCharacters(in: .whitespaces).lowercased()
+        return modelList.filter { option in
+            (!showsFreeModelsOnly || option.isFree)
+                && (query.isEmpty || option.id.lowercased().contains(query)
+                    || option.name.lowercased().contains(query))
+        }
+    }
+
+    public func chooseModel(_ id: String, contextTokens: Int? = nil) {
+        var settings = runtime.settings
+        settings.models.metadata = id
+        if let contextTokens { settings.models.metadataContextTokens = contextTokens }
+        runtime.update(settings: settings)
+        if provider == .ollama { Task { await self.readOllamaMaximumContext() } }
+    }
+
+    /// A hosted model sets the window itself: nothing is asked of the person
+    /// for a figure the provider already published.
+    func chooseOption(_ option: LanguageModelOption) {
+        let published = min(
+            option.contextTokens ?? ContextWindow.hostedDefaultTokens, ContextWindow.hostedDefaultTokens)
+        chooseModel(
+            option.id, contextTokens: provider.choosesContextWindow ? nil : ContextWindow.largestSize(atMost: published)
+        )
+    }
+
+    public func setContext(_ tokens: Int) {
+        var settings = runtime.settings
+        settings.models.metadataContextTokens = tokens
+        runtime.update(settings: settings)
+    }
+
+    /// The window sizes the slider offers for the selected model.
+    var contextSizes: [Int] {
+        provider == .ollama ? ContextWindow.sizes(upTo: ollamaMaximumContext) : ContextWindow.sizes
+    }
+
+    var ollamaIsRunning: Bool {
+        if case .running = ollamaStatus { return true }
+        return false
+    }
+
+    var ollamaModels: [OllamaModel] {
+        if case .running(let models)? = ollamaStatus { return models }
+        return []
+    }
+
+    public func probeOllama() async {
+        ollamaStatus = await OllamaServer().status()
+        await readOllamaMaximumContext()
+    }
+
+    func readOllamaMaximumContext() async {
+        let chosen = runtime.settings.models.metadata
+        guard provider == .ollama, ollamaIsRunning, !chosen.isEmpty else {
+            ollamaMaximumContext = nil
+            return
+        }
+        let maximum = await OllamaServer().maximumContext(of: chosen)
+        guard provider == .ollama, runtime.settings.models.metadata == chosen else { return }
+        ollamaMaximumContext = maximum
+        // A window set for another model may be more than this one holds.
+        if let largest = ContextWindow.sizes(upTo: maximum).last, contextTokens > largest {
+            setContext(largest)
+        }
+    }
+
+    var canOpenOllama: Bool { OllamaServer().applicationURL != nil }
+
+    public func openOllama() {
+        guard let url = OllamaServer().applicationURL else { return }
+        NSWorkspace.shared.openApplication(at: url, configuration: NSWorkspace.OpenConfiguration()) { _, _ in }
+        // It takes a moment to start listening.
+        Task {
+            try? await Task.sleep(for: .seconds(3))
+            await self.probeOllama()
         }
     }
 

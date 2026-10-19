@@ -130,6 +130,16 @@ The following paths have been exercised outside unit tests:
   Choose Don't Allow and confirm the page says macOS blocked the check, and
   that quitting and relaunching raises no prompt. Choose Allow on another
   account and confirm the add-on's state is read on every later launch.
+- Language model providers: for each of OpenRouter, a local Ollama and a custom
+  endpoint (LM Studio or
+  llama.cpp), choose it under AI Features, pick a model, press Test
+  Connection, then reprocess a short meeting and confirm a title, summary and
+  notes arrive. With Ollama, also confirm that "Found" shows beside it while it
+  runs, that quitting it turns the row to "isn't running", that a meeting
+  longer than the chosen window is processed in parts (the log reports the
+  count, not the content), and that the summary of a meeting that fits only
+  after raising the slider covers the end of the call. Remove a key and
+  confirm the stage is passed over rather than failed.
 - Setup marks: continue past Calendar and alerts with both off, past AI
   Features with no key, and past Firefox without installing the add-on, quit
   and relaunch, and confirm all three show a blue check. Turn calendar and notifications on and confirm the row
