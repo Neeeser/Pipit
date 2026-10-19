@@ -35,6 +35,20 @@ struct OllamaTests {
         )
     }
 
+    @Test("incomplete enrichment JSON is retried and then reported as a failure")
+    func incompleteEnrichmentIsRejected() async {
+        let server = StubServer { [self] _ in chatReply("{}") }
+        let client = OllamaClient(
+            configuration: .init(baseURL: server.baseURL()), session: server.session
+        )
+        await #expect(
+            throws: ProcessingError.languageModel(provider: "Ollama", failure: .unexpectedResponse)
+        ) {
+            _ = try await client.enrich(request(), model: "m")
+        }
+        #expect(server.requests.count == 2)
+    }
+
     @Test("a running Ollama is found with its models, by name")
     func aRunningOllamaIsFoundWithItsModelsByName() async throws {
         let server = StubServer { [self] _ in tagsReply() }

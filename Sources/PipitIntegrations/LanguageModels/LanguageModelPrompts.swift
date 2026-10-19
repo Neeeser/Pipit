@@ -246,6 +246,17 @@ enum LanguageModelPrompts {
         )
     }
 
+    /// A valid JSON object can still omit the requested output. Retry that
+    /// answer instead of marking an empty enrichment as successful.
+    static func acceptsEnrichment(_ object: [String: Any], for request: EnrichmentRequest) -> Bool {
+        let fields = [
+            ("title", request.wantsTitle), ("description", request.wantsDescription),
+            ("summary", request.wantsSummary), ("notes", request.wantsNotes),
+        ]
+        guard fields.allSatisfy({ key, wanted in !wanted || object[key] is String }) else { return false }
+        return request.folders.isEmpty || object["folder_candidates"] is [[String: Any]]
+    }
+
     static func enrichment(from object: [String: Any]) -> MeetingEnrichment {
         MeetingEnrichment(
             title: object["title"] as? String,

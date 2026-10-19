@@ -114,6 +114,19 @@ struct ChatCompletionsClientTests {
         #expect(server.requests.count == 2, "once as a schema, once in plain words")
     }
 
+    @Test("incomplete enrichment JSON is retried and then reported as a failure")
+    func incompleteEnrichmentIsRejected() async {
+        for content in ["{}", #"{"title":"Only a title"}"#, #"{"title":4,"summary":"A summary"}"#] {
+            let server = StubServer { [self] _ in reply(content) }
+            await #expect(
+                throws: ProcessingError.languageModel(provider: "Custom endpoint", failure: .unexpectedResponse)
+            ) {
+                _ = try await client(server).enrich(enrichment(), model: "m")
+            }
+            #expect(server.requests.count == 2)
+        }
+    }
+
     @Test("a refused key stops at once and drops the cached copy")
     func aRefusedKeyStopsAtOnceAndDropsTheCachedCopy() async {
         let key = RecordingKey("sk-or-old")

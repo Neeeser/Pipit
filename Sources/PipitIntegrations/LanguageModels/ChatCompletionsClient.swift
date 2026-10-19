@@ -108,7 +108,9 @@ public struct ChatCompletionsClient: LanguageModelBackend {
 
     public func enrich(_ request: EnrichmentRequest, model: String) async throws -> MeetingEnrichment {
         guard let prompt = LanguageModelPrompts.enrichment(request) else { return MeetingEnrichment() }
-        let object = try await answer(to: prompt, model: model) { _ in true }
+        let object = try await answer(to: prompt, model: model) {
+            LanguageModelPrompts.acceptsEnrichment($0, for: request)
+        }
         return LanguageModelPrompts.enrichment(from: object)
     }
 
