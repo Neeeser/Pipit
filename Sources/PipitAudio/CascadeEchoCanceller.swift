@@ -6,10 +6,9 @@ import Foundation
 /// The pass Pipit ships is LocalVQE's adaptive filter followed by DTLN-aec.
 /// The filter lines the far end up and removes the linear part of the echo
 /// path; the network removes what a linear filter cannot, the distortion a
-/// laptop speaker adds when it is loud. Measured on the bake-off of 11
-/// September 2026: the pair leaked one far-end word in twenty minutes of
-/// loud double talk against thirteen for the previous canceller, and kept 87%
-/// of the user's words against 52%.
+/// laptop speaker adds when it is loud. Measured on the bake-off of 10
+/// October 2026 (`Benchmarks/aec`): on clips with a nonlinear far end the pair
+/// kept 76.6% of the user's words against 60.4% for the previous canceller.
 ///
 /// The block is the two cancellers' blocks combined, so a caller feeds one
 /// size and each stage sees whole blocks of its own.

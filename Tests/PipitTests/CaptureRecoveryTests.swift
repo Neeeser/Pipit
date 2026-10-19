@@ -1480,12 +1480,72 @@ struct RemoteTapCoordinatorTests {
             makeTarget(pid: 500, bundle: "com.tinyspeck.slackmacgap", producing: false),
             makeTarget(pid: 501, bundle: "com.tinyspeck.slackmacgap.helper", producing: true),
         ])
-        coordinator.start(bundlePrefixes: ["com.tinyspeck.slackmacgap"])
+        coordinator.start(scope: .bundlePrefixes(["com.tinyspeck.slackmacgap"]))
 
         // Prefix matching binds both, which is what makes the helper's audio
         // reachable without hardcoding which process holds it.
         #expect(coordinator.boundProcessIDs == [500, 501])
         #expect(tap.bindCount == 1)
+    }
+
+    @Test("a manual recording taps a call hosted outside Firefox and Slack")
+    func aManualRecordingTapsACallHostedOutsideFirefoxAndSlack() async throws {
+        // A manual recording of a call in Safari kept binding Firefox and
+        // Slack only, so the far-end track was digital silence for the whole
+        // call. Safari's audio is in the WebKit GPU process.
+        let tap = FakeProcessTap()
+        let clock = ManualClock()
+        let coordinator = RemoteTapCoordinator(
+            controller: tap, clock: clock, delegate: RecordingCaptureDelegate()
+        )
+        tap.setTargets([
+            makeTarget(pid: 700, bundle: "com.apple.WebKit.GPU", producing: true),
+            makeTarget(pid: 701, bundle: "org.mozilla.firefox", producing: false),
+        ])
+        coordinator.start(scope: .anyApplication)
+
+        #expect(coordinator.boundProcessIDs == [700, 701])
+    }
+
+    @Test("a manual recording follows the call to a process that starts later")
+    func aManualRecordingFollowsTheCallToAProcessThatStartsLater() async throws {
+        let tap = FakeProcessTap()
+        let clock = ManualClock()
+        let delegate = RecordingCaptureDelegate()
+        let coordinator = RemoteTapCoordinator(controller: tap, clock: clock, delegate: delegate)
+        tap.setTargets([makeTarget(pid: 700, bundle: "com.apple.WebKit.GPU", producing: false)])
+        coordinator.start(scope: .anyApplication)
+        #expect(coordinator.boundProcessIDs == [700])
+
+        // The call opens in another application while the recording runs.
+        tap.setTargets([
+            makeTarget(pid: 700, bundle: "com.apple.WebKit.GPU", producing: false),
+            makeTarget(pid: 910, bundle: "us.zoom.xos", producing: true),
+        ])
+        clock.advance(0.5)
+        coordinator.tick()
+
+        #expect(coordinator.boundProcessIDs == [700, 910])
+        #expect(delegate.remoteBinds.last?.reason == "target_changed")
+    }
+
+    @Test("the any-application scope leaves out Pipit's own process")
+    func theAnyApplicationScopeLeavesOutPipitsOwnProcess() async throws {
+        let own = makeTarget(pid: 4_242, bundle: "com.pipit.app", producing: true)
+        let other = makeTarget(pid: 700, bundle: "com.apple.WebKit.GPU", producing: true)
+
+        #expect(!RemoteTargetScope.anyApplication.selects(own, ownProcessID: 4_242))
+        #expect(RemoteTargetScope.anyApplication.selects(other, ownProcessID: 4_242))
+    }
+
+    @Test("a provider scope does not select another application's process")
+    func aProviderScopeDoesNotSelectAnotherApplicationsProcess() async throws {
+        let safari = makeTarget(pid: 700, bundle: "com.apple.WebKit.GPU", producing: true)
+        let scope = RemoteTargetScope.bundlePrefixes(
+            BrowserKind.firefox.bundleIdentifiers + ["com.tinyspeck.slackmacgap"]
+        )
+
+        #expect(!scope.selects(safari, ownProcessID: -1))
     }
 
     @Test("a wake noted while the tap is idle does not rebind the next session")
@@ -1502,7 +1562,7 @@ struct RemoteTapCoordinatorTests {
         coordinator.noteWake()
         clock.advance(3 * 60 * 60)
 
-        coordinator.start(bundlePrefixes: ["org.mozilla.firefox"])
+        coordinator.start(scope: .bundlePrefixes(["org.mozilla.firefox"]))
         for _ in 0..<4 {
             clock.advance(0.5)
             coordinator.tick()
@@ -1522,7 +1582,7 @@ struct RemoteTapCoordinatorTests {
         let delegate = RecordingCaptureDelegate()
         let coordinator = RemoteTapCoordinator(controller: tap, clock: clock, delegate: delegate)
         tap.setTargets([makeTarget(pid: 500, producing: true)])
-        coordinator.start(bundlePrefixes: ["org.mozilla.firefox"])
+        coordinator.start(scope: .bundlePrefixes(["org.mozilla.firefox"]))
 
         // The bind returns before any callback runs, so nothing is
         // known yet.
@@ -1585,7 +1645,7 @@ struct RemoteTapCoordinatorTests {
         let delegate = RecordingCaptureDelegate()
         let coordinator = RemoteTapCoordinator(controller: tap, clock: clock, delegate: delegate)
         tap.setTargets([makeTarget(pid: 63_100, producing: true)])
-        coordinator.start(bundlePrefixes: ["org.mozilla.firefox"])
+        coordinator.start(scope: .bundlePrefixes(["org.mozilla.firefox"]))
         coordinator.noteBufferArrived(hostTime: clock.monotonicSeconds, peak: 0.5)
         // On the poll rather than on the buffer. A buffer arriving says
         // the aggregate device is running, which it does whether or not
@@ -1624,7 +1684,7 @@ struct RemoteTapCoordinatorTests {
         let delegate = RecordingCaptureDelegate()
         let coordinator = RemoteTapCoordinator(controller: tap, clock: clock, delegate: delegate)
         tap.setTargets([makeTarget(pid: 79_590, producing: true)])
-        coordinator.start(bundlePrefixes: ["org.mozilla.firefox"])
+        coordinator.start(scope: .bundlePrefixes(["org.mozilla.firefox"]))
 
         #expect(delegate.remoteBinds.count == 1)
         #expect(delegate.remoteBinds.first?.reason == "session_start")
@@ -1662,7 +1722,7 @@ struct RemoteTapCoordinatorTests {
         let delegate = RecordingCaptureDelegate()
         let coordinator = RemoteTapCoordinator(controller: tap, clock: clock, delegate: delegate)
         tap.setTargets([makeTarget(pid: 79_590, producing: false)])
-        coordinator.start(bundlePrefixes: ["org.mozilla.firefox"])
+        coordinator.start(scope: .bundlePrefixes(["org.mozilla.firefox"]))
 
         for _ in 0..<20 {
             coordinator.noteBufferArrived(hostTime: clock.monotonicSeconds, peak: 0)
@@ -1688,7 +1748,7 @@ struct RemoteTapCoordinatorTests {
         let delegate = RecordingCaptureDelegate()
         let coordinator = RemoteTapCoordinator(controller: tap, clock: clock, delegate: delegate)
         tap.setTargets([makeTarget(pid: 79_590, producing: true)])
-        coordinator.start(bundlePrefixes: ["org.mozilla.firefox"])
+        coordinator.start(scope: .bundlePrefixes(["org.mozilla.firefox"]))
 
         Self.deliverSilence(to: coordinator, clock: clock, seconds: 25)
 
@@ -1711,7 +1771,7 @@ struct RemoteTapCoordinatorTests {
         let delegate = RecordingCaptureDelegate()
         let coordinator = RemoteTapCoordinator(controller: tap, clock: clock, delegate: delegate)
         tap.setTargets([makeTarget(pid: 79_590, producing: true)])
-        coordinator.start(bundlePrefixes: ["org.mozilla.firefox"])
+        coordinator.start(scope: .bundlePrefixes(["org.mozilla.firefox"]))
 
         Self.deliverSilence(to: coordinator, clock: clock, seconds: 45)
 
@@ -1736,7 +1796,7 @@ struct RemoteTapCoordinatorTests {
         let delegate = RecordingCaptureDelegate()
         let coordinator = RemoteTapCoordinator(controller: tap, clock: clock, delegate: delegate)
         tap.setTargets([makeTarget(pid: 79_590, producing: true)])
-        coordinator.start(bundlePrefixes: ["org.mozilla.firefox"])
+        coordinator.start(scope: .bundlePrefixes(["org.mozilla.firefox"]))
         Self.deliverSilence(to: coordinator, clock: clock, seconds: 45)
         #expect(coordinator.health == .degraded)
 
@@ -1762,7 +1822,7 @@ struct RemoteTapCoordinatorTests {
             controller: tap, clock: clock, delegate: RecordingCaptureDelegate()
         )
         tap.setTargets([makeTarget(pid: 79_590, producing: true)])
-        coordinator.start(bundlePrefixes: ["org.mozilla.firefox"])
+        coordinator.start(scope: .bundlePrefixes(["org.mozilla.firefox"]))
         Self.deliverSilence(to: coordinator, clock: clock, seconds: 25)
 
         // The tap stops calling back at all, so every poll from here
@@ -1790,7 +1850,7 @@ struct RemoteTapCoordinatorTests {
         let delegate = RecordingCaptureDelegate()
         let coordinator = RemoteTapCoordinator(controller: tap, clock: clock, delegate: delegate)
         tap.setTargets([makeTarget(pid: 79_590, producing: false)])
-        coordinator.start(bundlePrefixes: ["org.mozilla.firefox"])
+        coordinator.start(scope: .bundlePrefixes(["org.mozilla.firefox"]))
         Self.deliverSilence(to: coordinator, clock: clock, seconds: 25)
 
         // The call's audio starts.
@@ -1827,7 +1887,7 @@ struct RemoteTapCoordinatorTests {
         let delegate = RecordingCaptureDelegate()
         let coordinator = RemoteTapCoordinator(controller: tap, clock: clock, delegate: delegate)
         tap.setTargets([makeTarget(pid: 79_590, producing: true)])
-        coordinator.start(bundlePrefixes: ["org.mozilla.firefox"])
+        coordinator.start(scope: .bundlePrefixes(["org.mozilla.firefox"]))
         Self.deliverSilence(to: coordinator, clock: clock, seconds: 45)
         #expect(coordinator.health == .degraded)
         #expect(
@@ -1865,7 +1925,7 @@ struct RemoteTapCoordinatorTests {
         let delegate = RecordingCaptureDelegate()
         let coordinator = RemoteTapCoordinator(controller: tap, clock: clock, delegate: delegate)
         tap.setTargets([makeTarget(pid: 79_590, producing: false)])
-        coordinator.start(bundlePrefixes: ["org.mozilla.firefox"])
+        coordinator.start(scope: .bundlePrefixes(["org.mozilla.firefox"]))
 
         Self.deliverSilence(to: coordinator, clock: clock, seconds: 60)
 
@@ -1882,7 +1942,7 @@ struct RemoteTapCoordinatorTests {
             controller: tap, clock: clock, delegate: RecordingCaptureDelegate()
         )
         tap.setTargets([makeTarget(pid: 900, producing: false)])
-        coordinator.start(bundlePrefixes: ["org.mozilla.firefox"])
+        coordinator.start(scope: .bundlePrefixes(["org.mozilla.firefox"]))
         for _ in 0..<200 {
             clock.advance(0.5)
             coordinator.tick()
@@ -1902,7 +1962,7 @@ struct RemoteTapCoordinatorTests {
         let delegate = RecordingCaptureDelegate()
         let coordinator = RemoteTapCoordinator(controller: tap, clock: clock, delegate: delegate)
         tap.setTargets([makeTarget(pid: 79_590, producing: true)])
-        coordinator.start(bundlePrefixes: ["org.mozilla.firefox"])
+        coordinator.start(scope: .bundlePrefixes(["org.mozilla.firefox"]))
         Self.deliverSilence(to: coordinator, clock: clock, seconds: 45)
         #expect(coordinator.warnings().count == 1)
 

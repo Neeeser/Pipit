@@ -10,6 +10,9 @@ public struct RecordedSegment: Sendable, Equatable {
     public let firstFrameHostTime: Double?
     public let openedAt: Date
     public let openReason: String
+    /// Which run of the recording wrote this segment, counting from 0. See
+    /// `CaptureRun`.
+    public let run: Int
     /// Nil while the segment is open. A segment still open when the manifest ends
     /// is a crash tail: the file is readable, its length is only known from disk.
     public private(set) var frameCount: Int64?
@@ -22,7 +25,8 @@ public struct RecordedSegment: Sendable, Equatable {
 
     public init(
         track: CaptureTrack, index: Int, file: String, format: AudioFormatDescriptor,
-        startFrame: Int64, firstFrameHostTime: Double?, openedAt: Date, openReason: String
+        startFrame: Int64, firstFrameHostTime: Double?, openedAt: Date, openReason: String,
+        run: Int = 0
     ) {
         self.track = track
         self.index = index
@@ -33,6 +37,7 @@ public struct RecordedSegment: Sendable, Equatable {
         self.resolvedFirstFrameHostTime = firstFrameHostTime
         self.openedAt = openedAt
         self.openReason = openReason
+        self.run = run
     }
 
     public var isClosed: Bool { frameCount != nil }
@@ -52,6 +57,42 @@ public struct RecordedSegment: Sendable, Equatable {
         self.closeReason = reason
         self.wasAdoptedFromCrashTail = adopted
         if let firstFrameHostTime { resolvedFirstFrameHostTime = firstFrameHostTime }
+    }
+}
+
+/// A stretch of capture between a start and the pause that ended it.
+///
+/// A call that dropped and was rejoined is several runs under one manifest. A
+/// pause closes every writer, and the resume opens new ones that continue the
+/// segment numbering. Inside a run each track is a continuous stretch of audio
+/// that begins on its own host time, so a position in the run converts to host
+/// time by an offset the run alone fixes. Between runs nothing says the tracks
+/// stayed in step: a source that stalls around a rejoin loses a different
+/// amount of audio on each track.
+public struct CaptureRun: Sendable, Equatable {
+    /// One track's audio in this run.
+    public struct Span: Sendable, Equatable {
+        /// Where the run's first segment begins in the track's concatenated
+        /// audio, which is how every reader addresses a track.
+        public let startSeconds: Double
+        public let seconds: Double
+        /// Capture-clock time of position zero in the track, worked back from
+        /// this run's first segment whose start was resolved, assuming the
+        /// audio between them is unbroken. Nil when no segment of the run
+        /// resolved its start.
+        public let hostOrigin: Double?
+    }
+
+    public let index: Int
+    public let mic: Span?
+    public let remote: Span?
+
+    /// How far the far end has to move to line up with the microphone over
+    /// this run, in seconds on the microphone's clock. A far end that began
+    /// later is positive. Nil when either track has no resolved start here.
+    public var referenceOffset: Double? {
+        guard let microphone = mic?.hostOrigin, let farEnd = remote?.hostOrigin else { return nil }
+        return farEnd - microphone
     }
 }
 
@@ -174,6 +215,38 @@ public struct RecordingTimeline: Sendable, Equatable {
         return max(0, own - earliest)
     }
 
+    /// The runs of this recording, in order. A recording that was never paused
+    /// is one run.
+    public var runs: [CaptureRun] {
+        let indices = Set(segments.map { $0.run }).sorted()
+        return indices.map { index in
+            CaptureRun(
+                index: index, mic: span(track: .mic, run: index),
+                remote: span(track: .remote, run: index)
+            )
+        }
+    }
+
+    private func span(track: CaptureTrack, run: Int) -> CaptureRun.Span? {
+        var before = 0.0
+        var seconds = 0.0
+        var origin: Double?
+        var found = false
+        for segment in segments(track: track) {
+            if segment.run < run {
+                before += segment.seconds
+                continue
+            }
+            guard segment.run == run else { break }
+            found = true
+            if origin == nil, let host = segment.resolvedFirstFrameHostTime {
+                origin = host - (before + seconds)
+            }
+            seconds += segment.seconds
+        }
+        return found ? CaptureRun.Span(startSeconds: before, seconds: seconds, hostOrigin: origin) : nil
+    }
+
     /// Segments with no close record. Their audio is intact; only the manifest is.
     public var openSegments: [RecordedSegment] {
         segments.filter { !$0.isClosed }
@@ -258,6 +331,15 @@ public enum ManifestReader {
         var formatChanges: [ManifestEvent.FormatChange] = []
         var markers: [(date: Date, label: String)] = []
         var preRolls: [ManifestEvent.PreRollFlushed] = []
+        // A run ends where a track opens a segment as a fresh start for the
+        // second time. The writers are created once per run, and a start is the
+        // only reason a writer's first segment carries. Counting starts per
+        // track rather than reading the pause and resume markers keeps a note
+        // the user typed from moving the boundary, and lets a track whose
+        // writer opened late, as the far end's does when the tap binds after
+        // the call has begun, join the run it belongs to.
+        var run = 0
+        var startedInRun: Set<CaptureTrack> = []
 
         for line in result.lines {
             switch line.event {
@@ -268,11 +350,18 @@ public enum ManifestReader {
             case .segmentOpen(let payload):
                 let key = SegmentKey(track: payload.track, index: payload.index)
                 if segmentsByKey[key] == nil { order.append(key) }
+                if payload.reason == "start" {
+                    if startedInRun.contains(payload.track) {
+                        run += 1
+                        startedInRun = []
+                    }
+                    startedInRun.insert(payload.track)
+                }
                 segmentsByKey[key] = RecordedSegment(
                     track: payload.track, index: payload.index, file: payload.file,
                     format: payload.format, startFrame: payload.startFrame,
                     firstFrameHostTime: payload.firstFrameHostTime,
-                    openedAt: line.wallClock, openReason: payload.reason
+                    openedAt: line.wallClock, openReason: payload.reason, run: run
                 )
             case .segmentClose(let payload):
                 let key = SegmentKey(track: payload.track, index: payload.index)

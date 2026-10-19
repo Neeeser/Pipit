@@ -182,6 +182,111 @@ struct MicrophoneCleanerTests {
         #expect(removed > 20, "the far end came down only \(removed) dB")
     }
 
+    @Test("each run of a rejoined call is lined up on its own and cleaned")
+    func eachRunOfARejoinedCallIsLinedUpOnItsOwnAndCleaned() async throws {
+        // A call that dropped and was rejoined is two runs under one manifest.
+        // On a 59 minute call of 5 October 2026 the second run's microphone
+        // came back 3.2 s short, so the far end sat +1.76 s from the
+        // microphone in the first run and -1.46 s in the second. One
+        // alignment was measured for the whole meeting and used for both, and
+        // everything after the rejoin went through uncancelled: 76% of all the
+        // far-end words found in the microphone across 36 cleaned meetings.
+        let root = try TestPaths.makeTemporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let meeting = try MicrophoneCleaningFixtures.makeRejoinedCall(root: root)
+        let store = meeting.store
+        let timeline = try store.readTimeline()
+        #expect(timeline.runs.count == 2, "the fixture is two runs")
+
+        var carried = meeting.metadata
+        let outcome = try MicrophoneCleaner().clean(
+            store: store, metadata: &carried, timeline: timeline
+        )
+        #expect(outcome == CleaningOutcome.cleaned)
+
+        let (raw, clean) = try Self.rawAndClean(store: store, timeline: timeline)
+        #expect(clean.count == raw.count, "the cleaned track runs as long as the recording")
+
+        // The user stops at 20 s of each run, so the last twelve seconds of
+        // each hold the far end alone. The second run starts at 40 s.
+        for (name, from) in [("first", 28.0), ("second", 68.0)] {
+            let removed = MicrophoneCleaningFixtures.dropDB(
+                before: raw, after: clean, from: from, to: from + 12
+            )
+            #expect(removed > 20, "the far end came down only \(removed) dB in the \(name) run")
+        }
+        // And the user, answering once in each run, is not what came out.
+        for (name, from) in [("first", 15.0), ("second", 55.0)] {
+            let lost = MicrophoneCleaningFixtures.dropDB(
+                before: raw, after: clean, from: from, to: from + 4
+            )
+            #expect(lost < 3, "the user's answer in the \(name) run lost \(lost) dB")
+        }
+    }
+
+    @Test("a rejoined call reports where the far end sat in each run")
+    func aRejoinedCallReportsWhereTheFarEndSatInEachRun() async throws {
+        let root = try TestPaths.makeTemporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let meeting = try MicrophoneCleaningFixtures.makeRejoinedCall(root: root)
+        let timeline = try meeting.store.readTimeline()
+        let measurement = try EchoMeasurement.measure(
+            store: meeting.store, metadata: meeting.metadata, timeline: timeline
+        )
+        guard case .measured(let report) = measurement else {
+            Issue.record("the pair was not measurable")
+            return
+        }
+        #expect(report.runs.count == 2)
+        let first = try #require(report.runs.first)
+        let second = try #require(report.runs.last)
+        #expect(abs(second.startSeconds - 40) <= 0.01, "the second run starts after 40 s of the first")
+        // The manifest puts the far end 2 s after the microphone in both runs.
+        #expect(abs(first.timelineOffsetSeconds - 2) <= 0.01)
+        #expect(abs(second.timelineOffsetSeconds - 2) <= 0.01)
+        // The recording puts it 3.2 s earlier in the second.
+        #expect(
+            abs(first.referenceOffsetSeconds - 2) <= 0.05,
+            "the first run ran at \(first.referenceOffsetSeconds)"
+        )
+        #expect(second.measuredOffsetIsUsable)
+        #expect(
+            abs(second.referenceOffsetSeconds - (2 - 3.2)) <= 0.05,
+            "the second run ran at \(second.referenceOffsetSeconds)"
+        )
+    }
+
+    @Test("a run's far end does not begin with the end of the run before it")
+    func aRunsFarEndDoesNotBeginWithTheEndOfTheRunBeforeIt() async throws {
+        // Both tracks are one concatenated stretch of audio, and the second
+        // run's far end begins 2 s after its microphone. Read straight off the
+        // concatenation, those 2 s are the last 2 s of the first run's far end,
+        // which stopped playing a minute before.
+        let root = try TestPaths.makeTemporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let meeting = try MicrophoneCleaningFixtures.makeRejoinedCall(
+            root: root, secondRunMicLostSeconds: 0
+        )
+        let timeline = try meeting.store.readTimeline()
+        let measurement = try EchoMeasurement.measure(
+            store: meeting.store, metadata: meeting.metadata, timeline: timeline
+        )
+        guard case .measured(let report) = measurement else {
+            Issue.record("the pair was not measurable")
+            return
+        }
+        #expect(report.runs.count == 2)
+        // The run starts at 40 s. Its far end starts at 42 s.
+        let before = report.windowLog.filter { $0.startSeconds >= 40 && $0.startSeconds < 41.75 }
+        #expect(before.count == 7)
+        #expect(
+            before.allSatisfy { $0.farEndDBFS <= EchoMeasurement.farEndFloorDBFS },
+            "the far end played before the run's far end had begun"
+        )
+        let after = report.windowLog.filter { $0.startSeconds >= 42 && $0.startSeconds < 50 }
+        #expect(after.contains { $0.farEndDBFS > EchoMeasurement.farEndFloorDBFS })
+    }
+
     @Test("the far end is found where the recording holds it, not where the manifest says")
     func theFarEndIsFoundWhereTheRecordingHoldsItNotWhereTheManifestSays() async throws {
         let root = try TestPaths.makeTemporaryDirectory()

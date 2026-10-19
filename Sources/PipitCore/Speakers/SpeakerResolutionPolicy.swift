@@ -80,6 +80,39 @@ public struct SpeakerResolutionPolicy: Sendable, Equatable, Codable {
     public var anonymousSuggestScore: Double
     public var anonymousSuggestSpeechSeconds: Double
 
+    /// Cosine between two profile centroids at which they are one voice stored
+    /// twice.
+    ///
+    /// Measured on a real store that had been seeding anonymous twins of known
+    /// people: those twins sat at 0.92 to 0.97 from the profile of the person
+    /// they duplicated, while the closest two different named people were
+    /// 0.459 apart. The bar sits in that gap, well clear of both ends. Genuine
+    /// same-person scores at 30 seconds of speech or more have a 5th percentile
+    /// of about 0.54 and impostor scores top out near 0.55, so 0.80 is not a
+    /// score two strangers reach.
+    ///
+    /// An anonymous candidate this close to the best candidate is not an
+    /// alternative to it, so the margin ignores it. Replayed over the recorded
+    /// occurrences this named 25 more of them (209 minutes of speech) with no
+    /// wrong name against the human and sensor confirmed ones.
+    public var twinCentroidSimilarity: Double
+
+    /// How close an unconfirmed one-meeting candidate can come to a named
+    /// person before it is read as a blend of that person rather than a voice
+    /// of its own.
+    ///
+    /// Recordings made before the far end was cleaned out of the microphone,
+    /// and calls whose far end was never recorded, put the other side into the
+    /// microphone's clusters. Those clusters were remembered as candidates that
+    /// sit between a person and nobody: on one real store nine of sixty
+    /// candidates scored 0.60 to 0.78 against a named person, each heard in a
+    /// single meeting, while every candidate that was a distinct voice scored
+    /// under 0.60. A blend at 0.78 is close enough to a person's own 0.85 to
+    /// take the naming margin, so it is forgotten. Two different named people
+    /// are at most 0.459 apart and impostor scores top out near 0.55, so a
+    /// genuine stranger does not reach this.
+    public var blendedCandidateSimilarity: Double
+
     /// Below this, the identity is Unknown whatever it scored. At 9 seconds of
     /// speech the 1st percentile of genuine scores is 0.282.
     public var hardUnknownSpeechSeconds: Double
@@ -120,6 +153,8 @@ public struct SpeakerResolutionPolicy: Sendable, Equatable, Codable {
         anonymousLinkSpeechSeconds: Double = 45,
         anonymousSuggestScore: Double = 0.65,
         anonymousSuggestSpeechSeconds: Double = 20,
+        twinCentroidSimilarity: Double = 0.80,
+        blendedCandidateSimilarity: Double = 0.60,
         hardUnknownSpeechSeconds: Double = 10,
         enrolmentSpeechSeconds: Double = 45,
         maximumEmbeddingsPerIdentity: Int = 20,
@@ -138,6 +173,8 @@ public struct SpeakerResolutionPolicy: Sendable, Equatable, Codable {
         self.anonymousLinkSpeechSeconds = anonymousLinkSpeechSeconds
         self.anonymousSuggestScore = anonymousSuggestScore
         self.anonymousSuggestSpeechSeconds = anonymousSuggestSpeechSeconds
+        self.twinCentroidSimilarity = twinCentroidSimilarity
+        self.blendedCandidateSimilarity = blendedCandidateSimilarity
         self.hardUnknownSpeechSeconds = hardUnknownSpeechSeconds
         self.enrolmentSpeechSeconds = enrolmentSpeechSeconds
         self.maximumEmbeddingsPerIdentity = maximumEmbeddingsPerIdentity
@@ -216,13 +253,20 @@ extension SpeakerResolutionPolicy {
     /// - Parameter concurrent: identities already speaking over this
     ///   occurrence's audio in the same meeting. One person is not two people
     ///   talking at once, so a candidate in here is offered rather than applied.
+    /// - Parameter centroids: each candidate's profile centroid, so the margin
+    ///   can tell a rival from a stored copy of the best voice. Kept out of
+    ///   `SpeakerCandidate`, which is written into meeting folders and must not
+    ///   carry a biometric vector. A candidate with no entry is never treated
+    ///   as a copy of anything.
     public func resolve(
         candidates: [SpeakerCandidate], speechSeconds: Double,
-        concurrent: Set<IdentityID> = []
+        concurrent: Set<IdentityID> = [],
+        centroids: [IdentityID: [Float]] = [:]
     ) -> SpeakerResolution {
-        let ranked = candidates.sorted { $0.score > $1.score }
-        guard let best = ranked.first else { return .unknown(speechSeconds: speechSeconds) }
-        let runnerUp = ranked.dropFirst().first
+        let scored = candidates.sorted { $0.score > $1.score }
+        guard !scored.isEmpty else { return .unknown(speechSeconds: speechSeconds) }
+        let (best, ranked) = separatingTwins(of: scored, centroids: centroids)
+        let runnerUp = ranked.first { $0.identityID != best.identityID }
         let margin = runnerUp.map { best.score - $0.score }
 
         /// Whether the separation from the runner-up is enough.
@@ -294,6 +338,47 @@ extension SpeakerResolutionPolicy {
             outcome: .suggest, band: .medium, best: best, runnerUp: runnerUp,
             margin: margin, suggestions: suggestions, speechSeconds: speechSeconds
         )
+    }
+
+    /// The candidate to judge, and the others in score order with stored copies
+    /// of it removed.
+    ///
+    /// A copy is an anonymous identity whose centroid is at least
+    /// `twinCentroidSimilarity` from the best candidate's. It is the same voice
+    /// stored twice, so it is neither a rival for the margin nor worth offering
+    /// beside the voice it copies. Named people are never removed: two of them
+    /// that score alike is exactly the ambiguity the margin exists for.
+    ///
+    /// When the top scorer is itself an anonymous copy of exactly one person,
+    /// the person is the best candidate. The copy was seeded from audio of that
+    /// person, so it can edge past their own profile without being anyone else.
+    private func separatingTwins(
+        of scored: [SpeakerCandidate], centroids: [IdentityID: [Float]]
+    ) -> (best: SpeakerCandidate, ranked: [SpeakerCandidate]) {
+        let top = scored[0]
+        func similarity(_ lhs: SpeakerCandidate, _ rhs: SpeakerCandidate) -> Double? {
+            guard let left = centroids[lhs.identityID], let right = centroids[rhs.identityID]
+            else { return nil }
+            return VoiceVector.cosine(left, right)
+        }
+        func isCopy(_ candidate: SpeakerCandidate, of best: SpeakerCandidate) -> Bool {
+            candidate.kind == .anonymous
+                && (similarity(candidate, best) ?? 0) >= twinCentroidSimilarity
+        }
+
+        var best = top
+        if top.kind == .anonymous {
+            let people = scored.dropFirst().filter {
+                $0.kind == .person && isCopy(top, of: $0)
+            }
+            if people.count == 1, let person = people.first { best = person }
+        }
+        // The top scorer, when the person replaced it, is a copy by construction.
+        let ranked = scored.filter {
+            $0.identityID == best.identityID
+                || ($0.identityID != top.identityID && !isCopy($0, of: best))
+        }
+        return (best, ranked)
     }
 
     private func isSuggestable(_ candidate: SpeakerCandidate, speechSeconds: Double) -> Bool {

@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		1BADC52F321A6FD178D8500A /* main.swift in Sources */ = {isa = PBXBuildFile; fileRef = CF162ACFBE7E6E8D288ED3AE /* main.swift */; };
 		3191ABE85D693632A9FDC2CB /* pipit-warning.png in Resources */ = {isa = PBXBuildFile; fileRef = B51AD68CF4CC5EBBC835EFAD /* pipit-warning.png */; };
 		3505EA27696B804EAEA24A66 /* pipit-nativehost in Embed Dependencies */ = {isa = PBXBuildFile; fileRef = CF8423805ED90026CB9FE79F /* pipit-nativehost */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		390DDCF3440FA353514D5CF7 /* pipit-paused@2x.png in Resources */ = {isa = PBXBuildFile; fileRef = AADBBCEAF442F82F50848E19 /* pipit-paused@2x.png */; };
@@ -15,6 +16,8 @@
 		43C4B96F81CFD44E3F86A18A /* Pipit.icns in Resources */ = {isa = PBXBuildFile; fileRef = 22EFBC85987D961C7C8CAA85 /* Pipit.icns */; };
 		5274BC7830D9FA9D13000936 /* pipit-idle@2x.png in Resources */ = {isa = PBXBuildFile; fileRef = A40349FB8BC23FA746B2FB67 /* pipit-idle@2x.png */; };
 		58D76C824E65EF3B973036E9 /* Sparkle in Frameworks */ = {isa = PBXBuildFile; productRef = 44A4F42B12EA66AB75A4CB20 /* Sparkle */; };
+		7131CB370FA25319FF858814 /* pipit in CopyFiles */ = {isa = PBXBuildFile; fileRef = 064FAC8B1390A57B8638A0FB /* pipit */; };
+		732A9D18C95B22D6D036114D /* pipit-cli in Embed Dependencies */ = {isa = PBXBuildFile; fileRef = B0093BF8EF2DEC410F19D424 /* pipit-cli */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		737ABAE4AD17ED2DF9714AC0 /* pipit-idle.png in Resources */ = {isa = PBXBuildFile; fileRef = 2D7A38581127B6E94CAC574A /* pipit-idle.png */; };
 		74B9CA3F8283500A96092D69 /* PipitServices in Frameworks */ = {isa = PBXBuildFile; productRef = DAA7CF268EB9FD79CBEB8159 /* PipitServices */; };
 		8CD97EAE847B47C5A3FDD5A5 /* PipitUI in Frameworks */ = {isa = PBXBuildFile; productRef = 4407356974D964D41851FC5A /* PipitUI */; };
@@ -22,6 +25,7 @@
 		A169A97D3B1D5FC31AB36239 /* main.swift in Sources */ = {isa = PBXBuildFile; fileRef = 957D0D58BA4B90F5ED74BA3D /* main.swift */; };
 		A36EE8A6715815EB4DEA2350 /* pipit-warning@2x.png in Resources */ = {isa = PBXBuildFile; fileRef = BE18F1D24E08FB3C8CFE1B45 /* pipit-warning@2x.png */; };
 		B227C8AC14891EDECAC77937 /* pipit-recording.png in Resources */ = {isa = PBXBuildFile; fileRef = EE665BD0FBCB237C161ED197 /* pipit-recording.png */; };
+		BB6A4839CC39752C431C7344 /* PipitCLIKit in Frameworks */ = {isa = PBXBuildFile; productRef = C61F02EDEB021B229B0F0C2B /* PipitCLIKit */; };
 		C1E2EFB13A1DD1150F731412 /* pipit-paused.png in Resources */ = {isa = PBXBuildFile; fileRef = 47809F16D1A04B353EA7AD4F /* pipit-paused.png */; };
 		DD6AB7AA5780B5D34B567D34 /* main.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7FA445934522AB5AC18F6DB8 /* main.swift */; };
 /* End PBXBuildFile section */
@@ -34,9 +38,26 @@
 			remoteGlobalIDString = A7DB8A4EB5E56A0205E2B145;
 			remoteInfo = "pipit-nativehost";
 		};
+		4D1DA38C870FFB69B0FE951F /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 358DC39476DA9CA79E111E6B /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 84F6FF5B1BA79A41D03A2D4C;
+			remoteInfo = "pipit-cli";
+		};
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXCopyFilesBuildPhase section */
+		5040A7EED79CAFD4F2EFF0D1 /* CopyFiles */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = skills;
+			dstSubfolderSpec = 7;
+			files = (
+				7131CB370FA25319FF858814 /* pipit in CopyFiles */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		DA69861DF994E7AE62D80681 /* Embed Dependencies */ = {
 			isa = PBXCopyFilesBuildPhase;
 			buildActionMask = 2147483647;
@@ -44,6 +65,7 @@
 			dstSubfolderSpec = 6;
 			files = (
 				3505EA27696B804EAEA24A66 /* pipit-nativehost in Embed Dependencies */,
+				732A9D18C95B22D6D036114D /* pipit-cli in Embed Dependencies */,
 			);
 			name = "Embed Dependencies";
 			runOnlyForDeploymentPostprocessing = 0;
@@ -51,6 +73,7 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
+		064FAC8B1390A57B8638A0FB /* pipit */ = {isa = PBXFileReference; lastKnownFileType = folder; name = pipit; path = skills/pipit; sourceTree = SOURCE_ROOT; };
 		1285D5E7B50171265DD11DF8 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		1A9FA47A63F5FFB29A6E7F9C /* Pipit */ = {isa = PBXFileReference; lastKnownFileType = folder; name = Pipit; path = .; sourceTree = SOURCE_ROOT; };
 		22EFBC85987D961C7C8CAA85 /* Pipit.icns */ = {isa = PBXFileReference; lastKnownFileType = image.icns; path = Pipit.icns; sourceTree = "<group>"; };
@@ -62,9 +85,11 @@
 		957D0D58BA4B90F5ED74BA3D /* main.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = main.swift; sourceTree = "<group>"; };
 		A40349FB8BC23FA746B2FB67 /* pipit-idle@2x.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = "pipit-idle@2x.png"; sourceTree = "<group>"; };
 		AADBBCEAF442F82F50848E19 /* pipit-paused@2x.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = "pipit-paused@2x.png"; sourceTree = "<group>"; };
+		B0093BF8EF2DEC410F19D424 /* pipit-cli */ = {isa = PBXFileReference; includeInIndex = 0; path = "pipit-cli"; sourceTree = BUILT_PRODUCTS_DIR; };
 		B51AD68CF4CC5EBBC835EFAD /* pipit-warning.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = "pipit-warning.png"; sourceTree = "<group>"; };
 		BE18F1D24E08FB3C8CFE1B45 /* pipit-warning@2x.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = "pipit-warning@2x.png"; sourceTree = "<group>"; };
 		CD6F58DFE74C9079257BC916 /* Pipit.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Pipit.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		CF162ACFBE7E6E8D288ED3AE /* main.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = main.swift; sourceTree = "<group>"; };
 		CF8423805ED90026CB9FE79F /* pipit-nativehost */ = {isa = PBXFileReference; includeInIndex = 0; path = "pipit-nativehost"; sourceTree = BUILT_PRODUCTS_DIR; };
 		EE665BD0FBCB237C161ED197 /* pipit-recording.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = "pipit-recording.png"; sourceTree = "<group>"; };
 /* End PBXFileReference section */
@@ -78,6 +103,14 @@
 				74B9CA3F8283500A96092D69 /* PipitServices in Frameworks */,
 				4236B8609F5D4BE839A53CDC /* PipitCore in Frameworks */,
 				58D76C824E65EF3B973036E9 /* Sparkle in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		C4DE25761E478A078ED45756 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				BB6A4839CC39752C431C7344 /* PipitCLIKit in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -105,6 +138,7 @@
 			isa = PBXGroup;
 			children = (
 				866B48EBC297957EFE937743 /* PipitApp */,
+				2B03B78277E058EB1AE4BBB0 /* PipitCLI */,
 				993F0E4ADA270E7AF5FD2BB4 /* PipitNativeHost */,
 			);
 			path = Sources;
@@ -116,6 +150,22 @@
 				22EFBC85987D961C7C8CAA85 /* Pipit.icns */,
 			);
 			path = AppIcons;
+			sourceTree = "<group>";
+		};
+		2B03B78277E058EB1AE4BBB0 /* PipitCLI */ = {
+			isa = PBXGroup;
+			children = (
+				CF162ACFBE7E6E8D288ED3AE /* main.swift */,
+			);
+			path = PipitCLI;
+			sourceTree = "<group>";
+		};
+		32741141A2FC7DA6E913DFC9 /* skills */ = {
+			isa = PBXGroup;
+			children = (
+				064FAC8B1390A57B8638A0FB /* pipit */,
+			);
+			path = skills;
 			sourceTree = "<group>";
 		};
 		3407D680CED4971FF8A2BB21 /* Assets */ = {
@@ -146,6 +196,7 @@
 		8A892D099B184C044B9DA5F0 /* Products */ = {
 			isa = PBXGroup;
 			children = (
+				B0093BF8EF2DEC410F19D424 /* pipit-cli */,
 				CF8423805ED90026CB9FE79F /* pipit-nativehost */,
 				CD6F58DFE74C9079257BC916 /* Pipit.app */,
 			);
@@ -189,6 +240,7 @@
 				0115BA3EB4C80083DCA3F71F /* App */,
 				3407D680CED4971FF8A2BB21 /* Assets */,
 				C3F5AEB0AE40EB2D5EE6807D /* Packages */,
+				32741141A2FC7DA6E913DFC9 /* skills */,
 				260881995D78A0D851D20B5B /* Sources */,
 				8A892D099B184C044B9DA5F0 /* Products */,
 			);
@@ -197,12 +249,32 @@
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
+		84F6FF5B1BA79A41D03A2D4C /* pipit-cli */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = E80A101AF492ACD7D7CFAADB /* Build configuration list for PBXNativeTarget "pipit-cli" */;
+			buildPhases = (
+				E6474AC874DF98CCAE863D17 /* Sources */,
+				C4DE25761E478A078ED45756 /* Frameworks */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = "pipit-cli";
+			packageProductDependencies = (
+				C61F02EDEB021B229B0F0C2B /* PipitCLIKit */,
+			);
+			productName = "pipit-cli";
+			productReference = B0093BF8EF2DEC410F19D424 /* pipit-cli */;
+			productType = "com.apple.product-type.tool";
+		};
 		A2ADD0963CC7817D8F16F56A /* Pipit */ = {
 			isa = PBXNativeTarget;
 			buildConfigurationList = 7D924B8A5B85181AF8544369 /* Build configuration list for PBXNativeTarget "Pipit" */;
 			buildPhases = (
 				72365885077B3F19A8EBC41A /* Sources */,
 				0F960E6FDBB6B78308F0B982 /* Resources */,
+				5040A7EED79CAFD4F2EFF0D1 /* CopyFiles */,
 				A2888C339E70F44221D9289D /* Frameworks */,
 				DA69861DF994E7AE62D80681 /* Embed Dependencies */,
 				B538C45AA53B2AD4F01D9BD5 /* Build and copy the browser sensor */,
@@ -212,6 +284,7 @@
 			);
 			dependencies = (
 				1D74AF2995170B77EF4FEC40 /* PBXTargetDependency */,
+				4E3B641ACDC9C2580280FE36 /* PBXTargetDependency */,
 			);
 			name = Pipit;
 			packageProductDependencies = (
@@ -252,6 +325,10 @@
 				BuildIndependentTargetsInParallel = YES;
 				LastUpgradeCheck = 1430;
 				TargetAttributes = {
+					84F6FF5B1BA79A41D03A2D4C = {
+						DevelopmentTeam = "";
+						ProvisioningStyle = Automatic;
+					};
 					A2ADD0963CC7817D8F16F56A = {
 						DevelopmentTeam = "";
 						ProvisioningStyle = Automatic;
@@ -282,6 +359,7 @@
 			targets = (
 				A2ADD0963CC7817D8F16F56A /* Pipit */,
 				A7DB8A4EB5E56A0205E2B145 /* pipit-nativehost */,
+				84F6FF5B1BA79A41D03A2D4C /* pipit-cli */,
 			);
 		};
 /* End PBXProject section */
@@ -371,6 +449,14 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		E6474AC874DF98CCAE863D17 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				1BADC52F321A6FD178D8500A /* main.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXSourcesBuildPhase section */
 
 /* Begin PBXTargetDependency section */
@@ -378,6 +464,11 @@
 			isa = PBXTargetDependency;
 			target = A7DB8A4EB5E56A0205E2B145 /* pipit-nativehost */;
 			targetProxy = 293148CBB101047D87A0BDE8 /* PBXContainerItemProxy */;
+		};
+		4E3B641ACDC9C2580280FE36 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 84F6FF5B1BA79A41D03A2D4C /* pipit-cli */;
+			targetProxy = 4D1DA38C870FFB69B0FE951F /* PBXContainerItemProxy */;
 		};
 /* End PBXTargetDependency section */
 
@@ -396,7 +487,7 @@
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				MARKETING_VERSION = 0.1.7;
+				MARKETING_VERSION = 0.1.8;
 				PRODUCT_BUNDLE_IDENTIFIER = com.pipit.app;
 				PRODUCT_NAME = Pipit;
 				SDKROOT = macosx;
@@ -417,7 +508,7 @@
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				MARKETING_VERSION = 0.1.7;
+				MARKETING_VERSION = 0.1.8;
 				PRODUCT_BUNDLE_IDENTIFIER = com.pipit.app;
 				PRODUCT_NAME = Pipit;
 				SDKROOT = macosx;
@@ -435,6 +526,36 @@
 				);
 				PRODUCT_BUNDLE_IDENTIFIER = com.pipit.nativehost;
 				PRODUCT_NAME = "pipit-nativehost";
+				SDKROOT = macosx;
+			};
+			name = Release;
+		};
+		92D72E59BFE1DBAA6E4BB1BA /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				COMBINE_HIDPI_IMAGES = YES;
+				ENABLE_HARDENED_RUNTIME = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.pipit.cli;
+				PRODUCT_NAME = "pipit-cli";
+				SDKROOT = macosx;
+			};
+			name = Debug;
+		};
+		9E473F1171FB7A62B56E0795 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				COMBINE_HIDPI_IMAGES = YES;
+				ENABLE_HARDENED_RUNTIME = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.pipit.cli;
+				PRODUCT_NAME = "pipit-cli";
 				SDKROOT = macosx;
 			};
 			name = Release;
@@ -609,6 +730,15 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Debug;
 		};
+		E80A101AF492ACD7D7CFAADB /* Build configuration list for PBXNativeTarget "pipit-cli" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				92D72E59BFE1DBAA6E4BB1BA /* Debug */,
+				9E473F1171FB7A62B56E0795 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
 /* End XCConfigurationList section */
 
 /* Begin XCLocalSwiftPackageReference section */
@@ -646,6 +776,10 @@
 		7D7B1FFD23061DE8918CD861 /* PipitCore */ = {
 			isa = XCSwiftPackageProductDependency;
 			productName = PipitCore;
+		};
+		C61F02EDEB021B229B0F0C2B /* PipitCLIKit */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = PipitCLIKit;
 		};
 		DAA7CF268EB9FD79CBEB8159 /* PipitServices */ = {
 			isa = XCSwiftPackageProductDependency;

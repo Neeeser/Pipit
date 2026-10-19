@@ -18,6 +18,7 @@ PipitApp
         └── PipitCore
 
 pipit-nativehost    browser event relay
+pipit-cli           command line tool for people and agents
 pipit-eval          benchmark and diagnostic tool
 ```
 
@@ -78,6 +79,12 @@ application produces no audio. Pipit rebuilds the tap when the application
 reports output and callbacks stop arriving, and when the callbacks keep arriving
 carrying nothing but zero samples. Silence that survives that rebuild is
 reported to the user.
+
+Each track is written against the capture clock. When a source stops delivering,
+the writer fills the missing time with silence, up to a bound, so the audio after
+the hole is not placed early against the other track. That covers a stall that
+began while the session waited out a reconnect: the engine holds the rebuild it
+saw while no writer existed and reports it when the memory ring is flushed.
 
 Capture writes 30-second CAF segments and appends lifecycle records to
 `raw/manifest.jsonl`. Each segment records its own sample rate and frame count.
@@ -145,31 +152,57 @@ the linear part of the echo path, then DTLN-aec, a network trained on speech
 that removes the distortion a loud laptop speaker adds. Both are vendored, the
 filter as C++ under `Sources/CLocalVQE` and the network as Swift over
 Accelerate in `PipitAudio`, with their model files as resources of that module.
-`Benchmarks/aec` is the harness that chose them: over four tiers of recordings,
-scored by the far-end words a transcript would put under the user's name and
-the user's own words it would lose, this pair leaked 1 word in 20 minutes of
-loud double talk where the WebRTC canceller that shipped before it leaked 13
-and kept 52% of the user's words. The far end is handed to the canceller
-10 ms early, because the tap's timestamps can run a few milliseconds behind
-the microphone's and no canceller models an echo that arrives before its
+`Benchmarks/aec` is the harness that chose them. It scores a canceller by the
+far-end words a transcript would put under the user's name and the user's own
+words it would lose. Measured on 10 October 2026, this pair leaked 0.18 words
+per minute on clips with a nonlinear far end, as a loud laptop speaker
+produces, and kept 76.6% of the near-end words, where the WebRTC canceller
+that shipped before it kept 60.4%. On real-device recordings the pair leaked
+0.56 words per minute and kept 92.8% (WebRTC: 0.85 and 98.3%), and on 65
+recorded meetings the two scored the same. The far end is handed to the
+canceller 10 ms early, because the tap's timestamps can run a few milliseconds
+behind the microphone's and no canceller models an echo that arrives before its
 reference.
+
+The far end is lined up with the microphone once per run of the recording. A
+call that dropped and was rejoined holds several runs under one manifest, and
+each run opens writers of its own. A source that stalled around the rejoin lost
+a different amount of audio on each track, so the far end can sit seconds from
+where it sat in the run before: on one 59 minute call it had to move +1.76 s onto
+the microphone's clock before the rejoin and -1.46 s after. Each run is placed from
+its own host times, then measured. The loudness envelopes of that run's
+microphone and far end are compared, and the measured offset replaces the
+manifest's when the peak is clear, beats the manifest's offset by a margin and is
+larger than the filter absorbs on its own. A run too short to measure keeps the
+manifest's offset, and a run in which the far end recorded nothing is handed to
+the canceller as silence. The canceller runs once, in order, over the whole
+microphone and is given the far end at each run's own offset. The cleaned file
+stays one file on the microphone's clock.
 
 The result is written to `raw/audio/mic.cleaned.m4a`, and every stage from
 transcription onward reads it in place of the recording, which is the segment
 chain before compaction and `mic.m4a` after it. The recording itself is never
 written to. The cleaned file is kept unless the pass measurably took the user's
-own speech down: over the windows where the far end was quiet and the
-microphone held something, the level must not have dropped more than 2 dB at
-the median, and no more than one window in ten may have dropped by more than
-10 dB. Four cases keep the microphone exactly as it was captured: a pass that
-damaged the user's own windows, a meeting whose far-end track holds nothing, a
+own speech down. Before cleaning, Silero voice activity detection runs over the
+raw microphone. The judged windows are the quarter-second windows where that
+detector marks speech, the microphone is above its floor (its quietest twentieth
+plus 10 dB), and the far end was quiet in the window and for the second before
+it. The second after the far end is left out because the room's reverberant tail
+of the echo is still arriving and the canceller is right to remove it. Quiet room
+noise is left out because the speech network stage suppresses it by design.
+Over the judged windows the level must not have dropped more than 2 dB at the
+median, and no more than one window in ten may have dropped by more than 10 dB.
+Where no detector is installed the speech requirement is dropped and the level
+floor and the one-second tail pick the windows alone. Four cases keep the
+microphone exactly as it was captured: a pass that damaged the user's own windows, a meeting whose far-end track holds nothing, a
 meeting whose far end played for under ten seconds or an imported single-track
 recording, and a meeting whose cleaning pass failed.
 
 The record of a cleaned meeting holds what happened to the far end, measured
 on the audio: the median drop over the windows it was playing in, and how well
 the microphone's loudness envelope followed the far end's before and after the
-pass. A cleaned track whose envelope still follows the far end holds the
+pass, averaged over the runs with each weighted by the audio it was measured on.
+A cleaned track whose envelope still follows the far end holds the
 speakers, and the meeting shows a line saying so, because the transcript may
 then show the other side's words as the user's. The assembler also drops a
 microphone line that is mostly the far end's own words said at the same
@@ -181,11 +214,32 @@ never cleaned, and the user keeps the transcript they would have had before the
 cleaner existed. Retrying instead would repeat a full decode and encode of the
 whole meeting on every resumed run of a machine that cannot write the file.
 
-One decision covers the whole meeting. The median is taken over every window
-where the far end was playing, and the cleaned file is kept or thrown away
-entire. A call that starts on speakers and moves to headphones half way through
-keeps the cleaned track across the headphone stretch. Plugging in headphones
-mid-call is ordinary. Deciding per window rather than per meeting is not built.
+A person can run it again on a finished call (Remove echo in the meeting
+header), for a meeting recorded before the current canceller or cleaned under
+an older rule. `ProcessingPipeline.redoMicrophone` refuses a one-track
+recording, a meeting that is not finished, and one with no far end recorded.
+Otherwise it copies the files it will replace to
+`Application Support/Pipit/Backups/<meeting>/<time>/`, sets
+`microphoneRedoRequestedAt`, moves the meeting back to `transcribing`, and runs
+that stage as a microphone-only pass: drop the microphone's raw chunks,
+alignments and `speech.json`, clean the recording again (the cleaner reads the
+recording, never its own output), transcribe the microphone, then assemble the
+transcript and markdown again and rebuild the mixdown. The far end's words, the
+diarization runs, every cluster name, the local user's name, titles, notes and
+the summary are not touched. Corrections and line cuts on microphone lines are
+removed, because they are anchored to the old words and chunks. Corrections on
+the far end's lines stay. The marker is cleared in the same write that marks
+the meeting complete, so a crash or a failure leaves the old transcript
+readable and the launch sweep or Retry finishes the pass. Voice profiles are
+not re-learned, and enrolments that came from a removed correction are not
+retracted.
+
+The alignment is per run and the decision is not: one decision covers the whole
+meeting. The median is taken over every window where the far end was playing,
+whichever run it fell in, and the cleaned file is kept or thrown away entire. A
+call that starts on speakers and moves to headphones half way through keeps the
+cleaned track across the headphone stretch. Plugging in headphones mid-call is
+ordinary. Deciding per window rather than per meeting is not built.
 
 A cleaned meeting keeps a third audio file. `mic.cleaned.m4a` sits beside the
 two archived tracks at the same 48 kbps mono, so a cleaned meeting costs about
@@ -236,6 +290,25 @@ onto the stretches the sensor did not see.
 Sensor names sit at an origin above a voice match and below the microphone
 track, so a person's own correction always wins. The sensor never sets the
 diarizer's speaker count and never moves a boundary.
+
+The far-end track never holds the local user, so a participant who is the local
+user is marked and kept out of word attribution and cluster naming. The meeting
+client's own flag is used where it is authoritative. Otherwise the participant
+the microphone heard speaking is marked, and so is any participant whose name is
+the local user's name or one of their aliases. The marking is applied each time
+the record is read; `sensors.raw.json` keeps what the client said.
+
+A confident voice outranks a client name that names somebody else. After voice
+matching, a cluster that resolved to a named person at the high band is compared
+with the name the client put on it. If the client's name belongs to another
+known person, or to nobody the voice's person could be, the cluster and the
+participant's `sensor_` key take the voice's person. If the name is another
+spelling of the same person ("Firstname Lastname" for a stored "Firstname L"),
+the speaker shows the stored name and the client's spelling is added to that
+person's aliases. A client name that equals a stored name or alias, ignoring
+case and diacritics, links to that person even without a voice match, and no new
+person is made from it. Where no voice match is confident the client's name
+names the speaker as before. Names a person set or confirmed are never touched.
 
 A cluster split evenly between two people is named for neither, a timeline
 covering too little of the diarized speech names nobody, which is what
@@ -300,6 +373,33 @@ date the file was copied. Pipit reads the container's creation date, then a
 timestamp in the filename, then the file's date on this Mac, and refuses anything
 before 1990 or more than a day ahead. `metadata.json` records which of the three
 it used. The manifest remains the authority on how long the audio runs.
+
+## Command line and agent skill
+
+`pipit-cli` ships in `Pipit.app/Contents/MacOS` and links only `PipitCore`. It
+reads the archive the same way the application does and loads no speech model.
+`pipit root`, `pipit meetings list`, and `pipit meetings show` print the
+meetings folder chosen in Settings, the meetings in it, and the files of one
+meeting. `--json` output carries a `schemaVersion`, and a change that is not
+additive raises it.
+
+The file is named `pipit-cli` because `pipit` would collide with the `Pipit`
+executable on a case-insensitive volume. `pipit-cli install` links the name
+`pipit` into `~/.local/bin` and copies the skill from `Contents/Resources/skills`
+into the skills folder of each agent found in the home directory
+(`~/.claude/skills` and `~/.agents/skills`). It replaces a skill folder only when
+its `SKILL.md` is named `pipit`, and refuses to link from a disk image.
+
+Settings has an Agents page that does the same through `AgentInstaller`, the one
+type both the tool and the page call. Each row reads Installed, Update available
+(the installed copy differs from the one in the app), or Not installed, and
+Remove deletes only a link to a `pipit-cli` or a skill folder named `pipit`.
+`pipit-cli uninstall` does the same from a terminal.
+
+`skills/pipit/SKILL.md` is the skill. It tells an agent to run `pipit` and read
+the files it names, and it leaves the archive layout to the command so a layout
+change does not leave installed skills pointing at old paths. The same folder is
+discoverable from the repository by skill installers.
 
 ## Browser sensor
 

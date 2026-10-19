@@ -53,7 +53,7 @@ jobs:
         # object compiled without that flag is reused as compiled. That is
         # fine here: this job sets the flag on every build, so a cache written
         # by it was compiled with the gate on.
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: .build
           key: spm-${{ runner.os }}-${{ steps.toolchain.outputs.xcode }}-${{ hashFiles('Package.resolved', 'Package.swift') }}
@@ -148,6 +148,8 @@ jobs:
         run: |
           test -x dist/Pipit.app/Contents/MacOS/Pipit
           test -x dist/Pipit.app/Contents/MacOS/pipit-nativehost
+          test -x dist/Pipit.app/Contents/MacOS/pipit-cli
+          test -f dist/Pipit.app/Contents/Resources/skills/pipit/SKILL.md
           test -f dist/Pipit.app/Contents/Resources/extension/firefox/manifest.json
           test -f dist/Pipit.app/Contents/Resources/Pipit.icns
           test -f dist/Pipit.app/Contents/Resources/EchoModels/localvqe-v1.4-aec-2.7K-f32.gguf

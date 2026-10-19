@@ -425,6 +425,7 @@ public final class PipitRuntime {
             await ensureLocalUserIdentity()
             await backfillLocalUserOccurrences()
             await refreshLocalModelState()
+            await consolidateVoiceTwins()
             await pruneVoiceMemory()
             await pipeline.resumeInterrupted()
             refreshRecentMeetings()
@@ -597,13 +598,12 @@ public final class PipitRuntime {
     // MARK: - manual commands
 
     public func startManualRecording() {
-        let bundlePrefixes = BrowserKind.firefox.bundleIdentifiers + ["com.tinyspeck.slackmacgap"]
         var titles = TitleCandidates(
             timestampFallback: MeetingRepository.timestampTitle(startedAt: clock.now, source: .manual)
         )
         titles.window = nil
         let actions = sessionController.startManual(
-            source: .manual, bundlePrefixes: bundlePrefixes, titles: titles,
+            source: .manual, scope: .anyApplication, titles: titles,
             now: clock.monotonicSeconds, wallClock: clock.now
         )
         syncStatusFromSession()
@@ -615,7 +615,7 @@ public final class PipitRuntime {
             timestampFallback: MeetingRepository.timestampTitle(startedAt: clock.now, source: .inPerson)
         )
         let actions = sessionController.startManual(
-            source: .inPerson, bundlePrefixes: [], titles: titles,
+            source: .inPerson, scope: .bundlePrefixes([]), titles: titles,
             now: clock.monotonicSeconds, wallClock: clock.now
         )
         syncStatusFromSession()
@@ -882,6 +882,43 @@ public final class PipitRuntime {
             refreshRecentMeetings()
             onProcessingUpdate?(meetingID)
             completion()
+        }
+    }
+
+    /// Where the files a redo replaces are copied first.
+    public var backupsDirectory: URL {
+        applicationSupport.appendingPathComponent("Backups", isDirectory: true)
+    }
+
+    /// Cleans the microphone of each recording again and transcribes it again,
+    /// leaving the far end, the names, the title, notes and summary as they are.
+    ///
+    /// Takes every recording of a conversation, because a call that dropped and
+    /// was rejoined has an echo in each half. A recording that cannot be redone
+    /// is skipped, and the first reason is handed to `completion` as a message
+    /// for the pane; the rest still run.
+    public func redoMicrophone(
+        meetingIDs: [String],
+        completion: @escaping @Sendable @MainActor (String?) -> Void = { _ in }
+    ) {
+        runProcessing { [weak self] in
+            guard let self else { return completion(nil) }
+            var refusal: String?
+            for meetingID in meetingIDs {
+                do {
+                    try await pipeline.redoMicrophone(meetingID: meetingID, backups: backupsDirectory)
+                } catch let error as MicrophoneRedoError {
+                    refusal = refusal ?? error.message
+                } catch {
+                    Log.app.error(
+                        "microphone redo failed: \(logSafeDescription(error), privacy: .public)"
+                    )
+                    refusal = refusal ?? "The microphone could not be redone. Nothing was changed."
+                }
+                onProcessingUpdate?(meetingID)
+            }
+            refreshRecentMeetings()
+            completion(refusal)
         }
     }
 
@@ -1206,7 +1243,7 @@ public final class PipitRuntime {
         }
         for action in actions {
             switch action {
-            case .armCapture(let prefixes, let capturesRemote):
+            case .armCapture(let scope, let capturesRemote):
                 // A new session. What the last one raised belongs to it and
                 // was written into its meeting when it ended.
                 sessionWarnings = []
@@ -1261,9 +1298,9 @@ public final class PipitRuntime {
                         raisePermissionNotice(missing: [.screenRecording])
                     }
                 }
-                await captureEngine.arm(bundlePrefixes: prefixes, capturesRemote: capturesRemote)
-            case .retargetCapture(let prefixes):
-                await captureEngine.retarget(bundlePrefixes: prefixes)
+                await captureEngine.arm(scope: scope, capturesRemote: capturesRemote)
+            case .retargetCapture(let scope):
+                await captureEngine.retarget(scope: scope)
             case .commitRecording(let request):
                 // A commit that fails leaves nothing behind and cancels the rest
                 // of the batch, so no "recording started" notice is delivered for
