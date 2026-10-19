@@ -41,6 +41,22 @@ builds debug and release configurations, assembles the application bundle,
 verifies its signature and resources, and scans the repository for keys and
 audio files.
 
+## Notarized browser test build
+
+Run CI manually with `notarize` enabled to build a Developer ID signed,
+notarized app for Safari testing. This run uploads a `Pipit-notarized-<commit>`
+artifact and creates no release, version commit, or tag. It uses the signing
+and notarization secrets listed in [Releasing](RELEASING.md#requirements).
+
+```sh
+gh workflow run ci.yml --ref <branch> -f notarize=true
+```
+
+Download the artifact, extract `Pipit-notarized.zip`, and install `Pipit.app`
+in Applications. Enable Pipit in Safari's Extensions settings and allow it on
+the meeting sites. Developer settings are not part of this test. Chrome keeps
+its unpacked installation path until a Chrome Web Store listing is available.
+
 ## Opt-in checks
 
 These commands use hardware, downloaded models, network services, or long audio.

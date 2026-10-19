@@ -196,28 +196,7 @@ jobs:
             echo "::warning::No Developer ID certificate configured; building ad-hoc signed."
             exit 0
           fi
-          KEYCHAIN=build.keychain
-          security create-keychain -p actions "$KEYCHAIN"
-          security default-keychain -s "$KEYCHAIN"
-          security unlock-keychain -p actions "$KEYCHAIN"
-          # A keychain relocks itself after five minutes idle. The release
-          # build takes about that long, so the first codesign call then
-          # waits on an unlock prompt nobody can answer and the job hangs
-          # until its time limit. No timeout keeps it open for the job.
-          security set-keychain-settings "$KEYCHAIN"
-          echo "$CERTIFICATE_P12" | base64 --decode > certificate.p12
-          security import certificate.p12 -k "$KEYCHAIN" -P "$CERTIFICATE_PASSWORD" \
-            -T /usr/bin/codesign
-          security set-key-partition-list -S apple-tool:,apple: -s -k actions "$KEYCHAIN"
-          rm certificate.p12
-          IDENTITY=$(security find-identity -v -p codesigning | grep "Developer ID Application" | head -1 | sed -E 's/.*"(.*)"/\1/')
-          if [ -z "$IDENTITY" ]; then
-            echo "certificate imported but no Developer ID Application identity found" >&2
-            exit 1
-          fi
-          echo "::add-mask::$IDENTITY"
-          echo "identity=$IDENTITY" >> "$GITHUB_OUTPUT"
-          echo "signed=true" >> "$GITHUB_OUTPUT"
+          ./scripts/import-signing-identity.sh
 
       - uses: actions/setup-node@v7
         with:
