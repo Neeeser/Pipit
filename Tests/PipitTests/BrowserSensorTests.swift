@@ -148,12 +148,32 @@ struct BrowserSensorTests {
         #expect(installer.installChromeAddOn(from: bundled, onlyIfPresent: true) == nil)
         let folder = try #require(installer.installChromeAddOn(from: bundled))
         #expect(FileManager.default.fileExists(atPath: folder.appendingPathComponent("manifest.json").path))
+        let obsolete = folder.appendingPathComponent("removed-script.js")
+        try Data("obsolete".utf8).write(to: obsolete)
 
         // An app update reaches a copy a browser already loads.
         try Data("{\"version\": \"2\"}".utf8).write(to: bundled.appendingPathComponent("manifest.json"))
         #expect(installer.installChromeAddOn(from: bundled, onlyIfPresent: true) == folder)
         let copied = try String(contentsOf: folder.appendingPathComponent("manifest.json"), encoding: .utf8)
         #expect(copied.contains("\"2\""))
+        #expect(!FileManager.default.fileExists(atPath: obsolete.path))
+    }
+
+    @Test("a failed Chrome add-on update preserves the installed copy")
+    func aFailedChromeAddOnUpdatePreservesTheInstalledCopy() throws {
+        let root = try TestPaths.makeTemporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let bundled = root.appendingPathComponent("bundle", isDirectory: true)
+        try FileManager.default.createDirectory(at: bundled, withIntermediateDirectories: true)
+        let original = Data("{\"version\":\"1\"}".utf8)
+        try original.write(to: bundled.appendingPathComponent("manifest.json"))
+        let installer = NativeMessagingInstaller(applicationSupport: root.appendingPathComponent("support"))
+        let installed = try #require(installer.installChromeAddOn(from: bundled))
+        let missingUpdate = root.appendingPathComponent("missing-update")
+        #expect(installer.installChromeAddOn(from: missingUpdate, onlyIfPresent: true) == nil)
+        #expect(try Data(contentsOf: installed.appendingPathComponent("manifest.json")) == original)
+        #expect(
+            try FileManager.default.contentsOfDirectory(atPath: installer.applicationSupport.path) == ["Chrome Add-on"])
     }
 
     @Test("the Safari and Chrome cards read the connection and what the build carries")

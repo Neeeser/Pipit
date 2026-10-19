@@ -168,10 +168,18 @@ public struct NativeMessagingInstaller: Sendable {
         if exists, manager.contentsEqual(atPath: bundled.path, andPath: chromeAddOnURL.path) {
             return chromeAddOnURL
         }
+        let staged = applicationSupport.appendingPathComponent(".Chrome Add-on.\(UUID().uuidString)", isDirectory: true)
+        defer { try? manager.removeItem(at: staged) }
         do {
             try manager.createDirectory(at: applicationSupport, withIntermediateDirectories: true)
-            try? manager.removeItem(at: chromeAddOnURL)
-            try manager.copyItem(at: bundled, to: chromeAddOnURL)
+            // Finish copying before replacing the folder a browser loads. Both
+            // folders share a filesystem, so replacement can be atomic.
+            try manager.copyItem(at: bundled, to: staged)
+            if exists {
+                _ = try manager.replaceItemAt(chromeAddOnURL, withItemAt: staged)
+            } else {
+                try manager.moveItem(at: staged, to: chromeAddOnURL)
+            }
             return chromeAddOnURL
         } catch {
             return nil
