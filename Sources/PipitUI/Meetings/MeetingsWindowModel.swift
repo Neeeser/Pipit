@@ -125,7 +125,11 @@ public final class MeetingsWindowModel {
     /// The focused meeting's own model, which owns reading and editing its
     /// files. One at a time: a window holding forty transcripts in memory is a
     /// window that stops scrolling.
-    public var detail: MeetingReviewModel?
+    public var detail: MeetingReviewModel? {
+        // The recording of a meeting that is no longer on screen stops with
+        // it, rather than playing on under the next one.
+        didSet { if oldValue !== detail { oldValue?.playback.stop() } }
+    }
     public var isLoading = true
     /// Every transcript, lowercased, once the background read has finished.
     /// Until then a search matches titles, speakers and notes alone.

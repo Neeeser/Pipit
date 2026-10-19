@@ -161,6 +161,15 @@ The following paths have been exercised outside unit tests:
   and confirm every match is tinted, the current one bright and scrolled
   into view, the count reads "1 of N", Return and Shift-Return step, and
   Escape closes the strip and clears the tint.
+- Meeting playback: open a finished meeting and confirm a player sits
+  between the speakers and the tabs, with one lane per speaker in the chip
+  colours. Press Space, or the play button, and confirm the word being
+  spoken is tinted, its turn is banded, the speaker's chip is ringed, and
+  the transcript scrolls with the audio. Double-click a word and confirm
+  playback jumps to it; click a turn's time and confirm it plays that turn.
+  Scroll the transcript while it plays and confirm "Back to playing"
+  appears and returns to the playing turn. Space in a title or notes field
+  still types a space.
 - Local signing identity: run `scripts/make-signing-identity.sh`, rebuild and
   reinstall twice, and confirm Microphone, Accessibility and Screen & System
   Audio Recording stay granted across the second install.
