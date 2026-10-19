@@ -126,10 +126,9 @@ struct SpeakerLanesView: View {
     /// Where the pointer is over the lanes, as a fraction of their width.
     @State private var hover: CGFloat?
 
-    private let rowHeight: CGFloat = 10
-    private let rowSpacing: CGFloat = 2
-
     var body: some View {
+        let rowHeight = SpeakerLanesPlot.rowHeight
+        let rowSpacing = SpeakerLanesPlot.rowSpacing
         let lanes = playback.lanes
         let height = max(rowHeight, CGFloat(lanes.count) * (rowHeight + rowSpacing) - rowSpacing)
         HStack(spacing: 8) {
@@ -145,15 +144,45 @@ struct SpeakerLanesView: View {
             }
             .frame(width: 64, alignment: .trailing)
 
-            GeometryReader { geometry in
-                let width = geometry.size.width
-                ZStack(alignment: .topLeading) {
-                    lanesCanvas(lanes)
+            SpeakerLanesPlot(playback: playback, tint: tint, hover: $hover, height: height)
+        }
+        .frame(maxWidth: .infinity)
+    }
+
+    private func isSpeaking(_ name: String) -> Bool {
+        guard let cursor = playback.cursor, cursor.isSpeaking else { return false }
+        return cursor.speakerName == name
+    }
+}
+
+/// The plot's drawing and pointer feedback, separate from the speaker labels.
+struct SpeakerLanesPlot: View {
+    let playback: MeetingPlaybackModel
+    let tint: (String) -> Color
+    @Binding var hover: CGFloat?
+    let height: CGFloat
+
+    static let rowHeight: CGFloat = 10
+    static let rowSpacing: CGFloat = 2
+
+    var body: some View {
+        let lanes = playback.lanes
+        GeometryReader { geometry in
+            let width = geometry.size.width
+            lanesCanvas(lanes)
+                // Pointer feedback must not participate in the canvas layout.
+                // A centered label in a ZStack shifts its siblings as its width changes.
+                .overlay(alignment: .topLeading) {
                     if let hover {
                         Rectangle()
                             .fill(Color.primary.opacity(0.35))
                             .frame(width: 1, height: height + 6)
                             .offset(x: hover * width, y: -3)
+                            .allowsHitTesting(false)
+                    }
+                }
+                .overlay(alignment: .topLeading) {
+                    if let hover {
                         Text(hoverLabel(at: hover))
                             .font(.caption2)
                             .monospacedDigit()
@@ -166,6 +195,8 @@ struct SpeakerLanesView: View {
                             .offset(x: hover * width, y: -24)
                             .allowsHitTesting(false)
                     }
+                }
+                .overlay(alignment: .topLeading) {
                     playhead(height: height)
                         .offset(x: fraction(of: playback.position) * width - 1, y: -3)
                 }
@@ -185,27 +216,27 @@ struct SpeakerLanesView: View {
                         hover = nil
                     }
                 }
-            }
-            .frame(height: height)
-            .accessibilityElement()
-            .accessibilityLabel("Playback position")
-            .accessibilityValue(
-                TranscriptRenderer().timecode(playback.timeline.timelineSeconds(at: playback.position))
-            )
-            .accessibilityAdjustableAction { direction in
-                if direction == .increment {
-                    playback.skip(by: 5)
-                } else if direction == .decrement {
-                    playback.skip(by: -5)
-                }
+        }
+        .frame(height: height)
+        .accessibilityElement()
+        .accessibilityLabel("Playback position")
+        .accessibilityValue(
+            TranscriptRenderer().timecode(playback.timeline.timelineSeconds(at: playback.position))
+        )
+        .accessibilityAdjustableAction { direction in
+            if direction == .increment {
+                playback.skip(by: 5)
+            } else if direction == .decrement {
+                playback.skip(by: -5)
             }
         }
-        .frame(maxWidth: .infinity)
     }
 
     /// Played stretches at full strength and the rest faded, so the strip
     /// also reads as how far through the meeting this is.
     private func lanesCanvas(_ lanes: [SpeakerLane]) -> some View {
+        let rowHeight = Self.rowHeight
+        let rowSpacing = Self.rowSpacing
         let duration = playback.timeline.duration
         let position = playback.position
         let boundaries = playback.timeline.boundaries
@@ -250,11 +281,6 @@ struct SpeakerLanesView: View {
     private func fraction(of position: Double) -> CGFloat {
         let duration = playback.timeline.duration
         return duration > 0 ? CGFloat(min(max(position / duration, 0), 1)) : 0
-    }
-
-    private func isSpeaking(_ name: String) -> Bool {
-        guard let cursor = playback.cursor, cursor.isSpeaking else { return false }
-        return cursor.speakerName == name
     }
 
     /// The time under the pointer, and who is talking there.
