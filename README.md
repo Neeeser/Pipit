@@ -3,7 +3,7 @@
 # Pipit
 
 [![CI](https://github.com/Neeeser/Pipit/actions/workflows/ci.yml/badge.svg)](https://github.com/Neeeser/Pipit/actions/workflows/ci.yml)
-![macOS 15+](https://img.shields.io/badge/macOS-15%2B-000000?logo=apple&logoColor=white)
+![macOS 15+ on Apple Silicon](https://img.shields.io/badge/macOS_15%2B-Apple_Silicon-000000?logo=apple&logoColor=white)
 [![MIT License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
 Pipit is an open-source meeting recorder for macOS. It detects Slack Huddles
@@ -15,15 +15,17 @@ recordings, transcripts, and notes as ordinary files on disk.
 
 ## Install
 
-Pipit requires macOS 15 or later.
+Pipit requires macOS 15 or later on a Mac with Apple Silicon. Intel Macs are not
+supported.
 
-Download the latest disk image from [GitHub Releases](https://github.com/Neeeser/Pipit/releases/latest)
+Download the newest disk image from [GitHub Releases](https://github.com/Neeeser/Pipit/releases)
 and drag Pipit into Applications.
 
 Open Pipit and grant the permissions shown during setup. Pipit then runs from
 the menu bar.
 
-Pipit checks for a new version once a day and installs the update in place.
+Pipit checks for a new version once a day and installs it in place when you
+accept the update.
 
 ## Use with coding agents
 
