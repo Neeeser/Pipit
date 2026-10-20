@@ -15,8 +15,7 @@ recordings, transcripts, and notes as ordinary files on disk.
 
 ## Install
 
-Pipit requires macOS 15 or later on a Mac with Apple Silicon. Intel Macs are not
-supported.
+Pipit requires macOS 15 or later on a Mac with Apple Silicon.
 
 Download the newest disk image from [GitHub Releases](https://github.com/Neeeser/Pipit/releases)
 and drag Pipit into Applications.
