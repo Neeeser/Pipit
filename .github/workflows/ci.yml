@@ -5,16 +5,22 @@ on:
     branches: [main]
   pull_request:
   workflow_dispatch:
+    inputs:
+      notarize:
+        description: Build a signed and notarized test app without a release or tag
+        type: boolean
+        default: false
 
 permissions:
   contents: read
 
 concurrency:
-  group: ci-${{ github.ref }}
+  group: ci-${{ github.ref }}-${{ github.event_name == 'workflow_dispatch' && inputs.notarize && 'notarized' || 'verify' }}
   cancel-in-progress: true
 
 jobs:
   build-and-test:
+    if: ${{ !(github.event_name == 'workflow_dispatch' && inputs.notarize) }}
     name: Build and test
     runs-on: macos-15
     timeout-minutes: 45
@@ -151,6 +157,10 @@ jobs:
           test -x dist/Pipit.app/Contents/MacOS/pipit-cli
           test -f dist/Pipit.app/Contents/Resources/skills/pipit/SKILL.md
           test -f dist/Pipit.app/Contents/Resources/extension/firefox/manifest.json
+          test -f dist/Pipit.app/Contents/Resources/extension/chrome/manifest.json
+          test -x dist/Pipit.app/Contents/PlugIns/PipitSafariExtension.appex/Contents/MacOS/PipitSafariExtension
+          test -f dist/Pipit.app/Contents/PlugIns/PipitSafariExtension.appex/Contents/Resources/manifest.json
+          codesign --verify --verbose=1 dist/Pipit.app/Contents/PlugIns/PipitSafariExtension.appex
           test -f dist/Pipit.app/Contents/Resources/Pipit.icns
           test -f dist/Pipit.app/Contents/Resources/EchoModels/localvqe-v1.4-aec-2.7K-f32.gguf
           test -f dist/Pipit.app/Contents/Resources/EchoModels/dtln-aec-512.weights
@@ -161,6 +171,70 @@ jobs:
           codesign --verify --verbose=1 dist/Pipit.app
           /usr/libexec/PlistBuddy -c "Print :LSUIElement" dist/Pipit.app/Contents/Info.plist
           test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIconFile' dist/Pipit.app/Contents/Info.plist)" = "Pipit.icns"
+
+  notarized-test:
+    name: Notarized test app
+    if: github.event_name == 'workflow_dispatch' && inputs.notarize
+    runs-on: macos-15
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Select the newest Xcode
+        id: toolchain
+        run: |
+          newest="$(ls -d /Applications/Xcode*.app | sort -V | tail -1)"
+          sudo xcode-select -s "$newest"
+          echo "xcode=$(xcodebuild -version | head -1)" >> "$GITHUB_OUTPUT"
+
+      - name: Restore the tested build cache
+        uses: actions/cache/restore@v6
+        with:
+          path: .build
+          key: spm-${{ runner.os }}-${{ steps.toolchain.outputs.xcode }}-${{ hashFiles('Package.resolved', 'Package.swift') }}
+          restore-keys: |
+            spm-${{ runner.os }}-${{ steps.toolchain.outputs.xcode }}-
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '22'
+
+      - name: Import the Developer ID certificate
+        id: signing
+        env:
+          CERTIFICATE_P12: ${{ secrets.DEVELOPER_ID_CERTIFICATE_P12 }}
+          CERTIFICATE_PASSWORD: ${{ secrets.DEVELOPER_ID_CERTIFICATE_PASSWORD }}
+        run: ./scripts/import-signing-identity.sh
+
+      - name: Build the signed test app
+        env:
+          PIPIT_SIGN_IDENTITY: ${{ steps.signing.outputs.identity }}
+          PIPIT_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          PIPIT_RELEASE: '1'
+        run: ./scripts/bundle-app.sh release
+
+      - name: Notarize and staple
+        env:
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          APPLE_APP_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+        run: ./scripts/notarize.sh dist/Pipit.app
+
+      - name: Remove the signing keychain
+        if: always()
+        run: security delete-keychain build.keychain || true
+
+      - name: Archive the notarized app
+        run: ditto -c -k --sequesterRsrc --keepParent dist/Pipit.app dist/Pipit-notarized.zip
+
+      - name: Upload the test app
+        uses: actions/upload-artifact@v7
+        with:
+          name: Pipit-notarized-${{ github.sha }}
+          path: dist/Pipit-notarized.zip
+          if-no-files-found: error
 
   extension:
     name: Browser extension
@@ -185,7 +259,7 @@ jobs:
         run: ./extension/build.sh
       - name: Check the manifests parse
         run: |
-          for browser in firefox chrome; do
+          for browser in firefox chrome safari; do
             node -e "JSON.parse(require('fs').readFileSync('extension/dist/$browser/manifest.json','utf8'))"
           done
 

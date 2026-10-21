@@ -37,6 +37,7 @@ let package = Package(
         .executable(name: "pipit-nativehost", targets: ["PipitNativeHost"]),
         .executable(name: "pipit-eval", targets: ["PipitEval"]),
         .executable(name: "pipit-cli", targets: ["PipitCLI"]),
+        .executable(name: "pipit-safari-extension", targets: ["PipitSafariExtension"]),
         // The three libraries the application links. The Xcode target in
         // project.yml compiles Sources/PipitApp and links these, so it builds
         // the same modules `swift build` does.
@@ -151,9 +152,24 @@ let package = Package(
             ]
         ),
 
-        // Firefox native messaging host. A compiled binary, because Firefox spawns
-        // hosts with a minimal PATH and an interpreter shebang silently fails.
+        // Native messaging host for Firefox and the Chromium browsers. A compiled
+        // binary, because browsers spawn hosts with a minimal PATH and an
+        // interpreter shebang silently fails.
         .executableTarget(name: "PipitNativeHost", dependencies: ["PipitCore"]),
+
+        // Safari's half of the browser sensor. Safari hands each message from
+        // the add-on to an app extension inside Pipit.app, and this is that
+        // extension's code. SwiftPM has no app extension product, so it links
+        // as an executable that starts in NSExtensionMain, the entry point
+        // Xcode gives every app extension, and scripts/bundle-app.sh wraps it
+        // in PipitSafariExtension.appex.
+        .executableTarget(
+            name: "PipitSafariExtension",
+            dependencies: ["PipitCore"],
+            linkerSettings: [
+                .unsafeFlags(["-Xlinker", "-e", "-Xlinker", "_NSExtensionMain"])
+            ]
+        ),
 
         // The command-line tool's commands, kept apart from its entry point so
         // the test suite can run them. PipitCore only: it reads the archive's

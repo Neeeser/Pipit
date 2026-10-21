@@ -7,13 +7,17 @@
 # syntax and ships plain scripts that share the content-script scope.
 #
 # Firefox uses MV2 with a background page; Chrome needs MV3 with a service
-# worker. The observation code is identical, so only the manifest differs.
+# worker; Safari takes MV3 with a background page it unloads when idle. The
+# observation code is identical, so only the manifest differs. The Chrome build
+# also loads unchanged in Brave, Edge, Arc and Vivaldi. The Safari build is not
+# loadable on its own: scripts/bundle-app.sh puts it inside the app extension
+# Safari reads it from.
 set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 DIST="$ROOT/dist"
 rm -rf "$DIST"
 
-for browser in firefox chrome; do
+for browser in firefox chrome safari; do
     mkdir -p "$DIST/$browser/shared"
     # `export ` prefixes and the import block are the only module syntax used.
     sed -E 's/^export (function|const|let|class)/\1/' "$ROOT/shared/provider.js" \
@@ -21,7 +25,7 @@ for browser in firefox chrome; do
     cp "$ROOT/shared/content.js" "$DIST/$browser/shared/content.js"
     # relay.js is testable on its own, and background.js calls it. A Chrome MV3
     # service worker names one file, so the two are concatenated instead of both
-    # being listed in the manifest.
+    # being listed in the manifest. The other two take the same file.
     {
         sed -E 's/^export (function|const|let|class)/\1/' "$ROOT/shared/relay.js"
         cat "$ROOT/shared/background.js"

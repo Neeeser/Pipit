@@ -31,6 +31,15 @@ public enum SensorMessage: Codable, Sendable, Equatable {
         }
     }
 
+    /// The browser the message came from.
+    public var browser: BrowserKind {
+        switch self {
+        case .hello(let hello): hello.browser
+        case .event(let event): event.browser
+        case .tabClosed(let browser, _), .goodbye(let browser): browser
+        }
+    }
+
     private enum CodingKeys: String, CodingKey {
         case type
         case hello
@@ -105,6 +114,75 @@ public enum SensorTransport {
     public static var chromeHostManifestDirectory: URL {
         FileManager.default.homeDirectoryForCurrentUser
             .appendingPathComponent("Library/Application Support/Google/Chrome/NativeMessagingHosts", isDirectory: true)
+    }
+
+    /// The identifier Chrome gives the add-on, derived from the public key in
+    /// `extension/chrome/manifest.json`. Pinning the key keeps it the same on
+    /// every Mac and in every Chromium browser, which is what lets the host
+    /// manifest name it. `extension/test/browsers.test.js` checks the two agree.
+    public static let chromeExtensionID = "lcgklngllaakialhbekpihnjlciiijoc"
+
+    /// A Chromium browser and the folder it keeps its data in.
+    public struct ChromiumBrowser: Sendable, Equatable {
+        public let name: String
+        /// Present once the browser has run on this Mac.
+        public let dataDirectory: URL
+
+        /// Where the browser looks for native messaging host manifests.
+        public var hostManifestDirectory: URL {
+            dataDirectory.appendingPathComponent("NativeMessagingHosts", isDirectory: true)
+        }
+    }
+
+    /// Every Chromium browser that loads the Chrome add-on. Each one reads host
+    /// manifests from its own folder only, so the add-on in Brave cannot reach
+    /// Pipit through a manifest written for Chrome.
+    public static var chromiumBrowsers: [ChromiumBrowser] {
+        let support = FileManager.default.homeDirectoryForCurrentUser
+            .appendingPathComponent("Library/Application Support", isDirectory: true)
+        let folders: [(String, String)] = [
+            ("Chrome", "Google/Chrome"),
+            ("Chrome Beta", "Google/Chrome Beta"),
+            ("Chrome Canary", "Google/Chrome Canary"),
+            ("Chromium", "Chromium"),
+            ("Brave", "BraveSoftware/Brave-Browser"),
+            ("Microsoft Edge", "Microsoft Edge"),
+            ("Arc", "Arc/User Data"),
+            ("Vivaldi", "Vivaldi"),
+        ]
+        return folders.map { folder in
+            ChromiumBrowser(
+                name: folder.0, dataDirectory: support.appendingPathComponent(folder.1, isDirectory: true)
+            )
+        }
+    }
+
+    /// The end of the app group Pipit shares with its Safari extension. The
+    /// signed group carries the team identifier in front of it.
+    ///
+    /// Safari runs the extension in a sandbox, which cannot reach the socket in
+    /// Application Support. The group's container is the one folder both sides
+    /// can open, so Safari's socket lives there.
+    public static let safariAppGroupSuffix = "com.pipit.sensor"
+
+    /// The bundle identifier and code signing identifier of the Safari
+    /// extension inside Pipit.app.
+    public static let safariExtensionBundleIdentifier = "com.pipit.app.safari-extension"
+
+    /// Where the extension's executable sits inside the application bundle.
+    public static let safariExtensionExecutablePath =
+        "Contents/PlugIns/PipitSafariExtension.appex/Contents/MacOS/PipitSafariExtension"
+
+    /// The socket the Safari extension connects to, inside the shared container.
+    public static func safariSocketURL(groupContainer: URL) -> URL {
+        groupContainer.appendingPathComponent("sensor.sock")
+    }
+
+    /// The group from a process's own `com.apple.security.application-groups`
+    /// entitlement. Nil for a build signed without one, which has no Safari
+    /// extension to talk to.
+    public static func safariAppGroup(in entitledGroups: [String]) -> String? {
+        entitledGroups.first { $0 == safariAppGroupSuffix || $0.hasSuffix("." + safariAppGroupSuffix) }
     }
 
     /// Encodes one message as a single line.

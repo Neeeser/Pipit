@@ -48,6 +48,14 @@ public struct SensorPeerVerifier: Sendable {
     public let allowedHostPaths: Set<String>
     /// Bundle identifiers of browsers allowed to be the host's parent.
     public let allowedParentBundleIDs: Set<String>
+    /// Whether the peer must have been started by a browser. True for the
+    /// native messaging host, which relays whatever it is fed on standard
+    /// input. False for the Safari extension, which the system starts on
+    /// Safari's behalf with launchd as its parent and which reads nothing but
+    /// what Safari hands it.
+    public let requiresBrowserParent: Bool
+    /// The code signing identifier the peer must carry on a signed build.
+    public let signingIdentifier: String
 
     /// Resolves a bundle identifier to the application's location. Injected so the
     /// parent check can be tested on a machine without that browser installed.
@@ -56,11 +64,15 @@ public struct SensorPeerVerifier: Sendable {
     public init(
         allowedHostPaths: Set<String>? = nil,
         allowedParentBundleIDs: Set<String>? = nil,
+        requiresBrowserParent: Bool = true,
+        signingIdentifier: String = "com.pipit.nativehost",
         applicationURL: @escaping @Sendable (String) -> URL? = { identifier in
             NSWorkspace.shared.urlForApplication(withBundleIdentifier: identifier)
         }
     ) {
         self.applicationURL = applicationURL
+        self.requiresBrowserParent = requiresBrowserParent
+        self.signingIdentifier = signingIdentifier
         if let allowedHostPaths {
             self.allowedHostPaths = allowedHostPaths
         } else {
@@ -74,6 +86,22 @@ public struct SensorPeerVerifier: Sendable {
         self.allowedParentBundleIDs =
             allowedParentBundleIDs
             ?? Set(BrowserKind.allCases.flatMap(\.bundleIdentifiers))
+    }
+
+    /// Accepts the Safari extension inside this application's bundle and
+    /// nothing else. Nil when the bundle carries none, which is every build
+    /// but the one scripts/bundle-app.sh assembles.
+    public static func safariExtension(bundle: Bundle = .main) -> SensorPeerVerifier? {
+        let executable = bundle.bundleURL
+            .appendingPathComponent(SensorTransport.safariExtensionExecutablePath)
+            .resolvingSymlinksInPath()
+        guard FileManager.default.isExecutableFile(atPath: executable.path) else { return nil }
+        return SensorPeerVerifier(
+            allowedHostPaths: [executable.path],
+            allowedParentBundleIDs: [],
+            requiresBrowserParent: false,
+            signingIdentifier: SensorTransport.safariExtensionBundleIdentifier
+        )
     }
 
     public func peer(of descriptor: Int32) -> Peer? {
@@ -91,7 +119,7 @@ public struct SensorPeerVerifier: Sendable {
             parentBundleIdentifier: parent.flatMap {
                 NSRunningApplication(processIdentifier: $0)?.bundleIdentifier
             },
-            signature: CodeSignatureCheck.state(ofPeerOn: descriptor)
+            signature: CodeSignatureCheck.state(ofPeerOn: descriptor, identifier: signingIdentifier)
         )
     }
 
@@ -107,6 +135,7 @@ public struct SensorPeerVerifier: Sendable {
         // signed build the peer must carry the same team identifier as Pipit.
         // An ad-hoc build has no team to compare, and reports .unknown.
         guard peer.signature != .mismatched else { return false }
+        if !requiresBrowserParent { return true }
         // The bundle identifier is the direct answer; the executable path is the
         // fallback for a browser that is running but not registered.
         if let identifier = peer.parentBundleIdentifier,
@@ -161,13 +190,13 @@ enum CodeSignatureCheck {
     /// `LOCAL_PEERTOKEN` from `sys/un.h`, which Swift does not import.
     private static let localPeerToken: Int32 = 0x006
 
-    static func state(ofPeerOn descriptor: Int32) -> SensorPeerVerifier.SignatureState {
+    static func state(ofPeerOn descriptor: Int32, identifier: String) -> SensorPeerVerifier.SignatureState {
         guard let team = ownTeamIdentifier() else { return .unknown }
         guard let token = auditToken(of: descriptor) else { return .unknown }
         guard let code = guest(for: token) else { return .unknown }
 
         let text =
-            "identifier \"com.pipit.nativehost\""
+            "identifier \"\(identifier)\""
             + " and anchor apple generic"
             + " and certificate leaf[subject.OU] = \"\(team)\""
         var requirement: SecRequirement?

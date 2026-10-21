@@ -12,8 +12,14 @@ public struct DetectionSnapshot: Sendable, Equatable {
     /// Who the meeting client says is in the call, and who is holding the floor.
     /// Empty where nothing readable is in a meeting.
     public var roster: SensorReading?
-    /// What the browser add-on said about itself when it last connected.
+    /// What the Firefox add-on said about itself when it last connected.
     public var sensorHello: SensorMessage.Hello?
+    /// Every browser's add-on, as Pipit last heard from it. `browserSensor` is
+    /// the Firefox entry, kept on its own for the menu bar and the update flow,
+    /// which only know about Firefox.
+    public var browserSensors: [BrowserKind: BrowserSensorTracker.Connection]
+    /// What each browser's add-on said about itself when it last connected.
+    public var sensorHellos: [BrowserKind: SensorMessage.Hello]
 
     public init(
         evidence: [ProviderEvidence] = [],
@@ -22,7 +28,9 @@ public struct DetectionSnapshot: Sendable, Equatable {
         hasAccessibility: Bool = false,
         hasWindowTitles: Bool = false,
         roster: SensorReading? = nil,
-        sensorHello: SensorMessage.Hello? = nil
+        sensorHello: SensorMessage.Hello? = nil,
+        browserSensors: [BrowserKind: BrowserSensorTracker.Connection] = [:],
+        sensorHellos: [BrowserKind: SensorMessage.Hello] = [:]
     ) {
         self.evidence = evidence
         self.slackState = slackState
@@ -31,6 +39,8 @@ public struct DetectionSnapshot: Sendable, Equatable {
         self.hasWindowTitles = hasWindowTitles
         self.roster = roster
         self.sensorHello = sensorHello
+        self.browserSensors = browserSensors
+        self.sensorHellos = sensorHellos
     }
 }
 
@@ -54,7 +64,7 @@ public final class DetectionEngine: @unchecked Sendable {
             pollInterval: Double = 0.5,
             slackBundleIdentifier: String = "com.tinyspeck.slackmacgap",
             slackAudioPrefixes: [String] = ["com.tinyspeck.slackmacgap"],
-            browsers: [BrowserKind] = [.firefox, .chrome],
+            browsers: [BrowserKind] = [.firefox, .chrome, .safari],
             genericDetection: Bool = true
         ) {
             self.pollInterval = pollInterval
@@ -80,6 +90,17 @@ public final class DetectionEngine: @unchecked Sendable {
     private var genericDetector = GenericCallDetector()
     private var timer: DispatchSourceTimer?
     private var sensorServer: BrowserSensorServer?
+    /// Safari's own socket, inside the app group. Nil on a build without the
+    /// Safari extension.
+    private var safariSensorServer: BrowserSensorServer?
+    /// The last hello from each browser's add-on.
+    private var hellos: [BrowserKind: SensorMessage.Hello] = [:]
+    /// When Safari's add-on last said anything. Safari holds no connection, so
+    /// silence is the only sign that the add-on was turned off or Safari quit.
+    private var lastSafariContact: Double?
+    /// The add-on says hello every minute while Safari runs, and a background
+    /// page can miss one. Two and a half minutes of silence is it gone.
+    static let safariSilenceLimit: Double = 150
     private var lastSnapshot = DetectionSnapshot()
     private var previousEvidence: [String] = []
 
@@ -125,7 +146,7 @@ public final class DetectionEngine: @unchecked Sendable {
                 selfIsAuthoritative: true
             )
         }
-        for kind in [BrowserKind.firefox, .chrome] {
+        for kind in [BrowserKind.firefox, .chrome, .safari] {
             // currentEvent, not lastEvent. The latter is whatever arrived most
             // recently from any tab, so a second Meet tab sitting on a landing
             // page reporting `browsing` would hide the roster of the call being
@@ -181,9 +202,12 @@ public final class DetectionEngine: @unchecked Sendable {
         self.timer = nil
         let server = sensorServer
         sensorServer = nil
+        let safariServer = safariSensorServer
+        safariSensorServer = nil
         lock.unlock()
         timer?.cancel()
         server?.stop()
+        safariServer?.stop()
     }
 
     /// Bundle-identifier prefixes whose audio belongs to a Slack huddle.
@@ -202,6 +226,34 @@ public final class DetectionEngine: @unchecked Sendable {
         } catch {
             Log.detection.error("sensor server failed to start: \(logSafeDescription(error), privacy: .public)")
         }
+        startSafariSensorServer()
+    }
+
+    /// Listens for the Safari extension. Its connections come and go with the
+    /// extension's process, which the system stops between messages, so a
+    /// closed connection says nothing about whether the add-on is loaded and
+    /// is not reported. Silence is, in `poll`.
+    private func startSafariSensorServer() {
+        guard let socketURL = SafariSensorSocket.url(),
+            let verifier = SensorPeerVerifier.safariExtension()
+        else { return }
+        let server = BrowserSensorServer(
+            socketURL: socketURL,
+            verifier: verifier,
+            onMessage: { [weak self] message in
+                // Only Safari speaks on this socket, whatever a message claims.
+                guard message.browser == .safari else { return }
+                self?.handleSensor(message)
+            }
+        )
+        do {
+            try server.start()
+            lock.withLock { safariSensorServer = server }
+        } catch {
+            Log.detection.error(
+                "safari sensor server failed to start: \(logSafeDescription(error), privacy: .public)"
+            )
+        }
     }
 
     public var sensorStatus: BrowserSensorServer.Status? {
@@ -214,8 +266,10 @@ public final class DetectionEngine: @unchecked Sendable {
         let now = clock.monotonicSeconds
         lock.lock()
         defer { lock.unlock() }
+        if message.browser == .safari { lastSafariContact = now }
         switch message {
         case .hello(let hello):
+            hellos[hello.browser] = hello
             browserDetectors[hello.browser]?.sensorConnected(at: now)
         case .event(let event):
             browserDetectors[event.browser]?.receive(event, at: now)
@@ -234,8 +288,9 @@ public final class DetectionEngine: @unchecked Sendable {
         lock.lock()
         defer { lock.unlock() }
         guard count == 0 else { return }
-        // No relay is connected at all, so no browser sensor is reporting.
-        for (browser, var detector) in browserDetectors {
+        // No relay is connected at all, so no browser that reports through one
+        // is reporting. Safari reports through its own socket.
+        for (browser, var detector) in browserDetectors where browser != .safari {
             detector.sensorDisconnected(at: now)
             browserDetectors[browser] = detector
         }
@@ -293,14 +348,18 @@ public final class DetectionEngine: @unchecked Sendable {
         }
 
         // Browsers
+        if let contact = lastSafariContact, now - contact > Self.safariSilenceLimit {
+            browserDetectors[.safari]?.sensorDisconnected(at: now)
+            lastSafariContact = nil
+        }
         for (browser, var detector) in browserDetectors {
             let ownerTitles = browser.windowOwnerNames.flatMap { titles[$0] ?? [] }
             let native = BrowserMeetingDetector.NativeSignals(
                 browserHoldsMicrophone: audioObserver.holdsMicrophone(
-                    bundlePrefixes: browser.bundleIdentifiers, in: audioStates
+                    bundlePrefixes: browser.audioBundlePrefixes, in: audioStates
                 ),
                 browserProducesOutput: audioObserver.producesOutput(
-                    bundlePrefixes: browser.bundleIdentifiers, in: audioStates
+                    bundlePrefixes: browser.audioBundlePrefixes, in: audioStates
                 ),
                 windowTitles: ownerTitles
             )
@@ -311,9 +370,14 @@ public final class DetectionEngine: @unchecked Sendable {
 
         // Unsupported applications
         if configuration.genericDetection {
+            // Safari's audio comes from WebKit's processes, which carry a call on
+            // any site and which other applications share. They stay with the
+            // generic detector unless Safari has a meeting of its own, so a call
+            // on a site the add-on does not read is still found.
             let knownPrefixes =
                 configuration.slackAudioPrefixes
                 + configuration.browsers.flatMap(\.bundleIdentifiers)
+                + evidence.compactMap(\.browser).flatMap(\.audioBundlePrefixes)
             let unknownStates =
                 audioStates
                 .filter { state in !knownPrefixes.contains { state.bundleIdentifier.hasPrefix($0) } }
@@ -340,7 +404,9 @@ public final class DetectionEngine: @unchecked Sendable {
             hasAccessibility: AccessibilityBridge.isTrusted,
             hasWindowTitles: !titles.isEmpty || windowReader.hasTitleAccess,
             roster: reading(slack: slackObservation, browsers: browserDetectors, at: observedAt),
-            sensorHello: sensorServer?.currentStatus.lastHello
+            sensorHello: hellos[.firefox],
+            browserSensors: browserDetectors.mapValues(\.sensor.connection),
+            sensorHellos: hellos
         )
         let labels = evidence.map { item in
             "\(item.provider.rawValue):\(item.confidence.rawValue):\(item.source.rawValue)"
@@ -374,8 +440,12 @@ extension BrowserKind {
     var windowOwnerNames: [String] {
         switch self {
         case .firefox: ["firefox", "Firefox", "Firefox Developer Edition", "Nightly"]
-        case .chrome: ["Google Chrome", "Brave Browser", "Microsoft Edge"]
-        case .safari: ["Safari"]
+        case .chrome:
+            [
+                "Google Chrome", "Google Chrome Beta", "Google Chrome Canary", "Brave Browser",
+                "Brave Browser Beta", "Microsoft Edge", "Microsoft Edge Beta", "Arc", "Vivaldi", "Chromium",
+            ]
+        case .safari: ["Safari", "Safari Technology Preview"]
         case .unknown: []
         }
     }
