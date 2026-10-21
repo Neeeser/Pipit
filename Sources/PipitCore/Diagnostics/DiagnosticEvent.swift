@@ -151,7 +151,7 @@ extension DiagnosticEvent {
             self.build = .version(build)
             self.commit = .commit(commit)
             self.os = .version(os)
-            self.osBuild = .version(osBuild)
+            self.osBuild = .osBuild(osBuild)
             self.hardware = .hardware(hardware)
             self.arch = arch
         }

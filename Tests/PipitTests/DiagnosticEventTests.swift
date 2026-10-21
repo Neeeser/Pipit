@@ -243,6 +243,13 @@ struct DiagnosticEventTests {
         #expect(DiagnosticToken.version("").value == "invalid")
         #expect(DiagnosticToken.version("1.0 Sample Person").value == "invalid")
         #expect(DiagnosticToken.version("https://example.invalid/x").value == "invalid")
+        // An add-on reports its own version, so a word in its place must not pass.
+        #expect(DiagnosticToken.version("SamplePerson").value == "invalid")
+        #expect(DiagnosticToken.version("1.0-SamplePerson").value == "invalid")
+        #expect(DiagnosticToken.version("1.0.1.42").value == "1.0.1.42")
+        #expect(DiagnosticToken.osBuild("24G90").value == "24G90")
+        #expect(DiagnosticToken.osBuild("25A5279m").value == "25A5279m")
+        #expect(DiagnosticToken.osBuild("SamplePerson").value == "invalid")
         #expect(DiagnosticToken.version(String(repeating: "1", count: 33)).value == "invalid")
         #expect(DiagnosticToken.hardware("Mac15,3").value == "Mac15,3")
         #expect(DiagnosticToken.hardware("Sample's Mac").value == "invalid")

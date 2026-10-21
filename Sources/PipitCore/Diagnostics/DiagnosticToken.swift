@@ -19,10 +19,24 @@ public struct DiagnosticToken: Hashable, Sendable, CustomStringConvertible {
 
     public var description: String { value }
 
-    /// `^[0-9A-Za-z.+-]{1,32}$`. Nil reads `unknown`.
+    /// Up to four numeric parts, then optionally a pre-release of `alpha`,
+    /// `beta`, `rc` or `dev` with numeric or hex parts, and a numeric build:
+    /// `1.0.1`, `1.0.1.42`, `0.1.8-dev.9e8e301`, `1.4.0-beta.2+7`. Nil reads
+    /// `unknown`.
+    ///
+    /// Strict because a browser add-on reports its own version, and letters
+    /// alone would let any word through: an add-on that sent a name where its
+    /// version goes would have it written to the log.
     public static func version(_ raw: String?) -> DiagnosticToken {
         guard let raw else { return .unknown }
-        return matches(raw, maximum: 32, extra: [".", "+", "-"]) ? DiagnosticToken(unchecked: raw) : .invalid
+        let pattern = /[0-9]{1,6}(\.[0-9]{1,6}){0,3}(-(alpha|beta|rc|dev)(\.[0-9a-f]{1,40}){0,3})?(\+[0-9]{1,9})?/
+        return raw.count <= 64 && raw.wholeMatch(of: pattern) != nil ? DiagnosticToken(unchecked: raw) : .invalid
+    }
+
+    /// A macOS build such as `24G90` or `25A5279m`.
+    public static func osBuild(_ raw: String?) -> DiagnosticToken {
+        guard let raw else { return .unknown }
+        return raw.wholeMatch(of: /[0-9]{1,3}[A-Z][0-9]{1,5}[a-z]?/) != nil ? DiagnosticToken(unchecked: raw) : .invalid
     }
 
     /// A commit is 40 lowercase hex digits, or `unknown` for a build that was
