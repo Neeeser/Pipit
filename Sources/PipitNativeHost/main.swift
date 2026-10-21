@@ -17,6 +17,10 @@ let hostVersion = "1.2.0"
 
 /// Reads the browser's length-prefixed messages from standard input.
 struct BrowserMessageReader {
+    /// Why reading stopped: the browser closed the pipe, or sent something
+    /// that is not a message.
+    private(set) var endedOnError = false
+
     /// Reads exactly `count` bytes, or nil once the stream ends.
     private func readExactly(_ count: Int) -> Data? {
         var data = Data()
@@ -28,7 +32,7 @@ struct BrowserMessageReader {
         return data
     }
 
-    func next() -> [String: Any]? {
+    mutating func next() -> [String: Any]? {
         guard let header = readExactly(4) else { return nil }
         let length =
             Int(header[header.startIndex])
@@ -37,9 +41,16 @@ struct BrowserMessageReader {
             | Int(header[header.startIndex + 3]) << 24
         // A hostile or confused peer must not be able to make the host allocate
         // without bound; browsers cap messages far below this.
-        guard length > 0, length <= 1_048_576 else { return nil }
+        guard length > 0, length <= 1_048_576 else {
+            endedOnError = true
+            return nil
+        }
         guard let payload = readExactly(length) else { return nil }
-        return (try? JSONSerialization.jsonObject(with: payload)) as? [String: Any]
+        guard let object = (try? JSONSerialization.jsonObject(with: payload)) as? [String: Any] else {
+            endedOnError = true
+            return nil
+        }
+        return object
     }
 }
 
@@ -56,6 +67,22 @@ func replyToBrowser(_ object: [String: Any]) {
 // browsers pass the calling extension's origin.
 let browser = SensorRelay.browser(forArguments: CommandLine.arguments)
 
+// The host's own events, in `nativehost-YYYY-MM-DD.ndjson` beside the app's.
+// Nothing the browser sends is recorded: only that the host ran, whether
+// Pipit answered, and how it ended.
+let diagnostics = DiagnosticLog(layout: .standard, configuration: .nativeHost)
+diagnostics.record(.nativeHostStarted(browser: browser))
+
+/// Pipit did not answer: `nativehost.connect.<errno>` where connecting
+/// failed, `nativehost.write` where an open socket refused the message.
+func recordUnreachable(_ connection: SensorAppConnection) {
+    let failure = connection.lastConnectError
+    let code =
+        failure == 0
+        ? DiagnosticCode("nativehost", "write") : DiagnosticCode("nativehost", "connect", number: Int(failure))
+    diagnostics.record(.nativeHostAppUnreachable(code: code))
+}
+
 let socketPath = SensorTransport.socketURL(
     applicationSupport: SensorTransport.defaultApplicationSupport
 ).path
@@ -63,9 +90,8 @@ let socketPath = SensorTransport.socketURL(
 // beyond its parts: the test target cannot hold a live browser on the other
 // end.
 let connection = SensorAppConnection(socketPath: socketPath)
-let reader = BrowserMessageReader()
 
-connection.connect()
+if !connection.connect() { recordUnreachable(connection) }
 replyToBrowser(["type": "ready", "connected": connection.isConnected, "hostVersion": hostVersion])
 
 // Notices a Pipit restart on its own. Two seconds is well inside the add-on's
@@ -75,15 +101,33 @@ watchdog.schedule(deadline: .now() + 2, repeating: 2)
 watchdog.setEventHandler { connection.watch() }
 watchdog.resume()
 
-while let raw = reader.next() {
-    guard let message = SensorRelay.message(from: raw, browser: browser, hostVersion: hostVersion) else {
-        continue
+/// Relays until the browser closes the pipe. Returns how many messages reached
+/// Pipit, and whether the input ended on something that was not a message.
+func relayMessages() -> (relayed: Int, endedOnError: Bool) {
+    var reader = BrowserMessageReader()
+    var relayed = 0
+    while let raw = reader.next() {
+        guard let message = SensorRelay.message(from: raw, browser: browser, hostVersion: hostVersion) else {
+            continue
+        }
+        let delivered = connection.deliver(message)
+        if delivered {
+            relayed += 1
+        } else {
+            // Merged by the log while Pipit stays away.
+            recordUnreachable(connection)
+        }
+        if raw["type"] as? String == "hello" || !delivered {
+            replyToBrowser(["type": "ack", "connected": delivered])
+        }
     }
-    let delivered = connection.deliver(message)
-    if raw["type"] as? String == "hello" || !delivered {
-        replyToBrowser(["type": "ack", "connected": delivered])
-    }
+    return (relayed, reader.endedOnError)
 }
 
+let outcome = relayMessages()
 connection.send(.goodbye(browser: browser))
 connection.disconnect()
+diagnostics.record(
+    .nativeHostExited(reason: outcome.endedOnError ? .error : .browserClosed, relayed: outcome.relayed)
+)
+diagnostics.flush(timeout: 1)

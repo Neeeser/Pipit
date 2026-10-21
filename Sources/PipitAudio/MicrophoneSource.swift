@@ -88,7 +88,8 @@ public final class MicrophoneSource: MicrophoneEngineController, Sendable {
             sampleRate: CoreAudioSystem.deviceSampleRate(device),
             channelCount: CoreAudioSystem.deviceChannelCount(
                 device, scope: kAudioObjectPropertyScopeInput
-            )
+            ),
+            transport: CoreAudioSystem.transport(device)
         )
     }
 

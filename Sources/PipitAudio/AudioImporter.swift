@@ -22,8 +22,10 @@ public struct AudioImporter: Sendable {
         self.clock = clock
     }
 
+    /// `session` is the diagnostic session written into the manifest's
+    /// `session_start`, so the import can be found from its events.
     public func `import`(
-        source: URL, into store: MeetingStore, meetingID: String
+        source: URL, into store: MeetingStore, meetingID: String, session: DiagnosticSessionID? = nil
     ) throws -> Result {
         try store.createDirectories()
         try FileManager.default.createDirectory(
@@ -63,7 +65,8 @@ public struct AudioImporter: Sendable {
                 .init(
                     meetingID: meetingID, source: .imported, segmentSeconds: segmentSeconds,
                     appVersion: PipitVersion.current,
-                    processID: ProcessInfo.processInfo.processIdentifier
+                    processID: ProcessInfo.processInfo.processIdentifier,
+                    diagnosticSession: session?.description
                 )),
             hostTime: clock.monotonicSeconds, wallClock: clock.now
         )

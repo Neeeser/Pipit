@@ -107,6 +107,7 @@ public final class SensorAppConnection: @unchecked Sendable {
     private var descriptor: Int32 = -1
     /// The last hello the extension sent, replayed on every reconnect.
     private var greeting: SensorMessage?
+    private var lastConnectErrno: Int32 = 0
 
     public init(socketPath: String) {
         self.socketPath = socketPath
@@ -116,6 +117,14 @@ public final class SensorAppConnection: @unchecked Sendable {
         lock.lock()
         defer { lock.unlock() }
         return descriptor >= 0
+    }
+
+    /// The `errno` of the last connect that failed, or 0. `ENOENT` is Pipit
+    /// not running, `ECONNREFUSED` a socket left behind by one that quit.
+    public var lastConnectError: Int32 {
+        lock.lock()
+        defer { lock.unlock() }
+        return lastConnectErrno
     }
 
     /// Connects, and greets the app with the last hello if there is one.
@@ -157,9 +166,15 @@ public final class SensorAppConnection: @unchecked Sendable {
     /// Opens the socket without greeting. The caller holds the lock.
     private func open() -> Bool {
         closeDescriptor()
-        guard var address = UnixSocketAddress.make(path: socketPath) else { return false }
+        guard var address = UnixSocketAddress.make(path: socketPath) else {
+            lastConnectErrno = ENAMETOOLONG
+            return false
+        }
         let handle = socket(AF_UNIX, SOCK_STREAM, 0)
-        guard handle >= 0 else { return false }
+        guard handle >= 0 else {
+            lastConnectErrno = errno
+            return false
+        }
         // A write to a socket the app has closed raises SIGPIPE, which ends the
         // process. The write's own error is the signal this code acts on.
         var noSignal: Int32 = 1
@@ -170,9 +185,11 @@ public final class SensorAppConnection: @unchecked Sendable {
             }
         }
         guard result == 0 else {
+            lastConnectErrno = errno
             close(handle)
             return false
         }
+        lastConnectErrno = 0
         descriptor = handle
         return true
     }

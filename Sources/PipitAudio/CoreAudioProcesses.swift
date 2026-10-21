@@ -134,6 +134,13 @@ public enum CoreAudioSystem {
         string(device, address(kAudioObjectPropertyName)) ?? "Unknown device"
     }
 
+    /// How a device is attached: built in, USB, Bluetooth and so on. A read,
+    /// like everything here; nothing in Pipit sets a device property.
+    public static func transport(_ device: AudioDeviceID) -> DiagnosticEvent.Transport {
+        guard let value = uint32(device, address(kAudioDevicePropertyTransportType)) else { return .other }
+        return DiagnosticEvent.Transport(coreAudioTransportType: value)
+    }
+
     public static func deviceSampleRate(_ device: AudioDeviceID) -> Double {
         double(device, address(kAudioDevicePropertyNominalSampleRate)) ?? 0
     }

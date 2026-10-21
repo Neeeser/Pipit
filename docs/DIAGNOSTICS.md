@@ -41,7 +41,7 @@ profiles:
 
 | Path | Contents | Limit |
 | --- | --- | --- |
-| `events/events-YYYY-MM-DD.ndjson` | App events, one JSON object per line | 2 MB per file, then `.1`, `.2`; 14 days or 10 MB in total, oldest first |
+| `events/events-YYYY-MM-DD.ndjson` | App events, one JSON object per line | 2 MB per file, then `events-YYYY-MM-DD.1.ndjson`, `.2`; 14 days or 10 MB in total, oldest first |
 | `events/nativehost-YYYY-MM-DD.ndjson` | Events from `pipit-nativehost` | 256 KB per day, 14 days |
 | `state/launch.json` | The current launch record (below) | One file |
 | `crashes/<incident>.json` | Reduced crash summaries, each with its pid and launch time | 10 newest, 90 days |
@@ -74,12 +74,15 @@ unless the person also chooses to forget sent reports.
 | `job` | Random UUID of one processing attempt |
 | `kind` | Event name, below |
 | `p` | Payload: only the keys listed for the kind |
-| `n` | Repeat count, when identical events within 60 s were merged |
+| `n` | How many events the line stands for, when identical events within 60 s were merged. The first of a burst is written on its own at once and the repeats as one line with `n` when the window closes, so a count is the sum of `n`, with a line that has none counting once |
 
 Payload values are enum raw values, integers, finite doubles, booleans, or
-version strings matching `^[0-9A-Za-z.+-]{1,32}$`. Anything that came from
-outside Pipit (an add-on's version, an NSError domain) is checked against its
-pattern and replaced with `invalid` when it does not match.
+version strings matching `^[0-9A-Za-z.+-]{1,32}$`. Two strings have their own
+patterns: `hardware` is a model identifier such as `Mac15,3`, matching
+`^[A-Za-z0-9,]{1,32}$`, and `commit` is 7 to 40 lowercase hex digits or
+`unknown`. Anything that came from outside Pipit (an add-on's version, an
+NSError domain) is checked against its pattern and replaced with `invalid` when
+it does not match.
 
 ### Kinds (schema 1)
 

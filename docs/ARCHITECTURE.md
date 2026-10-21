@@ -433,6 +433,29 @@ the files it names, and it leaves the archive layout to the command so a layout
 change does not leave installed skills pointing at old paths. The same folder is
 discoverable from the repository by skill installers.
 
+## Diagnostics
+
+`PipitCore/Diagnostics` keeps a local log of what Pipit did, under
+`~/Library/Logs/Pipit/`, so a bug can be investigated without the person's
+meetings. [The diagnostics contract](DIAGNOSTICS.md) fixes the line format and
+the limits. Every event is a kind whose payload is enums, numbers, checked
+version strings and random identifiers, so a title, a name, a path or an
+error's description has no field to arrive through. A failure is recorded as a
+`DiagnosticCode`, mapped exhaustively from each error enum.
+
+`DiagnosticLog.record` returns at once from any thread. A utility queue appends
+the lines, merges identical events within a minute, continues a day in a new
+part at 2 MB, and keeps 14 days and 10 MB. A full queue, a failed write or a
+nearly full disk drops the event and counts it; nothing is thrown to the
+caller. Capture events are recorded from the capture control queue, never from
+an audio callback.
+
+`PipitRuntime` takes the log and hands it to capture, detection, processing and
+model installation. The application passes the real one and every other
+runtime gets `DiagnosticLog.disabled`. Each arm of capture starts a session
+identifier, which the meeting's `session_start` manifest line also carries.
+`pipit-nativehost` writes a file of its own beside the app's.
+
 ## Browser sensor
 
 ```text

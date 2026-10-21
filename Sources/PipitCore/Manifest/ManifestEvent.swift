@@ -38,15 +38,23 @@ public enum ManifestEvent: Sendable, Equatable {
         public let segmentSeconds: Double
         public let appVersion: String
         public let processID: Int32
+        /// The diagnostic session this recording's events carry, as a UUID
+        /// string. It is what finds the meeting on this Mac from a report,
+        /// which never carries the meeting identifier because that embeds a
+        /// slug of the title. Absent in manifests written before diagnostics
+        /// existed, and the manifest is never rewritten to add it.
+        public let diagnosticSession: String?
 
         public init(
-            meetingID: String, source: MeetingSource, segmentSeconds: Double, appVersion: String, processID: Int32
+            meetingID: String, source: MeetingSource, segmentSeconds: Double, appVersion: String, processID: Int32,
+            diagnosticSession: String? = nil
         ) {
             self.meetingID = meetingID
             self.source = source
             self.segmentSeconds = segmentSeconds
             self.appVersion = appVersion
             self.processID = processID
+            self.diagnosticSession = diagnosticSession
         }
     }
 

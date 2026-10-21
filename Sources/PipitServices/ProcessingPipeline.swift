@@ -62,6 +62,7 @@ public actor ProcessingPipeline {
     private let onProgress: @Sendable (Progress) -> Void
     private let onFailure: @Sendable (String, ProcessingError) -> Void
     private let calendar: CalendarService?
+    private let diagnostics: DiagnosticLog
     private let wait: @Sendable (TimeInterval) async -> Void
     /// Chunk sizing, injectable so tests can exercise multi-chunk behaviour
     /// without minutes of audio.
@@ -152,6 +153,7 @@ public actor ProcessingPipeline {
         scratch: ProcessingScratch = ProcessingScratch(root: ProcessingScratch.defaultRoot()),
         calendar: CalendarService? = nil,
         clock: any Clock = SystemClock(),
+        diagnostics: DiagnosticLog = .disabled,
         settingsProvider: @escaping @Sendable () -> AppSettings,
         onProgress: @escaping @Sendable (Progress) -> Void = { _ in },
         onFailure: @escaping @Sendable (String, ProcessingError) -> Void = { _, _ in },
@@ -177,6 +179,7 @@ public actor ProcessingPipeline {
         self.scratch = scratch
         self.calendar = calendar
         self.clock = clock
+        self.diagnostics = diagnostics
         self.settingsProvider = settingsProvider
         self.onProgress = onProgress
         self.onFailure = onFailure
@@ -270,8 +273,16 @@ public actor ProcessingPipeline {
         let store = found.store
         let settings = settingsProvider()
         let redoingMicrophone = metadata.microphoneRedoRequestedAt != nil
+        // The recording's own session, from its manifest, so a failure here can
+        // be read beside the capture events of the same call. Nil for a
+        // meeting recorded before diagnostics existed.
+        let session = (try? store.readTimeline())?.diagnosticSession
 
         while let stage = metadata.processing.resumeStage, stage != .complete {
+            // A job identifier per attempt, so a retry's events are told from
+            // the attempt that failed before it.
+            let job = DiagnosticJobID()
+            var stageStarted: Double?
             if discardIfGone(metadata.id, store: store) { return }
             // An import that failed at `finalizing` never wrote whole audio, and
             // the stage loop below treats `finalizing` as work already done. The
@@ -324,6 +335,11 @@ public actor ProcessingPipeline {
                 metadata.processing.recordAttempt(for: stage)
                 try persist(metadata, to: store)
                 report(metadata, chunks: nil)
+                stageStarted = clock.monotonicSeconds
+                diagnostics.record(
+                    .processingStageStarted(stage: stage, attempt: metadata.processing.attemptCount(for: stage)),
+                    session: session, job: job
+                )
 
                 switch stage {
                 case .recording, .finalizing:
@@ -391,8 +407,24 @@ public actor ProcessingPipeline {
                 }
                 try persist(metadata, to: store)
                 report(metadata, chunks: nil)
+                diagnostics.record(
+                    .processingStageFinished(
+                        stage: stage, attempt: metadata.processing.attemptCount(for: stage),
+                        seconds: clock.monotonicSeconds - (stageStarted ?? clock.monotonicSeconds)
+                    ),
+                    session: session, job: job
+                )
             } catch {
                 let failure = Self.processingError(from: error)
+                // Coded from the error as thrown. Categorising it first would
+                // file every unrecognised failure under one local case.
+                diagnostics.record(
+                    .processingStageFailed(
+                        stage: stage, attempt: metadata.processing.attemptCount(for: stage),
+                        code: DiagnosticCode(describing: error), retryable: failure.isRetryable
+                    ),
+                    session: session, job: job
+                )
                 metadata.processing.recordFailure(
                     ProcessingFailure(
                         stage: stage,
