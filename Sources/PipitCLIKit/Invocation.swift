@@ -11,6 +11,7 @@ public struct Invocation: Equatable, Sendable {
         case show(id: String)
         case install(InstallOptions)
         case uninstall(InstallOptions)
+        case crashes
     }
 
     public struct ListOptions: Equatable, Sendable {
@@ -51,6 +52,9 @@ extension Invocation {
         case .list: ["--root", "--json", "--limit", "--since", "--folder", "--title", "--archived"]
         case .show: ["--root", "--json"]
         case .install, .uninstall: ["--agent", "--skip-link", "--skip-skill"]
+        // The crash reports and the launch record live in the user's Logs
+        // folder whichever meetings folder is chosen, so --root has no meaning.
+        case .crashes: ["--json"]
         }
     }
 
@@ -114,6 +118,8 @@ extension Invocation {
             return .install(try installOptions(flags))
         case ["uninstall"]:
             return .uninstall(try installOptions(flags))
+        case ["diagnostics", "crashes"]:
+            return .crashes
         default:
             if positionals.count == 3, positionals[0] == "meetings", positionals[1] == "show" {
                 return .show(id: positionals[2])
