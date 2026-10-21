@@ -351,7 +351,15 @@ final class DiagnosticWriter: @unchecked Sendable {
     }
 
     private func prune(active: EventFile) {
-        let doomed = configuration.retention.filesToDelete(eventFiles(), now: clock.now, active: active)
+        // Reserve the active part's capacity now. Pruning only its current
+        // bytes would let it grow a whole part beyond the total limit.
+        let candidates = eventFiles().map { candidate in
+            guard candidate.file == active, active.family == .app else { return candidate }
+            return DiagnosticRetention.Candidate(
+                file: active, bytes: max(candidate.bytes, Int64(configuration.maximumFileBytes))
+            )
+        }
+        let doomed = configuration.retention.filesToDelete(candidates, now: clock.now, active: active)
         for file in doomed {
             try? FileManager.default.removeItem(at: layout.events.appendingPathComponent(file.name))
         }

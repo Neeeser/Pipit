@@ -198,9 +198,13 @@ struct DiagnosticLogTests {
         configuration.maximumFileBytes = 400
         configuration.retention = DiagnosticRetention(maximumDays: 14, maximumAppBytes: 1_000)
         let log = Self.makeLog(root: root, clock: ManualClock(now: Self.noon), configuration: configuration)
-        for count in 1...40 { log.record(.diagnosticsDropped(count: count)) }
-        #expect(log.flush())
-        #expect(DiagnosticLayout(root: root).usedBytes() <= 1_000 + 400)
+        var maximumBytes: Int64 = 0
+        for count in 1...40 {
+            log.record(.diagnosticsDropped(count: count))
+            #expect(log.flush())
+            maximumBytes = max(maximumBytes, DiagnosticLayout(root: root).usedBytes())
+        }
+        #expect(maximumBytes <= 1_000)
         // The newest events are the ones kept.
         let names = Self.names(in: root)
         let last = try #require(names.max { (EventFile(name: $0)?.part ?? 0) < (EventFile(name: $1)?.part ?? 0) })
