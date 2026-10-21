@@ -334,6 +334,7 @@ struct StorageTests {
         let metadata = try created.store.readMetadata()
         #expect(metadata.processing.state == .failed)
         #expect(metadata.processing.lastFailure?.isRetryable == false)
+        #expect(metadata.processing.lastFailure?.code?.rawValue == "recovery.no_readable_audio")
     }
 
     @Test("processing status resumes at the stage that failed")

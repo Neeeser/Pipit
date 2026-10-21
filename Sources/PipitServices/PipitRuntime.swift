@@ -885,7 +885,8 @@ public final class PipitRuntime {
                 stage: .finalizing,
                 message: failure.userMessage,
                 isRetryable: false,
-                occurredAt: clock.now
+                occurredAt: clock.now,
+                code: DiagnosticCode(describing: error)
             ),
             at: clock.now
         )
@@ -939,7 +940,8 @@ public final class PipitRuntime {
                 stage: metadata.processing.failedStage ?? .finalizing,
                 message: failure.userMessage,
                 isRetryable: false,
-                occurredAt: clock.now
+                occurredAt: clock.now,
+                code: DiagnosticCode(describing: error)
             ),
             at: clock.now
         )
