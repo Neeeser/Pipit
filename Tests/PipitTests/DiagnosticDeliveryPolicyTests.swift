@@ -16,20 +16,18 @@ struct DiagnosticDeliveryPolicyTests {
         let report = try DiagnosticDeliveryFixtures.report()
         let json = try report.encoded()
         for original in [json, Data(), Data(repeating: 0x41, count: 200_000)] {
-            let compressed = DiagnosticGzip.compress(original)
+            let compressed = try DiagnosticCompression.gzip(original)
             #expect(compressed.prefix(3) == Data([0x1f, 0x8b, 0x08]))
             #expect(try Self.gunzip(compressed) == original)
         }
         // The same JSON frames the same way: no time or name in the header.
-        #expect(DiagnosticGzip.compress(json) == DiagnosticGzip.compress(json))
+        #expect(try DiagnosticCompression.gzip(json) == DiagnosticCompression.gzip(json))
     }
 
-    @Test("stored blocks split at 65,535 bytes and keep every byte")
-    func storedBlocksSplitAndKeepEveryByte() throws {
-        let original = Data((0..<140_000).map { UInt8(truncatingIfNeeded: $0 &* 31) })
-        let framed = DiagnosticGzip.frame(deflated: DiagnosticGzip.stored(original), original: original)
-        #expect(try Self.gunzip(framed) == original)
-        #expect(DiagnosticGzip.crc32(Data("123456789".utf8)) == 0xcbf4_3926)
+    @Test("the CRC-32 is gzip's, on the standard check value")
+    func theCRC32IsGzips() {
+        #expect(DiagnosticCompression.crc32(Data("123456789".utf8)) == 0xcbf4_3926)
+        #expect(DiagnosticCompression.crc32(Data()) == 0)
     }
 
     // MARK: - deletion code

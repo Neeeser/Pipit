@@ -41,7 +41,7 @@ struct DiagnosticReportClientTests {
     @Test("a report is posted to /api/reports with the contract's headers and the exact body")
     func aReportIsPostedWithTheContractsHeaders() async throws {
         let server = StubServer { _ in .json(Self.receiptJSON, status: 201) }
-        let body = DiagnosticGzip.compress(Data(#"{"schemaVersion":1}"#.utf8))
+        let body = try DiagnosticCompression.gzip(Data(#"{"schemaVersion":1}"#.utf8))
         let result = await client(server).submit(body: body, reportID: Self.reportID)
         #expect(result == .accepted(Self.receipt))
 

@@ -97,7 +97,13 @@ public actor DiagnosticReportSender: DiagnosticReportSending {
             secrets.remove(reportID: reportID)
             return .rejected(.invalidReport(error: nil))
         }
-        let body = DiagnosticGzip.compress(json)
+        // The builder's compressor, so the body is the one Export saved as
+        // report.json.gz for the same report.
+        guard let body = try? DiagnosticCompression.gzip(json) else {
+            record(report.kind, bytes: 0, outcome: .failed, status: nil)
+            secrets.remove(reportID: reportID)
+            return .failed
+        }
         guard body.count <= DiagnosticReportLimits.compressedBytes else {
             record(report.kind, bytes: body.count, outcome: .rejected, status: nil)
             secrets.remove(reportID: reportID)
