@@ -89,7 +89,9 @@ struct DiagnosticsInstrumentationTests {
             wait: { _ in }
         )
         await pipeline.process(meetingID: meeting.metadata.id)
-        #expect(try meeting.store.readMetadata().processing.state == .complete)
+        // Enrichment titles the meeting, which renames its folder, so it is
+        // found again by identifier rather than through the old store.
+        #expect(meeting.repository.findMeeting(id: meeting.metadata.id)?.metadata.processing.state == .complete)
 
         // Errors whose own words carry a path, an address and a key.
         let described = NSError(
@@ -182,10 +184,12 @@ struct DiagnosticsInstrumentationTests {
 
     @Test("a manifest written before diagnostics still decodes, with no session")
     func aManifestWrittenBeforeDiagnosticsStillDecodes() throws {
-        let line = #"""
-            {"ev":"session_start","host":1,"t":"2026-08-18T18:00:00.000Z","meetingID":"m","source":"manual",\
-            "segmentSeconds":30,"appVersion":"1.0.0","processID":1}
-            """#
+        // One line, as a manifest holds it. A raw string keeps the quotes
+        // readable; its `\` is literal, so the line is joined rather than
+        // continued.
+        let line =
+            #"{"ev":"session_start","host":1,"t":"2026-08-18T18:00:00.000Z","meetingID":"m","source":"manual","#
+            + #""segmentSeconds":30,"appVersion":"1.0.0","processID":1}"#
         let decoded = try ManifestCoding.makeDecoder().decode(ManifestLine.self, from: Data(line.utf8))
         guard case .sessionStart(let start) = decoded.event else {
             Issue.record("not a session start")
