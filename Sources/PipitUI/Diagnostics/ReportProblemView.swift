@@ -10,15 +10,17 @@ struct ReportProblemView: View {
     var body: some View {
         VStack(spacing: 0) {
             Form {
-                Section("Optional") {
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text("What happened")
-                        TextEditor(text: $model.note)
-                            .font(.body)
-                            .frame(minHeight: 80)
-                            .scrollContentBackground(.hidden)
+                if model.takesNote {
+                    Section("Optional") {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("What happened")
+                            TextEditor(text: $model.note)
+                                .font(.body)
+                                .frame(minHeight: 80)
+                                .scrollContentBackground(.hidden)
+                        }
+                        TextField("Email", text: $model.contact, prompt: Text("For a reply"))
                     }
-                    TextField("Email", text: $model.contact, prompt: Text("For a reply"))
                 }
                 Section("Report") {
                     switch model.phase {
@@ -46,6 +48,7 @@ struct ReportProblemView: View {
                 Button("Export…") { Task { await model.export() } }
                 Button("Send") { Task { await model.send() } }
                     .keyboardShortcut(.defaultAction)
+                    .disabled(model.isSent)
             }
             .disabled(model.phase != .ready || model.isWorking)
             .padding(16)
@@ -91,12 +94,14 @@ private struct ReportHeader: Encodable {
     let reportID: String
     let kind: DiagnosticReport.Kind
     let createdAt: Date
+    let deletionSecretHash: String
 
     init(report: DiagnosticReport) {
         schemaVersion = report.schemaVersion
         reportID = report.reportID
         kind = report.kind
         createdAt = report.createdAt
+        deletionSecretHash = report.deletionSecretHash
     }
 }
 

@@ -93,17 +93,61 @@ public struct DiagnosticReportCollector {
     /// Builds a report from `contents`, off the main actor: fitting twenty
     /// thousand events to the limits encodes and compresses the report more
     /// than once.
+    ///
+    /// `since` leaves out the events and crashes before it: the last
+    /// confirmed daily report for an `automatic` one, the crashed launch's
+    /// start for a `crash` one.
     public nonisolated static func bundle(
         _ contents: DiagnosticBundleContents, kind: DiagnosticReport.Kind, identity: DiagnosticReportIdentity,
-        createdAt: Date, note: String? = nil, contact: String? = nil
+        createdAt: Date, since: Date? = nil, note: String? = nil, contact: String? = nil
     ) async throws -> DiagnosticBundle {
         let request = DiagnosticBundleRequest(
             reportID: identity.reportID, kind: kind, createdAt: createdAt,
-            deletionSecretHash: identity.deletionSecretHash, note: note, contact: contact
+            deletionSecretHash: identity.deletionSecretHash, note: note, contact: contact, eventsSince: since,
+            crashesSince: since
         )
         return try await Task.detached(priority: .userInitiated) {
             try DiagnosticBundleBuilder.build(contents, request: request)
         }.value
+    }
+
+    /// What automatic sharing builds its reports with
+    /// (`PipitRuntime.setDiagnosticReportBuilder`): the contents read as for
+    /// Report a Problem, under a new identity from `sender`, from `since`.
+    /// That is the last confirmed daily report for `automatic` and the
+    /// crashed launch's start for `crash`.
+    ///
+    /// The time is taken before the log is read, so an event written while
+    /// the report is built falls after the next report's start rather than
+    /// before it. A report that cannot be built gives its identity back and
+    /// is nil.
+    public static func reportBuilder(
+        runtime: PipitRuntime, sender: any DiagnosticReportSending,
+        hasKey: (@Sendable (LanguageModelProvider) -> Bool)? = nil
+    ) -> DiagnosticSharingScheduler.BuildReport {
+        { [weak runtime] kind, since in
+            let createdAt = Date()
+            guard let contents = await collect(runtime, hasKey: hasKey),
+                let identity = sender.prepareReportIdentity()
+            else { return nil }
+            do {
+                return try await bundle(contents, kind: kind, identity: identity, createdAt: createdAt, since: since)
+                    .report
+            } catch {
+                sender.discardReportIdentity(identity)
+                Log.app.error(
+                    "\(kind.rawValue, privacy: .public) report not built: \(logSafeDescription(error), privacy: .public)"
+                )
+                return nil
+            }
+        }
+    }
+
+    private static func collect(
+        _ runtime: PipitRuntime?, hasKey: (@Sendable (LanguageModelProvider) -> Bool)?
+    ) async -> DiagnosticBundleContents? {
+        guard let runtime else { return nil }
+        return await DiagnosticReportCollector(runtime: runtime, hasKey: hasKey).contents()
     }
 
     private static func activity(_ state: LocalModelState) -> DiagnosticModelActivity {

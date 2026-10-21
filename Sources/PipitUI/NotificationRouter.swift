@@ -15,8 +15,8 @@ import UserNotifications
 public final class NotificationRouter: NSObject, UNUserNotificationCenterDelegate {
     private let runtime: PipitRuntime
     private let windows: WindowManager
-    /// Opens the report about a crash. Settings › Diagnostics until the Report
-    /// a Problem window replaces it.
+    /// Opens the report about a crash: the application sets it to Report a
+    /// Problem on a `crash` report. Settings › Diagnostics while it is nil.
     public var onReviewCrashReport: (@MainActor () -> Void)?
 
     public init(runtime: PipitRuntime, windows: WindowManager) {
@@ -65,10 +65,13 @@ public final class NotificationRouter: NSObject, UNUserNotificationCenterDelegat
         }
     }
 
+    /// Either way the offer is answered, so the menu stops highlighting
+    /// Report a Problem.
     private func reviewCrashReport() {
         if let onReviewCrashReport {
             onReviewCrashReport()
         } else {
+            runtime.dismissCrashReportOffer()
             windows.showSettings(pane: .diagnostics)
         }
     }

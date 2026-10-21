@@ -53,12 +53,15 @@ public struct DiagnosticBundleRequest: Sendable, Equatable {
     public var note: String?
     public var contact: String?
     /// Events before this are left out, for the daily upload that sends what
-    /// is new since the last one. They are not counted as omitted.
+    /// is new since the last one, and for a crash report, which starts at the
+    /// crashed launch. They are not counted as omitted.
     public var eventsSince: Date?
+    /// Crash summaries of crashes before this are left out, for the same two.
+    public var crashesSince: Date?
 
     public init(
         reportID: String, kind: DiagnosticReport.Kind, createdAt: Date, deletionSecretHash: String,
-        note: String? = nil, contact: String? = nil, eventsSince: Date? = nil
+        note: String? = nil, contact: String? = nil, eventsSince: Date? = nil, crashesSince: Date? = nil
     ) {
         self.reportID = reportID
         self.kind = kind
@@ -67,6 +70,7 @@ public struct DiagnosticBundleRequest: Sendable, Equatable {
         self.note = note
         self.contact = contact
         self.eventsSince = eventsSince
+        self.crashesSince = crashesSince
     }
 }
 
@@ -140,7 +144,7 @@ public enum DiagnosticBundleBuilder {
     /// then as many of the newest as keep the JSON and the gzipped body under
     /// their limits, with `summary.diagnostics.eventsOmitted` saying how many
     /// were left out. Event lines go out in time order. At most ten crashes,
-    /// newest first. The result passes `DiagnosticReportValidator` or this
+    /// newest first, from `crashesSince` when it is set. The result passes `DiagnosticReportValidator` or this
     /// throws.
     public static func build(
         _ contents: DiagnosticBundleContents, request: DiagnosticBundleRequest, budget: Budget = .server
@@ -173,7 +177,10 @@ public enum DiagnosticBundleBuilder {
                 )
             ),
             events: [],
-            crashes: contents.crashes.prefix(DiagnosticReportLimits.crashes).map { crash in
+            crashes: contents.crashes.filter { crash in
+                request.crashesSince.map { crash.occurredAt >= $0 } ?? true
+            }
+            .prefix(DiagnosticReportLimits.crashes).map { crash in
                 var crash = crash
                 crash.frames = Array(crash.frames.prefix(DiagnosticReportLimits.framesPerCrash))
                 return crash

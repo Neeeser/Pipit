@@ -87,6 +87,34 @@ struct DiagnosticSendingTests {
         #expect(rig.secrets.stored.isEmpty)
     }
 
+    @Test("Report a Problem's identity is the lowercase ID, and discarding it keeps a sent or queued report's secret")
+    func reportAProblemsIdentityKeepsASentOrQueuedSecret() async throws {
+        let rig = try Rig()
+        defer { rig.remove() }
+        let previewed = try #require(rig.sender.prepareReportIdentity())
+        #expect(previewed.reportID == previewed.reportID.lowercased())
+        #expect(UUID(uuidString: previewed.reportID) != nil)
+        let secret = try #require(rig.secrets.secret(reportID: previewed.reportID))
+        #expect(rig.secrets.hash(of: secret) == previewed.deletionSecretHash)
+        rig.sender.discardReportIdentity(previewed)
+        #expect(rig.secrets.stored.isEmpty)
+
+        // The first is confirmed; the second meets a 503 and stays queued.
+        for answer in [nil, DiagnosticSubmitResult.unavailable(status: 503, retryAfter: nil)] {
+            rig.transport.fallback = answer
+            let identity = try #require(rig.sender.prepareReportIdentity())
+            let report = try DiagnosticDeliveryFixtures.report(
+                reportID: try #require(UUID(uuidString: identity.reportID)), hash: identity.deletionSecretHash,
+                createdAt: rig.clock.now
+            )
+            _ = await rig.sender.send(report)
+            rig.sender.discardReportIdentity(identity)
+            #expect(rig.secrets.secret(reportID: identity.reportID) != nil)
+        }
+        #expect(await rig.sender.receipts().count == 1)
+        #expect(await rig.sender.pending().count == 1)
+    }
+
     // MARK: - sending
 
     @Test("a stored report becomes a receipt, leaves the outbox, and is recorded")

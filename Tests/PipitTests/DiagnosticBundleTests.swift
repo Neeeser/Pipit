@@ -258,6 +258,29 @@ struct DiagnosticBundleTests {
         #expect(report.summary.diagnostics.eventsIncluded == 0)
     }
 
+    @Test("a crash report from a launch's start leaves out crashes before it")
+    func aCrashReportFromALaunchsStartLeavesOutCrashesBeforeIt() throws {
+        let fixture = try DiagnosticReport.decode(try Data(contentsOf: DiagnosticsFixtures.report))
+        let launched = Self.created.addingTimeInterval(-3_600)
+        // Newest first, as the scanner returns them: one in the crashed
+        // launch, one at its start, one a day before.
+        let crashes = [0, 3_600, 86_400].enumerated().map { index, secondsAgo -> CrashSummary in
+            var crash = fixture.crashes[0]
+            crash.incident = "c3d4e5f6-a7b8-4c9d-8e0f-1a2b3c4d5e0\(index)"
+            crash.occurredAt = Self.created.addingTimeInterval(-Double(secondsAgo))
+            return crash
+        }
+        var request = Self.request(.crash, since: launched)
+        request.crashesSince = launched
+        let report = try DiagnosticBundleBuilder.build(
+            try Self.contents(events: Self.events(4, from: launched.addingTimeInterval(-2)), crashes: crashes),
+            request: request
+        ).report
+        #expect(report.crashes == Array(crashes.prefix(2)))
+        #expect(report.events.count == 2)
+        #expect(report.summary.diagnostics.eventsOmitted == 0)
+    }
+
     // MARK: - measured
 
     @Test("fourteen days of use fit the server's limits, with the numbers printed")

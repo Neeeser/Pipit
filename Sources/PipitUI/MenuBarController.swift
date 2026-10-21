@@ -408,6 +408,13 @@ public final class MenuBarController: NSObject, NSMenuDelegate {
             title: "Report a Problem…", action: #selector(openReportProblem), keyEquivalent: ""
         )
         report.target = self
+        // After a crash, until the person opens the report or the offer is
+        // dismissed.
+        if runtime.highlightsReportAProblem {
+            report.image = NSImage(
+                systemSymbolName: "exclamationmark.circle.fill", accessibilityDescription: nil
+            )
+        }
         menu.addItem(report)
 
         let about = NSMenuItem(title: "About Pipit", action: #selector(openAbout), keyEquivalent: "")

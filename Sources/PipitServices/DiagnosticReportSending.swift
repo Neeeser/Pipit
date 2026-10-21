@@ -5,11 +5,25 @@ import PipitCore
 /// service).
 ///
 /// `DiagnosticReportSender` is the implementation. The report it is handed
-/// carries the identity the sender gave out for it, from
-/// `DiagnosticReportSender.prepareIdentity()`, so the report previewed is
-/// the report sent.
+/// carries an identity the sender gave out, from `prepareReportIdentity`,
+/// before the report was built, so the report previewed is the report sent.
 public protocol DiagnosticReportSending: Sendable {
+    /// A new report ID and the hash of a new deletion secret, which the
+    /// sender keeps until the report is sent or the identity discarded. Nil
+    /// when this sender sends nothing, and a report is then built with
+    /// `DiagnosticReportIdentity.provisional()`. It can write the Keychain,
+    /// so a caller on the main actor calls it from a detached task.
+    func prepareReportIdentity() -> DiagnosticReportIdentity?
+    /// Forgets an identity whose report was not handed to `send`, or whose
+    /// send ended neither sent nor queued. Called off the main actor too.
+    func discardReportIdentity(_ identity: DiagnosticReportIdentity)
     func send(_ report: DiagnosticReport) async -> DiagnosticSendOutcome
+}
+
+extension DiagnosticReportSending {
+    public func prepareReportIdentity() -> DiagnosticReportIdentity? { nil }
+
+    public func discardReportIdentity(_ identity: DiagnosticReportIdentity) {}
 }
 
 /// How sending a report went, for the window that sent it.

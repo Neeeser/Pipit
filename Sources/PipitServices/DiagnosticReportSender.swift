@@ -71,6 +71,27 @@ public actor DiagnosticReportSender: DiagnosticReportSending {
         secrets.remove(reportID: reportID.uuidString.lowercased())
     }
 
+    /// `prepareIdentity`, as `DiagnosticReportSending` hands it to Report a
+    /// Problem: the ID written as the report carries it.
+    public nonisolated func prepareReportIdentity() -> DiagnosticReportIdentity? {
+        let identity = prepareIdentity()
+        return DiagnosticReportIdentity(
+            reportID: identity.reportID.uuidString.lowercased(), deletionSecretHash: identity.deletionSecretHash
+        )
+    }
+
+    /// Forgets the identity unless its report was queued or sent: a report
+    /// in the outbox or in `sent.json` still needs its secret. `send` has
+    /// already removed the secret of one it refused.
+    public nonisolated func discardReportIdentity(_ identity: DiagnosticReportIdentity) {
+        guard let reportID = UUID(uuidString: identity.reportID) else { return }
+        let id = reportID.uuidString.lowercased()
+        guard outbox.entry(for: id) == nil, !receiptStore.load().contains(where: { $0.reportID == id }) else {
+            return
+        }
+        discardIdentity(reportID)
+    }
+
     // MARK: - sending
 
     /// Sends a report the person chose to send.
