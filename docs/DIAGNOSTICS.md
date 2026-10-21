@@ -333,9 +333,11 @@ Built by `DiagnosticSnapshot` (PipitCore) from values `DiagnosticReportCollector
   this build's pinned revision), `outdated` (another revision), or, for a
   needed unit with no receipt, `installing`, `failed`, or `missing`.
   `revision` is the receipt's with ` @ ` written `_` and any other space `-`
-  (`parakeet-tdt-0.6b-v3-int8_FluidAudio-0.15.6`), or `invalid` when that
-  still breaks the token rule. `bytes` is the receipt's. A receipt's `detail`
-  is never read.
+  (`parakeet-tdt-0.6b-v3-int8_FluidAudio-0.15.6`), and for whisper without
+  WhisperKit's `openai_whisper-` prefix
+  (`large-v3-v20240930_turbo_632MB_argmax-oss-swift-1.1.0`), or `invalid` when
+  that still breaks the token rule. `bytes` is the receipt's. A receipt's
+  `detail` is never read.
 - `summary.browserAddOns`: one row each for `firefox`, `chrome`, and
   `safari`. `state` is `on` while the add-on holds its connection, `off` when
   it has not connected this launch, and `disconnected` when it did and

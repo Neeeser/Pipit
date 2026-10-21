@@ -279,11 +279,19 @@ struct DiagnosticSnapshotTests {
             ]
         )
         #expect(DiagnosticSnapshot.models(receipts: [:], required: [.diarizer], activity: .failed)[0].state == "failed")
-        // Every revision this build writes survives, except where it is past
-        // the token rule's length.
-        for unit in LocalModelUnit.allCases where unit != .whisper {
+        // Every revision this build writes survives, whisper's without the
+        // prefix that took it past the token rule's length.
+        for unit in LocalModelUnit.allCases {
             #expect(DiagnosticSnapshot.revisionToken(LocalSpeechStack.revision(for: unit)) != "invalid", "\(unit)")
         }
+        #expect(
+            DiagnosticSnapshot.revisionToken(LocalSpeechStack.revision(for: .whisper))
+                == "large-v3-v20240930_turbo_632MB_argmax-oss-swift-1.1.0"
+        )
+        #expect(
+            DiagnosticSnapshot.revisionToken("openai_whisper-small @ argmax-oss-swift 0.9.0")
+                == "small_argmax-oss-swift-0.9.0"
+        )
     }
 
     @Test("each browser's add-on is on, off or disconnected, with its own versions")

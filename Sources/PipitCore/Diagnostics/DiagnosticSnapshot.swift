@@ -392,13 +392,21 @@ extension DiagnosticSnapshot {
     /// token rule refuses for its spaces and `@`. The `@` and its spaces
     /// become `_` and any other space `-`, so `parakeet-tdt-0.6b-v3-int8 @
     /// FluidAudio 0.15.6` reads `parakeet-tdt-0.6b-v3-int8_FluidAudio-0.15.6`.
-    /// What still breaks the rule, a revision past 64 characters among them,
-    /// reads `invalid`.
+    ///
+    /// WhisperKit names its models `openai_whisper-<variant>`, which takes
+    /// whisper's revision past the rule's 64 characters. The prefix is left
+    /// off, since the row's unit already says whisper:
+    /// `large-v3-v20240930_turbo_632MB_argmax-oss-swift-1.1.0`. What still
+    /// breaks the rule reads `invalid`.
     static func revisionToken(_ revision: String) -> String {
-        DiagnosticTokenRule.token(
-            revision.replacingOccurrences(of: " @ ", with: "_").replacingOccurrences(of: " ", with: "-")
+        var text = revision
+        if text.hasPrefix(whisperModelPrefix) { text.removeFirst(whisperModelPrefix.count) }
+        return DiagnosticTokenRule.token(
+            text.replacingOccurrences(of: " @ ", with: "_").replacingOccurrences(of: " ", with: "-")
         )
     }
+
+    static let whisperModelPrefix = "openai_whisper-"
 }
 
 // MARK: - browser add-ons
