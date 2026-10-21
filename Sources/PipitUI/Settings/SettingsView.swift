@@ -4,7 +4,7 @@ import SwiftUI
 /// Which page of Settings is showing.
 ///
 /// A sidebar rather than a row of tab icons, matching the People and Meetings
-/// windows, and readable at nine entries where a tab row is not.
+/// windows, and readable at ten entries where a tab row is not.
 enum SettingsPane: String, CaseIterable, Identifiable {
     case general
     case recording
@@ -15,6 +15,7 @@ enum SettingsPane: String, CaseIterable, Identifiable {
     case storage
     case permissions
     case agents
+    case diagnostics
 
     var id: String { rawValue }
 
@@ -29,6 +30,7 @@ enum SettingsPane: String, CaseIterable, Identifiable {
         case .storage: "Storage"
         case .permissions: "Permissions"
         case .agents: "Agents"
+        case .diagnostics: "Diagnostics"
         }
     }
 
@@ -43,6 +45,7 @@ enum SettingsPane: String, CaseIterable, Identifiable {
         case .storage: "internaldrive"
         case .permissions: "lock.shield"
         case .agents: "terminal"
+        case .diagnostics: "stethoscope"
         }
     }
 }
@@ -85,6 +88,7 @@ public struct SettingsView: View {
         case .storage: StorageSettingsPane(model: model)
         case .permissions: PermissionsSettingsPane(model: model)
         case .agents: AgentsSettingsPane(agents: model.agents)
+        case .diagnostics: DiagnosticsSettingsPane(model: model)
         }
     }
 }
