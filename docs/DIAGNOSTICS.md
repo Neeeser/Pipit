@@ -305,7 +305,7 @@ to the format breaks one side's tests until both agree.
 ### Sections
 
 Built by `DiagnosticSnapshot` (PipitCore) from values the service layer
-reads.
+reads, and assembled by `DiagnosticBundleBuilder`.
 
 - `app`: `version`, `build` (0 when not a number), `commit`, `channel`
   (`dev` for a `-dev.<sha>` version, `prerelease` for any other suffix,
@@ -388,6 +388,26 @@ a count or a yes/no.
 | `storageVolume` | `internal`, `external`, `network`, `cloud_synced` (in iCloud Drive, under `~/Library/CloudStorage`, or synced in place by iCloud), or `unknown` |
 | `firefoxProfileAccess` | `notAsked`, `allowed`, or `blocked` |
 | `firefoxSensorHasConnected` | Boolean |
+
+### Building a report
+
+`DiagnosticBundleBuilder.build` takes the sections, every event line on this
+Mac (`events/`, both families, and the Safari extension's file), and the
+crash summaries in `crashes/`, with the report ID, kind, time, and deletion
+secret hash its caller made. Events are read back through `DiagnosticEvent`,
+so a line this build cannot read is left out, and written again as the line
+schema writes them; one whose strings break the token rule is left out too.
+They go out in time order. When they do not fit, the oldest are left out:
+first past 20,000, then until the JSON is under 8 MB and the gzipped body
+under 1,048,576 bytes, and `eventsOmitted` counts them. A report for the
+daily upload may start at a time; earlier events are not counted as omitted.
+At most ten crashes, newest first. The result passes
+`DiagnosticReportValidator`, or nothing is produced.
+
+Measured with the synthetic log in `DiagnosticBundleTests`: 14 days of
+typical use (1,180 events, 272 KB of log) makes a 275 KB report that gzips
+to 25 KB. A log near the 10 MB cap (35,450 events, 7.0 MB) is cut to the
+20,000 newest, 3.9 MB, 164 KB gzipped, with 15,450 omitted.
 
 ## Report service
 
