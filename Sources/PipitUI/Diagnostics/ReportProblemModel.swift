@@ -45,6 +45,9 @@ public final class ReportProblemModel {
     /// Only a `user` report carries a note and an address.
     public var takesNote: Bool { kind == .user }
 
+    /// Closes the window after the service accepts the report.
+    @ObservationIgnored var onSent: (() -> Void)?
+
     @ObservationIgnored private let collector: DiagnosticReportCollector
     @ObservationIgnored private let sender: any DiagnosticReportSending
     @ObservationIgnored private let since: Date?
@@ -115,6 +118,7 @@ public final class ReportProblemModel {
             isSent = true
             holdsIdentity = false
             status = "Sent."
+            onSent?()
         case .willRetry:
             isSent = true
             holdsIdentity = false

@@ -204,6 +204,7 @@ public final class WindowManager {
             size: NSSize(width: 600, height: 640),
             content: ReportProblemView(model: model)
         )
+        model.onSent = { [weak window] in window?.close() }
         if let token = reportProblemCloseToken { NotificationCenter.default.removeObserver(token) }
         reportProblemCloseToken = NotificationCenter.default.addObserver(
             forName: NSWindow.willCloseNotification, object: window, queue: .main
