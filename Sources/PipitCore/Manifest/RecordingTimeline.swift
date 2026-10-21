@@ -105,6 +105,9 @@ public struct CaptureRun: Sendable, Equatable {
 public struct RecordingTimeline: Sendable, Equatable {
     public let meetingID: String?
     public let source: MeetingSource?
+    /// The diagnostic session the recording's events carry. Nil for a manifest
+    /// written before there was one, or one whose value is not a UUID.
+    public let diagnosticSession: DiagnosticSessionID?
     public let startedAt: Date?
     public let endedAt: Date?
     public let endReason: String?
@@ -257,6 +260,7 @@ public struct RecordingTimeline: Sendable, Equatable {
     public static func == (lhs: RecordingTimeline, rhs: RecordingTimeline) -> Bool {
         lhs.meetingID == rhs.meetingID
             && lhs.source == rhs.source
+            && lhs.diagnosticSession == rhs.diagnosticSession
             && lhs.startedAt == rhs.startedAt
             && lhs.endedAt == rhs.endedAt
             && lhs.segments == rhs.segments
@@ -321,6 +325,7 @@ public enum ManifestReader {
     public static func timeline(from result: ManifestReadResult) -> RecordingTimeline {
         var meetingID: String?
         var source: MeetingSource?
+        var diagnosticSession: DiagnosticSessionID?
         var startedAt: Date?
         var endedAt: Date?
         var endReason: String?
@@ -346,6 +351,7 @@ public enum ManifestReader {
             case .sessionStart(let payload):
                 meetingID = payload.meetingID
                 source = payload.source
+                diagnosticSession = payload.diagnosticSession.flatMap(DiagnosticSessionID.init(string:))
                 startedAt = line.wallClock
             case .segmentOpen(let payload):
                 let key = SegmentKey(track: payload.track, index: payload.index)
@@ -397,7 +403,8 @@ public enum ManifestReader {
 
         let segments = order.compactMap { segmentsByKey[$0] }
         return RecordingTimeline(
-            meetingID: meetingID, source: source, startedAt: startedAt, endedAt: endedAt,
+            meetingID: meetingID, source: source, diagnosticSession: diagnosticSession,
+            startedAt: startedAt, endedAt: endedAt,
             endReason: endReason, segments: segments, restarts: restarts,
             restartMoments: restartMoments,
             formatChanges: formatChanges, markers: markers, preRollFlushes: preRolls,

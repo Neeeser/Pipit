@@ -103,6 +103,10 @@ public final class CaptureEngine: Sendable {
         /// that reached nobody. Cleared by the next packet into the ring, which
         /// ends the stall, and by the flush that acts on it.
         var stalledWhileArmed: Set<CaptureTrack> = []
+        /// The diagnostic session of the capture now armed or recording. Set
+        /// at arm, because the sources bind before the meeting commits, and
+        /// a bind is the event a capture problem is usually read from.
+        var diagnosticSession: DiagnosticSessionID?
     }
 
     private let state = LockedBox(State())
@@ -112,6 +116,7 @@ public final class CaptureEngine: Sendable {
     private let thresholds: CaptureThresholds
     private let segmentSeconds: Double
     private let delegate: any CaptureEngineDelegate
+    private let diagnostics: DiagnosticLog
     /// Everything that builds, tears down or polls a device happens here.
     private let controlQueue = DispatchQueue(label: "com.pipit.capture-control", qos: .userInitiated)
     private let timerBox = LockedBox<DispatchSourceTimer?>(nil)
@@ -145,12 +150,14 @@ public final class CaptureEngine: Sendable {
         makeTap: @escaping TapFactory = { sink, onFormatChanged in
             RemoteAudioSource(sink: sink, onFormatChanged: onFormatChanged)
         },
+        diagnostics: DiagnosticLog = .disabled,
         delegate: any CaptureEngineDelegate
     ) {
         self.clock = clock
         self.thresholds = thresholds
         self.segmentSeconds = segmentSeconds
         self.delegate = delegate
+        self.diagnostics = diagnostics
         self.micPreRoll = PreRollBuffer(capacitySeconds: preRollSeconds)
         self.remotePreRoll = PreRollBuffer(capacitySeconds: preRollSeconds)
 
@@ -196,11 +203,17 @@ public final class CaptureEngine: Sendable {
     /// Building an `AVAudioEngine` and creating a process tap take hundreds of
     /// milliseconds, so this returns once the work is done on the control queue
     /// rather than doing it on the caller's thread.
-    public func arm(scope: RemoteTargetScope, capturesRemote: Bool) async {
+    ///
+    /// `session` is stamped on the diagnostic events this capture raises and
+    /// written into the manifest at commit.
+    public func arm(
+        scope: RemoteTargetScope, capturesRemote: Bool, session: DiagnosticSessionID? = nil
+    ) async {
         await onControlQueue {
             self.state.withLock { state in
                 state.mode = .armed
                 state.capturesRemote = capturesRemote
+                state.diagnosticSession = session
                 // Warnings are per meeting; a failure in the last one must not
                 // suppress the same warning in this one.
                 state.warningsRaised.removeAll()
@@ -232,12 +245,14 @@ public final class CaptureEngine: Sendable {
     public func commit(layout: MeetingLayout, meetingID: String, source: MeetingSource) async throws {
         try await onControlQueueThrowing {
             let manifest = try ManifestWriter(url: layout.manifest)
+            let session = self.state.withLock { $0.diagnosticSession }
             manifest.append(
                 .sessionStart(
                     .init(
                         meetingID: meetingID, source: source, segmentSeconds: self.segmentSeconds,
                         appVersion: PipitVersion.current,
-                        processID: ProcessInfo.processInfo.processIdentifier
+                        processID: ProcessInfo.processInfo.processIdentifier,
+                        diagnosticSession: session?.description
                     )),
                 hostTime: self.clock.monotonicSeconds, wallClock: self.clock.now
             )
@@ -781,6 +796,13 @@ public final class CaptureEngine: Sendable {
         manifest?.append(event, hostTime: hostTime, wallClock: wallClock)
     }
 
+    /// Records a diagnostic event for the capture now running. Called on the
+    /// control queue, never from an audio callback.
+    fileprivate func recordDiagnostic(_ kind: DiagnosticEvent.Kind) {
+        let session = state.withLock { $0.diagnosticSession }
+        diagnostics.record(kind, session: session)
+    }
+
     fileprivate func applyFormatChange(
         track: CaptureTrack, to descriptor: AudioFormatDescriptor, reason: String
     ) {
@@ -848,6 +870,9 @@ private final class CoordinatorRelay: CaptureCoordinatorDelegate, @unchecked Sen
             engine?.recordManifest(
                 .captureRestart(.init(track: track, reason: reason.label, restartCount: restartCount))
             )
+            engine?.recordDiagnostic(
+                .captureRestarted(track: track, reason: DiagnosticEvent.RestartReason(reason), count: restartCount)
+            )
         }
     }
 
@@ -870,6 +895,14 @@ private final class CoordinatorRelay: CaptureCoordinatorDelegate, @unchecked Sen
                         streamCount: binding.streamCount, tapStreamIndex: binding.tapStreamIndex
                     ))
             )
+            // The tap is read through a private aggregate device Pipit builds,
+            // which is the transport. Which processes it taps stays out: a
+            // bundle identifier says which application the call was in.
+            engine?.recordDiagnostic(
+                .captureBound(
+                    track: .remote, transport: .aggregate, sampleRate: binding.format.sampleRate,
+                    channels: binding.format.channelCount, targets: recorded.count
+                ))
         }
     }
 
@@ -906,6 +939,14 @@ private final class CoordinatorRelay: CaptureCoordinatorDelegate, @unchecked Sen
                         reason: reason.label
                     ))
             )
+            // How the device is attached and what the track runs at. Its name
+            // and UID stay in the manifest: a device is often named for its
+            // owner.
+            engine?.recordDiagnostic(
+                .captureBound(
+                    track: .mic, transport: device.transport, sampleRate: build.format.sampleRate,
+                    channels: build.format.channelCount, targets: nil
+                ))
         }
     }
 
@@ -913,6 +954,7 @@ private final class CoordinatorRelay: CaptureCoordinatorDelegate, @unchecked Sen
         let engine = target
         queue.async {
             engine?.recordManifest(.sourceHealth(.init(track: track, state: state, detail: detail)))
+            engine?.recordDiagnostic(.captureHealth(track: track, state: state))
             engine?.publishHealth()
         }
     }

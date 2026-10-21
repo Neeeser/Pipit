@@ -11,12 +11,19 @@ public struct MicrophoneDeviceDescription: Sendable, Equatable {
     public let name: String
     public let sampleRate: Double
     public let channelCount: Int
+    /// How the device is attached. The one fact about it a diagnostic event
+    /// carries, because the name and the UID can identify its owner.
+    public let transport: DiagnosticEvent.Transport
 
-    public init(uid: String, name: String, sampleRate: Double, channelCount: Int) {
+    public init(
+        uid: String, name: String, sampleRate: Double, channelCount: Int,
+        transport: DiagnosticEvent.Transport = .other
+    ) {
         self.uid = uid
         self.name = name
         self.sampleRate = sampleRate
         self.channelCount = channelCount
+        self.transport = transport
     }
 }
 
