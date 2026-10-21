@@ -35,6 +35,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         windows.checkForUpdates = { [weak self] in self?.updates.checkForUpdates() }
         menuBar = MenuBarController(runtime: runtime, windows: windows, updates: updates)
         notificationRouter = NotificationRouter(runtime: runtime, windows: windows)
+        connectDiagnosticReports()
         runtime.start()
         // After the runtime, so a check on launch never delays capture.
         updates.start()
@@ -44,6 +45,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // setup opening is not a precondition for either.
         Task { @MainActor in await windows.showSetupIfNeeded() }
         Log.app.info("Pipit started")
+    }
+
+    /// Report a Problem sends through the runtime's sender, automatic sharing
+    /// builds with the same collector and bundle builder, and the crash
+    /// prompt's Review… opens Report a Problem on the crash. Before
+    /// `runtime.start()`, so the first look of automatic sharing has a builder.
+    private func connectDiagnosticReports() {
+        notificationRouter.onReviewCrashReport = { [weak self] in self?.windows.showCrashReport() }
+        guard let reports = runtime.reports else { return }
+        windows.reportSender = reports
+        runtime.setDiagnosticReportBuilder(DiagnosticReportCollector.reportBuilder(runtime: runtime, sender: reports))
     }
 
     /// Finalising a recording is asynchronous, and a terminating run loop does
