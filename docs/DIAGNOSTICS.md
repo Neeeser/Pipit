@@ -290,9 +290,9 @@ A report is one JSON document, gzip-compressed, sent as the request body.
 }
 ```
 
-`kind` is `user` (Report a Problem), `crash` (sent from the crash prompt), or
-`automatic` (the daily upload). `note` and `contact` are the only free text and
-are rejected on any other kind.
+`kind` is `user` (Report a Problem), `crash` (sent from the crash prompt, or by
+automatic sharing after a crash), or `automatic` (the daily upload). `note` and
+`contact` are the only free text and are rejected on any other kind.
 
 **Token rule.** Except `note` and `contact`, every string anywhere in the
 report must match `^[A-Za-z0-9_.,:+#=-]{0,64}$`: no spaces, slashes, `@`, or
@@ -407,10 +407,21 @@ so a line this build cannot read is left out, and written again as the line
 schema writes them; one whose strings break the token rule is left out too.
 They go out in time order. When they do not fit, the oldest are left out:
 first past 20,000, then until the JSON is under 8 MB and the gzipped body
-under 1,048,576 bytes, and `eventsOmitted` counts them. A report for the
-daily upload may start at a time; earlier events are not counted as omitted.
-At most ten crashes, newest first. The result passes
-`DiagnosticReportValidator`, or nothing is produced.
+under 1,048,576 bytes, and `eventsOmitted` counts them. A report may start
+at a time, and then leaves out the events and the crashes before it, without
+counting them as omitted: the daily upload starts where the last confirmed
+one did, and a `crash` report at the crashed launch's start. At most ten
+crashes, newest first. The result passes `DiagnosticReportValidator`, or
+nothing is produced.
+
+Report a Problem asks the report sender for the report ID and the deletion
+secret before it builds the preview, so the ID the preview shows is the one
+sent, and the preview, the export, and the sent body are one report but for
+the note and contact. Closing the window without sending gives the ID and
+secret back, and the secret is deleted from the Keychain. A report the
+service refuses takes its secret with it, and the next **Send** goes under a
+new ID. Automatic sharing builds its reports the same way, each under a new
+ID.
 
 Measured with the synthetic log in `DiagnosticBundleTests`: 14 days of
 typical use (1,180 events, 272 KB of log) makes a 275 KB report that gzips
@@ -429,9 +440,12 @@ name with:
 - `README.txt`, what each section is and what is never included.
 
 The archive is written in process (`DiagnosticArchive`: DEFLATE entries and
-UTF-8 names, no ZIP64). An export has a report ID and a deletion secret hash
-of the right shape that were never sent, and carries a note or contact only
-when the person typed one.
+UTF-8 names, no ZIP64). An export carries a note or contact only when the
+person typed one. **Export…** in Report a Problem saves the report under the
+ID it would be sent with; nothing is sent, and the ID and its secret are given
+back when the window closes unless the report was sent. **Export
+Diagnostics** in Settings saves a `user` report under a random ID and a
+hash-shaped value no secret is held for.
 
 ## Report service
 
@@ -448,8 +462,9 @@ database. Base URL: `https://pipit-website.vercel.app`.
 `/reports/delete` on the website takes a deletion code and deletes the report.
 
 **Idempotency.** The app creates the report ID and the deletion secret (32
-random bytes, base64url) before the first attempt, stores the secret in the
-Keychain and the exact body in `outbox/`, and retries with the same ID and body.
+random bytes, base64url) before the report is built, stores the secret in the
+Keychain and, before the first attempt, the exact body in `outbox/`, and
+retries with the same ID and body.
 The server inserts with `ON CONFLICT (id) DO NOTHING` and compares the stored
 body hash and deletion hash; equal is a replay, different is `409`.
 
@@ -585,9 +600,10 @@ setting is off nothing else happens, and nothing automatic is built.
   with the events and crash summaries from the crashed launch's start. Each
   incident is sent once.
 - **Daily.** When due, and when no daily report is already queued, an
-  `automatic` report with the events since `eventsSince`. When the service
-  confirms it, at once or on a retry, `eventsSince` moves to that report's
-  `createdAt`. The next one is due 24 hours plus up to an hour after the
+  `automatic` report with the events and crash summaries since
+  `eventsSince`. When the service confirms it, at once or on a retry,
+  `eventsSince` moves to that report's `createdAt`, which is taken before the
+  log is read. The next one is due 24 hours plus up to an hour after the
   attempt, whatever its answer.
 - **Off.** The state file is deleted, and every automatic report in the
   outbox is removed with its secret. One that was already attempted is also
@@ -608,9 +624,16 @@ setting is off nothing else happens, and nothing automatic is built.
 When the previous exit is classified `crash`, at launch or by the rescan, and
 automatic sharing is off, the incident is added to `state/crash-offers.json`.
 If it was not there, Pipit posts one notification, "Pipit quit unexpectedly",
-with **Review…**, and sets `PipitRuntime.crashReportOffer`, which the menu
-uses to highlight **Report a Problem…** until the person opens it or
-dismisses the offer. Review opens the report to read before sending; a
-dismissed or ignored notification sends nothing. `hang`, `unclean_unknown`,
-`system_restart`, and `clean` are never offered. The notification follows the
-Show notifications setting; the highlight does not.
+with **Review…**, and sets `PipitRuntime.crashReportOffer`, which marks
+**Report a Problem…** in the status menu until the person opens Report a
+Problem by either route. The offer is kept in memory only, so the mark ends
+with the launch.
+
+**Review…**, or a click on the notification, opens Report a Problem on a
+`crash` report: the events and crash summaries from the crashed launch's
+start, with no note or contact, to read before sending. **Report a
+Problem…** from a menu opens the ordinary `user` report, which holds every
+crash summary on this Mac and takes a note. A dismissed or ignored
+notification sends nothing. `hang`, `unclean_unknown`, `system_restart`, and
+`clean` are never offered. The notification follows the Show notifications
+setting; the mark does not.
