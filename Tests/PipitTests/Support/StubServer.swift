@@ -24,12 +24,19 @@ struct StubReply: Sendable {
     var headers: [String: String] = [:]
     /// Fails the connection instead of answering, as a server that is down does.
     var connectionFails = false
+    /// The error a failed connection reports.
+    var failure: URLError.Code = .cannotConnectToHost
 
     static func json(_ object: Any, status: Int = 200) -> StubReply {
         StubReply(status: status, body: (try? JSONSerialization.data(withJSONObject: object)) ?? Data())
     }
 
     static let down = StubReply(connectionFails: true)
+
+    /// No answer, failing with `code`, as a request that times out does.
+    static func fails(_ code: URLError.Code) -> StubReply {
+        StubReply(connectionFails: true, failure: code)
+    }
 }
 
 /// A server that exists only inside one `URLSession`.
@@ -97,7 +104,7 @@ final class StubURLProtocol: URLProtocol, @unchecked Sendable {
             )
         )
         if reply.connectionFails {
-            client?.urlProtocol(self, didFailWithError: URLError(.cannotConnectToHost))
+            client?.urlProtocol(self, didFailWithError: URLError(reply.failure))
             return
         }
         let response = HTTPURLResponse(
