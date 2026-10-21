@@ -1,0 +1,20 @@
+{"name":"pipit-nativehost","bug_type":"309","timestamp":"2026-10-20 09:00:00.00 +0200","os_version":"macOS 14.7 (23H124)","incident_id":"0A1B2C3D-4E5F-4061-8728-394A5B6C7D8E"}
+{
+  "pid" : 777,
+  "procName" : "pipit-nativehost",
+  "procPath" : "/Users/USER/*/Pipit.app/Contents/MacOS/pipit-nativehost",
+  "parentProc" : "CANARY-browser-parent",
+  "exception" : {"type" : "EXC_CRASH", "subtype" : "CANARY-older-subtype"},
+  "threads" : [
+    {"id" : 1, "name" : "CANARY-older-thread", "frames" : [{"imageOffset" : 9, "imageIndex" : 0}]},
+    {"id" : 2, "triggered" : true, "frames" : [
+      {"imageOffset" : 300, "imageIndex" : 0, "symbol" : "CANARY-older-symbol"},
+      {"imageIndex" : 1},
+      {"imageOffset" : 500, "imageIndex" : 1}
+    ]}
+  ],
+  "usedImages" : [
+    {"arch" : "x86_64", "base" : 4294967296, "uuid" : "0b1c2d3e-4f50-4172-8394-a5b6c7d8e9f0", "path" : "/Users/USER/*/Pipit.app/Contents/MacOS/pipit-nativehost", "name" : "pipit-nativehost"},
+    {"arch" : "x86_64", "base" : 140703128616960, "uuid" : "not-a-uuid", "path" : "/usr/lib/system/libsystem_kernel.dylib"}
+  ]
+}

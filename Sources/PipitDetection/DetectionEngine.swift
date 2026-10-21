@@ -77,6 +77,7 @@ public final class DetectionEngine: @unchecked Sendable {
 
     private let configuration: Configuration
     private let clock: any Clock
+    private let diagnostics: DiagnosticLog
     private let delegate: any DetectionEngineDelegate
     private let queue = DispatchQueue(label: "com.pipit.detection", qos: .userInitiated)
     private let lock = NSLock()
@@ -103,14 +104,19 @@ public final class DetectionEngine: @unchecked Sendable {
     static let safariSilenceLimit: Double = 150
     private var lastSnapshot = DetectionSnapshot()
     private var previousEvidence: [String] = []
+    /// The meetings detection has confirmed, by what confirmed them, so each
+    /// is recorded once as it appears rather than on every poll.
+    private var confirmedMeetings: Set<String> = []
 
     public init(
         configuration: Configuration = Configuration(),
         clock: any Clock = SystemClock(),
+        diagnostics: DiagnosticLog = .disabled,
         delegate: any DetectionEngineDelegate
     ) {
         self.configuration = configuration
         self.clock = clock
+        self.diagnostics = diagnostics
         self.delegate = delegate
         self.slackReader = SlackAccessibilityReader(bundleIdentifier: configuration.slackBundleIdentifier)
         for browser in configuration.browsers {
@@ -215,6 +221,7 @@ public final class DetectionEngine: @unchecked Sendable {
 
     private func startSensorServer() {
         let server = BrowserSensorServer(
+            diagnostics: diagnostics,
             onMessage: { [weak self] message in self?.handleSensor(message) },
             onConnectionChange: { [weak self] count in self?.handleSensorConnectionChange(count) }
         )
@@ -240,6 +247,8 @@ public final class DetectionEngine: @unchecked Sendable {
         let server = BrowserSensorServer(
             socketURL: socketURL,
             verifier: verifier,
+            browser: .safari,
+            diagnostics: diagnostics,
             onMessage: { [weak self] message in
                 // Only Safari speaks on this socket, whatever a message claims.
                 guard message.browser == .safari else { return }
@@ -270,6 +279,15 @@ public final class DetectionEngine: @unchecked Sendable {
         switch message {
         case .hello(let hello):
             hellos[hello.browser] = hello
+            // Once per connection, not per hello: Safari's says hello every
+            // minute, and a relay repeats its hello on every reconnect.
+            if browserDetectors[hello.browser]?.sensor.connection.isLoaded == false {
+                diagnostics.record(
+                    .browserAddonConnected(
+                        browser: hello.browser, addonVersion: .version(hello.extensionVersion),
+                        hostVersion: .version(hello.hostVersion), protocolVersion: hello.protocolVersion
+                    ))
+            }
             browserDetectors[hello.browser]?.sensorConnected(at: now)
         case .event(let event):
             browserDetectors[event.browser]?.receive(event, at: now)
@@ -279,6 +297,7 @@ public final class DetectionEngine: @unchecked Sendable {
             browserDetectors[browser]?.closeTab(tabID, at: now)
         case .goodbye(let browser):
             // One browser's host exiting says nothing about another's.
+            noteDisconnect(browser, reason: .closed)
             browserDetectors[browser]?.sensorDisconnected(at: now)
         }
     }
@@ -291,8 +310,46 @@ public final class DetectionEngine: @unchecked Sendable {
         // No relay is connected at all, so no browser that reports through one
         // is reporting. Safari reports through its own socket.
         for (browser, var detector) in browserDetectors where browser != .safari {
+            noteDisconnect(browser, reason: .closed)
             detector.sensorDisconnected(at: now)
             browserDetectors[browser] = detector
+        }
+    }
+
+    /// Records an add-on going away, if it was there. The caller holds the
+    /// lock.
+    private func noteDisconnect(_ browser: BrowserKind, reason: DiagnosticEvent.DisconnectReason) {
+        guard browserDetectors[browser]?.sensor.connection.isLoaded == true else { return }
+        diagnostics.record(.browserAddonDisconnected(browser: browser, reason: reason))
+    }
+
+    /// Records each meeting the evidence confirms, once, by what confirmed it.
+    /// The caller holds the lock.
+    ///
+    /// Only the provider, the kind of evidence and the browser: the title,
+    /// the address and the roster the evidence carries stay out.
+    private func noteConfirmedMeetings(_ evidence: [ProviderEvidence]) {
+        var confirmed: Set<String> = []
+        for item in evidence where item.confidence == .confirmed {
+            guard let kind = Self.diagnosticEvidence(for: item) else { continue }
+            let key = "\(item.provider.rawValue):\(kind.rawValue):\(item.browser?.rawValue ?? "-")"
+            confirmed.insert(key)
+            guard !confirmedMeetings.contains(key) else { continue }
+            diagnostics.record(
+                .detectionMeeting(
+                    source: SessionController.source(for: item.provider), evidence: kind, browser: item.browser
+                ))
+        }
+        confirmedMeetings = confirmed
+    }
+
+    /// The contract's evidence kinds. A manual start is not detection.
+    static func diagnosticEvidence(for item: ProviderEvidence) -> DiagnosticEvent.Evidence? {
+        switch item.source {
+        case .browserSensor: .browserAddon
+        case .accessibility: item.provider == .slack ? .slack : .accessibility
+        case .native: item.browser == nil ? .processAudio : .windowTitle
+        case .manual: nil
         }
     }
 
@@ -349,6 +406,7 @@ public final class DetectionEngine: @unchecked Sendable {
 
         // Browsers
         if let contact = lastSafariContact, now - contact > Self.safariSilenceLimit {
+            noteDisconnect(.safari, reason: .silence)
             browserDetectors[.safari]?.sensorDisconnected(at: now)
             lastSafariContact = nil
         }
@@ -414,6 +472,7 @@ public final class DetectionEngine: @unchecked Sendable {
         let evidenceChanged = previousEvidence != labels
         previousEvidence = labels
         lastSnapshot = snapshot
+        noteConfirmedMeetings(evidence)
         lock.unlock()
 
         if evidenceChanged {

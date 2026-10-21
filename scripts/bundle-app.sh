@@ -81,8 +81,7 @@ mkdir -p "$APP_DIR/Contents/Frameworks"
 cp -R "$BIN_DIR/Sparkle.framework" "$APP_DIR/Contents/Frameworks/Sparkle.framework"
 # The echo canceller's models. SwiftPM builds them into the audio module's
 # resource bundle; the app reads them from its own Resources.
-MODELS="$BIN_DIR/Pipit_PipitAudio.bundle/EchoModels"
-[ -d "$MODELS" ] || { echo "no echo models at $MODELS. Build first." >&2; exit 1; }
+MODELS="$("$REPO_ROOT/scripts/echo-models-path.sh" "$BIN_DIR/Pipit_PipitAudio.bundle")"
 cp -R "$MODELS" "$APP_DIR/Contents/Resources/EchoModels"
 cp "$REPO_ROOT/Assets/Pipit/AppIcons/Pipit.icns" "$APP_DIR/Contents/Resources/Pipit.icns"
 for state in idle recording paused warning; do

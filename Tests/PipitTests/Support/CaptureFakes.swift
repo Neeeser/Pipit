@@ -27,6 +27,8 @@ public final class FakeMicrophoneEngine: MicrophoneEngineController, Sendable {
         var installedFormat: AudioFormatDescriptor?
         var failEveryBuild: CaptureError?
         var deviceUID: String? = "fake-input"
+        var deviceName = "Fake input"
+        var deviceTransport = DiagnosticEvent.Transport.other
         /// The OSStatus a build reports for a device it could not open. A
         /// build that reports one still succeeds, which is the real shape:
         /// `MicrophoneSource` keeps the engine it built on whatever device the
@@ -81,13 +83,23 @@ public final class FakeMicrophoneEngine: MicrophoneEngineController, Sendable {
         state.withLock { $0.deviceUID }
     }
 
+    /// What the device calls itself and how it is attached, for a test that
+    /// checks which of the two leaves the manifest.
+    public func setDevice(name: String, transport: DiagnosticEvent.Transport) {
+        state.withLock { state in
+            state.deviceName = name
+            state.deviceTransport = transport
+        }
+    }
+
     public func currentInputDevice() -> MicrophoneDeviceDescription? {
         state.withLock { state in
             guard let uid = state.deviceUID else { return nil }
             let format = state.installedFormat ?? state.steadyFormat
             return MicrophoneDeviceDescription(
-                uid: uid, name: "Fake input",
-                sampleRate: format?.sampleRate ?? 0, channelCount: format?.channelCount ?? 0
+                uid: uid, name: state.deviceName,
+                sampleRate: format?.sampleRate ?? 0, channelCount: format?.channelCount ?? 0,
+                transport: state.deviceTransport
             )
         }
     }

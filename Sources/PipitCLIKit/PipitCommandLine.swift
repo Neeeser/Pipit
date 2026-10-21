@@ -10,12 +10,18 @@ public struct CLIEnvironment: Sendable {
     /// The real file `pipit-cli` runs from, with symlinks resolved.
     public var executable: URL
     public var pathVariable: String
+    /// This boot's `kern.bootsessionuuid`, which tells a launch record from
+    /// before a restart. Nil when it could not be read.
+    public var bootSession: String?
 
-    public init(home: URL, supportDirectory: URL, executable: URL, pathVariable: String) {
+    public init(
+        home: URL, supportDirectory: URL, executable: URL, pathVariable: String, bootSession: String? = nil
+    ) {
         self.home = home
         self.supportDirectory = supportDirectory
         self.executable = executable
         self.pathVariable = pathVariable
+        self.bootSession = bootSession
     }
 
     public static func live() -> CLIEnvironment {
@@ -26,8 +32,17 @@ public struct CLIEnvironment: Sendable {
             home: home,
             supportDirectory: home.appendingPathComponent("Library/Application Support/Pipit", isDirectory: true),
             executable: executable,
-            pathVariable: ProcessInfo.processInfo.environment["PATH"] ?? ""
+            pathVariable: ProcessInfo.processInfo.environment["PATH"] ?? "",
+            bootSession: liveBootSession()
         )
+    }
+
+    private static func liveBootSession() -> String? {
+        #if canImport(Darwin)
+            return ProcessIdentity.bootSessionUUID()
+        #else
+            return nil
+        #endif
     }
 
     /// `Pipit.app/Contents` when the tool runs from `Contents/MacOS`, nil for a
@@ -95,6 +110,9 @@ public enum PipitCommandLine {
             return try installer(environment).run(options).map { $0 + "\n" }.joined()
         case .uninstall(let options):
             return try installer(environment).runRemoval(options).map { $0 + "\n" }.joined()
+        case .crashes:
+            let listing = CrashDiagnostics(home: environment.home, bootSession: environment.bootSession).listing()
+            return try render(listing, json: invocation.json) { TextFormat.crashes(listing) }
         }
     }
 
@@ -138,10 +156,12 @@ public enum PipitCommandLine {
           pipit install                      link `pipit` into ~/.local/bin and install the agent skill
                 [--agent claude|agents] [--skip-link] [--skip-skill]
           pipit uninstall                    remove the link and the skill (same options)
+          pipit diagnostics crashes          list Pipit's crash reports and how its last launch ended
           pipit --version
 
-        Every command except install and uninstall takes --json for output meant to be parsed
-        and --root PATH to read a meetings folder other than the one in Settings.
+        Every command except install and uninstall takes --json for output meant to be parsed.
+        root and the meetings commands take --root PATH to read a meetings folder other than
+        the one in Settings.
 
         """
 }
@@ -172,6 +192,33 @@ enum TextFormat {
             ] {
                 if let path { lines.append("  \(label): \(path)") }
             }
+        }
+        return lines.joined(separator: "\n") + "\n"
+    }
+
+    /// The last launch on one line, then one crash per line, newest first.
+    static func crashes(_ listing: CrashListing) -> String {
+        var lines: [String] = []
+        if let launch = listing.lastLaunch {
+            var line = "last launch: \(day(launch.startedAt))  pid \(launch.pid)  \(launch.version)  "
+            if launch.running {
+                line += "running"
+            } else {
+                line += launch.exit?.rawValue ?? "unknown"
+                if let incident = launch.incident { line += "  \(incident)" }
+            }
+            lines.append(line)
+        } else {
+            lines.append("last launch: none recorded")
+        }
+        for crash in listing.crashes {
+            let summary = crash.summary
+            lines.append(
+                [
+                    summary.incident, day(summary.occurredAt), crash.process.rawValue, String(crash.pid),
+                    summary.exceptionType ?? "-", summary.signal ?? "-", summary.termination ?? "-",
+                ].joined(separator: "\t")
+            )
         }
         return lines.joined(separator: "\n") + "\n"
     }

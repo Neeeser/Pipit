@@ -21,6 +21,9 @@ public struct RuntimeStatus: Sendable, Equatable {
     public var sensorConnection: BrowserSensorTracker.Connection = .absent
     /// Every browser's add-on. `sensorConnection` is the Firefox entry.
     public var browserSensors: [BrowserKind: BrowserSensorTracker.Connection] = [:]
+    /// What each browser's add-on said about itself when it last connected,
+    /// for a diagnostic report.
+    public var browserHellos: [BrowserKind: SensorMessage.Hello] = [:]
     /// Whether the Firefox add-on has ever connected on this machine, carried
     /// from settings so the menu bar can tell "dropped" from "never installed".
     public var firefoxSensorHasConnected = false
@@ -226,14 +229,44 @@ public final class PipitRuntime {
     /// Where everything that is not a meeting lives: settings, the voice
     /// database, the models, and the audio of a spoken enrolment.
     @ObservationIgnored public let applicationSupport: URL
+    /// The local event log. `disabled` unless the application passes one, so a
+    /// runtime a test builds never writes into the real Logs folder.
+    @ObservationIgnored public let diagnostics: DiagnosticLog
+    /// The diagnostic session of the capture armed now, made fresh at every
+    /// arm and stamped on that capture's events and its manifest.
+    @ObservationIgnored private var diagnosticSession: DiagnosticSessionID?
+    /// The launch record and crash-report reading, present only when the log
+    /// writes to disk.
+    @ObservationIgnored private var launchDiagnostics: LaunchDiagnostics?
+    /// Sends reports, and keeps the outbox and the receipts. Nil when the log
+    /// writes nowhere, which is every runtime a test builds without one.
+    @ObservationIgnored public private(set) var reports: DiagnosticReportSender?
+    /// Automatic sharing, and the retries of every queued report.
+    @ObservationIgnored public private(set) var sharing: DiagnosticSharingScheduler?
+    @ObservationIgnored private var networkMonitor: DiagnosticNetworkMonitor?
+    @ObservationIgnored private var sharingLoop: Task<Void, Never>?
+    /// Turning sharing on and off, in the order the person did it.
+    @ObservationIgnored private var sharingChange: Task<Void, Never>?
+    /// The crash of the previous launch the person was asked about. While it
+    /// is set the menu highlights Report a Problem. Kept in memory only: a
+    /// crash is offered once, at the launch after it.
+    public internal(set) var crashReportOffer: CrashReportOffer?
 
     /// `backend` is the cloud client the pipeline and its cloud stages use.
     /// It is a parameter so a test can drive the pipeline this runtime files
     /// through, which is the same object the folder holds live on.
+    ///
+    /// `diagnostics` is handed to every subsystem that records events.
+    /// `reportTransport` and `deletionSecrets` stand in for the report
+    /// service and the Keychain; nil means the real ones, and only when the
+    /// log writes to disk.
     public init(
         settingsDirectory: URL = SensorTransport.defaultApplicationSupport,
         clock: any Clock = SystemClock(),
         backend: (any AIBackend)? = nil,
+        diagnostics: DiagnosticLog = .disabled,
+        reportTransport: (any DiagnosticReportTransport)? = nil,
+        deletionSecrets: (any DiagnosticDeletionSecrets)? = nil,
         trash: @escaping @Sendable (URL) throws -> Void = {
             try FileManager.default.trashItem(at: $0, resultingItemURL: nil)
         }
@@ -241,6 +274,7 @@ public final class PipitRuntime {
         self.clock = clock
         self.trash = trash
         self.applicationSupport = settingsDirectory
+        self.diagnostics = diagnostics
         self.settingsStore = SettingsStore(directory: settingsDirectory)
         let loaded = settingsStore.load()
         self.settings = loaded
@@ -262,9 +296,10 @@ public final class PipitRuntime {
             makeMicrophone: { sink, onChange in
                 MicrophoneSource(sink: sink, onConfigurationChange: onChange)
             },
+            diagnostics: diagnostics,
             delegate: relay
         )
-        detectionEngine = DetectionEngine(clock: clock, delegate: relay)
+        detectionEngine = DetectionEngine(clock: clock, diagnostics: diagnostics, delegate: relay)
         detectionEngine.updateGenericConfiguration(loaded.genericDetectorConfiguration)
 
         // Release builds read the key from the keychain only. A process
@@ -295,6 +330,7 @@ public final class PipitRuntime {
         let modelManager = LocalModelManager(
             applicationSupport: settingsDirectory,
             required: LocalModelUnit.required(for: loaded),
+            diagnostics: diagnostics,
             onStateChange: { [weak relay] state in
                 Task { @MainActor in relay?.runtimeForCallbacks?.localModelState = state }
             }
@@ -380,6 +416,7 @@ public final class PipitRuntime {
             gate: RecordingAwareGate(capture: { recording.withLock { $0 } }),
             calendar: CalendarService(),
             clock: clock,
+            diagnostics: diagnostics,
             settingsProvider: { [snapshot = settingsSnapshot] in snapshot.withLock { $0 } },
             onProgress: { [weak relay] progress in
                 Task { @MainActor in relay?.runtimeForCallbacks?.apply(progress) }
@@ -392,6 +429,35 @@ public final class PipitRuntime {
         )
         relay.connect(runtime: self)
         seedStatus(from: loaded)
+        if let layout = diagnostics.layout {
+            configureReports(layout: layout, transport: reportTransport, secrets: deletionSecrets)
+        }
+    }
+
+    /// The sender and the scheduler, over this log's folder. The scheduler
+    /// reads the setting from the snapshot, asks the main actor whether Pipit
+    /// is busy, and asks the monitor about the network.
+    private func configureReports(
+        layout: DiagnosticLayout, transport: (any DiagnosticReportTransport)?,
+        secrets: (any DiagnosticDeletionSecrets)?
+    ) {
+        let sender = DiagnosticReportSender(
+            layout: layout,
+            transport: transport ?? DiagnosticReportClient(configuration: .standard()),
+            secrets: secrets ?? KeychainDeletionSecrets(),
+            diagnostics: diagnostics
+        )
+        let monitor = DiagnosticNetworkMonitor()
+        let snapshot = settingsSnapshot
+        reports = sender
+        networkMonitor = monitor
+        sharing = DiagnosticSharingScheduler(
+            sender: sender,
+            layout: layout,
+            isEnabled: { snapshot.withLock { $0.sharesDiagnosticsAutomatically } },
+            isBusy: { [relay] in await relay.runtimeForCallbacks?.isBusyForDiagnostics ?? true },
+            network: { monitor.condition }
+        )
     }
 
     /// What the add-on last reported, carried into the status before detection
@@ -410,6 +476,9 @@ public final class PipitRuntime {
     // MARK: - lifecycle
 
     public func start() {
+        diagnostics.record(.appLaunched(DiagnosticEnvironment.current()))
+        beginLaunchDiagnostics()
+        startReportDelivery()
         notifications.registerCategories()
         installNativeMessagingHost()
         // A job killed mid-export leaves a partial track behind. Nothing ever
@@ -466,8 +535,65 @@ public final class PipitRuntime {
     public func stop() {
         permissionWatch?.cancel()
         permissionWatch = nil
+        sharingLoop?.cancel()
+        sharingLoop = nil
+        networkMonitor?.stop()
         detectionEngine.stop()
         if status.hasActiveSession { stopRecording(reason: "app_quit") }
+    }
+
+    /// Writes this launch's record and classifies how the previous launch
+    /// ended, off the main thread: it reads the crash reports folder, and the
+    /// rescan for a late report waits two minutes.
+    private func beginLaunchDiagnostics() {
+        guard let layout = diagnostics.layout else { return }
+        let launch = LaunchDiagnostics(layout: layout)
+        let version = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "unknown"
+        let record = LaunchDiagnostics.record(launch: diagnostics.launch, version: version, now: Date())
+        launchDiagnostics = launch
+        // The relay holds the runtime weakly, so holding the relay for the two
+        // minutes the rescan waits keeps nothing alive.
+        Task.detached(priority: .utility) { [diagnostics, relay] in
+            await launch.begin(
+                record, diagnostics: diagnostics, now: { Date() },
+                classified: { classification, previous in
+                    await relay.runtimeForCallbacks?.handlePreviousExit(classification, previous: previous)
+                }
+            )
+        }
+    }
+
+    /// Watches the network and starts the scheduler's looks. The first comes
+    /// minutes after launch, so sending never competes with starting up.
+    private func startReportDelivery() {
+        guard let reports, let sharing else { return }
+        networkMonitor?.start()
+        Task.detached(priority: .utility) { await reports.removeStrays() }
+        sharingLoop = sharing.run()
+    }
+
+    /// Follows the automatic sharing switch: on starts its clock, off removes
+    /// the automatic reports still queued.
+    private func automaticSharingDidChange(to isOn: Bool) {
+        guard let sharing else { return }
+        let previous = sharingChange
+        sharingChange = Task.detached(priority: .utility) {
+            await previous?.value
+            if isOn {
+                await sharing.enable()
+            } else {
+                await sharing.disable()
+            }
+        }
+    }
+
+    /// Records a clean exit, marks this launch's record clean, and writes out
+    /// everything still queued. Called last, after the recording has been
+    /// finalised, and bounded so a slow disk cannot hold up quitting.
+    public func finishDiagnostics() {
+        diagnostics.record(.appTerminated)
+        launchDiagnostics?.finish(launch: diagnostics.launch)
+        diagnostics.flush(timeout: 2)
     }
 
     /// Stops and waits for the recording to be finalised.
@@ -560,6 +686,7 @@ public final class PipitRuntime {
     func detectionDidUpdate(_ snapshot: DetectionSnapshot) {
         status.sensorConnection = snapshot.browserSensor
         status.browserSensors = snapshot.browserSensors
+        status.browserHellos = snapshot.sensorHellos
         status.isFirefoxRunning = BrowserPresence.isRunning(.firefox)
         // A live connection is proof enough. The profile is read only when
         // nothing is talking and the person has allowed the read, which they
@@ -617,6 +744,7 @@ public final class PipitRuntime {
         // the preflight below goes through here as well.
         guard !sessionWarnings.contains(where: { $0.dedupKey == warning.dedupKey }) else { return }
         sessionWarnings.append(warning)
+        diagnostics.record(.captureWarning(code: .word(warning.dedupKey)), session: diagnosticSession)
         status.lastWarning = warning
         if settings.showNotifications { notifications.captureProblem(warning) }
         onStatusChange?()
@@ -710,8 +838,10 @@ public final class PipitRuntime {
         // pairing a previous build stored normalizes on the next save.
         newSettings.coupleDiarization()
         let rootChanged = newSettings.storageRootPath != settings.storageRootPath
+        let sharingChanged = newSettings.sharesDiagnosticsAutomatically != settings.sharesDiagnosticsAutomatically
         settings = newSettings
         settingsSnapshot.withLock { $0 = newSettings }
+        if sharingChanged { automaticSharingDidChange(to: newSettings.sharesDiagnosticsAutomatically) }
         do {
             try settingsStore.save(newSettings)
         } catch {
@@ -780,12 +910,28 @@ public final class PipitRuntime {
         let importer = AudioImporter(segmentSeconds: settings.segmentSeconds, clock: clock)
         let store = created.store
         let meetingIdentifier = created.metadata.id
+        let session = DiagnosticSessionID()
+        diagnostics.record(
+            .sessionStarted(source: .imported, trigger: .imported, segmentSeconds: settings.segmentSeconds),
+            session: session
+        )
         let result: AudioImporter.Result
         do {
             result = try await Task.detached(priority: .userInitiated) {
-                try importer.import(source: url, into: store, meetingID: meetingIdentifier)
+                try importer.import(source: url, into: store, meetingID: meetingIdentifier, session: session)
             }.value
+            diagnostics.record(
+                .sessionStopped(trigger: .auto, seconds: result.durationSeconds, segments: result.segmentCount),
+                session: session
+            )
         } catch {
+            diagnostics.record(.sessionStopped(trigger: .error, seconds: 0, segments: 0), session: session)
+            diagnostics.record(
+                .processingStageFailed(
+                    stage: .finalizing, attempt: 1, code: DiagnosticCode(describing: error), retryable: false
+                ),
+                session: session
+            )
             // The directory stays. The copy of the original and the manifest
             // are the record of what happened. Marking it failed is what keeps
             // recovery off it, which would otherwise adopt a meeting still in
@@ -827,7 +973,8 @@ public final class PipitRuntime {
                 stage: .finalizing,
                 message: failure.userMessage,
                 isRetryable: false,
-                occurredAt: clock.now
+                occurredAt: clock.now,
+                code: DiagnosticCode(describing: error)
             ),
             at: clock.now
         )
@@ -881,7 +1028,8 @@ public final class PipitRuntime {
                 stage: metadata.processing.failedStage ?? .finalizing,
                 message: failure.userMessage,
                 isRetryable: false,
-                occurredAt: clock.now
+                occurredAt: clock.now,
+                code: DiagnosticCode(describing: error)
             ),
             at: clock.now
         )
@@ -1325,7 +1473,9 @@ public final class PipitRuntime {
                         raisePermissionNotice(missing: [.screenRecording])
                     }
                 }
-                await captureEngine.arm(scope: scope, capturesRemote: capturesRemote)
+                let session = DiagnosticSessionID()
+                diagnosticSession = session
+                await captureEngine.arm(scope: scope, capturesRemote: capturesRemote, session: session)
             case .retargetCapture(let scope):
                 await captureEngine.retarget(scope: scope)
             case .commitRecording(let request):
@@ -1377,7 +1527,17 @@ public final class PipitRuntime {
     /// one is seen. Setup and the panel call this with every poll while they
     /// are open, and the runtime asks on its own every half minute.
     public func permissionsDidChange(_ statuses: [PermissionStatus]) {
-        for probe in statuses { permissionStates[probe.kind] = probe.state }
+        for probe in statuses {
+            // Changes only. Setup polls every second while it is open.
+            if permissionStates[probe.kind] != probe.state {
+                diagnostics.record(
+                    .permissionState(
+                        permission: DiagnosticEvent.Permission(probe.kind),
+                        state: DiagnosticEvent.PermissionGrant(probe.state)
+                    ))
+            }
+            permissionStates[probe.kind] = probe.state
+        }
         let ambient = PermissionNotice.missingRequired(in: permissionStates)
         if status.permissionNotice != ambient {
             status.permissionNotice = ambient
@@ -1431,6 +1591,13 @@ public final class PipitRuntime {
             )
             currentMeeting = (metadata, created.store)
             sensorRecorder = SensorRecorder(anchorMonotonic: clock.monotonicSeconds)
+            diagnostics.record(
+                .sessionStarted(
+                    source: request.source, trigger: Self.startTrigger(for: request.source),
+                    segmentSeconds: settings.segmentSeconds
+                ),
+                session: diagnosticSession
+            )
             refreshRecentMeetings()
             return true
         } catch {
@@ -1514,6 +1681,12 @@ public final class PipitRuntime {
     private func beginRun(reason: String) {
         guard let meeting = currentMeeting else { return }
         captureEngine.addMarker("run:\(reason)")
+        diagnostics.record(
+            .sessionStarted(
+                source: meeting.metadata.source, trigger: .reconnect, segmentSeconds: settings.segmentSeconds
+            ),
+            session: diagnosticSession
+        )
         let updated = try? meeting.store.updateMetadata { metadata in
             let index = metadata.runs.count + 1
             metadata.runs.append(
@@ -1541,7 +1714,14 @@ public final class PipitRuntime {
         sessionWarnings = []
         await captureEngine.discardArmed()
         if let meeting = currentMeeting {
-            _ = await captureEngine.stop(reason: reason)
+            let snapshot = await captureEngine.stop(reason: reason)
+            diagnostics.record(
+                .sessionStopped(
+                    trigger: Self.stopTrigger(for: reason),
+                    seconds: max(snapshot.micSeconds, snapshot.remoteSeconds), segments: 0
+                ),
+                session: diagnosticSession
+            )
             // A provisional recording the user declined leaves nothing behind.
             try? FileManager.default.removeItem(at: meeting.store.layout.root)
             currentMeeting = nil
@@ -1560,9 +1740,19 @@ public final class PipitRuntime {
         }
         currentMeeting = nil
         defer { sensorRecorder = nil }
+        let session = diagnosticSession
+        var stopRecorded = false
 
         do {
             let timeline = try meeting.store.readTimeline()
+            stopRecorded = true
+            diagnostics.record(
+                .sessionStopped(
+                    trigger: Self.stopTrigger(for: reason), seconds: timeline.duration,
+                    segments: timeline.segments.count
+                ),
+                session: session
+            )
             writeSensors(store: meeting.store, timeline: timeline)
             let updated = try meeting.store.updateMetadata { metadata in
                 metadata.endedAt = self.clock.now
@@ -1616,6 +1806,33 @@ public final class PipitRuntime {
             Task { await pipeline.process(meetingID: meetingID) }
         } catch {
             Log.app.error("finalise failed: \(logSafeDescription(error), privacy: .public)")
+            if !stopRecorded {
+                diagnostics.record(
+                    .sessionStopped(
+                        trigger: .error, seconds: max(snapshot.micSeconds, snapshot.remoteSeconds), segments: 0
+                    ),
+                    session: session
+                )
+            }
+        }
+    }
+
+    /// What started a recording, for its `session.started` event.
+    nonisolated static func startTrigger(for source: MeetingSource) -> DiagnosticEvent.StartTrigger {
+        switch source {
+        case .manual, .inPerson: .manual
+        case .imported: .imported
+        case .slackHuddle, .googleMeet, .zoom, .faceTime, .genericCall: .auto
+        }
+    }
+
+    /// What ended one, from the reason the session controller gave.
+    nonisolated static func stopTrigger(for reason: String) -> DiagnosticEvent.StopTrigger {
+        switch reason {
+        case "user_stopped", "user_discarded": .manual
+        case "app_quit": .quit
+        case "commit_failed", "microphone_permission_missing": .error
+        default: .auto
         }
     }
 

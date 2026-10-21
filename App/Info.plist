@@ -28,6 +28,11 @@
          its source and the debug symbols that match it. -->
     <key>PipitGitCommit</key>
     <string>unknown</string>
+    <!-- Where diagnostic reports are sent (docs/DIAGNOSTICS.md, Report
+         service). A build pointed at a preview deployment or a local server
+         changes this; a missing, empty, or non-http value means the website. -->
+    <key>PipitReportServiceURL</key>
+    <string>https://pipit-website.vercel.app</string>
     <key>LSMinimumSystemVersion</key>
     <string>15.0</string>
     <!-- Pipit has no main window and no Dock slot by default. The Dock slot is

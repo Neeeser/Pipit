@@ -71,9 +71,8 @@ audio on your Mac. Pipit uploads audio only when you select a cloud speech
 model. Optional titles, summaries, and notes send transcript text to the model
 you configure.
 
-Pipit has no account, telemetry, analytics, or hosted meeting database. Voice
-profiles stay under Application Support and are excluded from meeting folders
-and exports.
+Pipit has no account or hosted meeting database. Voice profiles stay under
+Application Support and are excluded from meeting folders and exports.
 
 ## Documentation
 

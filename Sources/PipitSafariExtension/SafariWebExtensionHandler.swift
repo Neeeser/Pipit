@@ -16,13 +16,23 @@ import Security
 /// group the two share, and this connects there.
 @objc(SafariWebExtensionHandler)
 final class SafariWebExtensionHandler: NSObject, NSExtensionRequestHandling {
-    /// Kept for as long as the system keeps this process, so a call does not
-    /// open and close a connection for every message.
-    private static let connection: SensorAppConnection? = {
-        guard let group = SensorTransport.safariAppGroup(in: entitledAppGroups()),
-            let container = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: group)
-        else { return nil }
-        return SensorAppConnection(socketPath: SensorTransport.safariSocketURL(groupContainer: container).path)
+    private static let groupContainer: URL? = {
+        guard let group = SensorTransport.safariAppGroup(in: entitledAppGroups()) else { return nil }
+        return FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: group)
+    }()
+
+    /// Reuse a connection while Safari keeps this relay process alive.
+    private static let connection = groupContainer.map {
+        SensorAppConnection(socketPath: SensorTransport.safariSocketURL(groupContainer: $0).path)
+    }
+
+    private static let diagnostics: DiagnosticLog = {
+        guard let groupContainer else { return .disabled }
+        let log = DiagnosticLog(
+            layout: .safariExtension(groupContainer: groupContainer), configuration: .safariExtension
+        )
+        log.record(.nativeHostStarted(browser: .safari))
+        return log
     }()
 
     private static let version = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "unknown"
@@ -39,7 +49,19 @@ final class SafariWebExtensionHandler: NSObject, NSExtensionRequestHandling {
             // app with the add-on's last hello.
             connection.watch()
             delivered = connection.deliver(message)
+            if !delivered {
+                Self.diagnostics.record(
+                    .nativeHostAppUnreachable(
+                        code: .error(domain: NSPOSIXErrorDomain, code: Int(connection.lastConnectError))
+                    )
+                )
+            }
+        } else if raw != nil {
+            Self.diagnostics.record(.browserMessageUnparsable(browser: .safari))
         }
+        // Safari may stop this relay as soon as the request completes. Bound
+        // the wait so a diagnostic write cannot hold the message indefinitely.
+        Self.diagnostics.flush(timeout: 0.1)
         let reply = NSExtensionItem()
         reply.userInfo = [SFExtensionMessageKey: ["type": "ack", "connected": delivered]]
         context.completeRequest(returningItems: [reply], completionHandler: nil)

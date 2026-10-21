@@ -75,15 +75,23 @@ public enum ProcessingState: String, Codable, Sendable, CaseIterable, Comparable
 
 public struct ProcessingFailure: Codable, Sendable, Equatable {
     public var stage: ProcessingState
+    /// Written for the person, and never put in a diagnostic report.
     public var message: String
     public var isRetryable: Bool
     public var occurredAt: Date
+    /// The failure's category, which a diagnostic report carries in place of
+    /// the message. Absent from a meeting that failed before codes were
+    /// recorded, which an older build reads past.
+    public var code: DiagnosticCode?
 
-    public init(stage: ProcessingState, message: String, isRetryable: Bool, occurredAt: Date) {
+    public init(
+        stage: ProcessingState, message: String, isRetryable: Bool, occurredAt: Date, code: DiagnosticCode? = nil
+    ) {
         self.stage = stage
         self.message = message
         self.isRetryable = isRetryable
         self.occurredAt = occurredAt
+        self.code = code
     }
 }
 

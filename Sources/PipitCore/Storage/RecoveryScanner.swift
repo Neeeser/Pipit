@@ -237,7 +237,8 @@ public struct RecoveryScanner: Sendable {
                     stage: .finalizing,
                     message: "No readable audio was recovered for this recording.",
                     isRetryable: false,
-                    occurredAt: clock.now
+                    occurredAt: clock.now,
+                    code: DiagnosticCode("recovery", "no_readable_audio")
                 ),
                 at: clock.now
             )

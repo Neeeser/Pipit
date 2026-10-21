@@ -48,17 +48,26 @@ public final class BrowserSensorServer: @unchecked Sendable {
 
     private let onMessage: @Sendable (SensorMessage) -> Void
     private let onConnectionChange: @Sendable (Int) -> Void
+    private let diagnostics: DiagnosticLog
+    /// The browser every connection on this socket belongs to, where the
+    /// socket says so. Safari's is its own; the relay socket learns each
+    /// connection's browser from its first message.
+    private let browser: BrowserKind?
 
     public init(
         socketURL: URL = SensorTransport.socketURL(
             applicationSupport: SensorTransport.defaultApplicationSupport
         ),
         verifier: SensorPeerVerifier = SensorPeerVerifier(),
+        browser: BrowserKind? = nil,
+        diagnostics: DiagnosticLog = .disabled,
         onMessage: @escaping @Sendable (SensorMessage) -> Void,
         onConnectionChange: @escaping @Sendable (Int) -> Void = { _ in }
     ) {
         self.socketURL = socketURL
         self.verifier = verifier
+        self.browser = browser
+        self.diagnostics = diagnostics
         self.onMessage = onMessage
         self.onConnectionChange = onConnectionChange
     }
@@ -152,6 +161,7 @@ public final class BrowserSensorServer: @unchecked Sendable {
         guard let peer = verifier.peer(of: client) else {
             Log.detection.notice("rejected a sensor connection: the peer could not be identified")
             lock.withLock { status.rejectedConnections += 1 }
+            diagnostics.record(.browserConnectionRejected(browser: browser, reason: .peerVerification))
             close(client)
             return
         }
@@ -159,12 +169,14 @@ public final class BrowserSensorServer: @unchecked Sendable {
             let reason = self.verifier.rejectionReason(peer)
             Log.detection.notice("rejected a sensor connection: \(reason, privacy: .public)")
             lock.withLock { status.rejectedConnections += 1 }
+            diagnostics.record(.browserConnectionRejected(browser: browser, reason: .peerVerification))
             close(client)
             return
         }
         let atCapacity = lock.withLock { connections.count >= Self.maximumConnections }
         if atCapacity {
             Log.detection.notice("sensor connection refused: already at capacity")
+            diagnostics.record(.browserConnectionRejected(browser: browser, reason: .capacity))
             close(client)
             return
         }
@@ -207,14 +219,20 @@ public final class BrowserSensorServer: @unchecked Sendable {
             buffer.removeSubrange(buffer.startIndex...newline)
             if !line.isEmpty { completeLines.append(line) }
         }
-        if buffer.count > Self.maximumBufferedBytes { buffer.removeAll(keepingCapacity: false) }
+        let overflowed = buffer.count > Self.maximumBufferedBytes
+        if overflowed { buffer.removeAll(keepingCapacity: false) }
         buffers[descriptor] = buffer
         if !completeLines.isEmpty { status.lastMessageAt = Date() }
+        let connectionBrowser = sensors[descriptor]?.browser ?? browser
         lock.unlock()
 
+        if overflowed {
+            diagnostics.record(.browserConnectionRejected(browser: connectionBrowser, reason: .protocolViolation))
+        }
         for line in completeLines {
             guard let message = try? SensorTransport.decodeLine(line) else {
                 Log.detection.notice("dropping unparsable sensor line")
+                diagnostics.record(.browserMessageUnparsable(browser: connectionBrowser ?? .unknown))
                 continue
             }
             if case .hello(let hello) = message {
@@ -236,7 +254,12 @@ public final class BrowserSensorServer: @unchecked Sendable {
         if message.browser == .safari { return [message] }
         if case .goodbye = message { return removeSensor(descriptor) }
         var sensor = sensors[descriptor] ?? SensorConnection(browser: message.browser)
-        guard sensor.browser == message.browser else { return [] }
+        guard sensor.browser == message.browser else {
+            // Recording takes its own lock and never waits on the disk, so it
+            // is safe under this one.
+            diagnostics.record(.browserConnectionRejected(browser: sensor.browser, reason: .protocolViolation))
+            return []
+        }
         defer { sensors[descriptor] = sensor }
         switch message {
         case .event(var event):

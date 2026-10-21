@@ -27,6 +27,9 @@ public final class WindowManager {
     private var provisionalPromptID: String?
     private var updateWindow: NSWindow?
     private var updateCloseToken: NSObjectProtocol?
+    private var reportProblemWindow: NSWindow?
+    private var reportProblemModel: ReportProblemModel?
+    private var reportProblemCloseToken: NSObjectProtocol?
     /// The windows currently on screen that Pipit has to stay reachable behind.
     private var openWindows: Set<ObjectIdentifier> = []
     /// One per open window, so a window closed by any route is noticed.
@@ -37,6 +40,10 @@ public final class WindowManager {
     /// Asks the updater to check now. Set by the application delegate, which
     /// owns the updater; the General page's button is disabled while nil.
     public var checkForUpdates: (() -> Void)?
+    /// What Report a Problem's Send hands the report to, and where its ID
+    /// and deletion secret come from. Sends nothing until the application
+    /// sets one: `PipitRuntime.reports`.
+    public var reportSender: any DiagnosticReportSending = UnavailableDiagnosticReportSender()
 
     public init(
         runtime: PipitRuntime,
@@ -151,6 +158,60 @@ public final class WindowManager {
         )
         window.setFrameAutosaveName("PipitAbout")
         aboutWindow = window
+        present(window)
+    }
+
+    /// Report a Problem: a preview of the diagnostic report, a note, and
+    /// Export and Send.
+    ///
+    /// The report is read when the window opens. A window still on screen is
+    /// brought forward as it is, note and all; one opened after it closed
+    /// reads the report again, so it holds what happened since. Opening it
+    /// answers the crash prompt, so the menu stops highlighting it.
+    public func showReportProblem() {
+        runtime.dismissCrashReportOffer()
+        showReportProblem(kind: .user, since: nil)
+    }
+
+    /// Report a Problem on the crash the previous launch ended in, from the
+    /// crash prompt: a `crash` report of the events and crash summaries from
+    /// the crashed launch's start. With no crash on offer any more, the
+    /// ordinary report.
+    public func showCrashReport() {
+        guard let offer = runtime.crashReportOffer else {
+            showReportProblem()
+            return
+        }
+        runtime.dismissCrashReportOffer()
+        showReportProblem(kind: .crash, since: offer.crashedLaunchStartedAt)
+    }
+
+    private func showReportProblem(kind: DiagnosticReport.Kind, since: Date?) {
+        if let window = reportProblemWindow, window.isVisible {
+            guard reportProblemModel?.kind != kind else {
+                present(window)
+                return
+            }
+            // Another kind of report: the open one closes, and gives back its
+            // identity, before the new one opens. Told directly as well as by
+            // its close notification; the second time does nothing.
+            reportProblemModel?.windowClosed()
+            window.close()
+        }
+        let model = ReportProblemModel(runtime: runtime, sender: reportSender, kind: kind, since: since)
+        let window = makeWindow(
+            title: "Report a Problem",
+            size: NSSize(width: 600, height: 640),
+            content: ReportProblemView(model: model)
+        )
+        if let token = reportProblemCloseToken { NotificationCenter.default.removeObserver(token) }
+        reportProblemCloseToken = NotificationCenter.default.addObserver(
+            forName: NSWindow.willCloseNotification, object: window, queue: .main
+        ) { _ in
+            MainActor.assumeIsolated { model.windowClosed() }
+        }
+        reportProblemWindow = window
+        reportProblemModel = model
         present(window)
     }
 

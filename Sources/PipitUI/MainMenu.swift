@@ -15,8 +15,8 @@ import AppKit
 enum MainMenu {
     /// Builds the menu and hands it to `NSApp`.
     ///
-    /// `target` owns the two items that open Pipit's own windows.
-    static func install(target: AnyObject, showAbout: Selector, showSettings: Selector) {
+    /// `target` owns the items that open Pipit's own windows.
+    static func install(target: AnyObject, showAbout: Selector, showSettings: Selector, reportProblem: Selector) {
         let bar = NSMenu()
         bar.addItem(
             submenu(
@@ -25,6 +25,7 @@ enum MainMenu {
                     item("About Pipit", showAbout, target: target),
                     .separator(),
                     item("Settings…", showSettings, ",", target: target),
+                    item("Report a Problem…", reportProblem, target: target),
                     .separator(),
                     item("Hide Pipit", #selector(NSApplication.hide(_:)), "h"),
                     hideOthers(),

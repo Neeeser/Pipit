@@ -15,6 +15,9 @@ import UserNotifications
 public final class NotificationRouter: NSObject, UNUserNotificationCenterDelegate {
     private let runtime: PipitRuntime
     private let windows: WindowManager
+    /// Opens the report about a crash: the application sets it to Report a
+    /// Problem on a `crash` report. Settings › Diagnostics while it is nil.
+    public var onReviewCrashReport: (@MainActor () -> Void)?
 
     public init(runtime: PipitRuntime, windows: WindowManager) {
         self.runtime = runtime
@@ -30,8 +33,20 @@ public final class NotificationRouter: NSObject, UNUserNotificationCenterDelegat
         didReceive response: UNNotificationResponse
     ) async {
         let action = response.actionIdentifier
-        let meetingID = response.notification.request.content.userInfo["meetingID"] as? String
+        let content = response.notification.request.content
+        let meetingID = content.userInfo["meetingID"] as? String
+        let isCrashReport = content.categoryIdentifier == NotificationService.Category.crashReport.rawValue
         await MainActor.run {
+            // The body and the Review button both open the report. A dismissal
+            // arrives as its own action and sends nothing.
+            if isCrashReport {
+                if action == NotificationService.Action.reviewCrash.rawValue
+                    || action == UNNotificationDefaultActionIdentifier
+                {
+                    reviewCrashReport()
+                }
+                return
+            }
             switch NotificationService.Action(rawValue: action) {
             case .keep:
                 runtime.resolveProvisional(keep: true)
@@ -41,10 +56,23 @@ public final class NotificationRouter: NSObject, UNUserNotificationCenterDelegat
                 if let meetingID { runtime.revealInFinder(meetingID: meetingID) }
             case .retry:
                 if let meetingID { runtime.retryProcessing(meetingID: meetingID) }
+            case .reviewCrash:
+                reviewCrashReport()
             case nil:
                 // Tapping the body opens the meeting it refers to.
                 if let meetingID { windows.showReview(meetingID: meetingID) }
             }
+        }
+    }
+
+    /// Either way the offer is answered, so the menu stops highlighting
+    /// Report a Problem.
+    private func reviewCrashReport() {
+        if let onReviewCrashReport {
+            onReviewCrashReport()
+        } else {
+            runtime.dismissCrashReportOffer()
+            windows.showSettings(pane: .diagnostics)
         }
     }
 
