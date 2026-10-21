@@ -51,7 +51,9 @@ uuids() {
 # into a failure of a check that had passed.
 resolve_to_line() {
     local dwarf="$1" binary="$2" pattern="$3" arch="$4" symbols addresses resolved
-    symbols="$(xcrun nm -arch "$arch" -defined-only "$binary")"
+    # -U is "defined symbols only" in both the cctools nm and llvm-nm, which is
+    # what Xcode ships now; llvm-nm rejects the cctools spelling -defined-only.
+    symbols="$(xcrun nm -arch "$arch" -U "$binary")"
     addresses="$(awk -v p="$pattern" '($2 == "T" || $2 == "t") && $3 ~ p && n++ < 50 { print "0x" $1 }' \
         <<<"$symbols")"
     [ -n "$addresses" ] || { echo "no text symbol matching $pattern in $binary ($arch)" >&2; return 1; }
