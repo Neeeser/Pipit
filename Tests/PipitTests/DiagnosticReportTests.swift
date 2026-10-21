@@ -18,6 +18,7 @@ struct DiagnosticReportTests {
         #expect(report.schemaVersion == 1)
         #expect(report.kind == .user)
         #expect(report.crashes.first?.kind == .crash)
+        #expect(report.crashes.first?.process == .app)
         #expect(report.crashes.first?.frames.count == 2)
         #expect(report.events.count == report.summary.diagnostics.eventsIncluded)
         #expect(DiagnosticReportValidator.violations(in: report).isEmpty)
@@ -125,6 +126,9 @@ struct DiagnosticReportTests {
         #expect(DiagnosticReportValidator.violations(in: report).isEmpty)
         let text = try #require(String(data: try report.encoded(), encoding: .utf8))
         #expect(text.contains(#""occurredAt":"2026-10-21T10:18:16Z""#))
+        // Which executable crashed travels with the summary.
+        #expect(text.contains(#""process":"app""#))
+        #expect(text.contains(#""process":"nativehost""#))
         #expect(!text.contains("CANARY"))
     }
 

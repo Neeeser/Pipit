@@ -249,9 +249,9 @@ struct CrashReportTests {
     private func crash(_ number: Int, daysAgo: Double, now: Date) -> CrashRecord {
         let incident = String(format: "00000000-0000-4000-8000-%012d", number)
         return CrashRecord(
-            process: .app, pid: Int32(1000 + number), launchedAt: nil, binaryUUID: nil,
+            pid: Int32(1000 + number), launchedAt: nil, binaryUUID: nil,
             summary: CrashSummary(
-                incident: incident, kind: .crash, occurredAt: now.addingTimeInterval(-daysAgo * 86_400),
+                incident: incident, kind: .crash, process: .app, occurredAt: now.addingTimeInterval(-daysAgo * 86_400),
                 app: .init(version: "0.1.8", build: 812), os: "15.6.1", osBuild: "24G90",
                 exceptionType: "EXC_CRASH", signal: "SIGABRT", termination: "SIGNAL.6", faultingThread: 0,
                 frames: [], images: []

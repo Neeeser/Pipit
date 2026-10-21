@@ -59,7 +59,7 @@ public enum CrashReportReducer {
         let system = osVersion(header: header, body: body)
 
         let summary = CrashSummary(
-            incident: incident, kind: .crash, occurredAt: occurredAt,
+            incident: incident, kind: .crash, process: process, occurredAt: occurredAt,
             app: app(header: header, body: body),
             os: system.version, osBuild: system.build,
             exceptionType: body["exception"]?["type"]?.stringValue.map(DiagnosticTokenRule.token),
@@ -68,7 +68,7 @@ public enum CrashReportReducer {
             faultingThread: thread, frames: frames, images: referenced
         )
         return CrashRecord(
-            process: process, pid: pid,
+            pid: pid,
             launchedAt: body["procLaunch"]?.stringValue.flatMap(reportTime),
             binaryUUID: images.executableUUID ?? uuid(header["slice_uuid"]),
             summary: summary

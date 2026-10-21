@@ -85,7 +85,7 @@ struct ExitClassifierTests {
         let launch = DiagnosticsFixtures.crashedLaunch()
         let mismatches = [
             try variant { $0.pid = 4243 },
-            try variant { $0.process = .nativeHost },
+            try variant { $0.summary.process = .nativeHost },
             // The same pid from a launch two hours earlier.
             try variant { $0.launchedAt = launch.startedAt.addingTimeInterval(-7200) },
             // A process that started after the record did is not that launch.

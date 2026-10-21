@@ -67,6 +67,8 @@ public struct CrashSummary: Codable, Sendable, Equatable {
     /// The report's incident identifier, lowercase.
     public var incident: String
     public var kind: Kind
+    /// Which of Pipit's executables crashed.
+    public var process: PipitProcess
     public var occurredAt: Date
     public var app: App
     public var os: String
@@ -84,12 +86,13 @@ public struct CrashSummary: Codable, Sendable, Equatable {
     public var images: [Image]
 
     public init(
-        incident: String, kind: Kind, occurredAt: Date, app: App, os: String, osBuild: String,
+        incident: String, kind: Kind, process: PipitProcess, occurredAt: Date, app: App, os: String, osBuild: String,
         exceptionType: String?, signal: String?, termination: String?, faultingThread: Int?,
         frames: [Frame], images: [Image]
     ) {
         self.incident = incident
         self.kind = kind
+        self.process = process
         self.occurredAt = occurredAt
         self.app = app
         self.os = os
@@ -105,7 +108,7 @@ public struct CrashSummary: Codable, Sendable, Equatable {
     private enum CodingKeys: String, CodingKey {
         case incident
         case kind = "class"
-        case occurredAt, app, os, osBuild, exceptionType, signal, termination, faultingThread, frames, images
+        case process, occurredAt, app, os, osBuild, exceptionType, signal, termination, faultingThread, frames, images
     }
 }
 
@@ -153,10 +156,9 @@ public enum PipitProcess: String, Codable, Sendable, CaseIterable {
 }
 
 /// A reduced crash as Pipit keeps it in `crashes/<incident>.json`: the summary
-/// a report carries, and the process, pid, and launch time that match it to a
-/// launch record on this Mac. The bundle builder sends only `summary`.
+/// a report carries, and the pid, launch time, and executable UUID that match
+/// it to a launch record on this Mac. The bundle builder sends only `summary`.
 public struct CrashRecord: Codable, Sendable, Equatable {
-    public var process: PipitProcess
     public var pid: Int32
     /// When the crashed process started, from the report's `procLaunch`.
     public var launchedAt: Date?
@@ -165,9 +167,8 @@ public struct CrashRecord: Codable, Sendable, Equatable {
     public var summary: CrashSummary
 
     public init(
-        process: PipitProcess, pid: Int32, launchedAt: Date?, binaryUUID: String?, summary: CrashSummary
+        pid: Int32, launchedAt: Date?, binaryUUID: String?, summary: CrashSummary
     ) {
-        self.process = process
         self.pid = pid
         self.launchedAt = launchedAt
         self.binaryUUID = binaryUUID
@@ -175,4 +176,5 @@ public struct CrashRecord: Codable, Sendable, Equatable {
     }
 
     public var incident: String { summary.incident }
+    public var process: PipitProcess { summary.process }
 }
