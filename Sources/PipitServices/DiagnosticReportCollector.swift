@@ -221,7 +221,7 @@ private struct DiskReading: Sendable {
         }
 
         if let layout {
-            let safari = SafariSensorSocket.diagnosticsFile().map { [$0] } ?? []
+            let safari = SafariSensorSocket.diagnosticsFiles()
             reading.events = layout.storedEvents(additionalFiles: safari)
             // Only the summaries already reduced into crashes/. Reading
             // DiagnosticReports is the launch scan's job.

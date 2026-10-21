@@ -113,15 +113,15 @@ struct DiagnosticBundleTests {
         try first.write(to: layout.eventsFile(day: DiagnosticLayout.day(of: day), part: 0))
         try lines([all[1], all[4]]).write(to: layout.nativeHostFile(day: DiagnosticLayout.day(of: day)))
         try Data("not an event file".utf8).write(to: layout.events.appendingPathComponent("notes.txt"))
-        let safari = root.appendingPathComponent("safari-extension.ndjson")
+        let additional = root.appendingPathComponent("additional-events.ndjson")
         let late = DiagnosticEvent(
             time: day.addingTimeInterval(100), launch: DiagnosticEventTests.launch,
             kind: .browserAddonDisconnected(browser: .safari, reason: .silence)
         )
-        try lines([late]).write(to: safari)
+        try lines([late]).write(to: additional)
 
         #expect(layout.storedEvents() == all)
-        #expect(layout.storedEvents(additionalFiles: [safari]) == all + [late])
+        #expect(layout.storedEvents(additionalFiles: [additional]) == all + [late])
         #expect(DiagnosticLayout(root: root.appendingPathComponent("missing")).storedEvents().isEmpty)
     }
 

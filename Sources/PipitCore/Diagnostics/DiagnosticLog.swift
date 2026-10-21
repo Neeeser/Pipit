@@ -46,6 +46,9 @@ public final class DiagnosticLog: @unchecked Sendable {
 
         public static let app = Configuration(family: .app, maximumFileBytes: 2 * 1_024 * 1_024)
         public static let nativeHost = Configuration(family: .nativeHost, maximumFileBytes: 256 * 1_024)
+        public static let safariExtension = Configuration(
+            family: .nativeHost, maximumFileBytes: 64 * 1_024, retention: DiagnosticRetention(maximumDays: 1)
+        )
     }
 
     /// Records nothing. What a test, a tool, or anything built without a place

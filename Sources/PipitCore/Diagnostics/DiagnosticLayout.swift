@@ -17,6 +17,11 @@ public struct DiagnosticLayout: Sendable, Equatable {
 
     public static var standard: DiagnosticLayout { DiagnosticLayout(root: defaultRoot) }
 
+    /// Shared with the sandboxed Safari relay, which cannot write the app's log.
+    public static func safariExtension(groupContainer: URL) -> DiagnosticLayout {
+        DiagnosticLayout(root: groupContainer.appendingPathComponent("Diagnostics", isDirectory: true))
+    }
+
     public var events: URL { root.appendingPathComponent("events", isDirectory: true) }
     public var state: URL { root.appendingPathComponent("state", isDirectory: true) }
     public var launchState: URL { state.appendingPathComponent("launch.json") }

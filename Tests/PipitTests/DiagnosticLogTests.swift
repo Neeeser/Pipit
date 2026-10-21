@@ -335,7 +335,7 @@ struct DiagnosticLogTests {
                 == EventFile(family: .nativeHost, day: "2026-10-21", part: 0))
         #expect(EventFile(name: "events-2026-10-21.0.ndjson") == nil)
         #expect(EventFile(name: "events-today.ndjson") == nil)
-        #expect(EventFile(name: "safari-extension.ndjson") == nil)
+        #expect(EventFile(name: "relay.ndjson") == nil)
         #expect(EventFile(name: "events-2026-10-21.ndjson.tmp") == nil)
     }
 }
@@ -372,5 +372,35 @@ final class LockedValue<Value: Sendable>: @unchecked Sendable {
             stored = newValue
             lock.unlock()
         }
+    }
+}
+
+extension DiagnosticLogTests {
+    @Test("the Safari relay keeps a bounded log in its shared container and rotates the UTC day")
+    func safariRelayLogIsBoundedAndShared() throws {
+        let group = try TestPaths.makeTemporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: group) }
+        let layout = DiagnosticLayout.safariExtension(groupContainer: group)
+        let clock = ManualClock(now: Self.noon)
+        let log = DiagnosticLog(
+            layout: layout, clock: clock, configuration: .safariExtension, freeSpace: { _ in .max }
+        )
+        for code in 0..<1_000 {
+            log.record(.nativeHostAppUnreachable(code: .error(domain: NSPOSIXErrorDomain, code: code)))
+        }
+        #expect(log.flush(timeout: 5))
+        let files = try FileManager.default.contentsOfDirectory(
+            at: layout.events, includingPropertiesForKeys: [.fileSizeKey])
+        #expect(files.count == 1)
+        let file = try #require(files.first)
+        #expect(file.lastPathComponent == "nativehost-2026-10-21.ndjson")
+        #expect(try file.resourceValues(forKeys: [.fileSizeKey]).fileSize ?? .max <= 64 * 1_024)
+        #expect(!layout.storedEvents().isEmpty)
+        clock.advance(86_400)
+        log.record(.nativeHostStarted(browser: .safari))
+        #expect(log.flush())
+        #expect(
+            try FileManager.default.contentsOfDirectory(atPath: layout.events.path) == ["nativehost-2026-10-22.ndjson"])
+        #expect(layout.storedEvents().first?.kind == .nativeHostStarted(browser: .safari))
     }
 }

@@ -52,8 +52,10 @@ profiles:
 | `sent.json` | Receipts of sent reports, no secrets (Report service) | Until the person removes them |
 
 The Safari extension is sandboxed and writes
-`<app group container>/Diagnostics/safari-extension.ndjson`, capped at 64 KB,
-which the app reads into bundles.
+`<app group container>/Diagnostics/events/nativehost-YYYY-MM-DD.ndjson`,
+capped at 64 KB for the current UTC day. The next day's first write removes
+older files. The app reads these events into bundles, including relay failures
+that happened while the app was unreachable.
 
 Deletion secrets live in the Keychain: service
 `com.pipit.app.report-deletion`, account = report ID.
@@ -83,7 +85,10 @@ chooses **Clear and Forget Sent Reports**.
 | `n` | How many events the line stands for, when identical events within 60 s were merged. The first of a burst is written on its own at once and the repeats as one line with `n` when the window closes, so a count is the sum of `n`, with a line that has none counting once |
 
 Payload values are enum raw values, integers, finite doubles, booleans, or
-version strings matching `^[0-9A-Za-z.+-]{1,32}$`. Two strings have their own
+version strings containing up to four numeric parts, optionally followed by an
+`alpha`, `beta`, `rc`, or `dev` suffix with numeric or hexadecimal parts and a
+numeric build suffix. Missing or invalid versions become `unknown` or `invalid`;
+`DiagnosticToken.version` owns the exact pattern. Two strings have their own
 patterns: `hardware` is a model identifier such as `Mac15,3`, matching
 `^[A-Za-z0-9,]{1,32}$`, and `commit` is 7 to 40 lowercase hex digits or
 `unknown`. Anything that came from outside Pipit (an add-on's version, an

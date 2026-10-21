@@ -15,10 +15,13 @@ public enum SafariSensorSocket {
     }
 
     /// The Safari extension's own diagnostic events,
-    /// `<group container>/Diagnostics/safari-extension.ndjson`
-    /// (`docs/DIAGNOSTICS.md`, Files on this Mac). Nil without the group.
-    public static func diagnosticsFile() -> URL? {
-        groupContainer()?.appendingPathComponent("Diagnostics/safari-extension.ndjson")
+    /// in the shared container. Only event filenames are read into a report.
+    public static func diagnosticsFiles() -> [URL] {
+        guard let container = groupContainer() else { return [] }
+        let directory = DiagnosticLayout.safariExtension(groupContainer: container).events
+        let names = (try? FileManager.default.contentsOfDirectory(atPath: directory.path)) ?? []
+        return names.filter { EventFile(name: $0)?.family == .nativeHost }.sorted()
+            .map { directory.appendingPathComponent($0) }
     }
 
     private static func groupContainer() -> URL? {
