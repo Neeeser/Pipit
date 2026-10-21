@@ -1,3 +1,4 @@
+import AppKit
 import Foundation
 import PipitAudio
 import PipitCore
@@ -6,6 +7,7 @@ import Testing
 
 @testable import PipitDetection
 @testable import PipitServices
+@testable import PipitUI
 
 /// The places that record diagnostic events, checked against what must never
 /// reach the event log: anything said, typed or named in or around a meeting.
@@ -300,6 +302,20 @@ struct DiagnosticsInstrumentationTests {
                 .permissionState(permission: .systemAudio, state: .denied),
                 .permissionState(permission: .systemAudio, state: .granted),
             ])
+    }
+
+    @Test("the Diagnostics page builds with no log and with one")
+    @MainActor
+    func theDiagnosticsPageBuilds() throws {
+        let root = try TestPaths.makeTemporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        NSApplication.shared.setActivationPolicy(.prohibited)
+        let logs = DiagnosticLog(layout: DiagnosticLayout(root: root.appendingPathComponent("Logs")))
+        for log in [DiagnosticLog.disabled, logs] {
+            let runtime = PipitRuntime(settingsDirectory: root, diagnostics: log)
+            let model = SettingsModel(runtime: runtime, storedKeyLookup: { _ in false })
+            ViewFixtures.render(DiagnosticsSettingsPane(model: model))
+        }
     }
 
     // MARK: - helpers
