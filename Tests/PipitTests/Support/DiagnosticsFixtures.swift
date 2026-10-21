@@ -49,4 +49,17 @@ enum DiagnosticsFixtures {
         }
         return date
     }
+
+    /// The launch record `pipit-crash.ips` belongs to: pid 4242, started at
+    /// the report's `procLaunch`, on boot A.
+    static func crashedLaunch(clean: Bool = false, bootSession: String? = bootA) -> LaunchRecord {
+        LaunchRecord(
+            launch: "0f6e2a1b-3c4d-4e5f-8a9b-0c1d2e3f4a5b", pid: 4242,
+            startedAt: utc("2026-10-21T10:10:00.5Z"), bootSession: bootSession,
+            binaryUUID: "1a2b3c4d-5e6f-4a7b-8c9d-0e1f2a3b4c5d", version: "0.1.8", clean: clean
+        )
+    }
+
+    static let bootA = "5a6b7c8d-9e0f-4a1b-8c2d-3e4f5a6b7c8d"
+    static let bootB = "6b7c8d9e-0f1a-4b2c-9d3e-4f5a6b7c8d9e"
 }
