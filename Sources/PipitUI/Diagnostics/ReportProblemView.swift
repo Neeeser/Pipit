@@ -36,6 +36,7 @@ struct ReportProblemView: View {
                 }
             }
             .formStyle(.grouped)
+            .disclosureGroupStyle(ReportDisclosureStyle())
             .onChange(of: model.note) { model.holdToLimits() }
             .onChange(of: model.contact) { model.holdToLimits() }
 
@@ -175,5 +176,32 @@ private struct EventsSection: View {
         let encoder = DiagnosticCoding.makeReportEncoder()
         guard let data = try? encoder.encode(event) else { return "" }
         return String(decoding: data, as: UTF8.self)
+    }
+}
+
+/// The label and its empty space share the disclosure's hit area.
+private struct ReportDisclosureStyle: DisclosureGroupStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Button {
+                configuration.isExpanded.toggle()
+            } label: {
+                HStack(spacing: 6) {
+                    Image(systemName: "chevron.right")
+                        .font(.caption.weight(.semibold))
+                        .rotationEffect(.degrees(configuration.isExpanded ? 90 : 0))
+                        .accessibilityHidden(true)
+                    configuration.label
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
+                .padding(.vertical, 4)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityValue(configuration.isExpanded ? "Expanded" : "Collapsed")
+            if configuration.isExpanded {
+                configuration.content.padding(.leading, 18)
+            }
+        }
     }
 }

@@ -186,6 +186,58 @@ struct DiagnosticReportCollectorTests {
         #expect(sender.discarded.isEmpty)
     }
 
+    @Test("a successful send closes once and retains the sent report identity")
+    func aSuccessfulSendClosesOnce() async throws {
+        let base = try TestPaths.makeTemporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: base) }
+        let runtime = try Self.makeRuntime(base: base)
+        let sender = RecordingSender(handsOutIdentities: true)
+        let model = ReportProblemModel(
+            runtime: runtime, sender: sender,
+            collector: DiagnosticReportCollector(runtime: runtime, hasKey: { _ in false })
+        )
+        var closes = 0
+        model.onSent = { [weak model] in
+            #expect(model?.isSent == true)
+            closes += 1
+            model?.windowClosed()
+        }
+        await model.load()
+        await model.send()
+        await model.send()
+        #expect(closes == 1)
+        #expect(sender.reports.count == 1)
+        try await Task.sleep(for: .milliseconds(100))
+        #expect(sender.discarded.isEmpty)
+    }
+
+    @Test(
+        "an unconfirmed send keeps the window open",
+        arguments: [
+            DiagnosticSendOutcome.willRetry(at: Date(timeIntervalSince1970: 1)),
+            .rejected(.tooLarge), .failed, .unavailable,
+        ]
+    )
+    func anUnconfirmedSendKeepsTheWindowOpen(outcome: DiagnosticSendOutcome) async throws {
+        let base = try TestPaths.makeTemporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: base) }
+        let runtime = try Self.makeRuntime(base: base)
+        let sender = RecordingSender(outcome: outcome)
+        let model = ReportProblemModel(
+            runtime: runtime, sender: sender,
+            collector: DiagnosticReportCollector(runtime: runtime, hasKey: { _ in false })
+        )
+        var closes = 0
+        model.onSent = { closes += 1 }
+        await model.load()
+        model.note = "Synthetic problem description"
+        await model.send()
+        #expect(closes == 0)
+        #expect(model.note == "Synthetic problem description")
+        #expect(model.status != nil)
+        model.windowClosed()
+    }
+
     @Test("a crash report from the prompt has no note or address and starts at the crashed launch")
     func aCrashReportFromThePromptHasNoNote() async throws {
         let base = try TestPaths.makeTemporaryDirectory()
@@ -256,9 +308,11 @@ private final class RecordingSender: DiagnosticReportSending, @unchecked Sendabl
     private var given: [DiagnosticReportIdentity] = []
     private var returned: [DiagnosticReportIdentity] = []
     private let handsOutIdentities: Bool
+    private let outcome: DiagnosticSendOutcome?
 
-    init(handsOutIdentities: Bool = false) {
+    init(handsOutIdentities: Bool = false, outcome: DiagnosticSendOutcome? = nil) {
         self.handsOutIdentities = handsOutIdentities
+        self.outcome = outcome
     }
 
     var reports: [DiagnosticReport] { lock.withLock { held } }
@@ -278,6 +332,7 @@ private final class RecordingSender: DiagnosticReportSending, @unchecked Sendabl
 
     func send(_ report: DiagnosticReport) async -> DiagnosticSendOutcome {
         lock.withLock { held.append(report) }
+        if let outcome { return outcome }
         return .sent(
             DiagnosticReceipt(
                 reportID: report.reportID, kind: report.kind, sentAt: report.createdAt,
