@@ -1,6 +1,6 @@
 #!/bin/bash
-# Writes the debug symbols for the three executables in dist/Pipit.app and
-# checks that they symbolicate those exact binaries.
+# Writes the debug symbols for every executable Pipit builds into
+# dist/Pipit.app and checks that they symbolicate those exact binaries.
 #
 # A crash report from someone else's Mac names frames as an image and an
 # offset. Turning that into a function and a line takes a dSYM with the same
@@ -61,10 +61,30 @@ resolve_to_line() {
     grep -m1 -E '[.]swift:[1-9][0-9]*[)]' <<<"$resolved"
 }
 
-for name in Pipit pipit-nativehost pipit-cli; do
-    binary="$APP/Contents/MacOS/$name"
+# The SwiftPM product each executable in the bundle is copied from. An
+# executable missing here fails the script rather than leaving a release
+# without its symbols, so a new one is added here when bundle-app.sh gains it.
+product_for() {
+    case "$1" in
+        Contents/MacOS/Pipit) echo Pipit ;;
+        Contents/MacOS/pipit-nativehost) echo pipit-nativehost ;;
+        Contents/MacOS/pipit-cli) echo pipit-cli ;;
+        Contents/PlugIns/PipitSafariExtension.appex/Contents/MacOS/PipitSafariExtension) echo pipit-safari-extension ;;
+        *) return 1 ;;
+    esac
+}
+
+# Every executable Pipit builds, wherever the bundle puts it. Sparkle ships
+# its own, already built, under Frameworks.
+executables="$(cd "$APP" && find Contents -path Contents/Frameworks -prune -o -path '*/MacOS/*' -type f -perm -u+x -print | sort)"
+[ -n "$executables" ] || { echo "no executables found in $APP" >&2; exit 1; }
+
+for path in $executables; do
+    product="$(product_for "$path")" || { echo "no build product known for $path; add it to product_for" >&2; exit 1; }
+    binary="$APP/$path"
+    name="$(basename "$path")"
     dsym="$SYMBOLS/$name.dSYM"
-    xcrun dsymutil "$BIN_DIR/$name" -o "$dsym"
+    xcrun dsymutil "$BIN_DIR/$product" -o "$dsym"
     if [ "$(uuids "$binary")" != "$(uuids "$dsym")" ]; then
         echo "the dSYM for $name does not match the bundled binary:" >&2
         uuids "$binary" >&2
