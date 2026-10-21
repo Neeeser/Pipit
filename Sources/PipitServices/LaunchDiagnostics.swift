@@ -38,7 +38,14 @@ struct LaunchDiagnostics: Sendable {
     /// records the answer. Then, when the previous exit had no report yet,
     /// looks again after `ExitClassifier.rescanDelay`, because ReportCrash can
     /// finish writing after Pipit has relaunched, and records the upgrade.
-    func begin(_ record: LaunchRecord, diagnostics: DiagnosticLog, now: @Sendable () -> Date) async {
+    ///
+    /// `classified` hears each answer with the previous launch's record: the
+    /// first, and the upgrade when there is one. A crash is what the crash
+    /// prompt and automatic sharing act on.
+    func begin(
+        _ record: LaunchRecord, diagnostics: DiagnosticLog, now: @Sendable () -> Date,
+        classified: @Sendable (ExitClassification, LaunchRecord) async -> Void = { _, _ in }
+    ) async {
         guard let previous = try? launchRecords.begin(record) else { return }
         let window = previous.startedAt.addingTimeInterval(-ExitClassifier.launchLeadTolerance)
         let found = scanner.scan(since: window)
@@ -50,6 +57,7 @@ struct LaunchDiagnostics: Sendable {
         else { return }
         let previousLaunch = DiagnosticLaunchID(string: previous.launch)
         diagnostics.record(.appPreviousExit(exitClass: classification.exitClass, previousLaunch: previousLaunch))
+        await classified(classification, previous)
         guard classification.exitClass == .uncleanUnknown else { return }
 
         try? await Task.sleep(for: .seconds(ExitClassifier.rescanDelay))
@@ -57,6 +65,7 @@ struct LaunchDiagnostics: Sendable {
         scanner.store(later, now: now())
         if let upgraded = ExitClassifier.upgrade(classification, previous: previous, reports: later) {
             diagnostics.record(.appPreviousExit(exitClass: upgraded.exitClass, previousLaunch: previousLaunch))
+            await classified(upgraded, previous)
         }
     }
 

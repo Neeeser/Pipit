@@ -235,17 +235,35 @@ public final class PipitRuntime {
     /// The launch record and crash-report reading, present only when the log
     /// writes to disk.
     @ObservationIgnored private var launchDiagnostics: LaunchDiagnostics?
+    /// Sends reports, and keeps the outbox and the receipts. Nil when the log
+    /// writes nowhere, which is every runtime a test builds without one.
+    @ObservationIgnored public private(set) var reports: DiagnosticReportSender?
+    /// Automatic sharing, and the retries of every queued report.
+    @ObservationIgnored public private(set) var sharing: DiagnosticSharingScheduler?
+    @ObservationIgnored private var networkMonitor: DiagnosticNetworkMonitor?
+    @ObservationIgnored private var sharingLoop: Task<Void, Never>?
+    /// Turning sharing on and off, in the order the person did it.
+    @ObservationIgnored private var sharingChange: Task<Void, Never>?
+    /// The crash of the previous launch the person was asked about. While it
+    /// is set the menu highlights Report a Problem. Kept in memory only: a
+    /// crash is offered once, at the launch after it.
+    public internal(set) var crashReportOffer: CrashReportOffer?
 
     /// `backend` is the cloud client the pipeline and its cloud stages use.
     /// It is a parameter so a test can drive the pipeline this runtime files
     /// through, which is the same object the folder holds live on.
     ///
     /// `diagnostics` is handed to every subsystem that records events.
+    /// `reportTransport` and `deletionSecrets` stand in for the report
+    /// service and the Keychain; nil means the real ones, and only when the
+    /// log writes to disk.
     public init(
         settingsDirectory: URL = SensorTransport.defaultApplicationSupport,
         clock: any Clock = SystemClock(),
         backend: (any AIBackend)? = nil,
         diagnostics: DiagnosticLog = .disabled,
+        reportTransport: (any DiagnosticReportTransport)? = nil,
+        deletionSecrets: (any DiagnosticDeletionSecrets)? = nil,
         trash: @escaping @Sendable (URL) throws -> Void = {
             try FileManager.default.trashItem(at: $0, resultingItemURL: nil)
         }
@@ -408,6 +426,35 @@ public final class PipitRuntime {
         )
         relay.connect(runtime: self)
         seedStatus(from: loaded)
+        if let layout = diagnostics.layout {
+            configureReports(layout: layout, transport: reportTransport, secrets: deletionSecrets)
+        }
+    }
+
+    /// The sender and the scheduler, over this log's folder. The scheduler
+    /// reads the setting from the snapshot, asks the main actor whether Pipit
+    /// is busy, and asks the monitor about the network.
+    private func configureReports(
+        layout: DiagnosticLayout, transport: (any DiagnosticReportTransport)?,
+        secrets: (any DiagnosticDeletionSecrets)?
+    ) {
+        let sender = DiagnosticReportSender(
+            layout: layout,
+            transport: transport ?? DiagnosticReportClient(configuration: .standard()),
+            secrets: secrets ?? KeychainDeletionSecrets(),
+            diagnostics: diagnostics
+        )
+        let monitor = DiagnosticNetworkMonitor()
+        let snapshot = settingsSnapshot
+        reports = sender
+        networkMonitor = monitor
+        sharing = DiagnosticSharingScheduler(
+            sender: sender,
+            layout: layout,
+            isEnabled: { snapshot.withLock { $0.sharesDiagnosticsAutomatically } },
+            isBusy: { [relay] in await relay.runtimeForCallbacks?.isBusyForDiagnostics ?? true },
+            network: { monitor.condition }
+        )
     }
 
     /// What the add-on last reported, carried into the status before detection
@@ -428,6 +475,7 @@ public final class PipitRuntime {
     public func start() {
         diagnostics.record(.appLaunched(DiagnosticEnvironment.current()))
         beginLaunchDiagnostics()
+        startReportDelivery()
         notifications.registerCategories()
         installNativeMessagingHost()
         // A job killed mid-export leaves a partial track behind. Nothing ever
@@ -484,6 +532,9 @@ public final class PipitRuntime {
     public func stop() {
         permissionWatch?.cancel()
         permissionWatch = nil
+        sharingLoop?.cancel()
+        sharingLoop = nil
+        networkMonitor?.stop()
         detectionEngine.stop()
         if status.hasActiveSession { stopRecording(reason: "app_quit") }
     }
@@ -497,8 +548,39 @@ public final class PipitRuntime {
         let version = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "unknown"
         let record = LaunchDiagnostics.record(launch: diagnostics.launch, version: version, now: Date())
         launchDiagnostics = launch
-        Task.detached(priority: .utility) { [diagnostics] in
-            await launch.begin(record, diagnostics: diagnostics, now: { Date() })
+        // The relay holds the runtime weakly, so holding the relay for the two
+        // minutes the rescan waits keeps nothing alive.
+        Task.detached(priority: .utility) { [diagnostics, relay] in
+            await launch.begin(
+                record, diagnostics: diagnostics, now: { Date() },
+                classified: { classification, previous in
+                    await relay.runtimeForCallbacks?.handlePreviousExit(classification, previous: previous)
+                }
+            )
+        }
+    }
+
+    /// Watches the network and starts the scheduler's looks. The first comes
+    /// minutes after launch, so sending never competes with starting up.
+    private func startReportDelivery() {
+        guard let reports, let sharing else { return }
+        networkMonitor?.start()
+        Task.detached(priority: .utility) { await reports.removeStrays() }
+        sharingLoop = sharing.run()
+    }
+
+    /// Follows the automatic sharing switch: on starts its clock, off removes
+    /// the automatic reports still queued.
+    private func automaticSharingDidChange(to isOn: Bool) {
+        guard let sharing else { return }
+        let previous = sharingChange
+        sharingChange = Task.detached(priority: .utility) {
+            await previous?.value
+            if isOn {
+                await sharing.enable()
+            } else {
+                await sharing.disable()
+            }
         }
     }
 
@@ -752,8 +834,10 @@ public final class PipitRuntime {
         // pairing a previous build stored normalizes on the next save.
         newSettings.coupleDiarization()
         let rootChanged = newSettings.storageRootPath != settings.storageRootPath
+        let sharingChanged = newSettings.sharesDiagnosticsAutomatically != settings.sharesDiagnosticsAutomatically
         settings = newSettings
         settingsSnapshot.withLock { $0 = newSettings }
+        if sharingChanged { automaticSharingDidChange(to: newSettings.sharesDiagnosticsAutomatically) }
         do {
             try settingsStore.save(newSettings)
         } catch {
