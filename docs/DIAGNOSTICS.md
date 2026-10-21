@@ -302,6 +302,93 @@ The fixture `Tests/Fixtures/Diagnostics/report-v1.json` is a
 synthetic valid report. The website's tests validate the same file, so a change
 to the format breaks one side's tests until both agree.
 
+### Sections
+
+Built by `DiagnosticSnapshot` (PipitCore) from values the service layer
+reads.
+
+- `app`: `version`, `build` (0 when not a number), `commit`, `channel`
+  (`dev` for a `-dev.<sha>` version, `prerelease` for any other suffix,
+  `release` for none), and `configuration` (`debug` or `release`).
+- `system`: `os`, `osBuild`, `hardware`, and `arch` as `app.launched` records
+  them; `memoryGB` rounded to the nearest whole GiB; `cpuCores`, the logical
+  core count; `freeDisk` for the home folder's volume; and `language`, the
+  language code of the first preferred language, without its region
+  (`en` for `en-GB`), or `unknown`.
+- **Free disk** is a bucket in decimal gigabytes, never a byte count: `lt5GB`,
+  `5-20GB`, `20-100GB`, `gt100GB`, or `unknown` when the volume does not say.
+  `<` and `>` break the token rule.
+- `summary.settings`: the keys below and nothing else.
+- `summary.permissions`: every permission named as in `permission.state`,
+  with its state. A grant System Settings shows that the running build cannot
+  use is `restricted`.
+- `summary.models`: one row per unit that has a receipt or that the settings
+  need, in `LocalModelUnit` order. `state` is `installed` (the receipt names
+  this build's pinned revision), `outdated` (another revision), or, for a
+  needed unit with no receipt, `installing`, `failed`, or `missing`.
+  `revision` is the receipt's with ` @ ` written `_` and any other space `-`
+  (`parakeet-tdt-0.6b-v3-int8_FluidAudio-0.15.6`), or `invalid` when that
+  still breaks the token rule. `bytes` is the receipt's. A receipt's `detail`
+  is never read.
+- `summary.browserAddOns`: one row each for `firefox`, `chrome`, and
+  `safari`. `state` is `on` while the add-on holds its connection, `off` when
+  it has not connected this launch, and `disconnected` when it did and
+  dropped. `addonVersion`, `hostVersion`, and `protocol` are what the add-on
+  said when it connected; Firefox's fall back to what it last reported, kept
+  in settings. `hostManifest` is whether the native messaging manifest is in
+  place: Firefox's, or for Chrome any Chromium browser's.
+  `chromiumHostManifests`, on Chrome's row only, maps each Chromium browser
+  that has run on this Mac (`chrome`, `chrome_beta`, `chrome_canary`,
+  `chromium`, `brave`, `microsoft_edge`, `arc`, `vivaldi`) to whether its own
+  manifest is in place, since each reads only its own folder. Safari's row has
+  no host fields: its extension does not use the host.
+- `summary.storage`: `meetings`, counted as the Meetings window counts them,
+  and `freeDisk` for the meetings folder's volume.
+- `summary.recentFailures`: the ten newest failures still standing on
+  meetings: `stage`, `code` (the DiagnosticCode recorded with the failure, or
+  `unknown` for one recorded before codes were kept), `retryable`,
+  `attempts` at that stage, and `at`. The failure's message is never read; it
+  is prose for the person and can name a file.
+- `summary.diagnostics`: `eventsDropped`, the sum of every
+  `diagnostics.dropped` count in the log; `oldestEvent`, the oldest event on
+  this Mac, left out when there is none; `eventsIncluded`; and
+  `eventsOmitted`.
+
+### Settings in a report
+
+An allowlist written key by key in `DiagnosticSnapshot.settings`. A field
+added to `AppSettings` stays out of reports until it is added there, here,
+and to the test that holds the two equal. Free text never appears: it becomes
+a count or a yes/no.
+
+| Key | Value |
+| --- | --- |
+| `launchAtLogin`, `showNotifications`, `showsDockIcon`, `receivesBetaUpdates`, `hasCompletedOnboarding` | Booleans |
+| `transcriptionBackend`, `diarizationBackend` | `local` or `openai` |
+| `localTranscriptionModel` | `LocalTranscriptionModel` |
+| `cloudTranscriptionModel` | One of the models Settings offers, else `custom` (`none` when empty) |
+| `recognizeKnownVoices`, `rememberRecurringVoices`, `learnMyVoice`, `learnFromCorrections` | Booleans |
+| `hasLocalUserIdentity` | Whether a voice identity stands for the person using this Mac |
+| `vocabularyHintCount` | How many vocabulary hints there are |
+| `metadataProvider` | `openai`, `openrouter`, `ollama`, or `custom` |
+| `metadataModel` | OpenAI: one of the models Settings offers, else `custom`. OpenRouter: a catalogue identifier `vendor/model` written `vendor:model`, else `custom`. Ollama and a custom endpoint: always `custom`. `none` when empty |
+| `metadataContextTokens` | The context window requests are sized to |
+| `hasOpenAIKey`, `hasOpenRouterKey`, `hasCustomEndpointKey` | Whether the Keychain holds a key, asked without reading it |
+| `customEndpointScheme` | `none` (nothing typed), `http`, `https`, or `other` (not a web address) |
+| `customEndpointIsLoopback` | Whether the endpoint is `localhost`, `127.x`, or `::1` |
+| `generateTitle`, `generateDescription`, `generateNotes`, `generateSummary`, `suggestSpeakers`, `suggestFolders`, `filesMatchingMeetings`, `noticesRecurringMeetings` | Booleans |
+| `folderReach` | `SuggestionReach` |
+| `hasLocalUserName` | Whether a name other than the default is set |
+| `segmentSeconds`, `preRollSeconds`, `meetingEndGraceSeconds`, `meetingReconnectWindowSeconds` | Numbers |
+| `alwaysRecordAppCount`, `neverRecordAppCount` | Lengths of the two application lists |
+| `detectionPaused` | Boolean |
+| `slackAutoStart`, `googleMeetAutoStart`, `zoomAutoStart`, `faceTimeAutoStart`, `unknownCallsAutoStart` | `always`, `ask`, or `never` |
+| `slackAutoStop`, `googleMeetAutoStop`, `zoomAutoStop`, `faceTimeAutoStop`, `unknownCallsAutoStop` | Booleans |
+| `storageRoot` | `default` or `custom` |
+| `storageVolume` | `internal`, `external`, `network`, `cloud_synced` (in iCloud Drive, under `~/Library/CloudStorage`, or synced in place by iCloud), or `unknown` |
+| `firefoxProfileAccess` | `notAsked`, `allowed`, or `blocked` |
+| `firefoxSensorHasConnected` | Boolean |
+
 ## Report service
 
 Hosted by the website project on Vercel, storing into its Neon Postgres
