@@ -1,0 +1,97 @@
+{
+  "schemaVersion": 1,
+  "reportID": "5b0c6a3e-8f1d-4c2a-9e7b-1d2f3a4b5c6d",
+  "kind": "user",
+  "createdAt": "2026-10-21T03:18:16Z",
+  "deletionSecretHash": "q1W2e3R4t5Y6u7I8o9P0a1S2d3F4g5H6j7K8l9Z0x1C",
+  "app": {
+    "version": "0.1.8",
+    "build": 812,
+    "commit": "9e8e301640b62399dfabc104e5252138a5f09925",
+    "channel": "release",
+    "configuration": "release"
+  },
+  "system": {
+    "os": "15.6.1",
+    "osBuild": "24G90",
+    "hardware": "Mac15,3",
+    "arch": "arm64",
+    "memoryGB": 16,
+    "cpuCores": 8,
+    "freeDisk": "20-100GB",
+    "language": "en"
+  },
+  "summary": {
+    "settings": {
+      "launchAtLogin": true,
+      "showNotifications": true,
+      "receivesBetaUpdates": false,
+      "transcriptionBackend": "local",
+      "localTranscriptionModel": "parakeet",
+      "diarizationBackend": "local",
+      "metadataProvider": "ollama",
+      "metadataModel": "custom",
+      "customEndpointScheme": "none",
+      "hasOpenAIKey": false,
+      "hasOpenRouterKey": false,
+      "hasLocalUserName": true,
+      "vocabularyHintCount": 3,
+      "alwaysRecordAppCount": 0,
+      "neverRecordAppCount": 1,
+      "storageRoot": "default",
+      "storageVolume": "internal",
+      "segmentSeconds": 300,
+      "preRollSeconds": 5
+    },
+    "permissions": {
+      "microphone": "granted",
+      "system_audio": "granted",
+      "accessibility": "granted",
+      "calendar": "denied",
+      "notifications": "granted"
+    },
+    "models": [
+      {"unit": "parakeet", "state": "installed", "revision": "parakeet-tdt-0.6b-v3_FluidAudio-0.15.6", "bytes": 482345678},
+      {"unit": "diarizer", "state": "installed", "revision": "FluidAudio-0.15.6", "bytes": 32145678}
+    ],
+    "browserAddOns": [
+      {"browser": "firefox", "state": "on", "addonVersion": "1.0.1", "hostVersion": "1.1.0", "protocol": 2, "hostManifest": true},
+      {"browser": "chrome", "state": "off", "hostManifest": true},
+      {"browser": "safari", "state": "on", "addonVersion": "1.0.1", "protocol": 2}
+    ],
+    "storage": {"meetings": 42, "freeDisk": "20-100GB"},
+    "recentFailures": [
+      {"stage": "enriching", "code": "language_model.unreachable", "retryable": true, "attempts": 3, "at": "2026-10-20T18:02:11Z"}
+    ],
+    "diagnostics": {"eventsDropped": 0, "oldestEvent": "2026-10-07T08:00:00Z", "eventsIncluded": 6, "eventsOmitted": 0}
+  },
+  "events": [
+    {"v": 1, "t": "2026-10-20T17:00:00.000Z", "launch": "0f6e2a1b-3c4d-4e5f-8a9b-0c1d2e3f4a5b", "kind": "app.launched", "p": {"version": "0.1.8", "build": 812, "commit": "9e8e301640b62399dfabc104e5252138a5f09925", "os": "15.6.1", "osBuild": "24G90", "hardware": "Mac15,3", "arch": "arm64"}},
+    {"v": 1, "t": "2026-10-20T17:00:01.250Z", "launch": "0f6e2a1b-3c4d-4e5f-8a9b-0c1d2e3f4a5b", "kind": "app.previous_exit", "p": {"class": "clean", "previousLaunch": "7d3c2b1a-0f9e-4d8c-b7a6-5f4e3d2c1b0a"}},
+    {"v": 1, "t": "2026-10-20T17:30:00.000Z", "launch": "0f6e2a1b-3c4d-4e5f-8a9b-0c1d2e3f4a5b", "session": "a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d", "kind": "session.started", "p": {"source": "google_meet", "trigger": "auto", "segmentSeconds": 300}},
+    {"v": 1, "t": "2026-10-20T18:00:00.000Z", "launch": "0f6e2a1b-3c4d-4e5f-8a9b-0c1d2e3f4a5b", "session": "a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d", "kind": "session.stopped", "p": {"trigger": "auto", "seconds": 1800, "segments": 6}},
+    {"v": 1, "t": "2026-10-20T18:02:11.000Z", "launch": "0f6e2a1b-3c4d-4e5f-8a9b-0c1d2e3f4a5b", "session": "a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d", "job": "b2c3d4e5-f6a7-4b8c-9d0e-1f2a3b4c5d6e", "kind": "processing.stage_failed", "p": {"stage": "enriching", "attempt": 3, "code": "language_model.unreachable", "retryable": true}},
+    {"v": 1, "t": "2026-10-20T18:05:00.000Z", "launch": "0f6e2a1b-3c4d-4e5f-8a9b-0c1d2e3f4a5b", "kind": "browser.addon_disconnected", "p": {"browser": "safari", "reason": "silence"}, "n": 2}
+  ],
+  "crashes": [
+    {
+      "incident": "c3d4e5f6-a7b8-4c9d-8e0f-1a2b3c4d5e6f",
+      "class": "crash",
+      "occurredAt": "2026-10-19T09:12:44Z",
+      "app": {"version": "0.1.8", "build": 812},
+      "os": "15.6.1",
+      "osBuild": "24G90",
+      "exceptionType": "EXC_BAD_ACCESS",
+      "signal": "SIGSEGV",
+      "termination": "SIGNAL.11",
+      "faultingThread": 0,
+      "frames": [{"image": 0, "offset": 123456}, {"image": 1, "offset": 7890}],
+      "images": [
+        {"name": "Pipit", "uuid": "1a2b3c4d-5e6f-4a7b-8c9d-0e1f2a3b4c5d", "arch": "arm64", "base": 4295000064},
+        {"name": "libswiftCore.dylib", "uuid": "2b3c4d5e-6f7a-4b8c-9d0e-1f2a3b4c5d6e", "arch": "arm64", "base": 6442450944}
+      ]
+    }
+  ],
+  "note": "The summary stopped after the meeting ended. Synthetic example.",
+  "contact": "someone@example.com"
+}
