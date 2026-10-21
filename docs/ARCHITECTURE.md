@@ -456,6 +456,16 @@ runtime gets `DiagnosticLog.disabled`. Each arm of capture starts a session
 identifier, which the meeting's `session_start` manifest line also carries.
 `pipit-nativehost` writes a file of its own beside the app's.
 
+A report is built in three steps. `DiagnosticReportCollector` (PipitServices)
+reads the runtime's state on the main actor, and the Keychain, volumes,
+archive, log and crash summaries off it. `DiagnosticSnapshot` (PipitCore)
+turns those answers into the report's sections through an allowlist written
+key by key. `DiagnosticBundleBuilder` adds the events and crashes, fits them to
+the server's limits, gzips the JSON, and refuses a report
+`DiagnosticReportValidator` would. Report a Problem previews the result and
+hands it to Export, which writes a `.zip` with `DiagnosticExport`, or to Send,
+through the `DiagnosticReportSending` the application gives `WindowManager`.
+
 ## Browser sensor
 
 ```text

@@ -42,7 +42,8 @@ public final class MenuBarController: NSObject, NSMenuDelegate {
         refreshButton()
 
         MainMenu.install(
-            target: self, showAbout: #selector(openAbout), showSettings: #selector(openSettings)
+            target: self, showAbout: #selector(openAbout), showSettings: #selector(openSettings),
+            reportProblem: #selector(openReportProblem)
         )
         runtime.observeStatus { [weak self, weak windows] in
             self?.refreshButton()
@@ -403,6 +404,12 @@ public final class MenuBarController: NSObject, NSMenuDelegate {
         checkForUpdates.isEnabled = updates.isAvailable
         menu.addItem(checkForUpdates)
 
+        let report = NSMenuItem(
+            title: "Report a Problem…", action: #selector(openReportProblem), keyEquivalent: ""
+        )
+        report.target = self
+        menu.addItem(report)
+
         let about = NSMenuItem(title: "About Pipit", action: #selector(openAbout), keyEquivalent: "")
         about.target = self
         menu.addItem(about)
@@ -532,6 +539,8 @@ public final class MenuBarController: NSObject, NSMenuDelegate {
     @objc private func checkForUpdates() { updates.checkForUpdates() }
 
     @objc private func openAbout() { windows.showAbout() }
+
+    @objc private func openReportProblem() { windows.showReportProblem() }
 
     @objc private func openPeople() { windows.showPeople() }
 

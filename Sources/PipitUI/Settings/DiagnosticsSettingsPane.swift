@@ -3,14 +3,17 @@ import PipitCore
 import PipitServices
 import SwiftUI
 
-/// What Pipit keeps about its own running, where it is, and a way to delete it.
+/// What Pipit keeps about its own running, where it is, a way to save it as
+/// a report, and a way to delete it.
 ///
-/// The report, export and automatic sharing controls join this page later.
+/// The sending and automatic sharing controls join this page later.
 struct DiagnosticsSettingsPane: View {
     let model: SettingsModel
     @State private var usedBytes: Int64?
     @State private var isConfirmingClear = false
     @State private var isClearing = false
+    @State private var isExporting = false
+    @State private var exportStatus: String?
 
     private var diagnostics: DiagnosticLog { model.runtime.diagnostics }
 
@@ -26,10 +29,15 @@ struct DiagnosticsSettingsPane: View {
                 }
                 HStack {
                     Button("Show in Finder") { showInFinder() }
+                    Button("Export Diagnostics…") { export() }
+                        .disabled(isExporting)
                     Button("Clear Diagnostics…") { isConfirmingClear = true }
                         .disabled(isClearing)
                 }
                 .disabled(diagnostics.layout == nil)
+                if let exportStatus {
+                    Text(exportStatus).font(.caption).foregroundStyle(.secondary)
+                }
             }
         }
         .formStyle(.grouped)
@@ -47,6 +55,28 @@ struct DiagnosticsSettingsPane: View {
         guard let root = diagnostics.layout?.root else { return }
         try? FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
         NSWorkspace.shared.open(root)
+    }
+
+    /// The same report Report a Problem previews, without a note, saved as a
+    /// `.zip` where the person chooses.
+    private func export() {
+        isExporting = true
+        exportStatus = nil
+        Task {
+            defer { isExporting = false }
+            let contents = await DiagnosticReportCollector(runtime: model.runtime).contents()
+            do {
+                let bundle = try await DiagnosticReportCollector.bundle(
+                    contents, kind: .user, identity: .provisional(), createdAt: Date()
+                )
+                if let url = try await DiagnosticExportPanel.save(bundle) {
+                    exportStatus = "Saved \(url.lastPathComponent)"
+                }
+            } catch {
+                Log.ui.error("diagnostics not exported: \(String(describing: error), privacy: .public)")
+                exportStatus = "Could not save the report."
+            }
+        }
     }
 
     private func clear() {
