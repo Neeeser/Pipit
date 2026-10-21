@@ -150,6 +150,12 @@ private final class RecordingSender: DiagnosticReportSending, @unchecked Sendabl
 
     func send(_ report: DiagnosticReport) async -> DiagnosticSendOutcome {
         lock.withLock { held.append(report) }
-        return .sent(reportID: report.reportID)
+        return .sent(
+            DiagnosticReceipt(
+                reportID: report.reportID, kind: report.kind, sentAt: report.createdAt,
+                receivedAt: report.createdAt, expiresAt: report.createdAt.addingTimeInterval(90 * 86_400),
+                bytes: 0
+            )
+        )
     }
 }

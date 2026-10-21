@@ -25,6 +25,7 @@ public struct NotificationService: Sendable {
         case captureProblem = "capture_problem"
         case processingProblem = "processing_problem"
         case readyToReview = "ready_to_review"
+        case crashReport = "crash_report"
     }
 
     public enum Action: String, Sendable {
@@ -32,6 +33,8 @@ public struct NotificationService: Sendable {
         case discard
         case reveal
         case retry
+        /// Opens the report about the crash, to read before sending.
+        case reviewCrash = "review_crash"
     }
 
     /// `UNUserNotificationCenter.current()` is a thread-safe singleton, so it is
@@ -77,7 +80,16 @@ public struct NotificationService: Sendable {
             ],
             intentIdentifiers: []
         )
-        center?.setNotificationCategories([keep, saved, failed])
+        let crashed = UNNotificationCategory(
+            identifier: Category.crashReport.rawValue,
+            actions: [
+                UNNotificationAction(
+                    identifier: Action.reviewCrash.rawValue, title: "Review…", options: [.foreground]
+                )
+            ],
+            intentIdentifiers: []
+        )
+        center?.setNotificationCategories([keep, saved, failed, crashed])
     }
 
     public func post(
@@ -138,6 +150,17 @@ public struct NotificationService: Sendable {
 
     public func captureProblem(_ warning: CaptureWarning) {
         post(title: "Recording problem", body: warning.message, category: .captureProblem)
+    }
+
+    /// Posted once for a crash of the previous launch while automatic
+    /// sharing is off. Dismissing it sends nothing.
+    public func crashReportOffer(incident: String) {
+        post(
+            title: "Pipit quit unexpectedly",
+            body: "Review a problem report before sending it.",
+            category: .crashReport,
+            userInfo: ["crashIncident": incident]
+        )
     }
 
     public func processingProblem(_ error: ProcessingError, meetingID: String) {

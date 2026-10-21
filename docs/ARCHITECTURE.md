@@ -461,10 +461,33 @@ reads the runtime's state on the main actor, and the Keychain, volumes,
 archive, log and crash summaries off it. `DiagnosticSnapshot` (PipitCore)
 turns those answers into the report's sections through an allowlist written
 key by key. `DiagnosticBundleBuilder` adds the events and crashes, fits them to
-the server's limits, gzips the JSON, and refuses a report
-`DiagnosticReportValidator` would. Report a Problem previews the result and
-hands it to Export, which writes a `.zip` with `DiagnosticExport`, or to Send,
-through the `DiagnosticReportSending` the application gives `WindowManager`.
+the server's limits, gzips the JSON with `DiagnosticCompression` (zlib), and
+refuses a report `DiagnosticReportValidator` would. Report a Problem previews
+the result and hands it to Export, which writes a `.zip` with
+`DiagnosticExport`, or to Send, through the `DiagnosticReportSending` the
+application gives `WindowManager`: the runtime's `DiagnosticReportSender`.
+When a sender is there, the window asks it for the report's ID and deletion
+secret before building the preview, so the preview is the report that is
+sent, and gives the identity back when it closes without sending.
+
+Reports leave the Mac through `DiagnosticReportSender`, an actor in
+`PipitServices`. It hands out each report's ID and deletion secret before the
+report is built (`KeychainDeletionSecrets`), writes the exact gzip body to
+`outbox/` before the first attempt, and sends it with `DiagnosticReportClient`
+in `PipitIntegrations`, an ephemeral `URLSession` against the website's report
+service. A confirmed report moves to the receipts in `sent.json`. Which answer
+drops, retries or confirms a report, and how long a retry waits, is pure policy
+in `PipitCore` (`DiagnosticSendPolicy`, `DiagnosticOutbox`), as are the rules
+of automatic sharing (`DiagnosticSharingPolicy`) and the crash prompt
+(`DiagnosticCrashRoute`, `DiagnosticCrashOffers`). `DiagnosticSharingScheduler`
+looks every 15 minutes: it retries what is due and, only while the setting is
+on, sends a crash report after a confirmed crash and a daily report, never
+while Pipit records or processes, offline, in Low Data Mode, or on an expensive
+network (`NWPathMonitor`). The application connects the collector and the
+bundle builder to it through `PipitRuntime.setDiagnosticReportBuilder`. A
+crash while sharing is off sets `PipitRuntime.crashReportOffer`, which
+highlights Report a Problem in the menu, and posts one notification whose
+Review… opens Report a Problem on a `crash` report.
 
 ## Browser sensor
 

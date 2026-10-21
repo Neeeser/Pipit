@@ -44,9 +44,12 @@ profiles:
 | `events/events-YYYY-MM-DD.ndjson` | App events, one JSON object per line | 2 MB per file, then `events-YYYY-MM-DD.1.ndjson`, `.2`; 14 days or 10 MB in total, oldest first |
 | `events/nativehost-YYYY-MM-DD.ndjson` | Events from `pipit-nativehost` | 256 KB per day, 14 days |
 | `state/launch.json` | The current launch record (below) | One file |
+| `state/automatic-sharing.json` | Automatic sharing's cut-off, next daily report, and crashes to send (Automatic sharing) | One file, deleted when sharing is turned off |
+| `state/crash-offers.json` | Crash incidents already offered to the person (Crash prompt) | 50 newest |
 | `crashes/<incident>.json` | Reduced crash summaries, each with its pid and launch time | 10 newest, 90 days |
-| `outbox/<reportID>.json.gz` | A report waiting to be confirmed | Until confirmed, at most 7 days |
-| `sent.json` | Receipts of sent reports, no secrets | Until the person removes them |
+| `outbox/<reportID>.json.gz` | The exact body of a report waiting to be confirmed | Until confirmed, at most 7 days |
+| `outbox/<reportID>.state.json` | That report's kind, times, attempts, and next attempt (Report service) | With its body |
+| `sent.json` | Receipts of sent reports, no secrets (Report service) | Until the person removes them |
 
 The Safari extension is sandboxed and writes
 `<app group container>/Diagnostics/safari-extension.ndjson`, capped at 64 KB,
@@ -56,8 +59,11 @@ Deletion secrets live in the Keychain: service
 `com.pipit.app.report-deletion`, account = report ID.
 
 **Clear Diagnostics** deletes `events/`, `state/` (except the current launch),
-`crashes/`, and `outbox/`. It keeps `sent.json` and the deletion secrets
-unless the person also chooses to forget sent reports.
+`crashes/`, and `outbox/` with the deletion secrets of the reports in it.
+Deleting `state/` restarts automatic sharing's cut-off from that moment and
+forgets which crashes were offered; the crashes are deleted with it. It keeps
+`sent.json` and the deletion secrets of sent reports unless the person also
+chooses **Clear and Forget Sent Reports**.
 
 ## Event lines
 
@@ -445,8 +451,62 @@ Keychain and the exact body in `outbox/`, and retries with the same ID and body.
 The server inserts with `ON CONFLICT (id) DO NOTHING` and compares the stored
 body hash and deletion hash; equal is a replay, different is `409`.
 
+The secret is 32 bytes from `SecRandomCopyBytes`, written as canonical
+base64url (43 characters, no padding). `deletionSecretHash` is
+base64url(SHA-256(UTF-8 of that string)). The Keychain account is the report
+ID in lowercase, and the report ID is a lowercase UUID everywhere the app
+writes it.
+
 **Deletion code.** Shown in Settings as `<reportID>.<deletion secret>` with
-**Copy deletion code**. It works on the website from any Mac.
+**Copy Deletion Code**. It works on the website from any Mac. **Delete from
+Server** sends the `DELETE`; on `204` or `404` the receipt and the Keychain
+item are removed.
+
+**The app's requests.** The base URL is the Info.plist key
+`PipitReportServiceURL`, or `https://pipit-website.vercel.app` when the key is
+missing, empty, or not an http or https URL. Every request carries
+`User-Agent: Pipit/<version>` and nothing the table above does not name. The
+session is ephemeral, with no cookie store, cache, or credential store. A
+request waits 30 seconds for an answer and a transfer at most 60. Log lines
+name the report ID, the compressed size, and the status, never a body, a
+secret, a note, or a contact.
+
+**Outbox.** `outbox/<reportID>.json.gz` is written before the first attempt
+and never rewritten; `<reportID>.state.json` beside it holds:
+
+```json
+{
+  "reportID": "lowercase UUID",
+  "kind": "user",
+  "createdAt": "the report's createdAt",
+  "queuedAt": "2026-10-21T03:18:16.000Z",
+  "automatic": false,
+  "bytes": 48213,
+  "attempts": 1,
+  "nextAttemptAt": "2026-10-21T03:19:01.000Z"
+}
+```
+
+`automatic` marks a report automatic sharing queued; a report the person
+sent, from Report a Problem or the crash prompt, is false. What an attempt
+does with the report:
+
+| Answer | The report | `report.sent` outcome |
+| --- | --- | --- |
+| `201`, or `200` with this report's receipt | Moves to `sent.json` | `accepted`, `replayed` |
+| `409`, `400`, `413`, `415`, any other `4xx` | Dropped with its secret | `rejected` |
+| `429`, `5xx`, no answer, or a `2xx` without this report's receipt | Kept for another attempt | `failed` |
+
+A wait doubles from 60 seconds to at most 6 hours, its upper half jittered,
+and is never shorter than `Retry-After` (seconds or an HTTP date, capped at 6
+hours). A pass over the outbox stops at the first report that fails, since
+the next would meet the same limit. A report still unconfirmed 7 days after it
+was queued is dropped with its secret. A report that would break the token
+rule or the limits is refused before it is sent.
+
+`sent.json` is `{"receipts": [...]}`, newest first, each
+`{reportID, kind, sentAt, receivedAt, expiresAt, bytes}`: `sentAt` is when the
+Mac had the answer and the other two times are the service's.
 
 **Server-side storage.**
 
@@ -492,7 +552,9 @@ the lower one.
 
 ## Automatic sharing
 
-Off by default. When on:
+Off by default, and off for a settings file written before the setting
+existed (`sharesDiagnosticsAutomatically`). Turning it on first shows what is
+sent and asks. When on:
 
 - A crash summary is sent at the next launch after a confirmed crash.
 - The events since the last confirmed upload are sent once a day.
@@ -500,4 +562,53 @@ Off by default. When on:
   expensive network.
 - A failed send retries with backoff and the same report ID; after 7 days the
   report is dropped.
-- Turning it off stops sending and empties the outbox.
+- Turning it off stops sending and empties the outbox of the reports it
+  queued.
+
+In detail. The scheduler looks 2 to 10 minutes after launch, then every 15
+minutes. A look first retries what is due in the outbox: reports the person
+sent always, automatic ones only when nothing below holds them back. While the
+setting is off nothing else happens, and nothing automatic is built.
+
+- **Holds.** Recording, a meeting about to record or ending, or processing;
+  no network; Low Data Mode (`isConstrained`); an expensive network
+  (`isExpensive`, cellular or a hotspot). The look is skipped and the next one
+  tries again.
+- **Start.** The first look with the setting on writes
+  `state/automatic-sharing.json`: events from that moment on, the first daily
+  report 24 hours plus up to an hour later. Events collected before it was
+  turned on are never sent.
+- **Crash.** A `crash` found at launch, or by the rescan 2 minutes later, is
+  noted in the state file and sent 1 to 5 minutes later as a `crash` report
+  with the events and crash summaries from the crashed launch's start. Each
+  incident is sent once.
+- **Daily.** When due, and when no daily report is already queued, an
+  `automatic` report with the events since `eventsSince`. When the service
+  confirms it, at once or on a retry, `eventsSince` moves to that report's
+  `createdAt`. The next one is due 24 hours plus up to an hour after the
+  attempt, whatever its answer.
+- **Off.** The state file is deleted, and every automatic report in the
+  outbox is removed with its secret. One that was already attempted is also
+  deleted from the service, best effort: the service may have stored it with
+  its answer lost. Turning sharing on again starts from that moment.
+
+```json
+{
+  "eventsSince": "2026-10-21T03:18:16.000Z",
+  "nextDailyAt": "2026-10-22T03:41:02.000Z",
+  "pendingCrashes": [{"incident": "lowercase UUID", "since": "…", "notedAt": "…"}],
+  "sentCrashes": ["lowercase UUID, the 50 newest"]
+}
+```
+
+## Crash prompt
+
+When the previous exit is classified `crash`, at launch or by the rescan, and
+automatic sharing is off, the incident is added to `state/crash-offers.json`.
+If it was not there, Pipit posts one notification, "Pipit quit unexpectedly",
+with **Review…**, and sets `PipitRuntime.crashReportOffer`, which the menu
+uses to highlight **Report a Problem…** until the person opens it or
+dismisses the offer. Review opens the report to read before sending; a
+dismissed or ignored notification sends nothing. `hang`, `unclean_unknown`,
+`system_restart`, and `clean` are never offered. The notification follows the
+Show notifications setting; the highlight does not.

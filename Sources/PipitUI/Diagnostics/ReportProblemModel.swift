@@ -80,8 +80,8 @@ public final class ReportProblemModel {
         defer { isWorking = false }
         switch await sender.send(bundle.report) {
         case .sent: status = "Sent."
-        case .queued: status = "Pipit will send the report when it can."
-        case .failed: status = "Could not send the report. Export it instead."
+        case .willRetry: status = "Pipit will send the report when it can."
+        case .rejected, .failed: status = "Could not send the report. Export it instead."
         case .unavailable: status = "Sending is not available in this version. Export the report instead."
         }
     }

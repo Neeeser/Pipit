@@ -1,31 +1,61 @@
 import Foundation
 import PipitCore
 
-/// What became of a report handed to a sender.
+/// Sends a built report to the report service (`docs/DIAGNOSTICS.md`, Report
+/// service).
+///
+/// `DiagnosticReportSender` is the implementation. The report it is handed
+/// carries the identity the sender gave out for it, from
+/// `DiagnosticReportSender.prepareIdentity()`, so the report previewed is
+/// the report sent.
+public protocol DiagnosticReportSending: Sendable {
+    func send(_ report: DiagnosticReport) async -> DiagnosticSendOutcome
+}
+
+/// How sending a report went, for the window that sent it.
 public enum DiagnosticSendOutcome: Sendable, Equatable {
-    /// The report service has it.
-    case sent(reportID: String)
-    /// Kept in the outbox, to be sent when it can be.
-    case queued(reportID: String)
-    /// It was not sent and is not waiting to be.
+    /// The service stored it. The receipt is in Sent reports.
+    case sent(DiagnosticReceipt)
+    /// Not confirmed yet. It stays queued and is tried again from this time,
+    /// with the same ID and body, for up to 7 days.
+    case willRetry(at: Date)
+    /// The service will not take it, or the app found it would not. Not
+    /// queued.
+    case rejected(DiagnosticSendRejection)
+    /// It could not be queued and the one attempt failed, or its queued body
+    /// is gone.
     case failed
     /// Nothing in this build sends reports.
     case unavailable
 }
 
-/// Sends a diagnostic report to the report service (`docs/DIAGNOSTICS.md`,
-/// Report service).
-///
-/// The report it is handed carries a provisional identity, made by
-/// `DiagnosticReportIdentity.provisional()`. A sender makes the report ID
-/// and the deletion secret it will keep before the first attempt, and writes
-/// both into the report before encoding it; the two are a fixed length, so
-/// the size the preview showed does not change.
-public protocol DiagnosticReportSending: Sendable {
-    func send(_ report: DiagnosticReport) async -> DiagnosticSendOutcome
+public enum DiagnosticSendRejection: Sendable, Equatable {
+    /// The report breaks the format: found by the app before sending, or a
+    /// 400 from the service with its code for the rule.
+    case invalidReport(error: String?)
+    /// 409: the ID is stored with other contents.
+    case conflict
+    /// Over the compressed limit, here or at the service.
+    case tooLarge
+    case unsupportedMediaType
+    case unexpectedStatus(Int)
 }
 
-/// The sender until one is wired in. Sends nothing.
+/// How deleting a sent report went.
+public enum DiagnosticDeletionOutcome: Sendable, Equatable {
+    /// The service deleted it.
+    case deleted
+    /// The service has no such report: expired, deleted from the website, or
+    /// the secret no longer matches. The receipt is removed either way.
+    case alreadyGone
+    /// The deletion secret is not in the Keychain, so this Mac cannot ask.
+    case noSecret
+    /// No answer, or an unexpected one. Nothing was removed.
+    case failed
+}
+
+/// The sender until one is wired in, and in a runtime whose log writes
+/// nowhere. Sends nothing.
 public struct UnavailableDiagnosticReportSender: DiagnosticReportSending {
     public init() {}
 
@@ -34,6 +64,7 @@ public struct UnavailableDiagnosticReportSender: DiagnosticReportSending {
 
 /// A report's ID and the hash of its deletion secret.
 public struct DiagnosticReportIdentity: Sendable, Equatable {
+    /// A lowercase UUID.
     public var reportID: String
     /// base64url(SHA-256(deletion secret)), 43 characters.
     public var deletionSecretHash: String
@@ -44,21 +75,14 @@ public struct DiagnosticReportIdentity: Sendable, Equatable {
     }
 
     /// A random ID, and 32 random bytes in the hash's place, for a report
-    /// that is previewed or exported. Nobody holds a secret that hashes to
-    /// it, and it says nothing about the Mac a sent report would not.
+    /// that is exported or previewed with no sender. Nobody holds a secret
+    /// that hashes to it, and it says nothing about the Mac a sent report
+    /// would not.
     public static func provisional() -> DiagnosticReportIdentity {
         var generator = SystemRandomNumberGenerator()
         let bytes = (0..<32).map { _ in UInt8.random(in: 0...255, using: &generator) }
         return DiagnosticReportIdentity(
-            reportID: UUID().uuidString.lowercased(), deletionSecretHash: base64URL(Data(bytes))
+            reportID: UUID().uuidString.lowercased(), deletionSecretHash: DiagnosticBase64URL.encode(Data(bytes))
         )
-    }
-
-    /// Unpadded base64url, the form the contract gives the hash in.
-    static func base64URL(_ data: Data) -> String {
-        data.base64EncodedString()
-            .replacingOccurrences(of: "+", with: "-")
-            .replacingOccurrences(of: "/", with: "_")
-            .replacingOccurrences(of: "=", with: "")
     }
 }

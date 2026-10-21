@@ -474,6 +474,11 @@ public struct AppSettings: Codable, Sendable, Equatable {
     /// asks for the add-on. Sparkle offers no hook for that moment: its
     /// installer tells the old process, which is already gone.
     public var lastLaunchedVersion: String?
+    /// Whether diagnostic reports go to the report service without asking: a
+    /// crash report after a crash, and a daily report of app events. Off by
+    /// default and in every file written before it existed
+    /// (`docs/DIAGNOSTICS.md`, Automatic sharing).
+    public var sharesDiagnosticsAutomatically: Bool
 
     public init(
         version: Int = AppSettings.currentVersion,
@@ -500,7 +505,8 @@ public struct AppSettings: Codable, Sendable, Equatable {
         firefoxProfileAccess: FirefoxProfileAccess = .notAsked,
         firefoxAddOnProtocol: Int? = nil,
         firefoxAddOnVersion: String? = nil,
-        lastLaunchedVersion: String? = nil
+        lastLaunchedVersion: String? = nil,
+        sharesDiagnosticsAutomatically: Bool = false
     ) {
         self.version = version
         self.storageRootPath = storageRootPath
@@ -526,6 +532,7 @@ public struct AppSettings: Codable, Sendable, Equatable {
         self.firefoxAddOnProtocol = firefoxAddOnProtocol
         self.firefoxAddOnVersion = firefoxAddOnVersion
         self.lastLaunchedVersion = lastLaunchedVersion
+        self.sharesDiagnosticsAutomatically = sharesDiagnosticsAutomatically
     }
 
     /// Every field decodes with its default when absent, so a settings file
@@ -626,6 +633,10 @@ public struct AppSettings: Codable, Sendable, Equatable {
         firefoxAddOnProtocol = try container.decodeIfPresent(Int.self, forKey: .firefoxAddOnProtocol)
         firefoxAddOnVersion = try container.decodeIfPresent(String.self, forKey: .firefoxAddOnVersion)
         lastLaunchedVersion = try container.decodeIfPresent(String.self, forKey: .lastLaunchedVersion)
+        // Sending needs a yes given in Settings, so a file without the key,
+        // or with one that does not read as a boolean, is off.
+        sharesDiagnosticsAutomatically =
+            (try? container.decodeIfPresent(Bool.self, forKey: .sharesDiagnosticsAutomatically)) ?? false
         // The stored number gated the migrations above; the decoded struct is
         // current-schema, and writing it back as such is what stops a
         // migration from re-running against a value the user has since chosen.
