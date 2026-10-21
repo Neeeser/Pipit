@@ -401,7 +401,7 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/bash;
-			shellScript = "set -euo pipefail\nplist=\"$TARGET_BUILD_DIR/$INFOPLIST_PATH\"\n{ read -r short; read -r build; } < <(\"$SRCROOT/scripts/app-version.sh\")\n/usr/libexec/PlistBuddy -c \"Set :CFBundleShortVersionString $short\" \"$plist\"\n/usr/libexec/PlistBuddy -c \"Set :CFBundleVersion $build\" \"$plist\"\n";
+			shellScript = "set -euo pipefail\nplist=\"$TARGET_BUILD_DIR/$INFOPLIST_PATH\"\n{ read -r short; read -r build; read -r commit; } < <(\"$SRCROOT/scripts/app-version.sh\")\n/usr/libexec/PlistBuddy -c \"Set :CFBundleShortVersionString $short\" \"$plist\"\n/usr/libexec/PlistBuddy -c \"Set :CFBundleVersion $build\" \"$plist\"\n/usr/libexec/PlistBuddy -c \"Set :PipitGitCommit $commit\" \"$plist\"\n";
 		};
 		B538C45AA53B2AD4F01D9BD5 /* Build and copy the browser sensor */ = {
 			isa = PBXShellScriptBuildPhase;

@@ -5,8 +5,10 @@ import os
 ///
 /// Meeting content never reaches the log. Titles, transcripts, notes, URLs and
 /// participant names are meeting content; identifiers, counts, durations and
-/// health states are operational and safe. Anything in between is logged through
-/// `redacted:` so it is hidden in release builds.
+/// health states are operational and safe. A file name is meeting content too:
+/// an imported recording is named by the person who made it. Anything in
+/// between is interpolated with `privacy: .private`, which the unified log
+/// redacts outside a debugger.
 public enum Log {
     public static let capture = Logger(subsystem: subsystem, category: "capture")
     public static let detection = Logger(subsystem: subsystem, category: "detection")

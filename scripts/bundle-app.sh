@@ -15,10 +15,10 @@ REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 source "$REPO_ROOT/scripts/spm-env.sh"
 
 CONFIG="${1:-release}"
-# scripts/app-version.sh owns the rule for both numbers, so the run script phase
-# in project.yml stamps what this script stamps. Set PIPIT_RELEASE=1 for the
-# plain release version; anything else builds as <VERSION>-dev.<short sha>.
-{ read -r SHORT_VERSION; read -r BUILD_NUMBER; } < <("$REPO_ROOT/scripts/app-version.sh")
+# scripts/app-version.sh owns the rule for all three values, so the run script
+# phase in project.yml stamps what this script stamps. Set PIPIT_RELEASE=1 for
+# the plain release version; anything else builds as <VERSION>-dev.<short sha>.
+{ read -r SHORT_VERSION; read -r BUILD_NUMBER; read -r GIT_COMMIT; } < <("$REPO_ROOT/scripts/app-version.sh")
 # Read from the plist so the signing identifier and the bundle cannot drift.
 BUNDLE_ID="$(/usr/libexec/PlistBuddy -c "Print :CFBundleIdentifier" "$REPO_ROOT/App/Info.plist")"
 UPDATE_KEY="$(/usr/libexec/PlistBuddy -c "Print :SUPublicEDKey" "$REPO_ROOT/App/Info.plist" 2>/dev/null || true)"
@@ -90,11 +90,12 @@ for state in idle recording paused warning; do
     cp "$REPO_ROOT/Assets/Pipit/MenuBar/pipit-$state@2x.png" "$APP_DIR/Contents/Resources/"
 done
 
-# The version keys are the only two the build stamps. Everything else in the
-# bundle plist is what App/Info.plist says.
+# The two version keys and the commit are the only keys the build stamps.
+# Everything else in the bundle plist is what App/Info.plist says.
 cp "$REPO_ROOT/App/Info.plist" "$APP_DIR/Contents/Info.plist"
 /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString $SHORT_VERSION" "$APP_DIR/Contents/Info.plist"
 /usr/libexec/PlistBuddy -c "Set :CFBundleVersion $BUILD_NUMBER" "$APP_DIR/Contents/Info.plist"
+/usr/libexec/PlistBuddy -c "Set :PipitGitCommit $GIT_COMMIT" "$APP_DIR/Contents/Info.plist"
 
 # The identity, in order: the one named in the environment, the local
 # development certificate `scripts/make-signing-identity.sh` creates, then

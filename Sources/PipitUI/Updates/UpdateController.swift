@@ -72,7 +72,7 @@ public final class UpdateController: NSObject, SPUUpdaterDelegate {
             self.updater = updater
             Log.ui.info("updater started")
         } catch {
-            Log.ui.error("updater not started: \(error.localizedDescription, privacy: .public)")
+            Log.ui.error("updater not started: \(logSafeDescription(error), privacy: .public)")
         }
         noticeLaunchAfterUpdate()
     }
@@ -152,7 +152,7 @@ public final class UpdateController: NSObject, SPUUpdaterDelegate {
                 let notes = try await loader.load(version: version)
                 self?.model.notesLoaded(notes)
             } catch {
-                Log.ui.info("release notes not loaded: \(error.localizedDescription, privacy: .public)")
+                Log.ui.info("release notes not loaded: \(logSafeDescription(error), privacy: .public)")
                 self?.model.notesFailed()
             }
         }

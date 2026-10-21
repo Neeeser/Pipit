@@ -22,6 +22,12 @@
     <string>$(MARKETING_VERSION)</string>
     <key>CFBundleVersion</key>
     <string>$(CURRENT_PROJECT_VERSION)</string>
+    <!-- The commit the bundle was built from. Both build routes stamp it from
+         scripts/app-version.sh; `unknown` is what a build that skipped the
+         stamp carries. A release reads plain VERSION, so this is what names
+         its source and the debug symbols that match it. -->
+    <key>PipitGitCommit</key>
+    <string>unknown</string>
     <key>LSMinimumSystemVersion</key>
     <string>15.0</string>
     <!-- Pipit has no main window and no Dock slot by default. The Dock slot is

@@ -1,9 +1,9 @@
 #!/bin/bash
-# Prints the two version numbers a Pipit build stamps into its Info.plist: the
-# short version on the first line, the build number on the second.
+# Prints what a Pipit build stamps into its Info.plist: the short version on the
+# first line, the build number on the second, and the full commit on the third.
 #
 # scripts/bundle-app.sh and the run script phase in project.yml both read it, so
-# a bundle assembled either way carries the same two numbers.
+# a bundle assembled either way carries the same three values.
 #
 # The build number is the commit count. It rises with every commit, so any two
 # checkouts are ordered, and Sparkle compares it to decide whether a feed item
@@ -13,6 +13,11 @@
 # release workflow does. Every other build reads <VERSION>-dev.<short sha>. A
 # dirty working tree adds nothing, so the sha names the commit the build started
 # from and nothing more.
+#
+# The commit goes into PipitGitCommit. A release reads plain VERSION, so this
+# is what names the exact source of a released build, and it is the key that
+# picks the debug symbols for a crash report. A tree with no git prints
+# `unknown`.
 #
 # PIPIT_BUILD_NUMBER overrides the commit count.
 #
@@ -28,6 +33,7 @@ VERSION="$(cat "$REPO_ROOT/VERSION" 2>/dev/null || echo "0.1.0")"
 # what it has, which is why both workflows check out at full depth.
 COMMIT_COUNT="$(git -C "$REPO_ROOT" rev-list --count HEAD 2>/dev/null || true)"
 SHA="$(git -C "$REPO_ROOT" rev-parse --short=7 HEAD 2>/dev/null || true)"
+COMMIT="$(git -C "$REPO_ROOT" rev-parse HEAD 2>/dev/null || true)"
 
 BUILD_NUMBER="${PIPIT_BUILD_NUMBER:-${COMMIT_COUNT:-1}}"
 
@@ -39,4 +45,4 @@ else
     SHORT_VERSION="$VERSION-dev"
 fi
 
-printf '%s\n%s\n' "$SHORT_VERSION" "$BUILD_NUMBER"
+printf '%s\n%s\n%s\n' "$SHORT_VERSION" "$BUILD_NUMBER" "${COMMIT:-unknown}"

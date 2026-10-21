@@ -157,10 +157,22 @@ public enum ProcessingError: LogSafeError, Equatable {
         case .transport(let reason): "transport(\(reason))"
         case .localProcessingFailed(let reason, _): "local(\(reason))"
         case .languageModel(_, let failure): "languageModel(\(failure.logSafeDescription))"
-        case .audioUnreadable(let path): "audioUnreadable(\(path))"
+        case .audioUnreadable(let path): "audioUnreadable(\(Self.logSafeExtension(of: path)))"
         case .utteranceNotFound: "utteranceNotFound"
         case .cancelled: "cancelled"
         }
+    }
+
+    /// The extension of a file name, which says what kind of audio failed.
+    /// The rest of the name stays out of the log: an imported recording is
+    /// named by the person who made it, often after the meeting. Anything that
+    /// is not a short alphanumeric extension is logged as `-`.
+    static func logSafeExtension(of name: String) -> String {
+        let pathExtension = (name as NSString).pathExtension.lowercased()
+        guard (1...5).contains(pathExtension.count),
+            pathExtension.allSatisfy({ $0.isASCII && ($0.isLetter || $0.isNumber) })
+        else { return "-" }
+        return "." + pathExtension
     }
 
     /// The message shown to the user. Every one of these reassures about the audio,

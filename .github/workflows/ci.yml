@@ -171,6 +171,13 @@ jobs:
           codesign --verify --verbose=1 dist/Pipit.app
           /usr/libexec/PlistBuddy -c "Print :LSUIElement" dist/Pipit.app/Contents/Info.plist
           test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIconFile' dist/Pipit.app/Contents/Info.plist)" = "Pipit.icns"
+          test "$(/usr/libexec/PlistBuddy -c 'Print :PipitGitCommit' dist/Pipit.app/Contents/Info.plist)" = "$(git rev-parse HEAD)"
+
+      - name: Archive and check the debug symbols
+        # The release workflow attaches these to every release. Running the
+        # same script here means a change that leaves a release without
+        # symbols that match its binaries fails on the pull request instead.
+        run: ./scripts/archive-dsyms.sh
 
   notarized-test:
     name: Notarized test app

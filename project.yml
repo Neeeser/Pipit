@@ -146,9 +146,9 @@ targets:
           - $(BUILT_PRODUCTS_DIR)/$(CONTENTS_FOLDER_PATH)/Resources/extension/chrome/manifest.json
 
       - name: Stamp the version into Info.plist
-        # scripts/app-version.sh prints the short version and the build number,
-        # the same two values scripts/bundle-app.sh writes. An Xcode build and a
-        # scripted bundle then carry the same numbers.
+        # scripts/app-version.sh prints the short version, the build number and
+        # the commit, the same three values scripts/bundle-app.sh writes. An
+        # Xcode build and a scripted bundle then carry the same values.
         #
         # The phase declares no outputs and turns dependency analysis off, so it
         # runs on every build. The numbers follow HEAD rather than any file
@@ -160,9 +160,10 @@ targets:
         script: |
           set -euo pipefail
           plist="$TARGET_BUILD_DIR/$INFOPLIST_PATH"
-          { read -r short; read -r build; } < <("$SRCROOT/scripts/app-version.sh")
+          { read -r short; read -r build; read -r commit; } < <("$SRCROOT/scripts/app-version.sh")
           /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString $short" "$plist"
           /usr/libexec/PlistBuddy -c "Set :CFBundleVersion $build" "$plist"
+          /usr/libexec/PlistBuddy -c "Set :PipitGitCommit $commit" "$plist"
 
   pipit-nativehost:
     type: tool
