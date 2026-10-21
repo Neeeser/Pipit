@@ -41,6 +41,7 @@ public actor DiagnosticSharingScheduler {
     private let random: @Sendable () -> Double
     private var buildReport: BuildReport
     private var isTicking = false
+    private var sharingGeneration = 0
 
     public init(
         sender: DiagnosticReportSender,
@@ -77,6 +78,7 @@ public actor DiagnosticSharingScheduler {
     /// Sharing was turned off: nothing more is built, and the automatic
     /// reports still queued are removed at once.
     public func disable() async {
+        sharingGeneration += 1
         store.remove()
         await sender.discardAutomatic()
     }
@@ -101,9 +103,12 @@ public actor DiagnosticSharingScheduler {
             _ = await sender.retryDue(includeAutomatic: false)
             return .off
         }
+        let generation = sharingGeneration
         var state = currentState()
         let blocker = DiagnosticSharingPolicy.blocker(isBusy: await isBusy(), network: network())
+        guard isCurrent(generation) else { return .off }
         let confirmed = await sender.retryDue(includeAutomatic: blocker == nil)
+        guard isCurrent(generation) else { return .off }
         for entry in confirmed where entry.automatic && entry.kind == .automatic {
             state = DiagnosticSharingPolicy.confirmedDaily(createdAt: entry.createdAt, in: state)
         }
@@ -111,25 +116,60 @@ public actor DiagnosticSharingScheduler {
         if let blocker { return .deferred(blocker) }
 
         for crash in state.pendingCrashes {
-            guard isEnabled() else { return .off }
-            if let report = await buildReport(.crash, crash.since) {
-                _ = await sender.send(report, automatic: true)
+            switch await sendAutomaticReport(.crash, since: crash.since, generation: generation) {
+            case .cancelled: return .off
+            case .deferred(let blocker): return .deferred(blocker)
+            case .sent, .notSent: break
             }
             state = DiagnosticSharingPolicy.handled(crash: crash.incident, in: state)
             save(state)
         }
 
         let dailyQueued = await sender.pending().contains { $0.automatic && $0.kind == .automatic }
-        if now() >= state.nextDailyAt, !dailyQueued, isEnabled() {
-            if let report = await buildReport(.automatic, state.eventsSince),
-                case .sent = await sender.send(report, automatic: true)
-            {
-                state = DiagnosticSharingPolicy.confirmedDaily(createdAt: report.createdAt, in: state)
+        guard isCurrent(generation) else { return .off }
+        if now() >= state.nextDailyAt, !dailyQueued {
+            switch await sendAutomaticReport(.automatic, since: state.eventsSince, generation: generation) {
+            case .sent(let createdAt):
+                state = DiagnosticSharingPolicy.confirmedDaily(createdAt: createdAt, in: state)
+            case .cancelled: return .off
+            case .deferred(let blocker): return .deferred(blocker)
+            case .notSent: break
             }
             state.nextDailyAt = DiagnosticSharingPolicy.nextDaily(after: now(), random: random())
             save(state)
         }
         return .ran
+    }
+
+    private enum AutomaticSendResult {
+        case sent(createdAt: Date)
+        case notSent
+        case cancelled
+        case deferred(DiagnosticSharingBlocker)
+    }
+
+    /// Building can outlast a setting or network change. Recheck immediately
+    /// before handing the report to the sender and discard unused identities.
+    private func sendAutomaticReport(
+        _ kind: DiagnosticReport.Kind, since: Date, generation: Int
+    ) async -> AutomaticSendResult {
+        guard isCurrent(generation) else { return .cancelled }
+        guard let report = await buildReport(kind, since) else {
+            return isCurrent(generation) ? .notSent : .cancelled
+        }
+        let blocker = DiagnosticSharingPolicy.blocker(isBusy: await isBusy(), network: network())
+        guard isCurrent(generation) else {
+            discard(report)
+            return .cancelled
+        }
+        if let blocker {
+            discard(report)
+            return .deferred(blocker)
+        }
+        let outcome = await sender.send(report, automatic: true)
+        guard isCurrent(generation) else { return .cancelled }
+        if case .sent = outcome { return .sent(createdAt: report.createdAt) }
+        return .notSent
     }
 
     /// Looks after a jittered delay from launch, then every
@@ -158,6 +198,18 @@ public actor DiagnosticSharingScheduler {
             await sleep(delay)
             await tick()
         }
+    }
+
+    /// A build started before an opt-out stays cancelled if sharing is
+    /// enabled again while the builder is still reading the disk.
+    private func isCurrent(_ generation: Int) -> Bool {
+        isEnabled() && sharingGeneration == generation
+    }
+
+    private func discard(_ report: DiagnosticReport) {
+        sender.discardReportIdentity(
+            DiagnosticReportIdentity(reportID: report.reportID, deletionSecretHash: report.deletionSecretHash)
+        )
     }
 
     // MARK: - state

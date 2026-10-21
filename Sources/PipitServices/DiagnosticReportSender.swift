@@ -29,6 +29,9 @@ public actor DiagnosticReportSender: DiagnosticReportSending {
     /// so a retry pass could otherwise pick up a report its first attempt is
     /// still sending.
     private var inFlight: Set<String> = []
+    /// An upload can finish after sharing was turned off. Keep its secret
+    /// until the answer so deletion happens after the server can store it.
+    private var discardedInFlight: Set<String> = []
 
     public init(
         layout: DiagnosticLayout,
@@ -75,6 +78,7 @@ public actor DiagnosticReportSender: DiagnosticReportSending {
     /// Problem: the ID written as the report carries it.
     public nonisolated func prepareReportIdentity() -> DiagnosticReportIdentity? {
         let identity = prepareIdentity()
+        guard secrets.secret(reportID: identity.reportID.uuidString.lowercased()) != nil else { return nil }
         return DiagnosticReportIdentity(
             reportID: identity.reportID.uuidString.lowercased(), deletionSecretHash: identity.deletionSecretHash
         )
@@ -112,6 +116,11 @@ public actor DiagnosticReportSender: DiagnosticReportSending {
         // same ID, which it refuses as a conflict.
         if let queued = outbox.entry(for: reportID) {
             return await attempt(queued, body: nil, isQueued: true)
+        }
+        guard let secret = secrets.secret(reportID: reportID), secrets.hash(of: secret) == report.deletionSecretHash
+        else {
+            record(report.kind, bytes: 0, outcome: .failed, status: nil)
+            return .failed
         }
         guard DiagnosticReportValidator.violations(in: report).isEmpty, let json = try? report.encoded() else {
             record(report.kind, bytes: 0, outcome: .rejected, status: nil)
@@ -176,6 +185,10 @@ public actor DiagnosticReportSender: DiagnosticReportSending {
     public func discardAutomatic() async {
         for entry in outbox.entries() where entry.automatic {
             outbox.remove(entry.reportID)
+            if inFlight.contains(entry.reportID) {
+                discardedInFlight.insert(entry.reportID)
+                continue
+            }
             if entry.attempts > 0, let secret = secrets.secret(reportID: entry.reportID) {
                 _ = await transport.delete(id: entry.reportID, secret: secret)
             }
@@ -188,7 +201,11 @@ public actor DiagnosticReportSender: DiagnosticReportSending {
     public func discardOutbox() {
         for entry in outbox.entries() {
             outbox.remove(entry.reportID)
-            secrets.remove(reportID: entry.reportID)
+            if inFlight.contains(entry.reportID) {
+                discardedInFlight.insert(entry.reportID)
+            } else {
+                secrets.remove(reportID: entry.reportID)
+            }
         }
         removeStrays()
     }
@@ -267,6 +284,14 @@ public actor DiagnosticReportSender: DiagnosticReportSending {
         defer { inFlight.remove(reportID) }
 
         let result = await transport.submit(body: body, reportID: reportID)
+        if discardedInFlight.remove(reportID) != nil {
+            if let secret = secrets.secret(reportID: reportID) {
+                _ = await transport.delete(id: reportID, secret: secret)
+            }
+            outbox.remove(reportID)
+            secrets.remove(reportID: reportID)
+            return .failed
+        }
         let at = now()
         record(
             entry.kind, bytes: body.count, outcome: DiagnosticSendPolicy.eventOutcome(for: result),
@@ -285,6 +310,7 @@ public actor DiagnosticReportSender: DiagnosticReportSending {
                 try receiptStore.add(receipt)
             } catch {
                 Log.app.error("receipt not saved: \(logSafeDescription(error), privacy: .public)")
+                return reschedule(entry, isQueued: isQueued, retryAfter: nil, at: at)
             }
             outbox.remove(reportID)
             return .sent(receipt)
@@ -293,29 +319,35 @@ public actor DiagnosticReportSender: DiagnosticReportSending {
             secrets.remove(reportID: reportID)
             return .rejected(Self.rejection(for: result))
         case .retry(let retryAfter):
-            guard isQueued else {
-                secrets.remove(reportID: reportID)
-                return .failed
-            }
-            var updated = entry
-            updated.attempts += 1
-            guard !updated.isExpired(now: at) else {
-                drop(updated, reason: "expired")
-                return .failed
-            }
-            let delay = DiagnosticSendPolicy.retryDelay(
-                afterAttempts: updated.attempts, retryAfter: retryAfter, random: random()
-            )
-            updated.nextAttemptAt = at.addingTimeInterval(delay)
-            do {
-                try outbox.update(updated)
-            } catch {
-                Log.app.error(
-                    "report \(reportID, privacy: .public) not rescheduled: \(logSafeDescription(error), privacy: .public)"
-                )
-            }
-            return .willRetry(at: updated.nextAttemptAt)
+            return reschedule(entry, isQueued: isQueued, retryAfter: retryAfter, at: at)
         }
+    }
+
+    private func reschedule(
+        _ entry: DiagnosticOutboxEntry, isQueued: Bool, retryAfter: TimeInterval?, at: Date
+    ) -> DiagnosticSendOutcome {
+        guard isQueued else {
+            secrets.remove(reportID: entry.reportID)
+            return .failed
+        }
+        var updated = entry
+        updated.attempts += 1
+        guard !updated.isExpired(now: at) else {
+            drop(updated, reason: "expired")
+            return .failed
+        }
+        let delay = DiagnosticSendPolicy.retryDelay(
+            afterAttempts: updated.attempts, retryAfter: retryAfter, random: random()
+        )
+        updated.nextAttemptAt = at.addingTimeInterval(delay)
+        do {
+            try outbox.update(updated)
+        } catch {
+            Log.app.error(
+                "report \(entry.reportID, privacy: .public) not rescheduled: \(logSafeDescription(error), privacy: .public)"
+            )
+        }
+        return .willRetry(at: updated.nextAttemptAt)
     }
 
     private func drop(_ entry: DiagnosticOutboxEntry, reason: StaticString) {
