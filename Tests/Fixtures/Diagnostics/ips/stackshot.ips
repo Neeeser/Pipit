@@ -1,0 +1,2 @@
+{"bug_type":"288","timestamp":"2026-10-21 03:30:00.00 -0700","os_version":"macOS 15.6.1 (24G90)","app_name":"Pipit","bundleID":"com.pipit.app","incident_id":"1B2C3D4E-5F60-4172-9839-4A5B6C7D8E9F","name":"Pipit"}
+{"pid" : 4242, "procName" : "Pipit", "captureTime" : "2026-10-21 03:30:00.0000 -0700", "threads" : [], "usedImages" : []}
