@@ -336,6 +336,20 @@ public final class SettingsModel {
         hostStatus = try? NativeMessagingInstaller().install(hostBinary: binary)
     }
 
+    /// Registers Pipit with every Chromium browser on this Mac, puts the
+    /// Chrome add-on where a browser can load it, and shows that folder for
+    /// the browser's Load unpacked button.
+    public func setUpChromeAddOn() {
+        let installer = NativeMessagingInstaller()
+        if let binary = NativeMessagingInstaller.bundledHostURL() {
+            hostStatus = try? installer.install(hostBinary: binary, registerChromium: true)
+        }
+        guard let bundled = NativeMessagingInstaller.bundledChromeAddOnURL(),
+            let folder = installer.installChromeAddOn(from: bundled)
+        else { return }
+        NSWorkspace.shared.activateFileViewerSelecting([folder])
+    }
+
     public func chooseStorage() {
         guard let url = pickDirectory() else { return }
         var settings = runtime.settings

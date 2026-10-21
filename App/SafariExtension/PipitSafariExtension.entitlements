@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <!-- Safari loads only sandboxed app extensions. -->
+    <key>com.apple.security.app-sandbox</key>
+    <true/>
+    <!-- The one folder the sandbox lets the extension share with Pipit, where
+         the app listens for Safari. scripts/bundle-app.sh replaces
+         $(TeamIdentifierPrefix) with the signing team, as Xcode does. -->
+    <key>com.apple.security.application-groups</key>
+    <array>
+        <string>$(TeamIdentifierPrefix)com.pipit.sensor</string>
+    </array>
+</dict>
+</plist>

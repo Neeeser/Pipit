@@ -3,6 +3,7 @@
   "name": "Pipit Sensor",
   "version": "1.0.1",
   "description": "Reports Google Meet and Zoom meeting state to Pipit so it records the right calls.",
+  "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEApkU+13u3AxwULbbX9PEcHCnPGSKFuVOxweXwThHrtOvho4DuHmyzZN6kW7KykcBCFZX1VWv/E8Q1Nu1JrS3hq/N9KLCv2ZuhU8bugd5iAivc7z9IILAGZvDnz+akRwyqRA+rYpWe/Xof592Mz1cXdRG+OaO09p8vgf5TX80w/t4Kqpq049y/CNfQ65jVMUZNo7CrqjjW0RscObPzflU0t+ylpbQUKsXtevXcMe6jzEUHCneDjoNuEqn9QUjSmuOJ9Wzo5AgTWJGxtNmRNi/u7QRCL7jgG75JDFqDUgfxPgjeYcPdCuz5qzk44OnPv/LKZw7yIwr1UkKIUZ01ILDV/QIDAQAB",
   "icons": {
     "48": "icons/pipit-48.png",
     "96": "icons/pipit-96.png",

@@ -32,6 +32,16 @@ public final class BrowserSensorServer: @unchecked Sendable {
     private var acceptSource: DispatchSourceRead?
     private var connections: [Int32: DispatchSourceRead] = [:]
     private var buffers: [Int32: Data] = [:]
+    private struct SensorConnection {
+        let browser: BrowserKind
+        var tabs: [Int: Int] = [:]
+        var anonymousTab: Int?
+
+        var tabIDs: [Int] { Array(tabs.values) + (anonymousTab.map { [$0] } ?? []) }
+    }
+
+    private var sensors: [Int32: SensorConnection] = [:]
+    private var nextTabID = 0
     private var status = Status(
         isListening: false, connectionCount: 0, lastMessageAt: nil, lastHello: nil
     )
@@ -115,6 +125,7 @@ public final class BrowserSensorServer: @unchecked Sendable {
         let sources = connections
         connections = [:]
         buffers = [:]
+        sensors = [:]
         let accept = acceptSource
         acceptSource = nil
         listenDescriptor = -1
@@ -211,18 +222,68 @@ public final class BrowserSensorServer: @unchecked Sendable {
                 status.lastHello = hello
                 lock.unlock()
             }
-            onMessage(message)
+            let messages = lock.withLock { route(message, from: descriptor) }
+            for routed in messages { onMessage(routed) }
         }
+    }
+
+    /// Tab numbers are local to a browser profile. Assign app-local numbers at
+    /// the socket boundary so separate Chromium relays cannot overwrite a call.
+    /// The caller holds the lock.
+    private func route(_ message: SensorMessage, from descriptor: Int32) -> [SensorMessage] {
+        // Safari may end its extension process between requests. Its tab IDs
+        // must survive those transient sockets; silence is tracked by the engine.
+        if message.browser == .safari { return [message] }
+        if case .goodbye = message { return removeSensor(descriptor) }
+        var sensor = sensors[descriptor] ?? SensorConnection(browser: message.browser)
+        guard sensor.browser == message.browser else { return [] }
+        defer { sensors[descriptor] = sensor }
+        switch message {
+        case .event(var event):
+            if let tabID = event.tabID {
+                if sensor.tabs[tabID] == nil {
+                    nextTabID += 1
+                    sensor.tabs[tabID] = nextTabID
+                }
+                event.tabID = sensor.tabs[tabID]
+            } else {
+                if sensor.anonymousTab == nil {
+                    nextTabID += 1
+                    sensor.anonymousTab = nextTabID
+                }
+                event.tabID = sensor.anonymousTab
+            }
+            return [.event(event)]
+        case .tabClosed(let browser, let tabID):
+            guard let assigned = sensor.tabs.removeValue(forKey: tabID) else { return [] }
+            return [.tabClosed(browser: browser, tabID: assigned)]
+        case .hello: return [message]
+        case .goodbye: return []
+        }
+    }
+
+    /// A relay going away closes its own tabs. The browser family remains
+    /// connected while another relay from that family is still present.
+    /// The caller holds the lock.
+    private func removeSensor(_ descriptor: Int32) -> [SensorMessage] {
+        guard let sensor = sensors.removeValue(forKey: descriptor) else { return [] }
+        var messages = sensor.tabIDs.sorted().map { SensorMessage.tabClosed(browser: sensor.browser, tabID: $0) }
+        if !sensors.values.contains(where: { $0.browser == sensor.browser }) {
+            messages.append(.goodbye(browser: sensor.browser))
+        }
+        return messages
     }
 
     private func closeConnection(_ descriptor: Int32) {
         lock.lock()
         let source = connections.removeValue(forKey: descriptor)
         buffers.removeValue(forKey: descriptor)
+        let messages = removeSensor(descriptor)
         status.connectionCount = connections.count
         let count = connections.count
         lock.unlock()
         source?.cancel()
+        for message in messages { onMessage(message) }
         onConnectionChange(count)
         Log.detection.info("browser sensor disconnected")
     }

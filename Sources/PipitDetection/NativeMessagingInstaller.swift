@@ -12,25 +12,32 @@ public struct NativeMessagingInstaller: Sendable {
     public struct Status: Sendable, Equatable {
         public var hostInstalled: Bool
         public var firefoxManifestInstalled: Bool
+        /// A manifest is in place for at least one Chromium browser.
         public var chromeManifestInstalled: Bool
         public var installedHostPath: String?
 
         public var isReadyForFirefox: Bool { hostInstalled && firefoxManifestInstalled }
+        public var isReadyForChrome: Bool { hostInstalled && chromeManifestInstalled }
     }
 
     public let applicationSupport: URL
     /// Extension identifiers allowed to talk to the host.
     public let firefoxExtensionIDs: [String]
     public let chromeExtensionIDs: [String]
+    /// The Chromium browsers to register with. Injected so a test can point
+    /// them at a temporary folder.
+    public let chromiumBrowsers: [SensorTransport.ChromiumBrowser]
 
     public init(
         applicationSupport: URL = SensorTransport.defaultApplicationSupport,
         firefoxExtensionIDs: [String] = ["sensor@pipit.app"],
-        chromeExtensionIDs: [String] = []
+        chromeExtensionIDs: [String] = [SensorTransport.chromeExtensionID],
+        chromiumBrowsers: [SensorTransport.ChromiumBrowser] = SensorTransport.chromiumBrowsers
     ) {
         self.applicationSupport = applicationSupport
         self.firefoxExtensionIDs = firefoxExtensionIDs
         self.chromeExtensionIDs = chromeExtensionIDs
+        self.chromiumBrowsers = chromiumBrowsers
     }
 
     public var installedHostURL: URL {
@@ -42,7 +49,7 @@ public struct NativeMessagingInstaller: Sendable {
         return Status(
             hostInstalled: manager.isExecutableFile(atPath: installedHostURL.path),
             firefoxManifestInstalled: manager.fileExists(atPath: firefoxManifestURL.path),
-            chromeManifestInstalled: manager.fileExists(atPath: chromeManifestURL.path),
+            chromeManifestInstalled: chromiumManifestURLs.contains { manager.fileExists(atPath: $0.path) },
             installedHostPath: manager.fileExists(atPath: installedHostURL.path)
                 ? installedHostURL.path : nil
         )
@@ -58,9 +65,25 @@ public struct NativeMessagingInstaller: Sendable {
             .appendingPathComponent("\(SensorTransport.nativeMessagingHostName).json")
     }
 
+    /// The manifest each Chromium browser reads, whether or not it is written.
+    public var chromiumManifestURLs: [URL] {
+        chromiumBrowsers.map(manifestURL(for:))
+    }
+
+    private func manifestURL(for browser: SensorTransport.ChromiumBrowser) -> URL {
+        browser.hostManifestDirectory
+            .appendingPathComponent("\(SensorTransport.nativeMessagingHostName).json")
+    }
+
     /// Copies the host binary and writes the manifests. Safe to run on every launch.
+    ///
+    /// Chromium browsers keep their manifests inside their own data folders,
+    /// and macOS 15 can ask the person before Pipit writes into another
+    /// application's data. So the launch only refreshes manifests that already
+    /// exist, and `registerChromium` is set when the person asks for the Chrome
+    /// add-on, which is when a prompt makes sense to them.
     @discardableResult
-    public func install(hostBinary: URL) throws -> Status {
+    public func install(hostBinary: URL, registerChromium: Bool = false) throws -> Status {
         let manager = FileManager.default
         try manager.createDirectory(at: applicationSupport, withIntermediateDirectories: true)
 
@@ -81,19 +104,27 @@ public struct NativeMessagingInstaller: Sendable {
             allowedKey: "allowed_extensions",
             allowed: firefoxExtensionIDs
         )
+        // Only browsers that have run here: writing for the rest would create
+        // a folder in Application Support for every browser the person does
+        // not use. One browser refusing the write does not stop the others.
         if !chromeExtensionIDs.isEmpty {
-            try writeManifest(
-                to: chromeManifestURL,
-                allowedKey: "allowed_origins",
-                allowed: chromeExtensionIDs.map { "chrome-extension://\($0)/" }
-            )
+            let origins = chromeExtensionIDs.map { "chrome-extension://\($0)/" }
+            for browser in chromiumBrowsers {
+                let url = manifestURL(for: browser)
+                let wanted =
+                    registerChromium
+                    ? manager.fileExists(atPath: browser.dataDirectory.path)
+                    : manager.fileExists(atPath: url.path)
+                guard wanted else { continue }
+                try? writeManifest(to: url, allowedKey: "allowed_origins", allowed: origins)
+            }
         }
         return status()
     }
 
     public func uninstall() {
         try? FileManager.default.removeItem(at: firefoxManifestURL)
-        try? FileManager.default.removeItem(at: chromeManifestURL)
+        for url in chromiumManifestURLs { try? FileManager.default.removeItem(at: url) }
         try? FileManager.default.removeItem(at: installedHostURL)
     }
 
@@ -112,6 +143,55 @@ public struct NativeMessagingInstaller: Sendable {
             at: url.deletingLastPathComponent(), withIntermediateDirectories: true
         )
         try AtomicFile.write(data, to: url)
+    }
+
+    /// Where Pipit keeps the Chrome add-on for a browser to load.
+    ///
+    /// Outside the app bundle on purpose. A Chromium browser keeps loading an
+    /// unpacked add-on from the folder it was pointed at, and that folder has to
+    /// survive the bundle being replaced by an update or moved to Applications.
+    public var chromeAddOnURL: URL {
+        applicationSupport.appendingPathComponent("Chrome Add-on", isDirectory: true)
+    }
+
+    /// Copies the Chrome add-on out of the bundle, and returns where it is.
+    ///
+    /// A launch passes `onlyIfPresent`, which refreshes a copy a browser
+    /// already loads and never creates one, so an app update reaches the
+    /// add-on the next time the browser starts. An unchanged copy is left
+    /// alone rather than replaced under a running browser.
+    @discardableResult
+    public func installChromeAddOn(from bundled: URL, onlyIfPresent: Bool = false) -> URL? {
+        let manager = FileManager.default
+        let exists = manager.fileExists(atPath: chromeAddOnURL.path)
+        if onlyIfPresent, !exists { return nil }
+        if exists, manager.contentsEqual(atPath: bundled.path, andPath: chromeAddOnURL.path) {
+            return chromeAddOnURL
+        }
+        let staged = applicationSupport.appendingPathComponent(".Chrome Add-on.\(UUID().uuidString)", isDirectory: true)
+        defer { try? manager.removeItem(at: staged) }
+        do {
+            try manager.createDirectory(at: applicationSupport, withIntermediateDirectories: true)
+            // Finish copying before replacing the folder a browser loads. Both
+            // folders share a filesystem, so replacement can be atomic.
+            try manager.copyItem(at: bundled, to: staged)
+            if exists {
+                _ = try manager.replaceItemAt(chromeAddOnURL, withItemAt: staged)
+            } else {
+                try manager.moveItem(at: staged, to: chromeAddOnURL)
+            }
+            return chromeAddOnURL
+        } catch {
+            return nil
+        }
+    }
+
+    /// The Chrome add-on the bundle carries, built by extension/build.sh.
+    public static func bundledChromeAddOnURL(bundle: Bundle = .main) -> URL? {
+        guard let resources = bundle.resourceURL else { return nil }
+        let addOn = resources.appendingPathComponent("extension/chrome", isDirectory: true)
+        let manifest = addOn.appendingPathComponent("manifest.json")
+        return FileManager.default.fileExists(atPath: manifest.path) ? addOn : nil
     }
 
     /// The signed add-on, which release Firefox installs permanently.

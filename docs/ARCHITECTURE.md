@@ -436,12 +436,35 @@ discoverable from the repository by skill installers.
 ## Browser sensor
 
 ```text
-content script -> browser background -> pipit-nativehost -> Unix socket -> Pipit
+Firefox, Chromium: content script -> background -> pipit-nativehost -> Unix socket -> Pipit
+Safari:            content script -> background -> PipitSafariExtension.appex -> group socket -> Pipit
 ```
 
-The sensor reports provider, meeting state, URL, and audible-tab state. Native
-detection continues when the extension disconnects.
+One add-on runs in every browser. `extension/build.sh` writes a Firefox build
+(MV2), a Chrome build (MV3) that Brave, Edge, Arc and Vivaldi load unchanged,
+and a Safari build (MV3). The sensor reports provider, meeting state, URL,
+roster, and audible-tab state. Native detection continues when the extension
+disconnects.
+
+Firefox and the Chromium browsers start `pipit-nativehost` and hold a port
+to it. Each Chromium browser reads host manifests from its own data folder,
+so Pipit writes one per installed browser when the person sets up the Chrome
+add-on, and refreshes existing ones on launch. The Chrome manifest carries a
+public key that pins the add-on's identifier to
+`SensorTransport.chromeExtensionID`, which the host manifests allow.
+
+Safari has no native messaging host. It hands each message to the app
+extension inside `Pipit.app/Contents/PlugIns`, which Safari runs sandboxed and
+may stop between messages. The extension relays to a second socket inside the
+app group the two share (`<team>.com.pipit.sensor`), the only folder the
+sandbox lets it reach. The add-on says hello once a minute, and Pipit treats
+two and a half minutes of silence as the add-on gone. Safari's audio comes
+from WebKit's GPU process, so Safari's evidence names `com.apple.WebKit.GPU`
+for the tap, and those processes stay with the generic detector unless Safari
+has a meeting of its own.
 
 Pipit accepts sensor connections only from its bundled native host when a browser
-launched that host. Sensor evidence is combined with native evidence and cannot
-end a recording by disappearing on its own.
+launched that host, or from its own Safari extension inside its bundle. On a
+signed build both must carry Pipit's team and their own signing identifier.
+Sensor evidence is combined with native evidence and cannot end a recording by
+disappearing on its own.
