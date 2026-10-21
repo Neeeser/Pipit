@@ -180,7 +180,7 @@ crash report names frames by binary UUID and offset, and only dSYMs with the
 same UUIDs resolve them. A later rebuild of the same commit matches only if it
 comes out byte for byte the same, which nothing here guarantees.
 The script fails when a dSYM's UUIDs differ from the bundled binary's, or when
-`atos` cannot resolve `main` and a PipitCore function to a Swift line. CI runs
+`atos` cannot resolve a function of the app target and one of PipitCore to a Swift line. CI runs
 it on every pull request.
 
 To symbolicate a frame from a crash report, take the load address of `Pipit`

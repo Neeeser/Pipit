@@ -11,9 +11,10 @@
 #
 # The check is what keeps a release from shipping without usable symbols. Each
 # dSYM must carry the UUIDs of the bundled binary for every architecture it
-# holds, and `atos` must resolve code to a Swift source line twice: `main` in
-# the app target, and a function of PipitCore, which is linked in from a package
-# module. A dSYM with no line tables, or one that missed the modules, fails
+# holds, and `atos` must resolve code to a Swift source line twice: a function
+# of the app target, and one of PipitCore, which is linked in from a package
+# module. Not `main`: the app target is top-level code, so `main` is generated
+# by the compiler and has no line of its own. A dSYM with no line tables, or one that missed the modules, fails
 # here. No PipitCore function is named outright. Cross-module optimisation can
 # inline a small public function and the linker then drops its symbol, and
 # many symbols are compiler-generated accessors with no line at all, so the
@@ -60,7 +61,11 @@ resolve_to_line() {
     # atos takes many addresses at once and prints one line for each.
     # shellcheck disable=SC2086
     resolved="$(xcrun atos -arch "$arch" -o "$dwarf" $addresses)"
-    grep -m1 -E '[.]swift:[1-9][0-9]*[)]' <<<"$resolved"
+    if ! grep -m1 -E '[.]swift:[1-9][0-9]*[)]' <<<"$resolved"; then
+        echo "atos output for $pattern on $arch, first lines:" >&2
+        sed -n 1,5p <<<"$resolved" >&2
+        return 1
+    fi
 }
 
 # The SwiftPM product each executable in the bundle is copied from. An
@@ -100,7 +105,7 @@ dwarf="$SYMBOLS/Pipit.dSYM/Contents/Resources/DWARF/Pipit"
 for arch in $(xcrun lipo -archs "$APP/Contents/MacOS/Pipit"); do
     # awk reads the pattern through -v, which processes backslash escapes, so
     # the literal dollar of a mangled Swift name is written as a bracket.
-    for pattern in '^_main$' '^_[$]s9PipitCore'; do
+    for pattern in '^_[$]s8PipitApp' '^_[$]s9PipitCore'; do
         if ! resolved="$(resolve_to_line "$dwarf" "$APP/Contents/MacOS/Pipit" "$pattern" "$arch")"; then
             echo "atos resolved no symbol matching $pattern to a Swift line on $arch" >&2
             exit 1
