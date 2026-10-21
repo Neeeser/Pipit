@@ -200,7 +200,7 @@ struct DiagnosticsSettingsPane: View {
                     exportStatus = "Saved \(url.lastPathComponent)"
                 }
             } catch {
-                Log.ui.error("diagnostics not exported: \(String(describing: error), privacy: .public)")
+                Log.ui.error("diagnostics not exported: \(logSafeDescription(error), privacy: .public)")
                 exportStatus = "Could not save the report."
             }
         }

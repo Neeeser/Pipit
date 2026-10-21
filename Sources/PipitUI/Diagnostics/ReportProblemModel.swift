@@ -143,7 +143,7 @@ public final class ReportProblemModel {
                 note: takesNote ? note : nil, contact: takesNote ? contact : nil
             )
         } catch {
-            Log.ui.error("diagnostic report not built: \(String(describing: error), privacy: .public)")
+            Log.ui.error("diagnostic report not built: \(logSafeDescription(error), privacy: .public)")
             status = "Could not build the report."
             return nil
         }
@@ -157,7 +157,7 @@ public final class ReportProblemModel {
             )
             phase = .ready
         } catch {
-            Log.ui.error("diagnostic report not built: \(String(describing: error), privacy: .public)")
+            Log.ui.error("diagnostic report not built: \(logSafeDescription(error), privacy: .public)")
             phase = .failed
         }
     }
