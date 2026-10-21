@@ -44,7 +44,7 @@ profiles:
 | `events/events-YYYY-MM-DD.ndjson` | App events, one JSON object per line | 2 MB per file, then `.1`, `.2`; 14 days or 10 MB in total, oldest first |
 | `events/nativehost-YYYY-MM-DD.ndjson` | Events from `pipit-nativehost` | 256 KB per day, 14 days |
 | `state/launch.json` | The current launch record (below) | One file |
-| `crashes/<incident>.json` | Reduced crash summaries | 10 newest, 90 days |
+| `crashes/<incident>.json` | Reduced crash summaries, each with its pid and launch time | 10 newest, 90 days |
 | `outbox/<reportID>.json.gz` | A report waiting to be confirmed | Until confirmed, at most 7 days |
 | `sent.json` | Receipts of sent reports, no secrets | Until the person removes them |
 
@@ -134,33 +134,78 @@ exhaustive over each error enum, so a new case cannot compile without a code.
 
 ## Exit classes
 
-`state/launch.json` holds this launch's `launch` ID, `pid`, start time (UTC),
-the boot session UUID (`kern.bootsessionuuid`), the main binary's UUID, and the
-version. A clean exit writes `"clean": true` to it. At the next launch, Pipit
-classifies the previous launch:
-
-| Class | Evidence | Crash prompt |
-| --- | --- | --- |
-| `clean` | `clean` is true | No |
-| `crash` | A Pipit `.ips` with `bug_type` 309 whose `pid` and launch time match the record | Yes |
-| `hang` | A Pipit hang or spin report that matches | No, listed in diagnostics |
-| `system_restart` | The boot session UUID changed and there is no crash report | No |
-| `unclean_unknown` | Same boot, no report: force quit, `kill -9`, debugger, or a report not yet written | No, listed in diagnostics |
-
-ReportCrash can write a report after Pipit has relaunched. Pipit scans again
-2 minutes after launch and upgrades `unclean_unknown` to `crash` when a matching
-report appears.
-
-## Crash summaries
-
-Read from `~/Library/Logs/DiagnosticReports/Pipit-*.ips` (and the appex and
-host equivalents). The first line of an `.ips` is a JSON header; the rest is
-the report. A summary keeps:
+`state/launch.json` describes this launch:
 
 ```json
 {
-  "incident": "UUID from the report",
+  "launch": "random UUID, the launch of this launch's event lines",
+  "pid": 4242,
+  "startedAt": "2026-10-21T03:10:00.123Z",
+  "bootSession": "kern.bootsessionuuid",
+  "binaryUUID": "LC_UUID of the main executable, lowercase",
+  "version": "0.1.8",
+  "clean": false
+}
+```
+
+`startedAt` is the kernel's start time for the process, UTC with
+milliseconds, because that is what a crash report's `procLaunch` gives.
+`bootSession` and `binaryUUID` are left out when they cannot be read. The file
+is written atomically at launch, and a clean exit rewrites it with
+`"clean": true`, only when it still holds that launch's record. At the next
+launch, Pipit reads the record before writing its own and classifies the
+previous launch:
+
+| Class | Evidence | Crash prompt |
+| --- | --- | --- |
+| `crash` | A Pipit crash report that matches the record (below), whatever `clean` says | Yes |
+| `hang` | A Pipit hang report that matches the record. Not produced yet: hang reports are not read | No, listed in diagnostics |
+| `clean` | `clean` is true and no report matches | No |
+| `system_restart` | The boot session UUID changed and no report matches | No |
+| `unclean_unknown` | Same boot, or a boot session that could not be read, and no report: force quit, `kill -9`, debugger, or a report not yet written | No, listed in diagnostics |
+
+The rows are checked in this order. A matching crash report wins over
+`clean`: a crash in a teardown handler after `clean` was written is still a
+crash.
+
+A report matches the record when all of these hold:
+
+- it is the app's own (`process` is `app`), not the native host's, the
+  command line's, or the Safari extension's;
+- its `pid` is the record's `pid`;
+- its `procLaunch` is at most 120 seconds before the record's `startedAt` and
+  at most 2 seconds after it. A report without `procLaunch` matches only when
+  it was captured after `startedAt`;
+- when both the report and the record name the executable's UUID, they are
+  the same.
+
+When two reports match, the one launched nearest `startedAt` is the launch's.
+
+ReportCrash can write a report after Pipit has relaunched. Pipit scans again
+2 minutes after launch and upgrades `unclean_unknown` to `crash`, or to `hang`
+for a hang report, when a matching report appears. Every other class stands.
+
+## Crash summaries
+
+Read from `~/Library/Logs/DiagnosticReports/<executable>-*.ips`, where the
+executable is `Pipit`, `pipit-nativehost`, `pipit-cli`, or
+`PipitSafariExtension`. The first line of an `.ips` is a JSON header; the rest
+is the report. Only `bug_type` 309, a crash, is read. Hang and spin reports
+carry other bug types in a layout Apple does not document and are not read
+yet. A report marked `isNonFatal` or `isSimulated` is ignored, since the
+process did not end. A report is Pipit's when its bundle identifier is one of
+`com.pipit.app`, `com.pipit.nativehost`, `com.pipit.cli`, and
+`com.pipit.app.safari-extension`, or, when it names no bundle identifier, when
+its process name is one of the four executables. A report that is not JSON, is
+cut short, or lacks a pid, an incident identifier, or a time is skipped.
+
+A summary keeps:
+
+```json
+{
+  "incident": "UUID from the report, lowercase",
   "class": "crash",
+  "process": "app",
   "occurredAt": "2026-10-21T03:18:16Z",
   "app": {"version": "0.1.8", "build": 812},
   "os": "15.6.1",
@@ -170,16 +215,42 @@ the report. A summary keeps:
   "termination": "SIGNAL.11",
   "faultingThread": 0,
   "frames": [{"image": 0, "offset": 123456}],
-  "images": [{"name": "Pipit", "uuid": "…", "arch": "arm64", "base": 4295000064}]
+  "images": [
+    {"name": "Pipit", "uuid": "…", "arch": "arm64", "base": 4295000064},
+    {"name": "other", "arch": "arm64", "base": 7000000000}
+  ]
 }
 ```
 
-Only the faulting thread's frames, at most 128, and only the images those
-frames name. An image outside the Pipit bundle, `/System/`, and `/usr/lib/` is
-named `other`. Dropped: `crashReporterKey`, `asi`, exception reason text, thread
-names, register state, VM regions, `procPath`, parent process, and symbol
-names. Frames are symbolicated by us with the release dSYMs
-(`docs/RELEASING.md`).
+`process` is `app`, `nativehost`, `cli`, or `safari_extension`.
+`exceptionType`, `signal`, `termination` (`<namespace>.<code>`), and
+`faultingThread` are left out when the report has none. A missing version, OS,
+OS build, or architecture is `unknown`, and a missing build is 0.
+
+Only the faulting thread's frames, at most 128 from the top, and only the
+images those frames name, in the report's order; a frame's `image` indexes the
+summary's `images`. A frame without an image index or offset in range is
+dropped. An image outside the Pipit bundle, `/System/`, and `/usr/lib/` is
+named `other` and carries no `uuid`: no dSYM of ours resolves it, and its UUID
+says what someone has installed. Every other string passes the token rule
+(Report format) or is replaced with `invalid`, and UUIDs are lowercase.
+Dropped: `crashReporterKey`, `asi`, `lastExceptionBacktrace`, exception
+reason, message, and subtype, thread names and queues, register state, VM
+regions, `procPath`, parent process, and symbol names. Frames are
+symbolicated by us with the release dSYMs (`docs/RELEASING.md`).
+
+`crashes/<incident>.json` wraps the summary with what matches it to a launch
+record on this Mac; `launchedAt` and `binaryUUID` are left out when the report
+has none. Only `summary` goes into a report:
+
+```json
+{
+  "pid": 4242,
+  "launchedAt": "2026-10-21T03:10:00.123Z",
+  "binaryUUID": "LC_UUID of the crashed executable, lowercase",
+  "summary": {}
+}
+```
 
 ## Report format (schema 1)
 
