@@ -409,6 +409,22 @@ typical use (1,180 events, 272 KB of log) makes a 275 KB report that gzips
 to 25 KB. A log near the 10 MB cap (35,450 events, 7.0 MB) is cut to the
 20,000 newest, 3.9 MB, 164 KB gzipped, with 15,450 omitted.
 
+## Export
+
+**Export Diagnostics** in Settings and **Export…** in Report a Problem save
+`Pipit-Diagnostics-<UTC time>.zip`, such as
+`Pipit-Diagnostics-20261021T031816Z.zip`, holding one folder of the same
+name with:
+
+- `report.json`, the report pretty-printed;
+- `report.json.gz`, the exact body **Send** uploads;
+- `README.txt`, what each section is and what is never included.
+
+The archive is written in process (`DiagnosticArchive`: DEFLATE entries and
+UTF-8 names, no ZIP64). An export has a report ID and a deletion secret hash
+of the right shape that were never sent, and carries a note or contact only
+when the person typed one.
+
 ## Report service
 
 Hosted by the website project on Vercel, storing into its Neon Postgres
