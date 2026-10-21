@@ -26,6 +26,7 @@ The application suite covers these areas:
 | Speakers | Attribution, corrections, identity matching, merges, and voice evidence |
 | Interface | Settings, meeting review, file selection, and model pickers |
 | Benchmarks | Ground-truth parsing, scorer behavior, suite policy, and baseline gates |
+| Diagnostics | Crash report reduction, exit classification, the report format, and the token rule |
 
 The echo canceller tests synthesize their speech with the system `say`
 command, voices Daniel and Karen, rendered once per test process. A machine
@@ -71,12 +72,22 @@ They do not run in the ordinary suite.
 | Process a long recording | `PIPIT_LIVE_LONG=1 PIPIT_LIVE_FIXTURE=/tmp/pipit-fixture ./scripts/test.sh` |
 | Run a capture soak | `PIPIT_SOAK_MINUTES=30 ./scripts/test.sh --filter Soak` |
 | Update the application through Sparkle (needs a signing identity) | `./scripts/test-update.sh` |
+| Crash the bundled app, list and symbolicate its report, then kill it without one | `PIPIT_LIVE_CRASH=1 ./scripts/check-crash-report.sh` |
 
 Create the local fixture with:
 
 ```sh
 ./scripts/make-live-fixture.sh /tmp/pipit-fixture
 ```
+
+The crash check needs `dist/Pipit.app` from `scripts/bundle-app.sh` and
+`dist/dSYMs` from `scripts/archive-dsyms.sh`, built from the same tree, and
+Pipit quit. It sends the bundled app SIGABRT, waits up to 90 seconds for
+ReportCrash, and requires `pipit diagnostics crashes --json` to list the crash
+with the killed pid and the executable's UUID, and `atos` to resolve one of its
+faulting frames in Pipit to a Swift line. It then sends SIGKILL and requires the
+last launch to read as `unclean_unknown`. The report it causes stays in
+`~/Library/Logs/DiagnosticReports`.
 
 Benchmark commands and their data requirements are documented in
 [Benchmarks](../Benchmarks/README.md).
