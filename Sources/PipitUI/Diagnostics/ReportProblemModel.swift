@@ -98,13 +98,18 @@ public final class ReportProblemModel {
     }
 
     public func send() async {
-        guard !isSent, !isSending, let bundle = await finalBundle() else { return }
-        isWorking = true
+        guard !isSent, !isSending else { return }
+        // From before the report is built: a close while it is built or sent
+        // leaves the identity to this, which gives back whatever it still
+        // holds once it is done.
         isSending = true
         defer {
-            isWorking = false
             isSending = false
+            if isClosed { releaseIdentity() }
         }
+        guard let bundle = await finalBundle() else { return }
+        isWorking = true
+        defer { isWorking = false }
         switch await sender.send(bundle.report) {
         case .sent:
             isSent = true
@@ -124,7 +129,6 @@ public final class ReportProblemModel {
             await rebuildPreview()
         case .unavailable:
             status = "Sending is not available in this version. Export the report instead."
-            if isClosed { releaseIdentity() }
         }
     }
 
@@ -166,7 +170,7 @@ public final class ReportProblemModel {
         let held = await Task.detached(priority: .userInitiated) { sender.prepareReportIdentity() }.value
         identity = held ?? .provisional()
         holdsIdentity = held != nil
-        if isClosed { releaseIdentity() }
+        if isClosed, !isSending { releaseIdentity() }
     }
 
     private func releaseIdentity() {
