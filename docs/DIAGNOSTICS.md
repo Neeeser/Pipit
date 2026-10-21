@@ -289,7 +289,9 @@ the same 6-hour window.
 
 **Abuse limits.** One Vercel WAF rate-limit rule on `/api/reports` (5 requests
 per 10 minutes per IP), a global cap of 500 reports a day, and a refusal to
-store new reports once the database passes 700 MB.
+store new reports once the database passes 400 MB. The free plan's storage
+limit has been reported as both 0.5 GB and 1 GB, so the threshold sits under
+the lower one.
 
 ## Automatic sharing
 

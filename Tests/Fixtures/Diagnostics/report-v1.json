@@ -3,7 +3,7 @@
   "reportID": "5b0c6a3e-8f1d-4c2a-9e7b-1d2f3a4b5c6d",
   "kind": "user",
   "createdAt": "2026-10-21T03:18:16Z",
-  "deletionSecretHash": "q1W2e3R4t5Y6u7I8o9P0a1S2d3F4g5H6j7K8l9Z0x1C",
+  "deletionSecretHash": "zJk90jTVjCvAIbe9mWlHJMzML8SbnpzjNUx1hwySPi0",
   "app": {
     "version": "0.1.8",
     "build": 812,
