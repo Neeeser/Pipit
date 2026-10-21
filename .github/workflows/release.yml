@@ -253,6 +253,14 @@ jobs:
           PIPIT_RELEASE: '1'
         run: ./scripts/bundle-app.sh release
 
+      - name: Archive the debug symbols
+        # A crash report from another Mac names frames by image and offset.
+        # Only the dSYMs of this exact build turn them into functions and
+        # lines, and the object files they are made from are gone once the
+        # runner is. The script fails if they do not match the bundled
+        # binaries or do not resolve to source lines.
+        run: ./scripts/archive-dsyms.sh ${{ steps.version.outputs.version }}
+
       - name: Notarize and staple
         if: steps.signing.outputs.signed == 'true'
         env:
@@ -313,6 +321,7 @@ jobs:
             dist/Pipit-${{ steps.version.outputs.version }}.zip
             dist/Pipit.dmg
             dist/Pipit-${{ steps.version.outputs.version }}.sha256
+            dist/Pipit-${{ steps.version.outputs.version }}-dSYMs.zip
             extension/signed/pipit-sensor.xpi
           tag_name: ${{ steps.version.outputs.tag }}
           draft: true

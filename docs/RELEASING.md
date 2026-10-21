@@ -30,6 +30,12 @@ sees no update, and one made before it is offered that release.
 replaces. `scripts/bump-version.sh --apply` still keeps it in step with
 `VERSION`.
 
+Both build routes also stamp `PipitGitCommit`, the full commit the build
+started from, which `scripts/app-version.sh` prints on its third line. A
+release reads plain `VERSION`, so this key is what names its source. In the
+release job it is the commit the job checked out; the version commit and the
+tag land on top of it afterwards and change only the version files.
+
 ## Requirements
 
 The release repository needs these GitHub Actions secrets:
@@ -163,6 +169,28 @@ The workflow creates these artifacts:
 Pipit-1.2.0.zip
 Pipit.dmg
 Pipit-1.2.0.sha256
+Pipit-1.2.0-dSYMs.zip
+```
+
+## Debug symbols
+
+`scripts/archive-dsyms.sh` writes a dSYM for each executable in the bundle
+and zips them as `Pipit-<version>-dSYMs.zip`, which the release carries. A
+crash report names frames by binary UUID and offset, and only dSYMs with the
+same UUIDs resolve them. A later rebuild of the same commit matches only if it
+comes out byte for byte the same, which nothing here guarantees.
+The script fails when a dSYM's UUIDs differ from the bundled binary's, or when
+`atos` cannot resolve `main` and a PipitCore function to a Swift line. CI runs
+it on every pull request.
+
+To symbolicate a frame from a crash report, take the load address of `Pipit`
+from the report's binary images and the frame's address:
+
+```sh
+unzip Pipit-1.2.0-dSYMs.zip
+dwarfdump --uuid dSYMs/Pipit.dSYM   # must match the report's UUID for Pipit
+atos -arch arm64 -o dSYMs/Pipit.dSYM/Contents/Resources/DWARF/Pipit \
+  -l <load address> <frame address>
 ```
 
 The release job builds, tests, notarizes and packages within a 120-minute
