@@ -1728,7 +1728,7 @@ public final class PipitRuntime {
     }
 
     /// What started a recording, for its `session.started` event.
-    static func startTrigger(for source: MeetingSource) -> DiagnosticEvent.StartTrigger {
+    nonisolated static func startTrigger(for source: MeetingSource) -> DiagnosticEvent.StartTrigger {
         switch source {
         case .manual, .inPerson: .manual
         case .imported: .imported
@@ -1737,7 +1737,7 @@ public final class PipitRuntime {
     }
 
     /// What ended one, from the reason the session controller gave.
-    static func stopTrigger(for reason: String) -> DiagnosticEvent.StopTrigger {
+    nonisolated static func stopTrigger(for reason: String) -> DiagnosticEvent.StopTrigger {
         switch reason {
         case "user_stopped", "user_discarded": .manual
         case "app_quit": .quit
