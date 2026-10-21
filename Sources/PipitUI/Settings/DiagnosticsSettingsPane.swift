@@ -42,8 +42,6 @@ struct DiagnosticsSettingsPane: View {
                     Button("Show in Finder") { showInFinder() }
                     Button("Export Diagnostics…") { export() }
                         .disabled(isExporting)
-                    Button("Clear Diagnostics…") { isConfirmingClear = true }
-                        .disabled(isClearing)
                 }
                 .disabled(diagnostics.layout == nil)
                 if let exportStatus {
@@ -68,6 +66,11 @@ struct DiagnosticsSettingsPane: View {
                         delete: { pendingDeletion = receipt }
                     )
                 }
+            }
+            // Last, beside the sent reports it can also forget.
+            Section {
+                Button("Clear Diagnostics…") { isConfirmingClear = true }
+                    .disabled(isClearing || diagnostics.layout == nil)
             }
         }
         .formStyle(.grouped)
