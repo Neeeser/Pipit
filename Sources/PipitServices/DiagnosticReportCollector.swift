@@ -127,12 +127,14 @@ public struct DiagnosticReportCollector {
     ) -> DiagnosticSharingScheduler.BuildReport {
         { [weak runtime] kind, since in
             let createdAt = Date()
-            guard let contents = await collect(runtime, hasKey: hasKey),
+            guard let contents = await Self.collect(runtime, hasKey: hasKey),
                 let identity = sender.prepareReportIdentity()
             else { return nil }
             do {
-                return try await bundle(contents, kind: kind, identity: identity, createdAt: createdAt, since: since)
-                    .report
+                let built = try await Self.bundle(
+                    contents, kind: kind, identity: identity, createdAt: createdAt, since: since
+                )
+                return built.report
             } catch {
                 sender.discardReportIdentity(identity)
                 Log.app.error(

@@ -55,7 +55,12 @@ struct DiagnosticReportCollectorTests {
         CrashReportScanner(reportsDirectory: base, crashesDirectory: logs.crashes)
             .store([crash], now: crash.summary.occurredAt)
 
-        return PipitRuntime(settingsDirectory: base, diagnostics: log)
+        // Stand-ins for the report service and the Keychain: a runtime whose
+        // log writes to disk otherwise makes the real ones.
+        return PipitRuntime(
+            settingsDirectory: base, diagnostics: log, reportTransport: FakeReportTransport(),
+            deletionSecrets: InMemoryDeletionSecrets()
+        )
     }
 
     @Test("a report from a real runtime carries no meeting content, setting text or path")
