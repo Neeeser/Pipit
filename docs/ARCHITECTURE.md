@@ -456,6 +456,24 @@ runtime gets `DiagnosticLog.disabled`. Each arm of capture starts a session
 identifier, which the meeting's `session_start` manifest line also carries.
 `pipit-nativehost` writes a file of its own beside the app's.
 
+Reports leave the Mac through `DiagnosticReportSender`, an actor in
+`PipitServices`. It hands out each report's ID and deletion secret before the
+report is built (`KeychainDeletionSecrets`), writes the exact gzip body to
+`outbox/` before the first attempt, and sends it with `DiagnosticReportClient`
+in `PipitIntegrations`, an ephemeral `URLSession` against the website's report
+service. A confirmed report moves to the receipts in `sent.json`. Which answer
+drops, retries or confirms a report, and how long a retry waits, is pure policy
+in `PipitCore` (`DiagnosticSendPolicy`, `DiagnosticOutbox`), as are the rules
+of automatic sharing (`DiagnosticSharingPolicy`) and the crash prompt
+(`DiagnosticCrashRoute`, `DiagnosticCrashOffers`). `DiagnosticSharingScheduler`
+looks every 15 minutes: it retries what is due and, only while the setting is
+on, sends a crash report after a confirmed crash and a daily report, never
+while Pipit records or processes, offline, in Low Data Mode, or on an expensive
+network (`NWPathMonitor`). It builds reports with a closure the bundle builder
+supplies through `PipitRuntime.setDiagnosticReportBuilder`. A crash while
+sharing is off sets `PipitRuntime.crashReportOffer`, which the menu highlights,
+and posts one notification.
+
 ## Browser sensor
 
 ```text
