@@ -595,6 +595,8 @@ struct PipelineTests {
         #expect(failed.processing.state == .failed)
         #expect(failed.processing.resumeStage == .transcribing)
         #expect(failed.processing.lastFailure?.isRetryable == true)
+        // The category a diagnostic report carries in place of the message.
+        #expect(failed.processing.lastFailure?.code?.rawValue == "processing.server_error.503")
         #expect(
             failed.processing.attemptCount(for: .transcribing) == 3,
             "three attempts, then the meeting waits for the user"

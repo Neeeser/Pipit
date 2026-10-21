@@ -418,19 +418,23 @@ public actor ProcessingPipeline {
                 let failure = Self.processingError(from: error)
                 // Coded from the error as thrown. Categorising it first would
                 // file every unrecognised failure under one local case.
+                let code = DiagnosticCode(describing: error)
                 diagnostics.record(
                     .processingStageFailed(
                         stage: stage, attempt: metadata.processing.attemptCount(for: stage),
-                        code: DiagnosticCode(describing: error), retryable: failure.isRetryable
+                        code: code, retryable: failure.isRetryable
                     ),
                     session: session, job: job
                 )
+                // The code rides with the failure, so a diagnostic report
+                // names the category without reading the message.
                 metadata.processing.recordFailure(
                     ProcessingFailure(
                         stage: stage,
                         message: failure.userMessage,
                         isRetryable: failure.isRetryable,
-                        occurredAt: clock.now
+                        occurredAt: clock.now,
+                        code: code
                     ),
                     at: clock.now
                 )

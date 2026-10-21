@@ -78,15 +78,22 @@ public struct DiagnosticReport: Codable, Sendable, Equatable {
 
     public struct BrowserAddOn: Codable, Sendable, Equatable {
         public var browser: String
+        /// `on`, `off`, or `disconnected`.
         public var state: String
         public var addonVersion: String?
         public var hostVersion: String?
         public var `protocol`: Int?
+        /// Whether the browser's native messaging host manifest is in place;
+        /// for Chrome, whether any Chromium browser's is.
         public var hostManifest: Bool?
+        /// Chrome's row only: each Chromium browser on this Mac, as a token
+        /// such as `chrome_beta`, and whether its own manifest is in place.
+        /// Each reads manifests from its own folder only.
+        public var chromiumHostManifests: [String: Bool]?
 
         public init(
             browser: String, state: String, addonVersion: String? = nil, hostVersion: String? = nil,
-            protocol: Int? = nil, hostManifest: Bool? = nil
+            protocol: Int? = nil, hostManifest: Bool? = nil, chromiumHostManifests: [String: Bool]? = nil
         ) {
             self.browser = browser
             self.state = state
@@ -94,6 +101,7 @@ public struct DiagnosticReport: Codable, Sendable, Equatable {
             self.hostVersion = hostVersion
             self.protocol = `protocol`
             self.hostManifest = hostManifest
+            self.chromiumHostManifests = chromiumHostManifests
         }
     }
 

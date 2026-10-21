@@ -11,10 +11,19 @@ public enum SafariSensorSocket {
     /// Nil for a build signed without the group, which carries no Safari
     /// extension either: an Xcode run, or a build with signing switched off.
     public static func url() -> URL? {
-        guard let group = SensorTransport.safariAppGroup(in: entitledAppGroups()),
-            let container = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: group)
-        else { return nil }
-        return SensorTransport.safariSocketURL(groupContainer: container)
+        groupContainer().map(SensorTransport.safariSocketURL(groupContainer:))
+    }
+
+    /// The Safari extension's own diagnostic events,
+    /// `<group container>/Diagnostics/safari-extension.ndjson`
+    /// (`docs/DIAGNOSTICS.md`, Files on this Mac). Nil without the group.
+    public static func diagnosticsFile() -> URL? {
+        groupContainer()?.appendingPathComponent("Diagnostics/safari-extension.ndjson")
+    }
+
+    private static func groupContainer() -> URL? {
+        guard let group = SensorTransport.safariAppGroup(in: entitledAppGroups()) else { return nil }
+        return FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: group)
     }
 
     /// The groups in this process's own entitlements. Read rather than written
