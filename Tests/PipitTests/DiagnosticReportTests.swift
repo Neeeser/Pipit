@@ -147,4 +147,35 @@ struct DiagnosticReportTests {
             #expect(DiagnosticTokenRule.token(refused) == "invalid")
         }
     }
+
+    @Test("JSON is read as the decoder reads it, and what is not JSON is refused")
+    func jsonIsReadAsTheDecoderReadsItAndWhatIsNotJSONIsRefused() throws {
+        let text = #"""
+            {"a": [1, -2, 3.5, 2.5e3, -0, 9223372036854775807, 18446744073709551616, true, false, null],
+             "s": "plain", "e": "q\"b\\s\/n\nt\tu\u00e9\ud83d\udc26", "": {}, "x": [], "u": "é"}
+            """#
+        let parsed = try #require(JSONValue.parse(Data(text.utf8)))
+        #expect(parsed == (try JSONDecoder().decode(JSONValue.self, from: Data(text.utf8))))
+        #expect(parsed["e"]?.stringValue == "q\"b\\s/n\nt\tu\u{E9}\u{1F426}")
+        #expect(parsed["a"]?.arrayValue?[2] == .double(3.5))
+        // A whole value is an integer however it is written.
+        #expect(parsed["a"]?.arrayValue?[3] == .integer(2_500))
+        #expect(JSONValue.parse(Data("1.0".utf8)) == .integer(1))
+        #expect(parsed["a"]?.arrayValue?[5] == .integer(Int64.max))
+        #expect(JSONValue.parse(Data(" 42 ".utf8)) == .integer(42))
+        #expect(JSONValue.parse(Data(#""fragment""#.utf8)) == .string("fragment"))
+        // A slice that does not start at zero, as the crash reducer passes.
+        let line = Data(#"xx{"k":1}"#.utf8)
+        #expect(JSONValue.parse(line.dropFirst(2)) == .object(["k": .integer(1)]))
+
+        let refused = [
+            "", "{", "[1,]", #"{"a":1,}"#, "{a:1}", "01", "1.", ".5", "-", "1e", "tru", "nul", #""open"#,
+            #""bad \x escape""#, #""\ud800""#, #""\udc00""#, "\"tab\there\"", "[1] [2]", "NaN", "\"\u{01}\"",
+            String(repeating: "[", count: 600) + String(repeating: "]", count: 600),
+        ]
+        for text in refused {
+            #expect(JSONValue.parse(Data(text.utf8)) == nil, "\(text)")
+        }
+        #expect(JSONValue.parse(Data([0x22, 0xFF, 0x22])) == nil)
+    }
 }
