@@ -72,6 +72,7 @@ They do not run in the ordinary suite.
 | Process a long recording | `PIPIT_LIVE_LONG=1 PIPIT_LIVE_FIXTURE=/tmp/pipit-fixture ./scripts/test.sh` |
 | Run a capture soak | `PIPIT_SOAK_MINUTES=30 ./scripts/test.sh --filter Soak` |
 | Update the application through Sparkle (needs a signing identity) | `./scripts/test-update.sh` |
+| Send a synthetic logged failure through the report service, replay it, and delete it | `PIPIT_LIVE_DIAGNOSTICS_URL=https://pipit-website.vercel.app ./scripts/test.sh --filter DiagnosticLiveReportTests` |
 | Crash the bundled app, list and symbolicate its report, then kill it without one | `PIPIT_LIVE_CRASH=1 ./scripts/check-crash-report.sh` |
 
 Create the local fixture with:
@@ -108,6 +109,10 @@ The following paths have been exercised outside unit tests:
   creating a meeting.
 - A real Slack Huddle was detected, recorded, and ended through the audio-only
   path while Accessibility and Screen Recording were denied.
+- The Swift diagnostic log, report builder, Keychain secret store, and sender
+  sent a synthetic failure to the production website, replayed the same body,
+  looked up its receipt, and deleted it. A separate database check confirmed
+  exact gzip storage, failure-code indexing, and deletion of metadata and body.
 - A packaged application launched as a menu-bar-only process and installed its
   native messaging host and browser resources.
 - Local transcription and diarization completed with network access denied
