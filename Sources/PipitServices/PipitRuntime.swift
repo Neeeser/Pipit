@@ -21,6 +21,9 @@ public struct RuntimeStatus: Sendable, Equatable {
     public var sensorConnection: BrowserSensorTracker.Connection = .absent
     /// Every browser's add-on. `sensorConnection` is the Firefox entry.
     public var browserSensors: [BrowserKind: BrowserSensorTracker.Connection] = [:]
+    /// What each browser's add-on said about itself when it last connected,
+    /// for a diagnostic report.
+    public var browserHellos: [BrowserKind: SensorMessage.Hello] = [:]
     /// Whether the Firefox add-on has ever connected on this machine, carried
     /// from settings so the menu bar can tell "dropped" from "never installed".
     public var firefoxSensorHasConnected = false
@@ -601,6 +604,7 @@ public final class PipitRuntime {
     func detectionDidUpdate(_ snapshot: DetectionSnapshot) {
         status.sensorConnection = snapshot.browserSensor
         status.browserSensors = snapshot.browserSensors
+        status.browserHellos = snapshot.sensorHellos
         status.isFirefoxRunning = BrowserPresence.isRunning(.firefox)
         // A live connection is proof enough. The profile is read only when
         // nothing is talking and the person has allowed the read, which they

@@ -304,8 +304,8 @@ to the format breaks one side's tests until both agree.
 
 ### Sections
 
-Built by `DiagnosticSnapshot` (PipitCore) from values the service layer
-reads, and assembled by `DiagnosticBundleBuilder`.
+Built by `DiagnosticSnapshot` (PipitCore) from values `DiagnosticReportCollector`
+(PipitServices) reads, and assembled by `DiagnosticBundleBuilder`.
 
 - `app`: `version`, `build` (0 when not a number), `commit`, `channel`
   (`dev` for a `-dev.<sha>` version, `prerelease` for any other suffix,
