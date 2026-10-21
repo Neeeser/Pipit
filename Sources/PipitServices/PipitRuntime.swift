@@ -226,14 +226,23 @@ public final class PipitRuntime {
     /// Where everything that is not a meeting lives: settings, the voice
     /// database, the models, and the audio of a spoken enrolment.
     @ObservationIgnored public let applicationSupport: URL
+    /// The local event log. `disabled` unless the application passes one, so a
+    /// runtime a test builds never writes into the real Logs folder.
+    @ObservationIgnored public let diagnostics: DiagnosticLog
+    /// The diagnostic session of the capture armed now, made fresh at every
+    /// arm and stamped on that capture's events and its manifest.
+    @ObservationIgnored private var diagnosticSession: DiagnosticSessionID?
 
     /// `backend` is the cloud client the pipeline and its cloud stages use.
     /// It is a parameter so a test can drive the pipeline this runtime files
     /// through, which is the same object the folder holds live on.
+    ///
+    /// `diagnostics` is handed to every subsystem that records events.
     public init(
         settingsDirectory: URL = SensorTransport.defaultApplicationSupport,
         clock: any Clock = SystemClock(),
         backend: (any AIBackend)? = nil,
+        diagnostics: DiagnosticLog = .disabled,
         trash: @escaping @Sendable (URL) throws -> Void = {
             try FileManager.default.trashItem(at: $0, resultingItemURL: nil)
         }
@@ -241,6 +250,7 @@ public final class PipitRuntime {
         self.clock = clock
         self.trash = trash
         self.applicationSupport = settingsDirectory
+        self.diagnostics = diagnostics
         self.settingsStore = SettingsStore(directory: settingsDirectory)
         let loaded = settingsStore.load()
         self.settings = loaded
@@ -262,9 +272,10 @@ public final class PipitRuntime {
             makeMicrophone: { sink, onChange in
                 MicrophoneSource(sink: sink, onConfigurationChange: onChange)
             },
+            diagnostics: diagnostics,
             delegate: relay
         )
-        detectionEngine = DetectionEngine(clock: clock, delegate: relay)
+        detectionEngine = DetectionEngine(clock: clock, diagnostics: diagnostics, delegate: relay)
         detectionEngine.updateGenericConfiguration(loaded.genericDetectorConfiguration)
 
         // Release builds read the key from the keychain only. A process
@@ -295,6 +306,7 @@ public final class PipitRuntime {
         let modelManager = LocalModelManager(
             applicationSupport: settingsDirectory,
             required: LocalModelUnit.required(for: loaded),
+            diagnostics: diagnostics,
             onStateChange: { [weak relay] state in
                 Task { @MainActor in relay?.runtimeForCallbacks?.localModelState = state }
             }
@@ -380,6 +392,7 @@ public final class PipitRuntime {
             gate: RecordingAwareGate(capture: { recording.withLock { $0 } }),
             calendar: CalendarService(),
             clock: clock,
+            diagnostics: diagnostics,
             settingsProvider: { [snapshot = settingsSnapshot] in snapshot.withLock { $0 } },
             onProgress: { [weak relay] progress in
                 Task { @MainActor in relay?.runtimeForCallbacks?.apply(progress) }
@@ -410,6 +423,7 @@ public final class PipitRuntime {
     // MARK: - lifecycle
 
     public func start() {
+        diagnostics.record(.appLaunched(DiagnosticEnvironment.current()))
         notifications.registerCategories()
         installNativeMessagingHost()
         // A job killed mid-export leaves a partial track behind. Nothing ever
@@ -468,6 +482,21 @@ public final class PipitRuntime {
         permissionWatch = nil
         detectionEngine.stop()
         if status.hasActiveSession { stopRecording(reason: "app_quit") }
+    }
+
+    /// How the previous launch ended, once whatever reads the crash reports has
+    /// decided. `previousLaunch` is that launch's identifier from its state
+    /// file.
+    public func recordPreviousExit(_ exitClass: DiagnosticEvent.ExitClass, previousLaunch: DiagnosticLaunchID?) {
+        diagnostics.record(.appPreviousExit(exitClass: exitClass, previousLaunch: previousLaunch))
+    }
+
+    /// Records a clean exit and writes out everything still queued. Called
+    /// last, after the recording has been finalised, and bounded so a slow
+    /// disk cannot hold up quitting.
+    public func finishDiagnostics() {
+        diagnostics.record(.appTerminated)
+        diagnostics.flush(timeout: 2)
     }
 
     /// Stops and waits for the recording to be finalised.
@@ -617,6 +646,7 @@ public final class PipitRuntime {
         // the preflight below goes through here as well.
         guard !sessionWarnings.contains(where: { $0.dedupKey == warning.dedupKey }) else { return }
         sessionWarnings.append(warning)
+        diagnostics.record(.captureWarning(code: .word(warning.dedupKey)), session: diagnosticSession)
         status.lastWarning = warning
         if settings.showNotifications { notifications.captureProblem(warning) }
         onStatusChange?()
@@ -780,12 +810,28 @@ public final class PipitRuntime {
         let importer = AudioImporter(segmentSeconds: settings.segmentSeconds, clock: clock)
         let store = created.store
         let meetingIdentifier = created.metadata.id
+        let session = DiagnosticSessionID()
+        diagnostics.record(
+            .sessionStarted(source: .imported, trigger: .imported, segmentSeconds: settings.segmentSeconds),
+            session: session
+        )
         let result: AudioImporter.Result
         do {
             result = try await Task.detached(priority: .userInitiated) {
-                try importer.import(source: url, into: store, meetingID: meetingIdentifier)
+                try importer.import(source: url, into: store, meetingID: meetingIdentifier, session: session)
             }.value
+            diagnostics.record(
+                .sessionStopped(trigger: .auto, seconds: result.durationSeconds, segments: result.segmentCount),
+                session: session
+            )
         } catch {
+            diagnostics.record(.sessionStopped(trigger: .error, seconds: 0, segments: 0), session: session)
+            diagnostics.record(
+                .processingStageFailed(
+                    stage: .finalizing, attempt: 1, code: DiagnosticCode(describing: error), retryable: false
+                ),
+                session: session
+            )
             // The directory stays. The copy of the original and the manifest
             // are the record of what happened. Marking it failed is what keeps
             // recovery off it, which would otherwise adopt a meeting still in
@@ -1325,7 +1371,9 @@ public final class PipitRuntime {
                         raisePermissionNotice(missing: [.screenRecording])
                     }
                 }
-                await captureEngine.arm(scope: scope, capturesRemote: capturesRemote)
+                let session = DiagnosticSessionID()
+                diagnosticSession = session
+                await captureEngine.arm(scope: scope, capturesRemote: capturesRemote, session: session)
             case .retargetCapture(let scope):
                 await captureEngine.retarget(scope: scope)
             case .commitRecording(let request):
@@ -1377,7 +1425,17 @@ public final class PipitRuntime {
     /// one is seen. Setup and the panel call this with every poll while they
     /// are open, and the runtime asks on its own every half minute.
     public func permissionsDidChange(_ statuses: [PermissionStatus]) {
-        for probe in statuses { permissionStates[probe.kind] = probe.state }
+        for probe in statuses {
+            // Changes only. Setup polls every second while it is open.
+            if permissionStates[probe.kind] != probe.state {
+                diagnostics.record(
+                    .permissionState(
+                        permission: DiagnosticEvent.Permission(probe.kind),
+                        state: DiagnosticEvent.PermissionGrant(probe.state)
+                    ))
+            }
+            permissionStates[probe.kind] = probe.state
+        }
         let ambient = PermissionNotice.missingRequired(in: permissionStates)
         if status.permissionNotice != ambient {
             status.permissionNotice = ambient
@@ -1431,6 +1489,13 @@ public final class PipitRuntime {
             )
             currentMeeting = (metadata, created.store)
             sensorRecorder = SensorRecorder(anchorMonotonic: clock.monotonicSeconds)
+            diagnostics.record(
+                .sessionStarted(
+                    source: request.source, trigger: Self.startTrigger(for: request.source),
+                    segmentSeconds: settings.segmentSeconds
+                ),
+                session: diagnosticSession
+            )
             refreshRecentMeetings()
             return true
         } catch {
@@ -1514,6 +1579,12 @@ public final class PipitRuntime {
     private func beginRun(reason: String) {
         guard let meeting = currentMeeting else { return }
         captureEngine.addMarker("run:\(reason)")
+        diagnostics.record(
+            .sessionStarted(
+                source: meeting.metadata.source, trigger: .reconnect, segmentSeconds: settings.segmentSeconds
+            ),
+            session: diagnosticSession
+        )
         let updated = try? meeting.store.updateMetadata { metadata in
             let index = metadata.runs.count + 1
             metadata.runs.append(
@@ -1541,7 +1612,14 @@ public final class PipitRuntime {
         sessionWarnings = []
         await captureEngine.discardArmed()
         if let meeting = currentMeeting {
-            _ = await captureEngine.stop(reason: reason)
+            let snapshot = await captureEngine.stop(reason: reason)
+            diagnostics.record(
+                .sessionStopped(
+                    trigger: Self.stopTrigger(for: reason),
+                    seconds: max(snapshot.micSeconds, snapshot.remoteSeconds), segments: 0
+                ),
+                session: diagnosticSession
+            )
             // A provisional recording the user declined leaves nothing behind.
             try? FileManager.default.removeItem(at: meeting.store.layout.root)
             currentMeeting = nil
@@ -1560,9 +1638,19 @@ public final class PipitRuntime {
         }
         currentMeeting = nil
         defer { sensorRecorder = nil }
+        let session = diagnosticSession
+        var stopRecorded = false
 
         do {
             let timeline = try meeting.store.readTimeline()
+            stopRecorded = true
+            diagnostics.record(
+                .sessionStopped(
+                    trigger: Self.stopTrigger(for: reason), seconds: timeline.duration,
+                    segments: timeline.segments.count
+                ),
+                session: session
+            )
             writeSensors(store: meeting.store, timeline: timeline)
             let updated = try meeting.store.updateMetadata { metadata in
                 metadata.endedAt = self.clock.now
@@ -1616,6 +1704,33 @@ public final class PipitRuntime {
             Task { await pipeline.process(meetingID: meetingID) }
         } catch {
             Log.app.error("finalise failed: \(logSafeDescription(error), privacy: .public)")
+            if !stopRecorded {
+                diagnostics.record(
+                    .sessionStopped(
+                        trigger: .error, seconds: max(snapshot.micSeconds, snapshot.remoteSeconds), segments: 0
+                    ),
+                    session: session
+                )
+            }
+        }
+    }
+
+    /// What started a recording, for its `session.started` event.
+    static func startTrigger(for source: MeetingSource) -> DiagnosticEvent.StartTrigger {
+        switch source {
+        case .manual, .inPerson: .manual
+        case .imported: .imported
+        case .slackHuddle, .googleMeet, .zoom, .faceTime, .genericCall: .auto
+        }
+    }
+
+    /// What ended one, from the reason the session controller gave.
+    static func stopTrigger(for reason: String) -> DiagnosticEvent.StopTrigger {
+        switch reason {
+        case "user_stopped", "user_discarded": .manual
+        case "app_quit": .quit
+        case "commit_failed", "microphone_permission_missing": .error
+        default: .auto
         }
     }
 

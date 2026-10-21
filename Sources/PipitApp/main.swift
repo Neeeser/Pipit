@@ -22,7 +22,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var isTerminating = false
 
     func applicationDidFinishLaunching(_ notification: Notification) {
-        runtime = PipitRuntime()
+        // The real event log only here. Every other runtime, the tests' among
+        // them, gets the disabled one and writes nothing to the Logs folder.
+        runtime = PipitRuntime(diagnostics: DiagnosticLog(layout: .standard))
         LoginItem.apply(launchAtLogin: runtime.settings.launchAtLogin)
         windows = WindowManager(runtime: runtime)
         // Applied from the loaded settings rather than hardcoded, and again on
@@ -59,6 +61,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationWillTerminate(_ notification: Notification) {
         runtime.stop()
+        runtime.finishDiagnostics()
     }
 
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {

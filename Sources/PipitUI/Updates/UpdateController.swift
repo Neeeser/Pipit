@@ -29,6 +29,9 @@ public final class UpdateController: NSObject, SPUUpdaterDelegate {
     /// The version this process runs, injectable so a test can stand in for
     /// a launch under a new version.
     private let running: String
+    /// Where each check's outcome is recorded. Sparkle calls the delegate
+    /// methods that record it from outside the main actor's view.
+    private nonisolated let diagnostics: DiagnosticLog
 
     public init(
         runtime: PipitRuntime, windows: WindowManager, runningVersion: String = UpdateController.runningVersion
@@ -36,6 +39,7 @@ public final class UpdateController: NSObject, SPUUpdaterDelegate {
         self.runtime = runtime
         self.windows = windows
         self.running = runningVersion
+        self.diagnostics = runtime.diagnostics
         super.init()
         model.runningVersion = runningVersion
         model.syncAddOn(from: runtime.status)
@@ -175,5 +179,22 @@ public final class UpdateController: NSObject, SPUUpdaterDelegate {
                 appVersion: running
             )
         }
+    }
+
+    public nonisolated func updater(_ updater: SPUUpdater, didFindValidUpdate item: SUAppcastItem) {
+        diagnostics.record(.updateChecked(outcome: .available, code: nil))
+    }
+
+    public nonisolated func updaterDidNotFindUpdate(_ updater: SPUUpdater, error: any Error) {
+        diagnostics.record(.updateChecked(outcome: .upToDate, code: nil))
+    }
+
+    /// A check or an install that stopped on an error. Sparkle sends "no
+    /// update found" here too, as `SUNoUpdateError` (1001 in
+    /// `SUSparkleErrorDomain`), and the method above has recorded that one.
+    public nonisolated func updater(_ updater: SPUUpdater, didAbortWithError error: any Error) {
+        let nsError = error as NSError
+        guard !(nsError.domain == "SUSparkleErrorDomain" && nsError.code == 1_001) else { return }
+        diagnostics.record(.updateChecked(outcome: .failed, code: DiagnosticCode(describing: error)))
     }
 }

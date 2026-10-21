@@ -47,14 +47,17 @@ public actor LocalModelManager {
     /// a 60-minute meeting.
     private var prepared: (key: String, value: PreparedDiarization, source: DiskBackedAudioSampleSource)?
     private let onStateChange: @Sendable (LocalModelState) -> Void
+    private let diagnostics: DiagnosticLog
 
     public init(
         applicationSupport: URL,
         required: Set<LocalModelUnit> = [.whisper, .diarizer],
+        diagnostics: DiagnosticLog = .disabled,
         onStateChange: @escaping @Sendable (LocalModelState) -> Void = { _ in }
     ) {
         let locations = LocalModelLocations(applicationSupport: applicationSupport)
         self.locations = locations
+        self.diagnostics = diagnostics
         self.receiptStore = LocalModelReceiptStore(locations: locations)
         self.onStateChange = onStateChange
         self.required = required
@@ -201,13 +204,24 @@ public actor LocalModelManager {
                 let base = Double(completedBytes) / Double(totalBytes)
                 let share = Double(unit.approximateBytes) / Double(totalBytes)
                 try Task.checkCancellation()
-                try await installUnit(unit, force: force) { fraction, detail in
-                    Task {
-                        await self.publishProgress(
-                            fraction: base + share * min(max(fraction, 0), 1), detail: detail
-                        )
+                diagnostics.record(.modelInstallStarted(unit: unit))
+                let started = Date()
+                do {
+                    try await installUnit(unit, force: force) { fraction, detail in
+                        Task {
+                            await self.publishProgress(
+                                fraction: base + share * min(max(fraction, 0), 1), detail: detail
+                            )
+                        }
                     }
+                } catch {
+                    diagnostics.record(.modelInstallFailed(unit: unit, code: .modelInstall(error)))
+                    throw error
                 }
+                diagnostics.record(
+                    .modelInstallFinished(
+                        unit: unit, bytes: receipts[unit]?.bytes ?? 0, seconds: Date().timeIntervalSince(started)
+                    ))
                 completedBytes += unit.approximateBytes
             }
             try Task.checkCancellation()
@@ -708,7 +722,7 @@ public actor LocalModelManager {
     }
 }
 
-public enum LocalModelError: LocalProcessingFailure, CustomStringConvertible, Sendable {
+public enum LocalModelError: LocalProcessingFailure, DiagnosticCodeProviding, CustomStringConvertible, Sendable {
     case notInstalled
     case audioUnreadable(String)
     case installFailed(String)
@@ -736,4 +750,13 @@ public enum LocalModelError: LocalProcessingFailure, CustomStringConvertible, Se
     /// transcript is what changes the outcome. Retrying the stage would only
     /// repeat the failure.
     public var isRetryable: Bool { false }
+
+    /// The reasons are left out: they are the underlying error's own words.
+    public var diagnosticCode: DiagnosticCode {
+        switch self {
+        case .notInstalled: DiagnosticCode("model", "not_installed")
+        case .audioUnreadable: DiagnosticCode("model", "audio_unreadable")
+        case .installFailed: DiagnosticCode("model", "install", detail: "failed")
+        }
+    }
 }
