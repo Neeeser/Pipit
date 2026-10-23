@@ -8,6 +8,7 @@
 
 /* Begin PBXBuildFile section */
 		1BADC52F321A6FD178D8500A /* main.swift in Sources */ = {isa = PBXBuildFile; fileRef = CF162ACFBE7E6E8D288ED3AE /* main.swift */; };
+		2779913B8816DBD921ABAF84 /* pipit-bird@2x.png in Resources */ = {isa = PBXBuildFile; fileRef = AE17BF691621F1E2C0BF9479 /* pipit-bird@2x.png */; };
 		3191ABE85D693632A9FDC2CB /* pipit-warning.png in Resources */ = {isa = PBXBuildFile; fileRef = B51AD68CF4CC5EBBC835EFAD /* pipit-warning.png */; };
 		3505EA27696B804EAEA24A66 /* pipit-nativehost in Embed Dependencies */ = {isa = PBXBuildFile; fileRef = CF8423805ED90026CB9FE79F /* pipit-nativehost */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		390DDCF3440FA353514D5CF7 /* pipit-paused@2x.png in Resources */ = {isa = PBXBuildFile; fileRef = AADBBCEAF442F82F50848E19 /* pipit-paused@2x.png */; };
@@ -24,6 +25,7 @@
 		9E947FF6BD212B31D77080EB /* pipit-recording@2x.png in Resources */ = {isa = PBXBuildFile; fileRef = 80CADB95C82DE44384D66658 /* pipit-recording@2x.png */; };
 		A169A97D3B1D5FC31AB36239 /* main.swift in Sources */ = {isa = PBXBuildFile; fileRef = 957D0D58BA4B90F5ED74BA3D /* main.swift */; };
 		A36EE8A6715815EB4DEA2350 /* pipit-warning@2x.png in Resources */ = {isa = PBXBuildFile; fileRef = BE18F1D24E08FB3C8CFE1B45 /* pipit-warning@2x.png */; };
+		ABF2DCCE827D88994E8E0E42 /* pipit-bird.png in Resources */ = {isa = PBXBuildFile; fileRef = 0DB674F2B77DF780C7E40B1F /* pipit-bird.png */; };
 		B227C8AC14891EDECAC77937 /* pipit-recording.png in Resources */ = {isa = PBXBuildFile; fileRef = EE665BD0FBCB237C161ED197 /* pipit-recording.png */; };
 		BB6A4839CC39752C431C7344 /* PipitCLIKit in Frameworks */ = {isa = PBXBuildFile; productRef = C61F02EDEB021B229B0F0C2B /* PipitCLIKit */; };
 		C1E2EFB13A1DD1150F731412 /* pipit-paused.png in Resources */ = {isa = PBXBuildFile; fileRef = 47809F16D1A04B353EA7AD4F /* pipit-paused.png */; };
@@ -74,8 +76,8 @@
 
 /* Begin PBXFileReference section */
 		064FAC8B1390A57B8638A0FB /* pipit */ = {isa = PBXFileReference; lastKnownFileType = folder; name = pipit; path = skills/pipit; sourceTree = SOURCE_ROOT; };
+		0DB674F2B77DF780C7E40B1F /* pipit-bird.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = "pipit-bird.png"; sourceTree = "<group>"; };
 		1285D5E7B50171265DD11DF8 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
-		1A9FA47A63F5FFB29A6E7F9C /* Pipit */ = {isa = PBXFileReference; lastKnownFileType = folder; name = Pipit; path = .; sourceTree = SOURCE_ROOT; };
 		22EFBC85987D961C7C8CAA85 /* Pipit.icns */ = {isa = PBXFileReference; lastKnownFileType = image.icns; path = Pipit.icns; sourceTree = "<group>"; };
 		2D7A38581127B6E94CAC574A /* pipit-idle.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = "pipit-idle.png"; sourceTree = "<group>"; };
 		37155903C8D9E58F149C8AEE /* Pipit.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = Pipit.entitlements; sourceTree = "<group>"; };
@@ -83,8 +85,10 @@
 		7FA445934522AB5AC18F6DB8 /* main.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = main.swift; sourceTree = "<group>"; };
 		80CADB95C82DE44384D66658 /* pipit-recording@2x.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = "pipit-recording@2x.png"; sourceTree = "<group>"; };
 		957D0D58BA4B90F5ED74BA3D /* main.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = main.swift; sourceTree = "<group>"; };
+		A1E5C73693FBAD5B5AB12FA1 /* about-page-redesign-9b61d0 */ = {isa = PBXFileReference; lastKnownFileType = folder; name = "about-page-redesign-9b61d0"; path = .; sourceTree = SOURCE_ROOT; };
 		A40349FB8BC23FA746B2FB67 /* pipit-idle@2x.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = "pipit-idle@2x.png"; sourceTree = "<group>"; };
 		AADBBCEAF442F82F50848E19 /* pipit-paused@2x.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = "pipit-paused@2x.png"; sourceTree = "<group>"; };
+		AE17BF691621F1E2C0BF9479 /* pipit-bird@2x.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = "pipit-bird@2x.png"; sourceTree = "<group>"; };
 		B0093BF8EF2DEC410F19D424 /* pipit-cli */ = {isa = PBXFileReference; includeInIndex = 0; path = "pipit-cli"; sourceTree = BUILT_PRODUCTS_DIR; };
 		B51AD68CF4CC5EBBC835EFAD /* pipit-warning.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = "pipit-warning.png"; sourceTree = "<group>"; };
 		BE18F1D24E08FB3C8CFE1B45 /* pipit-warning@2x.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = "pipit-warning@2x.png"; sourceTree = "<group>"; };
@@ -179,6 +183,7 @@
 		62DE406810B72997EC806A04 /* Pipit */ = {
 			isa = PBXGroup;
 			children = (
+				A2792CE21537DDDA536D6DD4 /* About */,
 				2ACDBE2DBC3F94034383AC52 /* AppIcons */,
 				9E39072381D2E31F7998AFB4 /* MenuBar */,
 			);
@@ -226,10 +231,19 @@
 			path = MenuBar;
 			sourceTree = "<group>";
 		};
+		A2792CE21537DDDA536D6DD4 /* About */ = {
+			isa = PBXGroup;
+			children = (
+				0DB674F2B77DF780C7E40B1F /* pipit-bird.png */,
+				AE17BF691621F1E2C0BF9479 /* pipit-bird@2x.png */,
+			);
+			path = About;
+			sourceTree = "<group>";
+		};
 		C3F5AEB0AE40EB2D5EE6807D /* Packages */ = {
 			isa = PBXGroup;
 			children = (
-				1A9FA47A63F5FFB29A6E7F9C /* Pipit */,
+				A1E5C73693FBAD5B5AB12FA1 /* about-page-redesign-9b61d0 */,
 			);
 			name = Packages;
 			sourceTree = "<group>";
@@ -370,6 +384,8 @@
 			buildActionMask = 2147483647;
 			files = (
 				43C4B96F81CFD44E3F86A18A /* Pipit.icns in Resources */,
+				ABF2DCCE827D88994E8E0E42 /* pipit-bird.png in Resources */,
+				2779913B8816DBD921ABAF84 /* pipit-bird@2x.png in Resources */,
 				737ABAE4AD17ED2DF9714AC0 /* pipit-idle.png in Resources */,
 				5274BC7830D9FA9D13000936 /* pipit-idle@2x.png in Resources */,
 				C1E2EFB13A1DD1150F731412 /* pipit-paused.png in Resources */,

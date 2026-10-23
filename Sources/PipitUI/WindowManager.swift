@@ -152,11 +152,19 @@ public final class WindowManager {
             return
         }
         let window = makeWindow(
-            title: "About Pipit",
-            size: NSSize(width: 360, height: 140),
-            content: AboutView(runtime: runtime)
+            title: "About Pipit", size: AboutView.size, content: AboutView()
         )
-        window.setFrameAutosaveName("PipitAbout")
+        // The scene runs up under the title bar, and the window keeps the size
+        // the scene is drawn for.
+        window.styleMask = [.titled, .closable, .fullSizeContentView]
+        window.titleVisibility = .hidden
+        window.titlebarAppearsTransparent = true
+        window.isMovableByWindowBackground = true
+        if let host = window.contentViewController as? NSHostingController<AnyView> {
+            host.sizingOptions = []
+        }
+        window.setContentSize(AboutView.size)
+        window.center()
         aboutWindow = window
         present(window)
     }
