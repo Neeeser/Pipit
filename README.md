@@ -76,7 +76,9 @@ Application Support and are excluded from meeting folders and exports.
 
 ## Documentation
 
+- [Website](https://pipit-website.vercel.app/)
 - [Contributing](CONTRIBUTING.md)
+- [Changelog](CHANGELOG.md)
 - [Releases](https://github.com/Neeeser/Pipit/releases)
 - [Security policy](SECURITY.md)
 - [Architecture](docs/ARCHITECTURE.md)

@@ -43,6 +43,27 @@ struct ReleaseNotesTests {
         #expect(flat.sections == [.init(title: "What's Changed", items: ["One thing", "Another"])])
     }
 
+    @Test("the written notes end at the marker, before the pull request list GitHub appends")
+    func theWrittenNotesEndAtTheMarker() async throws {
+        let body = """
+            Play back your meetings.
+
+            ### New
+            - Play a meeting's recording.
+
+            \(ReleaseNotes.endMarker)
+
+            ## What's Changed
+            ### Features
+            * Add playback by @someone in https://github.com/example/app/pull/127
+            """
+        #expect(
+            ReleaseNotes.parse(markdown: body).sections == [
+                .init(title: nil, items: ["Play back your meetings."]),
+                .init(title: "New", items: ["Play a meeting's recording."]),
+            ])
+    }
+
     @Test("the loader reads the body field of the release")
     func theLoaderReadsTheBodyFieldOfTheRelease() async throws {
         let json = Data(###"{"tag_name":"v0.2.0","body":"## Fixes\n* A fix by @x in https://e/pull/1"}"###.utf8)

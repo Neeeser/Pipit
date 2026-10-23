@@ -1,31 +1,102 @@
 name: Release
 
+# A release pull request raises VERSION and adds the version's notes to
+# CHANGELOG.md (scripts/prepare-release.sh opens it). Once CI passes on the
+# commit that merge puts on main, this workflow finds a VERSION with no tag yet,
+# builds it, tags that commit and drafts the GitHub release. Nothing is pushed
+# to main. See docs/RELEASING.md.
 on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+    branches: [main]
+  # The fallback: a tag pushed by hand onto a commit whose VERSION matches it.
   push:
     tags: ['v*.*.*']
-  workflow_dispatch:
-    inputs:
-      level:
-        description: 'Bump VERSION by this much and tag the result'
-        type: choice
-        default: none
-        options: [none, patch, minor, major]
-      version:
-        description: 'Version to build, without the leading v. Leave empty when a level is given'
-        required: false
-        default: ''
-      prerelease:
-        description: 'Mark the release as a pre-release, which puts the appcast item on the beta channel. A version below 1.0.0 is a pre-release either way'
-        type: boolean
-        default: false
-      notes:
-        description: "Release notes, one or two lines. Leave empty to write them on the draft."
-        required: false
-        type: string
+
+concurrency:
+  group: release
+  cancel-in-progress: false
 
 jobs:
+  check:
+    name: Find an unreleased version
+    # A CI run started by hand on main (the notarized test app) is not a merge
+    # and releases nothing.
+    if: >-
+      github.event_name == 'push'
+      || (github.event.workflow_run.conclusion == 'success'
+          && github.event.workflow_run.event == 'push')
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    outputs:
+      release: ${{ steps.find.outputs.release }}
+      version: ${{ steps.find.outputs.version }}
+      tag: ${{ steps.find.outputs.tag }}
+      sha: ${{ steps.find.outputs.sha }}
+      tag_push: ${{ steps.find.outputs.tag_push }}
+      prerelease: ${{ steps.find.outputs.prerelease }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          # The commit CI tested, not whatever main has moved on to since.
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+
+      - name: Compare VERSION with the tags
+        id: find
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          REF_NAME: ${{ github.ref_name }}
+          SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
+        run: |
+          VERSION="$(tr -d '[:space:]' < VERSION)"
+          if ! printf '%s' "$VERSION" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$'; then
+            echo "VERSION must be MAJOR.MINOR.PATCH, got: $VERSION" >&2
+            exit 1
+          fi
+          TAG="v$VERSION"
+          if [ "$EVENT_NAME" = "push" ]; then
+            TAG_PUSH=true
+            if [ "$REF_NAME" != "$TAG" ]; then
+              echo "tag $REF_NAME does not match VERSION $VERSION on the commit it names" >&2
+              exit 1
+            fi
+          else
+            TAG_PUSH=false
+            # Every merge after a release lands here with the tag already
+            # there, which is the usual case and not an error.
+            if git ls-remote --exit-code --tags origin "refs/tags/$TAG" >/dev/null 2>&1; then
+              echo "$TAG already exists; nothing to release"
+              echo "release=false" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+          fi
+          # Fails when CHANGELOG.md has no section for this version, before a
+          # macOS runner is spent on a build that would ship without notes.
+          ./scripts/release-notes.sh "$VERSION" >/dev/null
+          # Below 1.0.0 the release is a pre-release, so the appcast item lands
+          # on the beta channel. From 1.0.0 on, tick the pre-release box on the
+          # draft before publishing to send a release to the beta channel.
+          PRERELEASE=false
+          if [ "${VERSION%%.*}" = "0" ]; then
+            PRERELEASE=true
+          fi
+          echo "releasing $TAG from $SHA"
+          {
+            echo "release=true"
+            echo "version=$VERSION"
+            echo "tag=$TAG"
+            echo "sha=$SHA"
+            echo "tag_push=$TAG_PUSH"
+            echo "prerelease=$PRERELEASE"
+          } >> "$GITHUB_OUTPUT"
+
   release:
     name: Build and publish
+    needs: check
+    if: needs.check.outputs.release == 'true'
     runs-on: macos-15
     timeout-minutes: 120
     permissions:
@@ -33,6 +104,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
         with:
+          ref: ${{ needs.check.outputs.sha }}
           # The build number is the commit count, and the default depth of 1
           # would make every release build number 1.
           fetch-depth: 0
@@ -68,85 +140,9 @@ jobs:
           restore-keys: |
             spm-${{ runner.os }}-${{ steps.toolchain.outputs.xcode }}-
 
-      - name: Resolve the version
-        id: version
-        # A manual run takes either a bump level or an explicit version. The
-        # level route reads VERSION and raises it. The version route names the
-        # number outright, which is how the first release is cut. A tag push
-        # takes the version from the tag. Both manual routes end the same way:
-        # the version goes into the tree, the build runs, and the commit and
-        # the tag are pushed once it has succeeded.
-        env:
-          # Passed through the environment and validated, never interpolated into
-          # the script body.
-          INPUT_LEVEL: ${{ inputs.level }}
-          INPUT_VERSION: ${{ inputs.version }}
-          INPUT_PRERELEASE: ${{ inputs.prerelease }}
-          EVENT_NAME: ${{ github.event_name }}
-          BRANCH: ${{ github.ref_name }}
-          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
-        run: |
-          TAG_PUSH=false
-          if [ "$EVENT_NAME" = "workflow_dispatch" ]; then
-            if [ "$BRANCH" != "$DEFAULT_BRANCH" ]; then
-              echo "a release run belongs on $DEFAULT_BRANCH, not $BRANCH" >&2
-              exit 1
-            fi
-            LEVEL="$INPUT_LEVEL"
-            if [ "$LEVEL" = "none" ]; then
-              LEVEL=""
-            fi
-            if [ -n "$LEVEL" ] && [ -n "$INPUT_VERSION" ]; then
-              echo "give a bump level or a version, not both" >&2
-              exit 1
-            fi
-            if [ -z "$LEVEL" ] && [ -z "$INPUT_VERSION" ]; then
-              echo "give a bump level or a version" >&2
-              exit 1
-            fi
-            if [ -n "$LEVEL" ]; then
-              VERSION="$(./scripts/bump-version.sh "$LEVEL")"
-            else
-              VERSION="$INPUT_VERSION"
-            fi
-          else
-            TAG_PUSH=true
-            VERSION="${GITHUB_REF_NAME#v}"
-          fi
-          if ! printf '%s' "$VERSION" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$'; then
-            echo "version must be MAJOR.MINOR.PATCH, got: $VERSION" >&2
-            exit 1
-          fi
-          if [ "$TAG_PUSH" = false ] \
-            && git ls-remote --exit-code --tags origin "refs/tags/v$VERSION" >/dev/null 2>&1; then
-            echo "tag v$VERSION already exists" >&2
-            exit 1
-          fi
-          # Below 1.0.0 the release is a pre-release whatever the box says, so
-          # the appcast item lands on the beta channel.
-          PRERELEASE=false
-          if [ "${VERSION%%.*}" = "0" ] || [ "$INPUT_PRERELEASE" = "true" ]; then
-            PRERELEASE=true
-          fi
-          {
-            echo "version=$VERSION"
-            echo "tag=v$VERSION"
-            echo "tag_push=$TAG_PUSH"
-            echo "prerelease=$PRERELEASE"
-          } >> "$GITHUB_OUTPUT"
-
-      - name: Install XcodeGen and create-dmg
-        # scripts/bump-version.sh --apply regenerates Pipit.xcodeproj, so the
-        # version commit carries the project the build was made from.
+      - name: Install create-dmg
         # create-dmg lays out the installer window in scripts/package.sh.
-        run: brew install xcodegen create-dmg
-
-      - name: Write the version into the tree
-        # VERSION, MARKETING_VERSION in project.yml, and the regenerated
-        # Pipit.xcodeproj. The build below reads them. Nothing is pushed yet.
-        env:
-          VERSION: ${{ steps.version.outputs.version }}
-        run: ./scripts/bump-version.sh --apply "$VERSION"
+        run: brew install create-dmg
 
       - name: Check the update signing key
         # Sparkle refuses an update whose archive is unsigned, and the archive
@@ -169,7 +165,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           tested=false
-          if gh api "repos/${{ github.repository }}/commits/${{ github.sha }}/check-runs" \
+          if gh api "repos/${{ github.repository }}/commits/${{ needs.check.outputs.sha }}/check-runs" \
             --jq '.check_runs[] | select(.name == "Build and test" and .conclusion == "success") | .name' \
             | grep -q .; then
             tested=true
@@ -210,7 +206,7 @@ jobs:
         env:
           AMO_JWT_ISSUER: ${{ secrets.AMO_JWT_ISSUER }}
           AMO_JWT_SECRET: ${{ secrets.AMO_JWT_SECRET }}
-          VERSION: ${{ steps.version.outputs.version }}
+          VERSION: ${{ needs.check.outputs.version }}
         run: |
           if [ -z "$AMO_JWT_ISSUER" ] || [ -z "$AMO_JWT_SECRET" ]; then
             echo "::warning::No AMO credentials configured; shipping without the signed add-on."
@@ -240,7 +236,7 @@ jobs:
         # lines, and the object files they are made from are gone once the
         # runner is. The script fails if they do not match the bundled
         # binaries or do not resolve to source lines.
-        run: ./scripts/archive-dsyms.sh ${{ steps.version.outputs.version }}
+        run: ./scripts/archive-dsyms.sh ${{ needs.check.outputs.version }}
 
       - name: Notarize and staple
         if: steps.signing.outputs.signed == 'true'
@@ -251,44 +247,38 @@ jobs:
         run: ./scripts/notarize.sh dist/Pipit.app
 
       - name: Package
-        run: ./scripts/package.sh ${{ steps.version.outputs.version }}
+        run: ./scripts/package.sh ${{ needs.check.outputs.version }}
 
       - name: Remove the signing keychain
         if: always()
         run: security delete-keychain build.keychain || true
 
-      - name: Commit and tag the version
-        # The build has already signed, notarized and packaged, so the tag only
-        # ever names a tree that produced a release. The commit lands on the
-        # default branch and the tag goes on that commit, which is why the
-        # release step needs no target_commitish. A push made with GITHUB_TOKEN
-        # does not start ci.yml. That is acceptable here. This tree is the
-        # tested default branch plus the version files, and the test step above
-        # ran against it. A tag push run skips this step, because its tag
-        # already exists.
-        if: steps.version.outputs.tag_push != 'true'
+      - name: Write the release notes
+        # The version's section of CHANGELOG.md, then the marker the update
+        # window stops reading at. GitHub appends the pull request list it
+        # generates after this body, so contributors are credited on the
+        # release page without that list showing in the app.
         env:
-          VERSION: ${{ steps.version.outputs.version }}
-          TAG: ${{ steps.version.outputs.tag }}
-          BRANCH: ${{ github.ref_name }}
+          VERSION: ${{ needs.check.outputs.version }}
+          SIGNED: ${{ steps.signing.outputs.signed }}
         run: |
-          git config user.name 'github-actions[bot]'
-          git config user.email 'github-actions[bot]@users.noreply.github.com'
-          if ! git diff --quiet HEAD -- VERSION project.yml Pipit.xcodeproj; then
-            git add VERSION project.yml Pipit.xcodeproj
-            git commit -m "Release $VERSION"
-            # A pull request that merged while this job built moved the branch,
-            # and the push would be rejected. Replay the version commit onto
-            # what is there now. A conflict means the merge touched the version
-            # files, so the run stops here and no tag is pushed.
-            if ! git pull --rebase origin "$BRANCH"; then
-              echo "cannot rebase the version commit onto $BRANCH: a change that landed during this run conflicts with VERSION, project.yml or Pipit.xcodeproj. Resolve it and run the release again." >&2
-              git rebase --abort || true
-              exit 1
-            fi
-            git push origin "HEAD:$BRANCH" || git push origin "HEAD:$BRANCH"
+          ./scripts/release-notes.sh "$VERSION" > dist/release-body.md
+          if [ "$SIGNED" != "true" ]; then
+            printf '\n**Unsigned build.** Gatekeeper refuses it. Do not publish. See docs/RELEASING.md.\n' >> dist/release-body.md
           fi
-          git tag "$TAG"
+
+      - name: Tag the release
+        # The build has already signed, notarized and packaged, so the tag only
+        # ever names a commit that produced a release. That commit is the one
+        # the release pull request's merge put on main, which is why the
+        # release step needs no target_commitish. A tag push run skips this
+        # step, because its tag already exists.
+        if: needs.check.outputs.tag_push != 'true'
+        env:
+          TAG: ${{ needs.check.outputs.tag }}
+          SHA: ${{ needs.check.outputs.sha }}
+        run: |
+          git tag "$TAG" "$SHA"
           git push origin "$TAG"
 
       - name: Publish the release
@@ -299,17 +289,15 @@ jobs:
           # at it. Absent when no AMO credentials were configured, which the
           # signing step already warned about.
           files: |
-            dist/Pipit-${{ steps.version.outputs.version }}.zip
+            dist/Pipit-${{ needs.check.outputs.version }}.zip
             dist/Pipit.dmg
-            dist/Pipit-${{ steps.version.outputs.version }}.sha256
-            dist/Pipit-${{ steps.version.outputs.version }}-dSYMs.zip
+            dist/Pipit-${{ needs.check.outputs.version }}.sha256
+            dist/Pipit-${{ needs.check.outputs.version }}-dSYMs.zip
             extension/signed/pipit-sensor.xpi
-          tag_name: ${{ steps.version.outputs.tag }}
+          tag_name: ${{ needs.check.outputs.tag }}
           draft: true
-          prerelease: ${{ steps.version.outputs.prerelease == 'true' }}
+          prerelease: ${{ needs.check.outputs.prerelease == 'true' }}
           # GitHub appends the notes it generates from merged pull requests
           # after this body.
           generate_release_notes: true
-          body: |
-            ${{ inputs.notes }}
-            ${{ steps.signing.outputs.signed != 'true' && '**Unsigned build.** Gatekeeper refuses it. Do not publish. See docs/RELEASING.md.' || '' }}
+          body_path: dist/release-body.md

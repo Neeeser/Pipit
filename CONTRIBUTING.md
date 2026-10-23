@@ -127,17 +127,21 @@ Test behavior at the lowest layer that exposes the defect.
 GitHub fills the description from `.github/PULL_REQUEST_TEMPLATE.md`, which asks
 for the problem, the change, and the testing. New issues use the bug and feature
 templates under `.github/ISSUE_TEMPLATE/`. A user-visible change needs no
-changelog entry. The release notes on the
-[releases page](https://github.com/Neeeser/Pipit/releases) are built from pull
-request titles, so write a title that says what changed. Report a security
-problem privately instead, through the process in [SECURITY.md](SECURITY.md).
+`CHANGELOG.md` entry, because the maintainer writes the notes when preparing a
+release. Each release on the
+[releases page](https://github.com/Neeeser/Pipit/releases) lists the merged pull
+request titles and their authors, so write a title that says what changed.
+Report a security problem privately instead, through the process in
+[SECURITY.md](SECURITY.md).
 
 Every pull request carries at least one of `breaking`, `feature`, `fix`, `docs`,
-`ci`, `chore`, `dependencies`, or `skip-changelog`. GitHub builds the release
-notes from merged pull request titles grouped by that label, so `breaking`,
-`feature`, and `fix` become the headings a reader sees and the rest stay out of
-the notes. The `PR labels` check fails until a label is present, and its log
-names the labels it accepts. A maintainer adds the label if you cannot.
+`ci`, `chore`, `dependencies`, or `skip-changelog`. GitHub groups the merged
+pull request titles on a release by that label, so `breaking`, `feature`, and
+`fix` become the headings a reader sees and the rest stay out of the list. A
+fix for a change that has not been released yet takes `skip-changelog`, since
+nobody using Pipit had the bug. The `PR labels` check fails until a label is
+present, and its log names the labels it accepts. A maintainer adds the label if
+you cannot.
 
 Do not commit recordings, API keys, benchmark audio, or meeting content. The
 CI hygiene job rejects audio files and strings shaped like API keys.
