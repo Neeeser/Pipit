@@ -156,6 +156,22 @@ public final class SensorAppConnection: @unchecked Sendable {
         if open(), let greeting { _ = write(greeting) }
     }
 
+    /// Calls `watch()` on a background queue every `interval` until the
+    /// returned timer is cancelled.
+    ///
+    /// The timer is built here rather than in the host's `main.swift` because
+    /// top-level code there runs on the main actor. A handler closure written
+    /// there inherits that isolation, and the Swift 6 runtime traps when the
+    /// timer fires it off the main thread. The host died two seconds after
+    /// every launch, and the add-on reconnected in a loop.
+    public func startWatching(every interval: DispatchTimeInterval) -> DispatchSourceTimer {
+        let timer = DispatchSource.makeTimerSource(queue: DispatchQueue(label: "com.pipit.sensor-host.watch"))
+        timer.schedule(deadline: .now() + interval, repeating: interval)
+        timer.setEventHandler { [weak self] in self?.watch() }
+        timer.resume()
+        return timer
+    }
+
     /// A readable socket with nothing to read is the peer having closed it.
     private func peekIsEOF() -> Bool {
         var byte: UInt8 = 0

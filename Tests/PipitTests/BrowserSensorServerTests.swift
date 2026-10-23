@@ -62,6 +62,20 @@ struct BrowserSensorServerTests {
         #expect(fixture.readings.isLoaded)
     }
 
+    // Started from the main actor, as the host's top-level code does. A timer
+    // handler that inherited that isolation trapped when it fired.
+    @Test("the host's watch timer reconnects from a background queue")
+    @MainActor
+    func watchTimerReconnects() async throws {
+        let fixture = try SensorServerFixture()
+        let host = fixture.connect()
+        #expect(!host.isConnected)
+        let timer = host.startWatching(every: .milliseconds(20))
+        defer { timer.cancel() }
+        try await fixture.waitForConnections(1)
+        #expect(host.isConnected)
+    }
+
     @Test("a dropped connection removes only its own meeting tabs")
     func disconnectRemovesOnlyItsOwnTabs() async throws {
         let fixture = try SensorServerFixture()
