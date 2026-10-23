@@ -13,7 +13,7 @@ import PipitCore
 // and the browser side is told so, which is exactly the behaviour that lets
 // Pipit fall back to native detection.
 
-let hostVersion = "1.2.0"
+let hostVersion = "1.2.1"
 
 /// Reads the browser's length-prefixed messages from standard input.
 struct BrowserMessageReader {
@@ -96,10 +96,7 @@ replyToBrowser(["type": "ready", "connected": connection.isConnected, "hostVersi
 
 // Notices a Pipit restart on its own. Two seconds is well inside the add-on's
 // own reconnect backoff and costs one poll of a socket.
-let watchdog = DispatchSource.makeTimerSource(queue: DispatchQueue(label: "com.pipit.sensor-host.watch"))
-watchdog.schedule(deadline: .now() + 2, repeating: 2)
-watchdog.setEventHandler { connection.watch() }
-watchdog.resume()
+let watchdog = connection.startWatching(every: .seconds(2))
 
 /// Relays until the browser closes the pipe. Returns how many messages reached
 /// Pipit, and whether the input ended on something that was not a message.
