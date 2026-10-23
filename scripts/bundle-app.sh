@@ -145,6 +145,18 @@ cp "$REPO_ROOT/App/Pipit.entitlements" "$APP_ENTITLEMENTS"
     -c "Add :com.apple.security.application-groups array" \
     -c "Add :com.apple.security.application-groups:0 string ${TEAM_PREFIX}com.pipit.sensor" \
     "$APP_ENTITLEMENTS"
+# Library validation under the hardened runtime loads a framework only when it
+# carries the app's Team ID. Ad-hoc and self-signed signatures have none, so
+# dyld refused Sparkle and the app died at launch. Only a Developer ID build
+# keeps library validation on.
+case "$IDENTITY" in
+    "Developer ID"*) ;;
+    *)
+        /usr/libexec/PlistBuddy \
+            -c "Add :com.apple.security.cs.disable-library-validation bool true" \
+            "$APP_ENTITLEMENTS"
+        ;;
+esac
 SAFARI_ENTITLEMENTS="$ENTITLEMENTS_DIR/PipitSafariExtension.entitlements"
 sed "s/\$(TeamIdentifierPrefix)/${TEAM_PREFIX}/" \
     "$REPO_ROOT/App/SafariExtension/PipitSafariExtension.entitlements" >"$SAFARI_ENTITLEMENTS"
