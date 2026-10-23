@@ -17,9 +17,13 @@ normalized square masters.
 Each menu bar PNG is 18 px. Its `@2x` partner is 36 px. The source PNGs are
 kept for future size changes.
 
+`About/pipit-bird.png` is the bird from the website, 112 px wide, with a 224 px
+`@2x` partner. The About window stands it on the ridges. `pipit-bird-source.png`
+is the full-size original.
+
 `README/pipit-readme-hero.png` is the standalone repository hero. `Concept/`
 keeps the approved comparison board that established the visual direction.
 
 The app bundle uses `Pipit.icns`, the menu bar controller uses the four template
-images, and the root README uses the hero. The executable, Swift package, and
-application bundle are all named Pipit.
+images, the About window uses the bird, and the root README uses the hero. The
+executable, Swift package, and application bundle are all named Pipit.

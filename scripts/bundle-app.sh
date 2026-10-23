@@ -88,6 +88,8 @@ for state in idle recording paused warning; do
     cp "$REPO_ROOT/Assets/Pipit/MenuBar/pipit-$state.png" "$APP_DIR/Contents/Resources/"
     cp "$REPO_ROOT/Assets/Pipit/MenuBar/pipit-$state@2x.png" "$APP_DIR/Contents/Resources/"
 done
+cp "$REPO_ROOT/Assets/Pipit/About/pipit-bird.png" "$APP_DIR/Contents/Resources/"
+cp "$REPO_ROOT/Assets/Pipit/About/pipit-bird@2x.png" "$APP_DIR/Contents/Resources/"
 
 # The two version keys and the commit are the only keys the build stamps.
 # Everything else in the bundle plist is what App/Info.plist says.

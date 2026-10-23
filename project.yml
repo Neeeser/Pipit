@@ -47,7 +47,7 @@ targets:
         buildPhase: none
       - path: App/Pipit.entitlements
         buildPhase: none
-      # Listed one by one because MenuBarController loads the images by name
+      # Listed one by one because MenuBarController and AboutView load the images by name
       # from the top level of Contents/Resources, and the `-source` originals
       # must not ship.
       - path: Assets/Pipit/AppIcons/Pipit.icns
@@ -75,6 +75,10 @@ targets:
       - path: Assets/Pipit/MenuBar/pipit-warning.png
         buildPhase: resources
       - path: Assets/Pipit/MenuBar/pipit-warning@2x.png
+        buildPhase: resources
+      - path: Assets/Pipit/About/pipit-bird.png
+        buildPhase: resources
+      - path: Assets/Pipit/About/pipit-bird@2x.png
         buildPhase: resources
     dependencies:
       - package: Pipit

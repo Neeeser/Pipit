@@ -27,7 +27,9 @@ struct GeneralSettingsPane: View {
                 Button("Check for Updates…") { model.checkForUpdates() }
                     .disabled(!model.canCheckForUpdates)
                 Toggle("Beta updates", isOn: model.binding(\.receivesBetaUpdates))
-                Text(AboutView.version).font(.caption).foregroundStyle(.secondary)
+                if let version = AboutInfo.current.versionLine {
+                    Text(version).font(.caption).foregroundStyle(.secondary)
+                }
             }
             // Nothing here says who you are. Naming yourself is a rename and
             // saying an existing row is you is a merge, and People owns both.

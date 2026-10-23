@@ -40,7 +40,7 @@
     <key>LSUIElement</key>
     <true/>
     <key>NSHumanReadableCopyright</key>
-    <string>Pipit</string>
+    <string>© 2026 Pipit contributors</string>
     <key>NSMicrophoneUsageDescription</key>
     <string>Pipit records your side of meetings.</string>
     <key>NSCalendarsUsageDescription</key>
