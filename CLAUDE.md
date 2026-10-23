@@ -57,13 +57,17 @@ the model files the pass ships with, produced by `Benchmarks/aec/export_dtln.py`
 
 ## Pull requests and release notes
 
-Merged pull request titles become the release notes, grouped by label
-(`breaking`, `feature`, `fix`). Use those labels only for changes a person using
-Pipit notices. Build, test, signing, and release work takes `ci` or `chore`.
-Title a `feature` or `fix` by the symptom the person had ("Pick up a speaker who
-only talks near the end of a call"). Put file and type names in the body.
-The release page note is one or two lines saying what the release is.
-`CONTRIBUTING.md` and `.github/release.yml` list every accepted label.
+Merged pull request titles become the pull request list on each GitHub release
+and the first draft of its notes, grouped by label (`breaking`, `feature`,
+`fix`). Use those labels only for changes a person using Pipit notices. Build,
+test, signing, and release work takes `ci` or `chore`. A fix for a change that
+has not been released yet takes `skip-changelog`, since nobody using Pipit had
+the bug. Title a `feature` or `fix` by the symptom the person had ("Pick up a
+speaker who only talks near the end of a call"). Put file and type names in the
+body. The notes a person reads in the app are the version's section of
+`CHANGELOG.md`, written in the release pull request (see
+[docs/RELEASING.md](docs/RELEASING.md)). `CONTRIBUTING.md` and
+`.github/release.yml` list every accepted label.
 
 ## Project constraints
 

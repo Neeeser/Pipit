@@ -3,8 +3,8 @@
 #
 # It reads the current version from the repository's VERSION file and writes
 # the bumped version to stdout. It changes no files, so the caller decides what
-# to do with the number. The release workflow calls it to turn a bump level
-# into the version it tags.
+# to do with the number. scripts/prepare-release.sh calls it to turn a bump
+# level into the version of the release pull request.
 #
 # scripts/bump-version.sh --apply <version> writes that version into the tree:
 # VERSION, MARKETING_VERSION in project.yml, and the generated Xcode project.

@@ -1,9 +1,10 @@
 # Releasing Pipit
 
-A release is one manual workflow run. The release workflow bumps the version,
-tests the project, signs and notarizes the application, creates ZIP and DMG
-archives, writes SHA-256 checksums, tags the commit it built, and drafts a
-GitHub release.
+A release is a pull request. `scripts/prepare-release.sh` opens one that raises
+the version and adds the version's notes to `CHANGELOG.md`. Once it merges and
+CI passes on `main`, the release workflow signs and notarizes the application,
+creates ZIP and DMG archives, writes SHA-256 checksums, tags the merged commit,
+and drafts a GitHub release.
 
 ## Version numbers
 
@@ -33,8 +34,8 @@ replaces. `scripts/bump-version.sh --apply` still keeps it in step with
 Both build routes also stamp `PipitGitCommit`, the full commit the build
 started from, which `scripts/app-version.sh` prints on its third line. A
 release reads plain `VERSION`, so this key is what names its source. In the
-release job it is the commit the job checked out; the version commit and the
-tag land on top of it afterwards and change only the version files.
+release job it is the commit the release pull request's merge put on `main`,
+which is also the commit the tag names.
 
 ## Requirements
 
@@ -68,8 +69,10 @@ temporary add-on that Firefox drops when it quits.
 
 ## Labels
 
-Release notes come from merged pull request titles grouped by label, as
-`.github/release.yml` maps them. A fork recreates the labels with:
+The pull request list on each GitHub release, and the draft that
+`scripts/prepare-release.sh` writes into `CHANGELOG.md`, come from merged pull
+request titles grouped by label, as `.github/release.yml` maps them. A fork
+recreates the labels with:
 
 ```sh
 gh label create breaking --color B60205 --description "Changes behaviour or storage in a way an existing install notices." --force
@@ -86,75 +89,82 @@ gh label create skip-changelog --color E4E669 --description "Keeps this pull req
 keeps working for Dependabot. `.github/workflows/pr-labels.yml` fails a pull
 request until one of these labels is on it.
 
+A fix for a change that has not been released yet takes `skip-changelog`,
+since nobody using Pipit had the bug. A fix to a feature added in the same
+release is part of that feature.
+
 ## Cut the release
 
-Open Actions > Release > Run workflow on `main`, pick a bump level, and run it.
-The workflow reads `VERSION` through `scripts/bump-version.sh`, writes the
-bumped number into the tree, builds it, and then commits and tags it. The
-pre-release checkbox forces the pre-release flag. A version below 1.0.0 carries
-it either way, which puts the appcast item on the beta channel. A 0.x build
-reads that channel whatever its beta setting says, so every 0.x install
-receives every 0.x release. The setting starts deciding at 1.0.
+On an up-to-date `main`, run:
 
-Do not merge to `main` while a release run is in progress. The run pushes the
-version commit onto `main` at the end, and a merge that lands first has to be
-rebased onto.
+```sh
+./scripts/prepare-release.sh minor
+```
 
-The `level` route needs a `VERSION` to bump from. The first release is cut by
-leaving the level at `none` and typing `0.1.0` into the version field instead.
-That run makes no version commit when `VERSION` and `project.yml` already say
-`0.1.0`, and pushes only the tag. From the second release on, the level does
-the arithmetic.
+It takes `patch`, `minor`, `major`, or an exact version such as `1.0.0`, and
+needs `gh` and `xcodegen`. It creates the branch `release/<version>` and writes
+the version into `VERSION`, `MARKETING_VERSION` in `project.yml`, and the
+`Pipit.xcodeproj` it regenerates. It adds a `## <version>` section to the top of
+`CHANGELOG.md`, drafted from the titles of the pull requests merged since the
+last tag and grouped under `### New`, `### Fixes` and `### Breaking changes`.
+Then it pushes the branch and opens a pull request titled `Release <version>`
+with the `chore` label.
 
-The version lives in three places, and `scripts/bump-version.sh --apply` writes
-all of them: `VERSION`, `MARKETING_VERSION` in `project.yml`, and the
-`Pipit.xcodeproj` it regenerates from `project.yml`.
+The script runs under your own `gh` login. A pull request opened from Actions
+with `GITHUB_TOKEN` starts no workflows, so its required checks would never run.
 
-A run refuses when the level and the version are both filled in, when neither
-is, when the version is not `MAJOR.MINOR.PATCH`, when the tag already exists on
-the remote, or when the run was started from a branch other than `main`. Those
-checks all run before the test step.
+### Write the notes
 
-The version commit and the tag are made only after the tests, the signing, the
-notarization and the packaging have succeeded, so a failed build leaves neither
-behind. Run it again once the cause is fixed.
+Rewrite the section in the release pull request. It is what a person reads in
+the update window.
 
-A failure after the tag is pushed leaves the tag on the remote, and the next
-run refuses a version whose tag exists. Delete the remote tag and run the
-release again:
+- Open with one or two lines saying what the release is.
+- Say what the person can now do, in their words. "Play a meeting's recording
+  and follow along in the transcript as it plays", not the mechanism the pull
+  request changed.
+- List a fix only when it corrects something a person had in an earlier
+  release. A fix to a feature new in this release is part of that feature.
+- Use `###` headings for the groups. The update window shows each one as a list
+  title, and a `##` heading would end the section.
+
+### Merge
+
+Squash-merge the pull request once CI passes. The release workflow starts when
+CI finishes on `main`. Its first job reads `VERSION` on the commit CI tested and
+stops when the tag `v<version>` already exists, which is the case for every
+merge that is not a release. Otherwise it checks that `CHANGELOG.md` has notes
+for the version and starts the macOS build. CI has already tested that commit,
+so the build skips the test suite.
+
+The tag goes on the merged commit only after the signing, the notarization and
+the packaging have succeeded, so a failed build leaves no tag behind. Fix the
+cause and re-run the failed jobs from the Actions page. A failure after the tag
+is pushed leaves the tag on the remote. Delete it and re-run:
 
 ```sh
 git push origin :refs/tags/v1.2.0
 ```
 
-The version commit is pushed with `GITHUB_TOKEN`, which does not start
-`ci.yml`. The tree it tests is `main` plus the version files, and the release
-job runs the full suite against it first.
+A version below 1.0.0 is always a pre-release, which puts the appcast item on
+the beta channel. A 0.x build reads that channel whatever its beta setting
+says, so every 0.x install receives every 0.x release. From 1.0.0 on, tick "Set
+as a pre-release" on the draft before publishing to send a release to the beta
+channel only. The appcast workflow reads the flag from the published release.
 
-Check the arithmetic locally at any time:
+Check the scripts locally at any time:
 
 ```sh
 ./scripts/bump-version.sh minor
 ./scripts/bump-version.sh --self-test
+./scripts/release-notes.sh --self-test
 ```
 
 ### Tag by hand instead
 
-A tag push still starts the workflow, which is the fallback when the Actions
-route is unavailable. The version files go through a pull request like any
-other change, and the tag is pushed once it is merged:
-
-```sh
-git switch -c release-1.2.0
-./scripts/bump-version.sh --apply 1.2.0
-./scripts/test.sh
-(cd extension && npm test)
-git commit -am "Release 1.2.0"
-git push -u origin release-1.2.0
-gh pr create --fill --label ci
-```
-
-After the pull request merges:
+A pushed `v*.*.*` tag also starts the workflow, which is the fallback when the
+release pull request route is unavailable. The tag must name a commit on
+`main` whose `VERSION` matches it and whose `CHANGELOG.md` has notes for it. A
+commit without a passing CI run is tested before packaging.
 
 ```sh
 git switch main
@@ -199,10 +209,12 @@ rebuilds every dependency in debug.
 
 ## Review the draft
 
-The workflow opens the release as a draft. The notes are one or two lines
-from the `notes` input, followed by the pull request titles GitHub groups by
-label. Read them, fix a title that reads as a mechanism rather than a
-change, and publish. Publishing is what runs the appcast workflow.
+The workflow opens the release as a draft. Its body is the version's section of
+`CHANGELOG.md`, a hidden marker, and the pull request list GitHub generates
+from the merged titles, grouped by label, with each author credited. The update
+window shows only the part before the marker. Check the draft and publish it.
+Publishing is what runs the appcast workflow. A correction after publishing
+goes into both `CHANGELOG.md` and the release body.
 
 ## Local release build
 
@@ -326,7 +338,8 @@ the newer add-on.
 
 The update window is Pipit's own, not Sparkle's. It lists the app and the
 add-on as the two steps of one update, and it draws the release notes from
-the GitHub release body through the API rather than showing the release page.
+the GitHub release body through the API, up to the marker after the
+`CHANGELOG.md` section, rather than showing the release page.
 The launch after an update opens the window on its second step when the
 add-on is still behind, and closes it once the add-on reconnects updated.
 

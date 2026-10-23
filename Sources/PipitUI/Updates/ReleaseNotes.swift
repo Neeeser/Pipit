@@ -2,12 +2,19 @@ import Foundation
 
 /// What a release changed, read out of the GitHub release body.
 ///
-/// GitHub writes the body from merged pull request titles under the headings in
-/// `.github/release.yml`, after whatever the maintainer typed on the draft. The
-/// body is drawn as lists inside the update window. Sparkle's own window
-/// would show the release page, which is a web page with a header, a sidebar
-/// and a sign-in prompt inside an update dialog.
+/// The release workflow writes the body from the version's section of
+/// `CHANGELOG.md`, then `endMarker`, then the pull request list GitHub
+/// generates under the headings in `.github/release.yml`. Only the part before
+/// the marker is drawn, as lists inside the update window. The pull request
+/// list credits contributors on the release page and is written for them, not
+/// for the person updating. Sparkle's own window would show the release page,
+/// which is a web page with a header, a sidebar and a sign-in prompt inside an
+/// update dialog.
 public struct ReleaseNotes: Equatable, Sendable {
+    /// Must match `END_MARKER` in `scripts/release-notes.sh`. An HTML comment,
+    /// so the release page does not show it.
+    public static let endMarker = "<!-- pipit:end-of-app-notes -->"
+
     public struct Section: Equatable, Sendable {
         /// Nil for the lines before the first heading, which are the
         /// maintainer's one or two lines about the release.
@@ -29,7 +36,9 @@ public struct ReleaseNotes: Equatable, Sendable {
     public var isEmpty: Bool { sections.isEmpty }
 
     /// Headings open sections, bullets are items, and paragraphs are items of
-    /// one line. The "by @user in <link>" trailer GitHub adds to every bullet
+    /// one line. Reading stops at `endMarker`. A body without one, which is
+    /// every release before the marker existed, is read to the end. The
+    /// "by @user in <link>" trailer GitHub adds to every bullet
     /// is dropped, and so is the "Full Changelog" line. A section with
     /// nothing under it, which is what "What's Changed" is once the items sit
     /// under category headings, is dropped too.
@@ -51,6 +60,7 @@ public struct ReleaseNotes: Equatable, Sendable {
 
         for rawLine in markdown.components(separatedBy: .newlines) {
             let line = rawLine.trimmingCharacters(in: .whitespaces)
+            if line == endMarker { break }
             if line.isEmpty {
                 closeParagraph()
                 continue

@@ -1,6 +1,18 @@
 # Changelog
 
-Release notes live on the [releases page](https://github.com/Neeeser/Pipit/releases).
-GitHub writes them from the titles of the pull requests merged since the last
-release, grouped by the label each one carries. See
-[docs/RELEASING.md](docs/RELEASING.md) for how a release is cut.
+What changed in each release, written for the person updating Pipit. Each
+section becomes the top of its GitHub release and the notes in the app's
+update window. The [releases page](https://github.com/Neeeser/Pipit/releases)
+adds the list of merged pull requests and their authors below it, and holds the
+notes for releases before 0.1.9. See [docs/RELEASING.md](docs/RELEASING.md) for
+how a section gets written.
+
+## 0.1.9
+
+Play back your meetings and follow along in the transcript, and choose which AI writes your summaries.
+
+### New
+- Play a meeting's recording and follow along in the transcript as it plays.
+- Choose the AI that writes your summaries and notes, from OpenAI to a model running on your own Mac with Ollama.
+- Meetings in Safari, Chrome, Edge, Brave and Arc now get their name and length automatically.
+- Report a problem from inside Pipit, and preview exactly what's sent before you send it.

@@ -46,7 +46,7 @@ audio files.
 
 Run CI manually with `notarize` enabled to build a Developer ID signed,
 notarized app for Safari testing. This run uploads a `Pipit-notarized-<commit>`
-artifact and creates no release, version commit, or tag. It uses the signing
+artifact and creates no release or tag. It uses the signing
 and notarization secrets listed in [Releasing](RELEASING.md#requirements).
 
 ```sh
