@@ -7,6 +7,16 @@ adds the list of merged pull requests and their authors below it, and holds the
 notes for releases before 0.1.9. See [docs/RELEASING.md](docs/RELEASING.md) for
 how a section gets written.
 
+## 0.1.10
+
+Fixes repeated Firefox add-on disconnections and updates About Pipit.
+
+### New
+- About Pipit shows the landscape artwork, version, build, and links to the website, source code, and privacy page.
+
+### Fixes
+- Fixes the Firefox add-on repeatedly disconnecting and reconnecting every few seconds.
+
 ## 0.1.9
 
 Play back your meetings and follow along in the transcript, and choose which AI writes your summaries.
