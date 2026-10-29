@@ -95,6 +95,81 @@ public enum AccessibilityBridge {
 
 }
 
+/// How one poll walks Slack's accessibility tree, decided before the walk.
+///
+/// Slack's leave control lives in its web content, and a freshly launched Slack
+/// exposes none of that content until a client asks for it. Asking only after
+/// the control was seen meant it was never seen. Slack holding the microphone
+/// is the earliest sign of a huddle, so from then until the huddle detector is
+/// idle again the tree is asked for, kept, and walked deep enough to reach the
+/// control.
+struct SlackAccessibilityWalk: Equatable {
+    /// Enough for the window chrome and the menu titles outside a huddle, which
+    /// is all an idle poll needs.
+    static let shallowDepth = 16
+    /// Slack 4.52 put the conversation's huddle button 18 levels below its
+    /// window and its deepest node at 30.
+    static let deepDepth = 40
+
+    let huddleMayBeRunning: Bool
+    let buildsWebTree: Bool
+    let maxDepth: Int
+
+    /// - Parameter huddleMayBeRunning: Slack holds the microphone, or the
+    ///   huddle detector is not idle. The second covers a huddle that stops
+    ///   holding the microphone, which a muted one may do.
+    init(huddleMayBeRunning: Bool, webTreeIsBuilt: Bool, webTreeIsWorthRetrying: Bool) {
+        self.huddleMayBeRunning = huddleMayBeRunning
+        buildsWebTree = huddleMayBeRunning && !webTreeIsBuilt && webTreeIsWorthRetrying
+        maxDepth = huddleMayBeRunning || webTreeIsBuilt ? Self.deepDepth : Self.shallowDepth
+    }
+
+    /// Whether to drop the record of a built tree after the walk, so an idle
+    /// Slack goes back to the cheap walk. Never while a huddle may be running:
+    /// the shallow walk cannot see the control, so a single read without it
+    /// would have hidden it for the rest of the call.
+    func forgetsWebTree(foundLeaveControl: Bool) -> Bool {
+        !foundLeaveControl && !huddleMayBeRunning
+    }
+}
+
+/// What is known about one Slack process's web tree.
+struct SlackWebTreeState: Equatable {
+    /// After this many failed sets in a row, stop asking a process that is
+    /// never going to build the tree.
+    static let attemptLimit = 5
+
+    private(set) var isBuilt = false
+    /// Failed sets since the last one that worked. Slack's accessibility server
+    /// is not up the instant the app launches, so a first failure is worth
+    /// retrying, and retrying twice a second forever is not.
+    private(set) var failures = 0
+
+    var isWorthRetrying: Bool { failures < Self.attemptLimit }
+
+    /// Only a set that worked counts as built. Recording the attempt regardless
+    /// meant one early failure left the tree unbuilt for the life of that
+    /// process. A set that works also clears the failures: the leave control
+    /// needs the tree, so a limit that only counted up would end huddle
+    /// detection until Slack was relaunched.
+    mutating func record(setSucceeded: Bool) {
+        if setSucceeded {
+            isBuilt = true
+            failures = 0
+        } else {
+            failures += 1
+        }
+    }
+
+    /// The attribute itself cannot be unset from here, but nothing outside a
+    /// huddle needs what it exposes. Failures are kept: Slack's subtree reads
+    /// empty intermittently during a live huddle, so clearing them on every
+    /// forget re-armed every retry and the limit bounded nothing.
+    mutating func forget() {
+        isBuilt = false
+    }
+}
+
 /// Reads Slack's huddle controls and its roster.
 ///
 /// `AXButton` described as "Leave Huddle" is the only reliable join signal, and
@@ -114,78 +189,51 @@ public struct SlackAccessibilityReader: Sendable {
         self.bundleIdentifier = bundleIdentifier
     }
 
-    /// What is known about each Slack process's web tree. Keyed by pid, so a
-    /// relaunched Slack starts over.
-    private struct WebTreeState {
-        var isBuilt = false
-        /// Sets that did not take. Slack's accessibility server is not up the
-        /// instant the app launches, so a first failure is worth retrying, and
-        /// retrying twice a second forever is not.
-        var failures = 0
-    }
-
+    /// Keyed by pid, so a relaunched Slack starts over.
     private static let webTrees =
-        OSAllocatedUnfairLock<[pid_t: WebTreeState]>(initialState: [:])
-    /// After this many failed sets, stop paying for the second walk that only
-    /// exists to populate a tree this process is never going to get.
-    private static let webTreeAttemptLimit = 5
+        OSAllocatedUnfairLock<[pid_t: SlackWebTreeState]>(initialState: [:])
 
-    static func webTreeIsBuilt(pid: pid_t) -> Bool {
-        webTrees.withLock { $0[pid]?.isBuilt ?? false }
+    private static func webTree(pid: pid_t) -> SlackWebTreeState {
+        webTrees.withLock { $0[pid] ?? SlackWebTreeState() }
     }
 
-    /// Whether asking again is still worth a walk.
-    static func webTreeIsWorthRetrying(pid: pid_t) -> Bool {
-        webTrees.withLock { ($0[pid]?.failures ?? 0) < webTreeAttemptLimit }
-    }
-
-    /// Drops the record that a process's tree was built, so a Slack with no
-    /// huddle running goes back to the cheap walk. The attribute itself cannot
-    /// be unset from here, but nothing outside a huddle needs what it exposes.
-    ///
-    /// Failures are kept. Slack's subtree reads empty intermittently during a
-    /// live huddle, so clearing the whole entry re-armed every retry on each of
-    /// those reads and the limit bounded nothing.
-    static func forgetWebTree(pid: pid_t) {
-        webTrees.withLock { states in
-            guard var state = states[pid] else { return }
-            state.isBuilt = false
-            states[pid] = state
-        }
+    private static func forgetWebTree(pid: pid_t) {
+        webTrees.withLock { states in states[pid]?.forget() }
     }
 
     private static func enableWebTree(_ application: AXUIElement, pid: pid_t) {
-        let alreadyEnabled = webTreeIsBuilt(pid: pid)
-        guard !alreadyEnabled else { return }
+        guard !webTree(pid: pid).isBuilt else { return }
         let result = AXUIElementSetAttributeValue(
             application, "AXManualAccessibility" as CFString, kCFBooleanTrue
         )
-        // Only a set that worked counts as built. Recording the attempt
-        // regardless meant one early failure left the web tree unbuilt for the
-        // life of that process: every tile identifier empty, the roster silently
-        // dead, and nothing to see until the user restarted Slack.
         webTrees.withLock { states in
-            var state = states[pid] ?? WebTreeState()
-            if result == .success { state.isBuilt = true } else { state.failures += 1 }
+            var state = states[pid] ?? SlackWebTreeState()
+            state.record(setSucceeded: result == .success)
             states[pid] = state
         }
     }
 
-    public func read() -> SlackAccessibilityObservation {
+    /// - Parameter huddleMayBeRunning: Slack holds the microphone, or the
+    ///   huddle detector is not idle.
+    public func read(huddleMayBeRunning: Bool) -> SlackAccessibilityObservation {
         guard AccessibilityBridge.isTrusted else { return .unavailable }
         guard let pid = AccessibilityBridge.processID(forBundleIdentifier: bundleIdentifier) else {
             return SlackAccessibilityObservation(hasLeaveHuddleControl: false, subtreeWasEmpty: true)
         }
 
         let application = AXUIElement.forApplication(pid: pid)
-        // The web tree is what carries the tile identifiers, and Chromium only
-        // builds it once a client asks. Asking costs Slack a full accessibility
-        // tree for the rest of its life, so it is asked for only once a huddle
-        // is actually running. The leave control that proves one is running is
-        // found without it, which is how this worked before tiles existed.
-        //
-        // The cost of waiting is one poll: the first read inside a huddle sees
-        // no tiles, the next sees them all.
+        // The web tree carries the leave control and the tile identifiers, and
+        // Chromium only builds it once a client asks. Asking costs Slack a full
+        // accessibility tree for the rest of its life, so it is asked for only
+        // once a huddle may be running.
+        let tree = Self.webTree(pid: pid)
+        let walk = SlackAccessibilityWalk(
+            huddleMayBeRunning: huddleMayBeRunning,
+            webTreeIsBuilt: tree.isBuilt,
+            webTreeIsWorthRetrying: tree.isWorthRetrying
+        )
+        if walk.buildsWebTree { Self.enableWebTree(application, pid: pid) }
+
         let windows = AccessibilityBridge.children(application)
         guard !windows.isEmpty else {
             return SlackAccessibilityObservation(hasLeaveHuddleControl: false, subtreeWasEmpty: true)
@@ -193,27 +241,26 @@ public struct SlackAccessibilityReader: Sendable {
 
         // Tiles exist only inside a huddle, and their identifiers only once
         // Chromium has been asked to build the web tree. Outside a huddle both
-        // are pure cost on a walk that runs twice a second, so the first pass
+        // are pure cost on a walk that runs twice a second, so an idle poll
         // reads the cheap attributes and stops there.
-        var pass = scan(windows: windows, wantsTiles: Self.webTreeIsBuilt(pid: pid))
+        var pass = scan(
+            windows: windows, maxDepth: walk.maxDepth, wantsTiles: Self.webTree(pid: pid).isBuilt
+        )
 
-        // A huddle was found and this pass was not looking for tiles, which is
-        // the first poll of every huddle and of every launch. Ask for the tree
-        // and look again rather than reporting a huddle with nobody in it,
-        // rather than letting the roster arrive a poll late every time the app
-        // restarts mid-call.
-        //
-        // Normally one extra walk on the first poll of a huddle. Where the set
-        // never takes it would be one extra walk on every poll, which is what
-        // the retry limit bounds.
-        if pass.hasLeave, !pass.wantedTiles, Self.webTreeIsWorthRetrying(pid: pid) {
+        // The control was found without a tree Pipit asked for, as when
+        // another client built it or this poll's set failed, so the tiles were
+        // not read. Ask and look again rather than reporting a huddle with
+        // nobody in it. Where the set never takes it would be one extra walk on
+        // every poll, which is what the retry limit bounds.
+        if pass.hasLeave, !pass.wantedTiles, Self.webTree(pid: pid).isWorthRetrying {
             Self.enableWebTree(application, pid: pid)
-            pass = scan(windows: windows, wantsTiles: true)
+            pass = scan(
+                windows: windows, maxDepth: SlackAccessibilityWalk.deepDepth, wantsTiles: true
+            )
         }
-        // No huddle, so nothing needs the deep walk or the identifiers it reads.
         // Without this the first huddle of a Slack session left every later poll
         // paying for a tree with nothing in it.
-        if !pass.hasLeave { Self.forgetWebTree(pid: pid) }
+        if walk.forgetsWebTree(foundLeaveControl: pass.hasLeave) { Self.forgetWebTree(pid: pid) }
 
         return SlackAccessibilityObservation(
             hasLeaveHuddleControl: pass.hasLeave,
@@ -236,7 +283,7 @@ public struct SlackAccessibilityReader: Sendable {
         var wantedTiles = false
     }
 
-    private func scan(windows: [AXUIElement], wantsTiles: Bool) -> Pass {
+    private func scan(windows: [AXUIElement], maxDepth: Int, wantsTiles: Bool) -> Pass {
         var pass = Pass()
         pass.wantedTiles = wantsTiles
         var byID: [String: SlackHuddleTile] = [:]
@@ -258,11 +305,9 @@ public struct SlackAccessibilityReader: Sendable {
             var budget = budgetPerWindow
             // Tiles are collected during the walk and read after it: reading a
             // subtree from inside the walk would borrow the same budget twice.
-            // Depth follows the same rule as the attributes, because the
-            // controls sit high in the tree and only the tiles are deep.
             var found: [(element: AXUIElement, userID: String, isSelf: Bool, description: String)] = []
             AccessibilityBridge.walkElements(
-                window, maxDepth: wantsTiles ? 24 : 16, budget: &budget, wantsDOM: wantsTiles
+                window, maxDepth: maxDepth, budget: &budget, wantsDOM: wantsTiles
             ) { element, node in
                 pass.visitedNodes += 1
                 let haystack = "\(node.description) \(node.title)".lowercased()

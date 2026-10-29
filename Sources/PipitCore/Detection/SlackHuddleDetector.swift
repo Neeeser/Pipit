@@ -112,6 +112,7 @@ public struct SlackHuddleDetector: Sendable {
     private var missingSince: Double?
     private var candidateSince: Double?
     private var joinedWithoutAccessibility = false
+    private var conversationIsPreview = false
 
     public init(configuration: Configuration = Configuration()) {
         self.configuration = configuration
@@ -130,8 +131,26 @@ public struct SlackHuddleDetector: Sendable {
         helperProducingOutput: Bool,
         at now: Double
     ) -> Event {
-        if let title = observation.windowTitle, !title.isEmpty {
-            conversationTitle = SlackWindowTitle.parse(title)?.conversation ?? conversationTitle
+        let before = state
+        let event = advance(
+            observation: observation, helperHoldsMicrophone: helperHoldsMicrophone,
+            helperProducingOutput: helperProducingOutput, at: now
+        )
+        // The name is kept for the length of a huddle, so a finished one's
+        // would otherwise stand for the next until a real title arrived, and
+        // by then the next one would be keeping it.
+        if before != .idle, state == .idle { forgetConversation() }
+        return event
+    }
+
+    private mutating func advance(
+        observation: SlackAccessibilityObservation,
+        helperHoldsMicrophone: Bool,
+        helperProducingOutput: Bool,
+        at now: Double
+    ) -> Event {
+        if let title = observation.windowTitle, let parsed = SlackWindowTitle.parse(title) {
+            noteConversation(parsed)
         }
 
         var event = Event.none
@@ -247,7 +266,25 @@ public struct SlackHuddleDetector: Sendable {
         }
     }
 
+    /// Slack's window title names whichever conversation is open, not the
+    /// huddle's. Once Slack holds the microphone the name is kept, so opening
+    /// another conversation mid-call cannot rename the meeting. A huddle preview
+    /// names no conversation, so the first real name replaces it at any point
+    /// in the huddle, and a preview never replaces a real name.
+    private mutating func noteConversation(_ parsed: SlackWindowTitle.Parsed) {
+        guard state == .idle || conversationTitle == nil || conversationIsPreview else { return }
+        if parsed.isHuddlePreview, conversationTitle != nil, !conversationIsPreview { return }
+        conversationTitle = parsed.conversation
+        conversationIsPreview = parsed.isHuddlePreview
+    }
+
+    private mutating func forgetConversation() {
+        conversationTitle = nil
+        conversationIsPreview = false
+    }
+
     public mutating func reset() {
+        forgetConversation()
         state = .idle
         consecutiveMisses = 0
         missingSince = nil

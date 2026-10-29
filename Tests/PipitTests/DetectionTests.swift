@@ -147,20 +147,125 @@ struct SlackHuddleDetectorTests {
         // And the last real name survives the moment the title is empty.
         var detector = SlackHuddleDetector()
         _ = detector.update(
-            observation: SlackAccessibilityObservation(
-                hasLeaveHuddleControl: true, subtreeWasEmpty: false, isMuted: false,
-                windowTitle: "marlow.fenn595 (DM) - Northwind - Slack"
-            ),
+            observation: Self.idle(title: "marlow.fenn595 (DM) - Northwind - Slack"),
+            helperHoldsMicrophone: false, helperProducingOutput: false, at: 100
+        )
+        _ = detector.update(
+            observation: Self.idle(title: "- Northwind - Slack"),
+            helperHoldsMicrophone: false, helperProducingOutput: false, at: 101
+        )
+        #expect(detector.conversationTitle == "marlow.fenn595")
+    }
+
+    @Test("browsing to another conversation mid-huddle keeps the huddle's name")
+    func browsingToAnotherConversationMidHuddleKeepsTheHuddlesName() async throws {
+        // Slack's window title follows whichever conversation is open, so
+        // opening another DM during a call renamed the meeting after it.
+        var detector = SlackHuddleDetector()
+        _ = detector.update(
+            observation: DetectionFixtures.joined(title: "Rowan Ashby (DM) - Larkfield - Slack"),
+            helperHoldsMicrophone: true, helperProducingOutput: true, at: 100
+        )
+        #expect(detector.state == .joined)
+        _ = detector.update(
+            observation: DetectionFixtures.joined(title: "Ines Calloway (DM) - Larkfield - Slack"),
+            helperHoldsMicrophone: true, helperProducingOutput: true, at: 101
+        )
+        #expect(detector.conversationTitle == "Rowan Ashby")
+    }
+
+    @Test("the name is taken when Slack opens the microphone, not when the join is seen")
+    func theNameIsTakenWhenSlackOpensTheMicrophone() async throws {
+        var detector = SlackHuddleDetector()
+        _ = detector.update(
+            observation: Self.idle(title: "Rowan Ashby (DM) - Larkfield - Slack"),
+            helperHoldsMicrophone: true, helperProducingOutput: false, at: 100
+        )
+        #expect(detector.state == .candidate)
+        _ = detector.update(
+            observation: Self.idle(title: "Ines Calloway (DM) - Larkfield - Slack"),
+            helperHoldsMicrophone: true, helperProducingOutput: true, at: 105
+        )
+        _ = detector.update(
+            observation: DetectionFixtures.joined(title: "Ines Calloway (DM) - Larkfield - Slack"),
+            helperHoldsMicrophone: true, helperProducingOutput: true, at: 110
+        )
+        #expect(detector.state == .joined)
+        #expect(detector.conversationTitle == "Rowan Ashby")
+    }
+
+    @Test("a huddle preview gives way to the conversation's name")
+    func aHuddlePreviewGivesWayToTheConversationsName() async throws {
+        var detector = SlackHuddleDetector()
+        _ = detector.update(
+            observation: Self.idle(title: "Slack - Huddle Preview"),
             helperHoldsMicrophone: true, helperProducingOutput: false, at: 100
         )
         _ = detector.update(
-            observation: SlackAccessibilityObservation(
-                hasLeaveHuddleControl: true, subtreeWasEmpty: false, isMuted: false,
-                windowTitle: "- Northwind - Slack"
-            ),
-            helperHoldsMicrophone: true, helperProducingOutput: false, at: 101
+            observation: DetectionFixtures.joined(title: "Rowan Ashby (DM) - Larkfield - Slack"),
+            helperHoldsMicrophone: true, helperProducingOutput: true, at: 105
         )
-        #expect(detector.conversationTitle == "marlow.fenn595")
+        #expect(detector.conversationTitle == "Rowan Ashby")
+    }
+
+    @Test("after the huddle ends the name follows Slack again")
+    func afterTheHuddleEndsTheNameFollowsSlackAgain() async throws {
+        var detector = SlackHuddleDetector()
+        var now = 100.0
+        _ = detector.update(
+            observation: DetectionFixtures.joined(title: "Rowan Ashby (DM) - Larkfield - Slack"),
+            helperHoldsMicrophone: true, helperProducingOutput: true, at: now
+        )
+        while detector.state != .idle, now < 130 {
+            now += 0.5
+            _ = detector.update(
+                observation: Self.idle(title: "Rowan Ashby (DM) - Larkfield - Slack"),
+                helperHoldsMicrophone: false, helperProducingOutput: false, at: now
+            )
+        }
+        #expect(detector.state == .idle)
+        _ = detector.update(
+            observation: Self.idle(title: "Ines Calloway (DM) - Larkfield - Slack"),
+            helperHoldsMicrophone: false, helperProducingOutput: false, at: now + 1
+        )
+        #expect(detector.conversationTitle == "Ines Calloway")
+    }
+
+    @Test("a finished huddle's name does not carry into the next one")
+    func aFinishedHuddlesNameDoesNotCarryIntoTheNextOne() async throws {
+        var detector = SlackHuddleDetector()
+        var now = 100.0
+        _ = detector.update(
+            observation: DetectionFixtures.joined(title: "Rowan Ashby (DM) - Larkfield - Slack"),
+            helperHoldsMicrophone: true, helperProducingOutput: true, at: now
+        )
+        // Slack publishes a title with no conversation in it while one loads.
+        let loading = Self.idle(title: "- Larkfield - Slack")
+        while detector.state != .idle, now < 130 {
+            now += 0.5
+            _ = detector.update(
+                observation: loading, helperHoldsMicrophone: false,
+                helperProducingOutput: false, at: now
+            )
+        }
+        #expect(detector.state == .idle)
+        // The next huddle opens the microphone before a real title arrives.
+        _ = detector.update(
+            observation: loading, helperHoldsMicrophone: true,
+            helperProducingOutput: false, at: now + 0.5
+        )
+        #expect(detector.state == .candidate)
+        _ = detector.update(
+            observation: Self.idle(title: "Ines Calloway (DM) - Larkfield - Slack"),
+            helperHoldsMicrophone: true, helperProducingOutput: false, at: now + 1
+        )
+        #expect(detector.conversationTitle == "Ines Calloway")
+    }
+
+    private static func idle(title: String) -> SlackAccessibilityObservation {
+        SlackAccessibilityObservation(
+            hasLeaveHuddleControl: false, subtreeWasEmpty: false, windowTitle: title
+        )
     }
 }
 

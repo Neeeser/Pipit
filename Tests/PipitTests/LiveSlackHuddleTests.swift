@@ -21,7 +21,7 @@ struct LiveSlackHuddleTests {
     @Test("a running huddle yields a roster with Slack user ids")
     func aRunningHuddleYieldsARosterWithSlackUserIds() async throws {
         let reader = SlackAccessibilityReader()
-        let observation = reader.read()
+        let observation = reader.read(huddleMayBeRunning: true)
         #expect(
             !observation.accessibilityUnavailable,
             "grant accessibility to the terminal running the tests"
@@ -55,7 +55,7 @@ struct LiveSlackHuddleTests {
         var recorder = SensorRecorder(anchorMonotonic: 0)
         // Two seconds of real polling at the rate detection uses.
         for tick in 0..<4 {
-            let observation = reader.read()
+            let observation = reader.read(huddleMayBeRunning: true)
             guard !observation.tiles.isEmpty else { continue }
             recorder.record(
                 SensorReading(
