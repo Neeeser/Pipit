@@ -361,9 +361,17 @@ public final class DetectionEngine: @unchecked Sendable {
 
         var evidence: [ProviderEvidence] = []
 
+        let slackHoldsMic = audioObserver.holdsMicrophone(
+            bundlePrefixes: configuration.slackAudioPrefixes, in: audioStates
+        )
+        // A muted huddle may stop holding the microphone, so the detector's own
+        // state counts too.
+        let slackDetectorActive = lock.withLock { slackDetector.state != .idle }
         // Read accessibility before taking the lock: the walk crosses into
         // another process and can block for seconds when Slack is busy.
-        let slackObservation = slackReader.read()
+        let slackObservation = slackReader.read(
+            huddleMayBeRunning: slackHoldsMic || slackDetectorActive
+        )
         // Stamped after the walk, because the tiles describe the call as of
         // when the read finished. Stamping with the poll's start put every turn
         // boundary early by however long the walk took, and inflated the
@@ -373,9 +381,6 @@ public final class DetectionEngine: @unchecked Sendable {
         lock.lock()
 
         // Slack
-        let slackHoldsMic = audioObserver.holdsMicrophone(
-            bundlePrefixes: configuration.slackAudioPrefixes, in: audioStates
-        )
         let slackProducesOutput = audioObserver.producesOutput(
             bundlePrefixes: configuration.slackAudioPrefixes, in: audioStates
         )
