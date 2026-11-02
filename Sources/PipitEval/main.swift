@@ -52,6 +52,17 @@ struct Arguments {
     var cleanedMic = false
     var maximumPhraseSeconds: Double?
 
+    /// Bench flags that take no value.
+    static var benchSwitches: [String: WritableKeyPath<BenchCommand.Options, Bool>] {
+        [
+            "--keep-scratch": \.keepScratch,
+            "--resume": \.resume,
+            "--allow-missing-baseline": \.allowMissingBaseline,
+            "--live-phrases": \.livePhrases,
+            "--live-sliding": \.liveSliding,
+        ]
+    }
+
     init?(_ raw: [String]) {
         guard let command = raw.first else { return nil }
         self.command = command
@@ -67,16 +78,8 @@ struct Arguments {
             // Flags that take no value, read before the value is demanded: a
             // trailing --keep-scratch would otherwise fall off the end and be
             // dropped without a word.
-            if flag == "--keep-scratch" {
-                benchOptions.keepScratch = true
-                continue
-            }
-            if flag == "--resume" {
-                benchOptions.resume = true
-                continue
-            }
-            if flag == "--allow-missing-baseline" {
-                benchOptions.allowMissingBaseline = true
+            if let option = Self.benchSwitches[flag] {
+                benchOptions[keyPath: option] = true
                 continue
             }
             if flag == "--full-id" {
@@ -199,6 +202,7 @@ func usage() -> Never {
                                  [--diarizer local|lseend|cloud] [--out FILE] [--baseline FILE]
                                  [--allow-missing-baseline] [--audio-dir DIR]
                                  [--repeats N] [--keep-scratch] [--resume]
+                                 [--live-phrases | --live-sliding]
           pipit-eval live     --meeting MEETING_FOLDER --engine parakeet|apple [--pace 1] [--seconds N]
                                  [--cleaned-mic] [--max-phrase SECONDS] [--show-text] [--json OUT]
                                  # replays a meeting through the live transcript;

@@ -186,3 +186,156 @@ public struct LiveStreamText: Sendable {
         }
     }
 #endif
+
+/// Parakeet run the way the live transcript runs it: the voice detector cuts
+/// the track into phrases at pauses and each phrase is transcribed on its own.
+///
+/// A benchmark candidate, reachable through `pipit-eval bench --live-phrases`.
+/// It answers whether the live text could be the meeting's final transcript:
+/// the rest of the pipeline is unchanged, so its score against the reference
+/// transcripts compares directly with the whole-track pass.
+public struct ParakeetPhraseTranscriptionBackend: TranscriptionBackend {
+    private let models: LocalModelManager
+    private let tuning: LiveSpeechSegmenter.Tuning
+
+    public init(models: LocalModelManager, tuning: LiveSpeechSegmenter.Tuning = .default) {
+        self.models = models
+        self.tuning = tuning
+    }
+
+    public var identifier: String { LocalSpeechStack.parakeetBackendIdentifier + "-phrases" }
+    public var isLocal: Bool { true }
+    public var limits: BackendAudioLimits { .none }
+    public var timing: TranscriptTiming { .words }
+
+    public func transcribe(
+        audio: URL, progress: @escaping @Sendable (Double) -> Void
+    ) async throws -> TranscriptionOutput {
+        let samples = try MonoAudioDecoder.loadMono16k(audio)
+        let detector = try await models.liveVoiceActivity()
+        let window = LiveVoiceActivity.windowSamples
+        let windowSeconds = Double(window) / 16_000
+        var segmenter = LiveSpeechSegmenter(tuning: tuning)
+        var phrases: [LiveSpeechSegmenter.Phrase] = []
+        var offset = 0
+        while offset + window <= samples.count {
+            let probability = try await detector.probability(Array(samples[offset..<offset + window]))
+            if let phrase = segmenter.push(probability) { phrases.append(phrase) }
+            offset += window
+        }
+        if let phrase = segmenter.finish() { phrases.append(phrase) }
+
+        var words: [CtcForcedAlignment.AlignedWord] = []
+        var texts: [String] = []
+        for (index, phrase) in phrases.enumerated() {
+            let start = min(samples.count, phrase.start * window)
+            let end = min(samples.count, phrase.end * window)
+            guard end > start else { continue }
+            let text = try await models.transcribeLivePhrase(Array(samples[start..<end]))
+            let base = Double(phrase.start) * windowSeconds
+            words += text.words.map {
+                CtcForcedAlignment.AlignedWord(text: $0.text, start: $0.start + base, end: $0.end + base)
+            }
+            if !text.text.isEmpty { texts.append(text.text) }
+            progress(Double(index + 1) / Double(max(1, phrases.count)))
+        }
+        progress(1)
+        return TranscriptionOutput(
+            segments: CtcForcedAlignment.segments(
+                from: words,
+                pauseSeconds: LocalAlignmentTuning.segmentPauseSeconds,
+                maximumSeconds: LocalAlignmentTuning.segmentMaximumSeconds
+            ),
+            text: texts.joined(separator: " "),
+            durationSeconds: Double(samples.count) / 16_000
+        )
+    }
+}
+
+/// Parakeet through FluidAudio's sliding-window streamer: 11-second windows
+/// with 2 seconds of context either side, the layout its whole-file pass
+/// uses, fed as if the track were being recorded.
+///
+/// A benchmark candidate, reachable through `pipit-eval bench --live-sliding`.
+/// It answers whether a live pass can produce the same transcript as the
+/// after-call pass, rather than a faster but lossier one.
+public struct ParakeetSlidingTranscriptionBackend: TranscriptionBackend {
+    private let models: LocalModelManager
+
+    public init(models: LocalModelManager) {
+        self.models = models
+    }
+
+    public var identifier: String { LocalSpeechStack.parakeetBackendIdentifier + "-sliding" }
+    public var isLocal: Bool { true }
+    public var limits: BackendAudioLimits { .none }
+    public var timing: TranscriptTiming { .words }
+
+    public func transcribe(
+        audio: URL, progress: @escaping @Sendable (Double) -> Void
+    ) async throws -> TranscriptionOutput {
+        let samples = try MonoAudioDecoder.loadMono16k(audio)
+        let words = try await models.transcribeSlidingWindow(samples)
+        progress(1)
+        return TranscriptionOutput(
+            segments: CtcForcedAlignment.segments(
+                from: words,
+                pauseSeconds: LocalAlignmentTuning.segmentPauseSeconds,
+                maximumSeconds: LocalAlignmentTuning.segmentMaximumSeconds
+            ),
+            text: words.map(\.text).joined(separator: " "),
+            durationSeconds: Double(samples.count) / 16_000
+        )
+    }
+}
+
+extension LocalModelManager {
+    /// One track through a fresh sliding-window streamer, one second of audio
+    /// at a time, with the token revisions applied the way a live view would.
+    func transcribeSlidingWindow(_ samples: [Float]) async throws -> [CtcForcedAlignment.AlignedWord] {
+        ModelHub.offlineMode = true
+        defer { ModelHub.offlineMode = false }
+        let models = try await AsrModels.load(
+            from: locations.parakeetDirectory, version: .v3, encoderPrecision: .int8
+        )
+        let streamer = SlidingWindowAsrManager(config: .default)
+        try await streamer.loadModels(models)
+        let updates = await streamer.tokenUpdates
+        let collector = Task {
+            var tokens: [TokenTiming] = []
+            for try await update in updates {
+                tokens = Array(tokens.prefix(update.revision.retainedTokenCount)) + update.tokens
+            }
+            return tokens
+        }
+        try await streamer.startStreaming(source: .system)
+        var offset = 0
+        while offset < samples.count {
+            let count = min(16_000, samples.count - offset)
+            guard let buffer = Self.slidingBuffer(samples[offset..<offset + count]) else { break }
+            await streamer.streamAudio(buffer)
+            offset += count
+        }
+        _ = try await streamer.finish()
+        let tokens = try await collector.value
+        return buildWordTimings(from: tokens).map {
+            CtcForcedAlignment.AlignedWord(text: $0.word, start: $0.startTime, end: $0.endTime)
+        }
+    }
+
+    /// One 16 kHz mono buffer that owns its format, so it can be handed to
+    /// the streamer's actor without sharing anything with the next one.
+    private static func slidingBuffer(_ samples: ArraySlice<Float>) -> sending AVAudioPCMBuffer? {
+        guard
+            let format = AVAudioFormat(
+                commonFormat: .pcmFormatFloat32, sampleRate: 16_000, channels: 1, interleaved: false),
+            let buffer = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: AVAudioFrameCount(samples.count)),
+            let channel = buffer.floatChannelData?[0]
+        else { return nil }
+        buffer.frameLength = AVAudioFrameCount(samples.count)
+        samples.withUnsafeBufferPointer { source in
+            if let base = source.baseAddress { channel.update(from: base, count: samples.count) }
+        }
+        return buffer
+    }
+}

@@ -45,6 +45,11 @@ enum BenchCommand {
         /// ratchet. Off, a gated run fails on the missing entry itself, so a
         /// suite cannot silently regress on a case nobody recorded.
         var allowMissingBaseline = false
+        /// Run Parakeet phrase by phrase, cut at pauses the way the live
+        /// transcript cuts them, instead of over the whole track.
+        var livePhrases = false
+        /// Run Parakeet through FluidAudio's sliding-window streamer.
+        var liveSliding = false
     }
 
     /// Where a kept scratch directory goes: beside `--out` when there is one,
@@ -206,9 +211,21 @@ enum BenchCommand {
         }
     }
 
+    /// Segmenter tuning for `--live-phrases`, overridable for a sweep with
+    /// PIPIT_PHRASE_TUNING="threshold,pause,maximum,padding,minimum".
+    static func phraseTuning() -> LiveSpeechSegmenter.Tuning {
+        let parts = (ProcessInfo.processInfo.environment["PIPIT_PHRASE_TUNING"] ?? "")
+            .split(separator: ",").compactMap { Double($0) }
+        guard parts.count == 5 else { return .default }
+        return LiveSpeechSegmenter.Tuning(
+            speechThreshold: Float(parts[0]), pauseWindows: Int(parts[1]), maximumWindows: Int(parts[2]),
+            paddingWindows: Int(parts[3]), minimumSpeechWindows: Int(parts[4])
+        )
+    }
+
     static func makeBackends(
         models: LocalModelManager, cloud: OpenAIClient, configuration: AppSettings,
-        diarizer: String
+        diarizer: String, livePhrases: Bool = false, liveSliding: Bool = false
     ) -> ProcessingBackends {
         // The same wiring PipitRuntime builds, minus the speaker store: the
         // harness must not touch the voice memory of whoever runs it.
@@ -221,7 +238,13 @@ enum BenchCommand {
                         case .cohere: CohereTranscriptionBackend(models: models)
                         case .canary: CanaryTranscriptionBackend(models: models)
                         case .apple: AppleSpeechTranscriptionBackend()
-                        case .parakeet: ParakeetTranscriptionBackend(models: models)
+                        case .parakeet:
+                            liveSliding
+                                ? ParakeetSlidingTranscriptionBackend(models: models) as any TranscriptionBackend
+                                : livePhrases
+                                    ? ParakeetPhraseTranscriptionBackend(models: models, tuning: phraseTuning())
+                                        as any TranscriptionBackend
+                                    : ParakeetTranscriptionBackend(models: models)
                         case .whisper: WhisperTranscriptionBackend(models: models)
                         }
                     },
@@ -330,7 +353,8 @@ enum BenchCommand {
             let backends = makeBackends(
                 models: models, cloud: cloud,
                 configuration: settings(engine: engine, diarizer: options.diarizer),
-                diarizer: options.diarizer
+                diarizer: options.diarizer, livePhrases: options.livePhrases,
+                liveSliding: options.liveSliding
             )
             for benchCase in cases {
                 let plan = BenchResume.pending(
