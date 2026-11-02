@@ -438,6 +438,11 @@ public final class WindowManager {
                 created.styleMask.insert(.fullSizeContentView)
                 created.titlebarAppearsTransparent = true
                 created.titleVisibility = .hidden
+                // Left on, SwiftUI keeps managing the window's title and drew
+                // "Meetings" over the tabs despite the hidden title.
+                if let host = created.contentViewController as? NSHostingController<AnyView> {
+                    host.sceneBridgingOptions = []
+                }
                 meetingsWindow = created
                 installFindShortcut(for: created)
                 return created

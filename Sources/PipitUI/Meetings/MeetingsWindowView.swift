@@ -28,9 +28,14 @@ public struct MeetingsWindowView: View {
             sidebar
                 .ignoresSafeArea(.container, edges: .top)
                 .frame(minWidth: Self.sidebarMinWidth, idealWidth: 272, maxWidth: 380)
+            // Without the priority the split view opened every window with the
+            // sidebar at its widest, taking a third of a quarter-screen window
+            // from the transcript. With it the sidebar opens at its narrowest
+            // and the transcript gets the rest.
             detail
                 .ignoresSafeArea(.container, edges: .top)
                 .frame(minWidth: 460)
+                .layoutPriority(1)
         }
         .frame(minWidth: 900, minHeight: 560)
         .task { await model.reload() }

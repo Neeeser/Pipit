@@ -5,8 +5,13 @@ import SwiftUI
 ///
 /// Outside the tabs, so it stays put while the summary or the notes are read
 /// against what is playing. One lane holds every speaker in their own colour;
-/// the Lanes button opens a lane per speaker above it, lined up with that lane
-/// so the playheads match.
+/// the Lanes button opens a lane per speaker above it.
+///
+/// The open lanes are a row of the same three parts as the controls under
+/// them, with the names as wide as the controls on the left and an empty space
+/// as wide as the buttons on the right. Both rows then put the lanes at the
+/// same place, so their playheads line up. A Grid did not: it left its middle
+/// column at a fraction of the room.
 struct MeetingPlayerBar: View {
     let detail: MeetingReviewModel
     /// Whether the pane is tall enough for the lanes to start open.
@@ -16,8 +21,8 @@ struct MeetingPlayerBar: View {
     /// until they press Lanes, and then the pane's height decides.
     @AppStorage("MeetingPlayerLanes") private var lanesChoice = ""
     @State private var hover: CGFloat?
-    /// The widths either side of the combined lane, so the open lanes start
-    /// and end where it does.
+    @State private var lanesHover: CGFloat?
+    /// The widths either side of the combined lane.
     @State private var leadingWidth: CGFloat = 0
     @State private var trailingWidth: CGFloat = 0
 
@@ -32,18 +37,26 @@ struct MeetingPlayerBar: View {
     }
 
     var body: some View {
-        VStack(spacing: 0) {
+        VStack(spacing: 4) {
             if lanesShown {
-                SpeakerLanesView(playback: playback, tint: tint(for:), labelWidth: leadingWidth)
-                    .padding(.trailing, trailingWidth + Self.spacing)
-                    .padding(.top, 12)
-                    .padding(.bottom, 2)
+                HStack(spacing: Self.spacing) {
+                    SpeakerLaneLabels(playback: playback, tint: tint(for:))
+                        .frame(width: leadingWidth, alignment: .trailing)
+                    SpeakerLanesPlot(
+                        playback: playback, tint: tint(for:), hover: $lanesHover,
+                        height: SpeakerLaneLabels.height(lanes: playback.lanes.count),
+                        rowHeight: SpeakerLaneLabels.rowHeight, rowSpacing: SpeakerLaneLabels.rowSpacing
+                    )
+                    Color.clear.frame(width: trailingWidth, height: 1)
+                }
+                .padding(.top, 12)
             }
             HStack(spacing: Self.spacing) {
                 HStack(spacing: Self.spacing) {
                     transport
                     PlaybackClock(playback: playback)
                 }
+                .fixedSize()
                 .onGeometryChange(for: CGFloat.self) {
                     $0.size.width
                 } action: {
@@ -69,7 +82,10 @@ struct MeetingPlayerBar: View {
                     Toggle(
                         isOn: Binding(
                             get: { lanesShown },
-                            set: { lanesChoice = $0 ? "open" : "closed" }
+                            // Only a change is a choice. The toggle also hands
+                            // back the value it shows when a resize flips the
+                            // default, and saving that pinned the lanes shut.
+                            set: { if $0 != lanesShown { lanesChoice = $0 ? "open" : "closed" } }
                         )
                     ) {
                         Label("Lanes", systemImage: "chart.bar.xaxis")
@@ -178,47 +194,32 @@ private struct PlaybackClock: View {
     }
 }
 
-/// One lane per speaker, lit where they talk, with the playhead across them.
-/// Click or drag to move the playhead.
+/// The speakers' names, one per lane, beside the lanes they label.
 ///
 /// Lanes rather than a waveform: a waveform says how loud the room was, and the
 /// question the bar answers is who was talking when.
-struct SpeakerLanesView: View {
+struct SpeakerLaneLabels: View {
     let playback: MeetingPlaybackModel
     let tint: (String) -> Color
-    /// The width of the name column, matched to the controls under it so the
-    /// lanes line up with the combined lane.
-    let labelWidth: CGFloat
-    /// Where the pointer is over the lanes, as a fraction of their width.
-    @State private var hover: CGFloat?
 
-    private static let rowHeight: CGFloat = 14
-    private static let rowSpacing: CGFloat = 3
+    static let rowHeight: CGFloat = 14
+    static let rowSpacing: CGFloat = 3
+
+    static func height(lanes: Int) -> CGFloat {
+        max(rowHeight, CGFloat(lanes) * (rowHeight + rowSpacing) - rowSpacing)
+    }
 
     var body: some View {
-        let rowHeight = Self.rowHeight
-        let rowSpacing = Self.rowSpacing
-        let lanes = playback.lanes
-        let height = max(rowHeight, CGFloat(lanes.count) * (rowHeight + rowSpacing) - rowSpacing)
-        HStack(spacing: 12) {
-            VStack(alignment: .trailing, spacing: rowSpacing) {
-                ForEach(lanes) { lane in
-                    Text(lane.name)
-                        .font(.system(size: 11, weight: isSpeaking(lane.name) ? .semibold : .regular))
-                        .foregroundStyle(tint(lane.name))
-                        .lineLimit(1)
-                        .truncationMode(.tail)
-                        .frame(height: rowHeight)
-                }
+        VStack(alignment: .trailing, spacing: Self.rowSpacing) {
+            ForEach(playback.lanes) { lane in
+                Text(lane.name)
+                    .font(.system(size: 11, weight: isSpeaking(lane.name) ? .semibold : .regular))
+                    .foregroundStyle(tint(lane.name))
+                    .lineLimit(1)
+                    .truncationMode(.tail)
+                    .frame(height: Self.rowHeight)
             }
-            .frame(width: max(64, labelWidth - 12), alignment: .trailing)
-
-            SpeakerLanesPlot(
-                playback: playback, tint: tint, hover: $hover, height: height,
-                rowHeight: rowHeight, rowSpacing: rowSpacing
-            )
         }
-        .frame(maxWidth: .infinity)
     }
 
     private func isSpeaking(_ name: String) -> Bool {
