@@ -8,12 +8,18 @@ import SwiftUI
 /// The header and the speaker strip stay put while the transcript scrolls, so
 /// changing who said what is one click away from any line rather than a scroll
 /// back to a card at the top.
+///
+/// Laid out for a window a quarter of the screen in size: the tabs share the
+/// title bar line, the header is two lines, and the recording is docked at the
+/// bottom, so the transcript gets most of the height.
 public struct MeetingDetailView: View {
     let model: MeetingsWindowModel
     let detail: MeetingReviewModel
     /// Confirms a copy for two seconds, because the clipboard says nothing.
     @State private var copied = false
     @State private var confirmingMicrophoneRedo = false
+    /// Whether the pane is tall enough to open the speaker lanes by default.
+    @State private var roomy = false
 
     public init(model: MeetingsWindowModel, detail: MeetingReviewModel) {
         self.model = model
@@ -22,8 +28,9 @@ public struct MeetingDetailView: View {
 
     public var body: some View {
         VStack(spacing: 0) {
-            header
+            titleBar
             Divider()
+            header
             // The folder can go away under an open pane: a meeting deleted in
             // the Finder, or one folded into another. Everything on screen is
             // then the last read rather than what is on disk, and nothing else
@@ -45,15 +52,9 @@ public struct MeetingDetailView: View {
                 Divider()
             }
             // Under the notices rather than over them: a meeting that did not
-            // finish is the more urgent thing to read, and this asks a question
-            // that can wait.
-            if let suggestion = detail.titleSuggestion {
-                suggestionBar(suggestion)
-                Divider()
-            }
-            // Under the title bar rather than over it. Accepting a title
-            // renames the directory, and the folder offer quotes that title, so
-            // the title is the question to answer first.
+            // finish is the more urgent thing to read. The suggested title is
+            // asked on the title's own line, so the folder offer comes first
+            // here, and it quotes whichever title the meeting has.
             if let folder = model.folderSuggestion(for: detail.meetingID) {
                 folderSuggestionBar(folder)
                 Divider()
@@ -62,20 +63,25 @@ public struct MeetingDetailView: View {
             if let receipt = model.receipt, receipt.meetingID == detail.meetingID {
                 receiptBar(receipt.text)
             }
-            // Over the tabs, so the recording keeps playing and stays in reach
-            // whichever of them is open.
+            Divider()
+            content
+            // Docked at the bottom, outside the tabs, so the recording keeps
+            // playing and stays in reach whichever of them is open, without
+            // pushing the transcript down.
             if detail.playback.hasAudio {
                 Divider()
-                MeetingPlayerBar(detail: detail)
+                MeetingPlayerBar(detail: detail, roomy: roomy)
             } else if isPreparingAudio {
                 Divider()
                 MeetingPlayerPlaceholder()
             }
-            Divider()
-            tabs
-            content
         }
         .background(Color(nsColor: .textBackgroundColor))
+        .onGeometryChange(for: Bool.self) {
+            $0.size.height >= 760
+        } action: {
+            roomy = $0
+        }
         .onDisappear { detail.playback.pause() }
         .confirmationDialog(
             "Remove echo from your side?", isPresented: $confirmingMicrophoneRedo,
@@ -108,44 +114,71 @@ public struct MeetingDetailView: View {
 
     // MARK: - header
 
+    // MARK: - header
+
+    // MARK: - title bar
+
+    /// The tabs and the two document actions, on the line the window buttons
+    /// use.
+    private var titleBar: some View {
+        MeetingsTitleBar {
+            Spacer(minLength: 0)
+            Picker("", selection: Binding(get: { model.tab }, set: { model.tab = $0 })) {
+                ForEach(MeetingDetailTab.allCases) { Text($0.label).tag($0) }
+            }
+            .pickerStyle(.segmented)
+            .labelsHidden()
+            .fixedSize()
+            Spacer(minLength: 0)
+            copyTranscriptButton
+            moreMenu
+        }
+    }
+
+    /// The commands that act on the meeting's folder. Always here, and also
+    /// spelled out on the line under the title when the pane is wide enough.
+    private var moreMenu: some View {
+        Menu {
+            Button("Reveal in Finder") { detail.reveal() }
+            if detail.transcript != nil {
+                Button("Rebuild transcript") { model.rebuildFocusedMeeting() }
+            }
+            if detail.transcript != nil, detail.canRedoMicrophone {
+                Button("Remove echo") { requestMicrophoneRedo() }
+            }
+        } label: {
+            Image(systemName: "ellipsis")
+        }
+        .menuStyle(.button)
+        .menuIndicator(.hidden)
+        .fixedSize()
+        .help("More")
+        .accessibilityLabel("More actions")
+    }
+
+    // MARK: - header
+
+    /// The title, and one line under it that says what the meeting was and
+    /// where it is filed.
     private var header: some View {
         VStack(alignment: .leading, spacing: 0) {
-            TextField("Title", text: detail.titleBinding())
-                .textFieldStyle(.plain)
-                .font(.title2.weight(.semibold))
-                .onSubmit { detail.save() }
-
-            HStack(spacing: 6) {
-                if let metadata = detail.metadata {
-                    Text(metadata.source.displayName)
-                    Text("·")
-                    Text(Format.day(metadata.startedAt))
-                    Text("·")
-                    Text(Format.shortDuration(metadata.durationSeconds))
-                    if let source = metadata.recordedDateSource {
-                        // Only an imported file carries this. Where the date
-                        // came from decides whether the position this meeting
-                        // holds in a list sorted by date can be trusted, so it
-                        // is said either way rather than only when it is good
-                        // news.
-                        Text("·")
-                        Text(source.displayName)
-                            .help(
-                                source.isOriginal
-                                    ? "The recording carried this date. Importing it left the date alone."
-                                    : "The file said nothing about when it was recorded."
-                            )
-                    }
-                    StageBadge(state: metadata.processing.state)
-                }
-                if detail.isSplitRecording {
-                    Label("\(detail.recordings.count) parts", systemImage: "arrow.triangle.branch")
-                        .help("The call dropped and was rejoined. Both halves are shown in order.")
+            HStack(spacing: 10) {
+                TextField("Title", text: detail.titleBinding())
+                    .textFieldStyle(.plain)
+                    .font(.title2.weight(.semibold))
+                    .onSubmit { detail.save() }
+                if let suggestion = detail.titleSuggestion {
+                    titleSuggestionPill(suggestion)
                 }
             }
-            .font(.caption)
-            .foregroundStyle(.secondary)
-            .padding(.top, 4)
+
+            // With the folder actions spelled out where they fit, and without
+            // them where they do not. They are in the More menu either way.
+            ViewThatFits(in: .horizontal) {
+                metaLine(withActions: true)
+                metaLine(withActions: false)
+            }
+            .padding(.top, 3)
 
             if let warnings = detail.metadata?.captureWarnings, !warnings.isEmpty {
                 // What went wrong while this was recorded, kept with the
@@ -175,42 +208,65 @@ public struct MeetingDetailView: View {
                 .help("Some of the other side's words may appear under your name.")
                 .padding(.top, 4)
             }
-
-            HStack(spacing: 8) {
-                folderMenu
-                Text(archivePath)
-                    .lineLimit(1)
-                    .truncationMode(.head)
-                    .help(detail.directory?.path ?? "")
-                Button("Reveal in Finder") { detail.reveal() }.buttonStyle(.link)
-                if detail.transcript != nil {
-                    Button("Rebuild transcript") { model.rebuildFocusedMeeting() }
-                        .buttonStyle(.link)
-                        .help("Re-assembles the transcript from the model output already on disk. Makes no request.")
-                }
-                if detail.transcript != nil, detail.canRedoMicrophone {
-                    Button("Remove echo") { requestMicrophoneRedo() }
-                        .buttonStyle(.link)
-                        .help("Transcribes your side again without the other side's sound.")
-                }
-                Spacer(minLength: 0)
-            }
-            .font(.caption)
-            .foregroundStyle(.tertiary)
-            .padding(.top, 8)
         }
         .padding(.horizontal, 20)
-        .padding(.top, 16)
-        .padding(.bottom, 14)
+        .padding(.top, 10)
+        .padding(.bottom, 8)
     }
 
-    /// The folder, from the meetings root down. The absolute path is long
-    /// enough to push the two links off a narrow window, and the part a person
-    /// recognises is the end of it.
-    private var archivePath: String {
-        guard let directory = detail.directory else { return "" }
-        let components = directory.pathComponents
-        return components.suffix(4).joined(separator: "/")
+    private func metaLine(withActions: Bool) -> some View {
+        HStack(spacing: 6) {
+            if let metadata = detail.metadata {
+                Image(systemName: metadata.source.symbolName)
+                    .foregroundStyle(SourceTint.color(metadata.source))
+                    .accessibilityHidden(true)
+                Text(metadata.source.displayName)
+                Text("·")
+                Text(Format.day(metadata.startedAt))
+                Text("·")
+                Text(Format.shortDuration(metadata.durationSeconds))
+                if let source = metadata.recordedDateSource {
+                    // Only an imported file carries this. Where the date came
+                    // from decides whether the position this meeting holds in a
+                    // list sorted by date can be trusted, so it is said either
+                    // way rather than only when it is good news.
+                    Text("·")
+                    Text(source.displayName)
+                        .help(
+                            source.isOriginal
+                                ? "The recording carried this date. Importing it left the date alone."
+                                : "The file said nothing about when it was recorded."
+                        )
+                }
+                StageBadge(state: metadata.processing.state)
+            }
+            if detail.isSplitRecording {
+                Label("\(detail.recordings.count) parts", systemImage: "arrow.triangle.branch")
+                    .help("The call dropped and was rejoined. Both halves are shown in order.")
+            }
+            folderMenu
+            Spacer(minLength: 8)
+            if withActions {
+                HStack(spacing: 12) {
+                    Button("Reveal in Finder") { detail.reveal() }
+                        .help(detail.directory?.path ?? "")
+                    if detail.transcript != nil {
+                        Button("Rebuild transcript") { model.rebuildFocusedMeeting() }
+                            .help(
+                                "Re-assembles the transcript from the model output already on disk. Makes no request.")
+                    }
+                    if detail.transcript != nil, detail.canRedoMicrophone {
+                        Button("Remove echo") { requestMicrophoneRedo() }
+                            .help("Transcribes your side again without the other side's sound.")
+                    }
+                }
+                .buttonStyle(.link)
+                .fixedSize()
+            }
+        }
+        .font(.caption)
+        .foregroundStyle(.secondary)
+        .lineLimit(1)
     }
 
     private func failureBar(_ failure: ProcessingFailure) -> some View {
@@ -249,9 +305,9 @@ public struct MeetingDetailView: View {
 
     /// Which folder this meeting is in, and the way to change it.
     ///
-    /// On the path line because the path line is where the folder already was:
-    /// with folders on disk, what that line prints and what this control sets
-    /// are the same fact.
+    /// On the line under the title, with the rest of what the meeting is. The
+    /// path itself is in the help of Reveal in Finder: printed on the line it
+    /// pushed everything after it off a narrow window.
     @ViewBuilder private var folderMenu: some View {
         let current = model.rows.first { $0.id == detail.meetingID }?.summary.folderName
         let tint =
@@ -336,35 +392,6 @@ public struct MeetingDetailView: View {
         return "\u{201C}\(quote)\u{201D} at \(Format.duration(at))"
     }
 
-    /// The generated title, offered against the name the meeting already has.
-    ///
-    /// Shaped like the notice and receipt bars beside it rather than as a card
-    /// or a popover, so it reads as one more thing the pane is telling you.
-    /// Below the title rather than beside it, because a row that appears next
-    /// to the title moves the title while it is being read.
-    private func suggestionBar(_ suggestion: String) -> some View {
-        HStack(spacing: 7) {
-            Image(systemName: "sparkles")
-                .foregroundStyle(Color.accentColor)
-                .accessibilityHidden(true)
-            Text("Suggested title").foregroundStyle(.secondary).layoutPriority(1)
-            // A generated title can outrun a narrow pane, and the whole point
-            // is reading it before deciding.
-            Text(suggestion).lineLimit(1).truncationMode(.tail).help(suggestion)
-            Spacer(minLength: 8)
-            Button("Use it") { detail.acceptTitleSuggestion() }
-                .buttonStyle(.link)
-                .help("Renames this meeting, and its folder, to the suggested title.")
-            Button("Dismiss") { detail.declineTitleSuggestion() }
-                .buttonStyle(.link)
-                .help("Keeps the current title and stops offering this one.")
-        }
-        .font(.caption)
-        .padding(.horizontal, 20)
-        .padding(.vertical, 8)
-        .background(Color.accentColor.opacity(0.08))
-    }
-
     private func noticeBar(_ text: String) -> some View {
         HStack(spacing: 8) {
             Image(systemName: "exclamationmark.circle.fill").foregroundStyle(.orange)
@@ -391,20 +418,28 @@ public struct MeetingDetailView: View {
 
     // MARK: - speakers
 
+    /// The chips with their two commands at the end of the same line. A
+    /// "Speakers" heading over them took a line to say what the faces already
+    /// do.
     private var speakerStrip: some View {
         VStack(alignment: .leading, spacing: 7) {
-            HStack(spacing: 8) {
-                Text("Speakers").font(.caption).foregroundStyle(.secondary)
-                Spacer()
-                // Only where somebody is still unnamed. The control fills a
-                // gap, so with no gap it is not drawn rather than drawn dim.
-                if detail.unnamedSpeakerCount > 0 { suggestNames }
-                reanalyze
-            }
-            if detail.speakerRows.isEmpty {
-                Text(waitingText).font(.caption).foregroundStyle(.secondary)
-            } else {
-                SpeakerChips(model: model, detail: detail)
+            HStack(alignment: .top, spacing: 8) {
+                Group {
+                    if detail.speakerRows.isEmpty {
+                        Text(waitingText).font(.caption).foregroundStyle(.secondary)
+                    } else {
+                        SpeakerChips(model: model, detail: detail)
+                    }
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                HStack(spacing: 8) {
+                    // Only where somebody is still unnamed. The control fills a
+                    // gap, so with no gap it is not drawn rather than drawn dim.
+                    if detail.unnamedSpeakerCount > 0 { suggestNames }
+                    if detail.isReanalyzing { ProgressView().controlSize(.small) }
+                    reanalyze
+                }
+                .frame(minHeight: 26)
             }
             // Only where there is something to propose. A meeting whose voices
             // all matched, and one where nobody was named out loud, both draw
@@ -414,7 +449,7 @@ public struct MeetingDetailView: View {
             }
         }
         .padding(.horizontal, 20)
-        .padding(.vertical, 12)
+        .padding(.bottom, 10)
     }
 
     private var waitingText: String {
@@ -483,39 +518,26 @@ public struct MeetingDetailView: View {
                     : "Runs on this Mac. Download the speech models in Settings to use it."
             )
         } label: {
-            Label(
-                detail.isReanalyzing ? "Re-analyzing…" : "Re-analyze speakers",
-                systemImage: "arrow.triangle.2.circlepath"
-            )
-            .font(.caption)
+            // An icon on the chips' line, named in its help. The menu draws
+            // one element of its label, so the spinner sits beside it rather
+            // than inside.
+            Image(systemName: "arrow.triangle.2.circlepath")
         }
         .menuStyle(.borderlessButton)
+        .menuIndicator(.hidden)
         .fixedSize()
         .disabled(detail.isReanalyzing)
+        .help(detail.isReanalyzing ? "Re-analyzing speakers" : "Re-analyze speakers")
+        .accessibilityLabel("Re-analyze speakers")
     }
 
-    // MARK: - tabs and content
-
-    private var tabs: some View {
-        HStack {
-            Picker("", selection: Binding(get: { model.tab }, set: { model.tab = $0 })) {
-                ForEach(MeetingDetailTab.allCases) { Text($0.label).tag($0) }
-            }
-            .pickerStyle(.segmented)
-            .labelsHidden()
-            .frame(width: 268)
-            Spacer()
-            copyTranscriptButton
-        }
-        .padding(.horizontal, 20)
-        .padding(.vertical, 10)
-    }
+    // MARK: - content
 
     /// Puts `transcript.md` on the clipboard.
     ///
-    /// On the tab row rather than in the transcript itself: it copies the whole
-    /// document whichever tab is open, and the row is the one bar that stays on
-    /// screen while the transcript scrolls.
+    /// On the title bar line, tinted, because it is the command people use the
+    /// most. It copies the whole document whichever tab is open, and that line
+    /// stays on screen while the transcript scrolls.
     private var copyTranscriptButton: some View {
         Button {
             guard detail.copyTranscript() else { return }
@@ -530,7 +552,7 @@ public struct MeetingDetailView: View {
                 systemImage: copied ? "checkmark" : "doc.on.doc"
             )
         }
-        .controlSize(.small)
+        .buttonStyle(.borderedProminent)
         .disabled(detail.transcript == nil)
         .help("Copies transcript.md, the whole transcript as it stands on disk.")
     }
@@ -538,8 +560,9 @@ public struct MeetingDetailView: View {
     @ViewBuilder private var content: some View {
         switch model.tab {
         case .transcript: MeetingTranscriptView(model: model, detail: detail)
-        case .summary: summary
-        case .notes: notes
+        // Room under the divider the tab row used to provide.
+        case .summary: summary.contentMargins(.top, 14, for: .scrollContent)
+        case .notes: notes.contentMargins(.top, 14, for: .scrollContent)
         }
     }
 
@@ -686,6 +709,52 @@ public struct MeetingDetailView: View {
                 }
             }
         }
+    }
+}
+
+// MARK: - title bar
+
+extension MeetingDetailView {
+    /// The generated title, offered against the name the meeting already has.
+    ///
+    /// A pill at the end of the title's line rather than a bar of its own, so
+    /// the question costs no height. The title is leading and the pill
+    /// trailing, so the title does not move when the pill appears.
+    func titleSuggestionPill(_ suggestion: String) -> some View {
+        HStack(spacing: 6) {
+            Image(systemName: "sparkles")
+                .foregroundStyle(Color.accentColor)
+                .accessibilityHidden(true)
+            // A generated title can outrun a narrow pane, and the whole point
+            // is reading it before deciding.
+            Text(suggestion)
+                .lineLimit(1)
+                .truncationMode(.tail)
+                .frame(maxWidth: 220, alignment: .leading)
+                .fixedSize(horizontal: false, vertical: true)
+                .help("Suggested title: \(suggestion)")
+            Button("Use title") { detail.acceptTitleSuggestion() }
+                .buttonStyle(.borderedProminent)
+                .controlSize(.mini)
+                .help("Renames this meeting, and its folder, to the suggested title.")
+            Button {
+                detail.declineTitleSuggestion()
+            } label: {
+                Image(systemName: "xmark").font(.system(size: 8, weight: .bold))
+            }
+            .buttonStyle(.plain)
+            .foregroundStyle(.secondary)
+            .help("Keeps the current title and stops offering this one.")
+            .accessibilityLabel("Dismiss suggested title")
+        }
+        .font(.caption)
+        .padding(.leading, 9)
+        .padding(.trailing, 7)
+        .padding(.vertical, 3)
+        .background(Capsule().fill(Color.accentColor.opacity(0.12)))
+        .fixedSize()
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel("Suggested title")
     }
 }
 

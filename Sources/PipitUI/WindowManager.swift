@@ -433,6 +433,11 @@ public final class WindowManager {
                 )
                 created.setFrameAutosaveName("PipitMeetings")
                 created.isReleasedWhenClosed = false
+                // The content draws its own controls on the title bar line, so
+                // the tabs and Copy transcript take no row of their own.
+                created.styleMask.insert(.fullSizeContentView)
+                created.titlebarAppearsTransparent = true
+                created.titleVisibility = .hidden
                 meetingsWindow = created
                 installFindShortcut(for: created)
                 return created
