@@ -391,7 +391,7 @@ extension DiagnosticSnapshot {
     /// Pipit writes revisions as `<model> @ <package> <version>`, which the
     /// token rule refuses for its spaces and `@`. The `@` and its spaces
     /// become `_` and any other space `-`, so `parakeet-tdt-0.6b-v3-int8 @
-    /// FluidAudio 0.15.6` reads `parakeet-tdt-0.6b-v3-int8_FluidAudio-0.15.6`.
+    /// FluidAudio 0.18.2` reads `parakeet-tdt-0.6b-v3-int8_FluidAudio-0.18.2`.
     ///
     /// WhisperKit names its models `openai_whisper-<variant>`, which takes
     /// whisper's revision past the rule's 64 characters. The prefix is left

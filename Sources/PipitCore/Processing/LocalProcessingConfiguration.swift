@@ -10,9 +10,9 @@ public enum LocalSpeechStack {
     /// M2 Pro, content parity with `whisper-1` on technical vocabulary.
     public static let whisperModel = "openai_whisper-large-v3-v20240930_turbo_632MB"
     public static let whisperPackage = "argmax-oss-swift 1.1.0"
-    public static let diarizerPackage = "FluidAudio 0.15.6"
+    public static let diarizerPackage = "FluidAudio 0.18.2"
     /// What goes in `DiarizationRun.backend`.
-    public static let diarizerBackendIdentifier = "fluidaudio-offline-0.15.6"
+    public static let diarizerBackendIdentifier = "fluidaudio-offline-0.18.2"
 
     /// LS-EEND through FluidAudio. A benchmark candidate: end-to-end neural
     /// diarization that can mark two speakers at the same instant, which the

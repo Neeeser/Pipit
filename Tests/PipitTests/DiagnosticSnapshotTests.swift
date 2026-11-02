@@ -266,7 +266,7 @@ struct DiagnosticSnapshotTests {
             rows == [
                 .init(unit: "whisper", state: "outdated", revision: "invalid", bytes: 10),
                 .init(
-                    unit: "parakeet", state: "installed", revision: "parakeet-tdt-0.6b-v3-int8_FluidAudio-0.15.6",
+                    unit: "parakeet", state: "installed", revision: "parakeet-tdt-0.6b-v3-int8_FluidAudio-0.18.2",
                     bytes: 482_345_678
                 ),
                 .init(unit: "diarizer", state: "outdated", revision: "FluidAudio-0.14.0", bytes: 32_145_678),

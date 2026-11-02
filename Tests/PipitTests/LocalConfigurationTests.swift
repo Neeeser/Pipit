@@ -241,7 +241,7 @@ struct LocalConfigurationTests {
     func thePinnedModelIdentifiersAreTheOnesThatWereMeasured() async throws {
         #expect(LocalSpeechStack.whisperModel == "openai_whisper-large-v3-v20240930_turbo_632MB")
         #expect(LocalSpeechStack.whisperPackage == "argmax-oss-swift 1.1.0")
-        #expect(LocalSpeechStack.diarizerPackage == "FluidAudio 0.15.6")
+        #expect(LocalSpeechStack.diarizerPackage == "FluidAudio 0.18.2")
     }
 }
 
@@ -406,13 +406,13 @@ struct LocalModelStorageTests {
         )
         #expect(LocalSpeechStack.alignerIdentifier == "fluidaudio-parakeet-ctc-0.6b")
         #expect(
-            LocalSpeechStack.revision(for: .cohere) == "cohere-transcribe-03-2026-q8 @ FluidAudio 0.15.6"
+            LocalSpeechStack.revision(for: .cohere) == "cohere-transcribe-03-2026-q8 @ FluidAudio 0.18.2"
         )
         #expect(
-            LocalSpeechStack.revision(for: .parakeet) == "parakeet-tdt-0.6b-v3-int8 @ FluidAudio 0.15.6"
+            LocalSpeechStack.revision(for: .parakeet) == "parakeet-tdt-0.6b-v3-int8 @ FluidAudio 0.18.2"
         )
         #expect(
-            LocalSpeechStack.revision(for: .ctcAligner) == "parakeet-ctc-0.6b @ FluidAudio 0.15.6"
+            LocalSpeechStack.revision(for: .ctcAligner) == "parakeet-ctc-0.6b @ FluidAudio 0.18.2"
         )
 
         // Alignment tuning: the aligner's segments feed duplicate
