@@ -50,6 +50,9 @@ enum BenchCommand {
         var livePhrases = false
         /// Run Parakeet through FluidAudio's sliding-window streamer.
         var liveSliding = false
+        /// Run Parakeet Unified through FluidAudio's streaming manager in
+        /// place of Parakeet TDT.
+        var liveUnified = false
     }
 
     /// Where a kept scratch directory goes: beside `--out` when there is one,
@@ -225,7 +228,8 @@ enum BenchCommand {
 
     static func makeBackends(
         models: LocalModelManager, cloud: OpenAIClient, configuration: AppSettings,
-        diarizer: String, livePhrases: Bool = false, liveSliding: Bool = false
+        diarizer: String, livePhrases: Bool = false, liveSliding: Bool = false,
+        liveUnified: Bool = false
     ) -> ProcessingBackends {
         // The same wiring PipitRuntime builds, minus the speaker store: the
         // harness must not touch the voice memory of whoever runs it.
@@ -239,12 +243,10 @@ enum BenchCommand {
                         case .canary: CanaryTranscriptionBackend(models: models)
                         case .apple: AppleSpeechTranscriptionBackend()
                         case .parakeet:
-                            liveSliding
-                                ? ParakeetSlidingTranscriptionBackend(models: models) as any TranscriptionBackend
-                                : livePhrases
-                                    ? ParakeetPhraseTranscriptionBackend(models: models, tuning: phraseTuning())
-                                        as any TranscriptionBackend
-                                    : ParakeetTranscriptionBackend(models: models)
+                            parakeetBackend(
+                                models: models, livePhrases: livePhrases, liveSliding: liveSliding,
+                                liveUnified: liveUnified
+                            )
                         case .whisper: WhisperTranscriptionBackend(models: models)
                         }
                     },
@@ -354,7 +356,7 @@ enum BenchCommand {
                 models: models, cloud: cloud,
                 configuration: settings(engine: engine, diarizer: options.diarizer),
                 diarizer: options.diarizer, livePhrases: options.livePhrases,
-                liveSliding: options.liveSliding
+                liveSliding: options.liveSliding, liveUnified: options.liveUnified
             )
             for benchCase in cases {
                 let plan = BenchResume.pending(
@@ -727,5 +729,18 @@ enum BenchCommand {
         return sorted.count.isMultiple(of: 2)
             ? (sorted[middle - 1] + sorted[middle]) / 2
             : sorted[middle]
+    }
+}
+
+extension BenchCommand {
+    /// The Parakeet pass the live options ask for, the whole-track pass when
+    /// none is set.
+    static func parakeetBackend(
+        models: LocalModelManager, livePhrases: Bool, liveSliding: Bool, liveUnified: Bool
+    ) -> any TranscriptionBackend {
+        if liveUnified { return ParakeetUnifiedTranscriptionBackend(models: models) }
+        if liveSliding { return ParakeetSlidingTranscriptionBackend(models: models) }
+        if livePhrases { return ParakeetPhraseTranscriptionBackend(models: models, tuning: phraseTuning()) }
+        return ParakeetTranscriptionBackend(models: models)
     }
 }

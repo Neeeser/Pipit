@@ -325,7 +325,7 @@ extension LocalModelManager {
 
     /// One 16 kHz mono buffer that owns its format, so it can be handed to
     /// the streamer's actor without sharing anything with the next one.
-    private static func slidingBuffer(_ samples: ArraySlice<Float>) -> sending AVAudioPCMBuffer? {
+    static func slidingBuffer(_ samples: ArraySlice<Float>) -> sending AVAudioPCMBuffer? {
         guard
             let format = AVAudioFormat(
                 commonFormat: .pcmFormatFloat32, sampleRate: 16_000, channels: 1, interleaved: false),
@@ -337,5 +337,67 @@ extension LocalModelManager {
             if let base = source.baseAddress { channel.update(from: base, count: samples.count) }
         }
         return buffer
+    }
+}
+
+/// Parakeet Unified 0.6B through FluidAudio's streaming manager: a model
+/// trained for both whole-file and streaming use, whose encoder sees about
+/// 5.6 seconds behind and 1 second ahead of each 1-second chunk, so text is
+/// final about 2 seconds after it is spoken.
+///
+/// A benchmark candidate, reachable through `pipit-eval bench --live-unified`.
+/// It answers whether one model can be both the live transcript and the saved
+/// one. English only; the model arrives on first use, the way LS-EEND's does.
+public struct ParakeetUnifiedTranscriptionBackend: TranscriptionBackend {
+    private let models: LocalModelManager
+
+    public init(models: LocalModelManager) {
+        self.models = models
+    }
+
+    public var identifier: String { "parakeet-unified-en-streaming-0.18.2" }
+    public var isLocal: Bool { true }
+    public var limits: BackendAudioLimits { .none }
+    public var timing: TranscriptTiming { .words }
+
+    public func transcribe(
+        audio: URL, progress: @escaping @Sendable (Double) -> Void
+    ) async throws -> TranscriptionOutput {
+        let samples = try MonoAudioDecoder.loadMono16k(audio)
+        let words = try await models.transcribeUnifiedStreaming(samples)
+        progress(1)
+        return TranscriptionOutput(
+            segments: CtcForcedAlignment.segments(
+                from: words,
+                pauseSeconds: LocalAlignmentTuning.segmentPauseSeconds,
+                maximumSeconds: LocalAlignmentTuning.segmentMaximumSeconds
+            ),
+            text: words.map(\.text).joined(separator: " "),
+            durationSeconds: Double(samples.count) / 16_000
+        )
+    }
+}
+
+extension LocalModelManager {
+    /// One track through a fresh Unified streamer, one second at a time,
+    /// draining word timings after every chunk the way a live view would.
+    func transcribeUnifiedStreaming(_ samples: [Float]) async throws -> [CtcForcedAlignment.AlignedWord] {
+        let streamer = StreamingUnifiedAsrManager()
+        try await streamer.loadModels(to: locations.root.appendingPathComponent("unified"))
+        var words: [WordTiming] = []
+        var offset = 0
+        while offset < samples.count {
+            let count = min(16_000, samples.count - offset)
+            guard let buffer = Self.slidingBuffer(samples[offset..<offset + count]) else { break }
+            try await streamer.appendAudio(buffer)
+            try await streamer.processBufferedAudio()
+            words += await streamer.consumeWordTimings()
+            offset += count
+        }
+        _ = try await streamer.finish()
+        words += await streamer.consumeWordTimings()
+        return words.map {
+            CtcForcedAlignment.AlignedWord(text: $0.word, start: $0.startTime, end: $0.endTime)
+        }
     }
 }
