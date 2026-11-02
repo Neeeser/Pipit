@@ -175,3 +175,26 @@ struct PermissionRow: View {
         }
     }
 }
+
+/// A pill-shaped button: filled with the accent colour when `prominent`, and
+/// with a quiet fill otherwise.
+///
+/// Drawn here rather than asked of the system, because the bordered styles
+/// ignore a capsule border shape at these sizes and draw a rounded rectangle.
+struct PillButtonStyle: ButtonStyle {
+    var prominent = false
+    @Environment(\.isEnabled) private var isEnabled
+    @Environment(\.controlSize) private var controlSize
+
+    func makeBody(configuration: Configuration) -> some View {
+        let small = controlSize == .small || controlSize == .mini
+        configuration.label
+            .font(.system(size: small ? 11 : 13, weight: prominent ? .medium : .regular))
+            .padding(.horizontal, small ? 9 : 12)
+            .padding(.vertical, small ? 3 : 5)
+            .foregroundStyle(prominent ? Color.white : Color.primary)
+            .background(Capsule().fill(prominent ? Color.accentColor : Color.primary.opacity(0.1)))
+            .contentShape(Capsule())
+            .opacity(configuration.isPressed ? 0.7 : isEnabled ? 1 : 0.45)
+    }
+}

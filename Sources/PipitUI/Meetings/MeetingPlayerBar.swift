@@ -73,26 +73,29 @@ struct MeetingPlayerBar: View {
                         .monospacedDigit()
                         .help("Playback speed")
 
-                    Toggle(isOn: Binding(get: { playback.follows }, set: { playback.follows = $0 })) {
+                    Button {
+                        playback.follows.toggle()
+                    } label: {
                         Label("Follow", systemImage: "text.line.first.and.arrowtriangle.forward")
                     }
-                    .toggleStyle(.button)
+                    .buttonStyle(PillButtonStyle(prominent: playback.follows))
+                    .accessibilityAddTraits(playback.follows ? .isSelected : [])
                     .help("Keep the transcript on what is playing")
 
-                    Toggle(
-                        isOn: Binding(
-                            get: { lanesShown },
-                            // Only a change is a choice. The toggle also hands
-                            // back the value it shows when a resize flips the
-                            // default, and saving that pinned the lanes shut.
-                            set: { if $0 != lanesShown { lanesChoice = $0 ? "open" : "closed" } }
-                        )
-                    ) {
-                        Label("Lanes", systemImage: "chart.bar.xaxis")
+                    // A button rather than a toggle, with an arrow that says
+                    // which way the lanes will move.
+                    Button {
+                        lanesChoice = lanesShown ? "closed" : "open"
+                    } label: {
+                        HStack(spacing: 4) {
+                            Text("Lanes")
+                            Image(systemName: lanesShown ? "chevron.down" : "chevron.up")
+                                .font(.system(size: 8, weight: .bold))
+                        }
                     }
-                    .toggleStyle(.button)
                     .help(lanesShown ? "Hide the lane for each speaker" : "Show a lane for each speaker")
                 }
+                .buttonStyle(PillButtonStyle())
                 .fixedSize()
                 .onGeometryChange(for: CGFloat.self) {
                     $0.size.width

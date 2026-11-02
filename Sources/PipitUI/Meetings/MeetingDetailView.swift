@@ -149,9 +149,13 @@ public struct MeetingDetailView: View {
         } label: {
             Image(systemName: "ellipsis")
         }
-        .menuStyle(.button)
+        .menuStyle(.borderlessButton)
         .menuIndicator(.hidden)
-        .fixedSize()
+        // The pill around it, the same as Copy transcript beside it. A menu
+        // takes no button style, so the frame makes the whole pill clickable
+        // and the capsule is drawn behind it.
+        .frame(width: 34, height: 25)
+        .background(Capsule().fill(Color.primary.opacity(0.1)))
         .help("More")
         .accessibilityLabel("More actions")
     }
@@ -162,14 +166,24 @@ public struct MeetingDetailView: View {
     /// where it is filed.
     private var header: some View {
         VStack(alignment: .leading, spacing: 0) {
-            HStack(spacing: 10) {
-                TextField("Title", text: detail.titleBinding())
-                    .textFieldStyle(.plain)
-                    .font(.title2.weight(.semibold))
-                    .onSubmit { detail.save() }
-                if let suggestion = detail.titleSuggestion {
+            if let suggestion = detail.titleSuggestion {
+                // The field as wide as the title, so the suggestion sits right
+                // after the words it would replace. At the far edge of the
+                // pane it was easy to miss.
+                // A hidden copy of the title sets the width, and gives way when
+                // the title is longer than the room left beside the pill.
+                HStack(spacing: 10) {
+                    Text(detail.title.isEmpty ? "Title" : detail.title)
+                        .font(.title2.weight(.semibold))
+                        .lineLimit(1)
+                        .padding(.trailing, 6)
+                        .hidden()
+                        .overlay(alignment: .leading) { titleField }
                     titleSuggestionPill(suggestion)
+                    Spacer(minLength: 0)
                 }
+            } else {
+                titleField
             }
 
             // With the folder actions spelled out where they fit, and without
@@ -212,6 +226,13 @@ public struct MeetingDetailView: View {
         .padding(.horizontal, 20)
         .padding(.top, 10)
         .padding(.bottom, 8)
+    }
+
+    private var titleField: some View {
+        TextField("Title", text: detail.titleBinding())
+            .textFieldStyle(.plain)
+            .font(.title2.weight(.semibold))
+            .onSubmit { detail.save() }
     }
 
     private func metaLine(withActions: Bool) -> some View {
@@ -552,7 +573,7 @@ public struct MeetingDetailView: View {
                 systemImage: copied ? "checkmark" : "doc.on.doc"
             )
         }
-        .buttonStyle(.borderedProminent)
+        .buttonStyle(PillButtonStyle(prominent: true))
         .disabled(detail.transcript == nil)
         .help("Copies transcript.md, the whole transcript as it stands on disk.")
     }
@@ -717,9 +738,9 @@ public struct MeetingDetailView: View {
 extension MeetingDetailView {
     /// The generated title, offered against the name the meeting already has.
     ///
-    /// A pill at the end of the title's line rather than a bar of its own, so
-    /// the question costs no height. The title is leading and the pill
-    /// trailing, so the title does not move when the pill appears.
+    /// A pill right after the title rather than a bar of its own, so the
+    /// question costs no height and sits beside the words it would replace.
+    /// The title keeps its place when the pill appears.
     func titleSuggestionPill(_ suggestion: String) -> some View {
         HStack(spacing: 6) {
             Image(systemName: "sparkles")
@@ -734,7 +755,7 @@ extension MeetingDetailView {
                 .fixedSize(horizontal: false, vertical: true)
                 .help("Suggested title: \(suggestion)")
             Button("Use title") { detail.acceptTitleSuggestion() }
-                .buttonStyle(.borderedProminent)
+                .buttonStyle(PillButtonStyle(prominent: true))
                 .controlSize(.mini)
                 .help("Renames this meeting, and its folder, to the suggested title.")
             Button {
