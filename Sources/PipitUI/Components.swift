@@ -183,22 +183,32 @@ struct PermissionRow: View {
 /// ignore a capsule border shape at these sizes and draw a rounded rectangle.
 struct PillButtonStyle: ButtonStyle {
     var prominent = false
+    /// A colour for the label and a light fill of it behind, the way a folder
+    /// tag is drawn. Ignored when `prominent`.
+    var tint: Color?
     @Environment(\.isEnabled) private var isEnabled
     @Environment(\.controlSize) private var controlSize
 
     func makeBody(configuration: Configuration) -> some View {
         let small = controlSize == .small || controlSize == .mini
         configuration.label
-            .font(.system(size: small ? 11 : 13, weight: prominent ? .medium : .regular))
+            // The size of the segmented control's labels, so a pill beside the
+            // tabs reads as the same kind of control rather than a louder one.
+            .font(.system(size: small ? 11 : 12))
             .lineLimit(1)
             .fixedSize()
-            .padding(.horizontal, small ? 9 : 12)
+            .padding(.horizontal, small ? 9 : 11)
             // One height per size whatever the label holds, so a pill with an
             // icon and one with text alone line up side by side.
-            .frame(height: small ? 20 : 26)
-            .foregroundStyle(prominent ? Color.white : Color.primary)
-            .background(Capsule().fill(prominent ? Color.accentColor : Color.primary.opacity(0.1)))
+            .frame(height: small ? 20 : 24)
+            .foregroundStyle(prominent ? Color.white : tint ?? Color.primary)
+            .background(Capsule().fill(fill))
             .contentShape(Capsule())
             .opacity(configuration.isPressed ? 0.7 : isEnabled ? 1 : 0.45)
+    }
+
+    private var fill: Color {
+        if prominent { return .accentColor }
+        return tint?.opacity(0.18) ?? Color.primary.opacity(0.1)
     }
 }

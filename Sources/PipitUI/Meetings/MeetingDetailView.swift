@@ -350,12 +350,16 @@ public struct MeetingDetailView: View {
             HStack(spacing: 4) {
                 Image(systemName: "folder.fill").font(.system(size: 9))
                 Text(current ?? "Not in a folder")
+                Image(systemName: "chevron.down").font(.system(size: 7, weight: .bold))
             }
-            .font(.caption)
-            .foregroundStyle(tint ?? .secondary)
         }
-        .menuStyle(.borderlessButton)
-        .menuIndicator(.visible)
+        // A pill in the folder's colour, the way the sidebar tags the same
+        // folder. As a borderless menu it dropped the small size and the
+        // colour and drew in large white type.
+        .menuStyle(.button)
+        .buttonStyle(PillButtonStyle(tint: tint ?? .secondary))
+        .controlSize(.small)
+        .menuIndicator(.hidden)
         .fixedSize()
         .help("Filing a meeting moves its folder on disk. Nothing inside it is rewritten.")
     }
@@ -865,6 +869,60 @@ struct SuggestionPills: View {
     }
 }
 
+/// The round spot at the start of a speaker chip: the speaker's face, a
+/// waveform while they are speaking, and the arrow to where they speak while
+/// the pointer is on the chip or the walk through their turns is on.
+///
+/// One spot for all three, so the chip keeps its width. An arrow added at the
+/// end of the chip widened it on hover, the last chip on a line wrapped to the
+/// next one and out from under the pointer, and it could not be clicked.
+struct SpeakerChipBadge: View {
+    enum Shows {
+        case face
+        case speaking(Color)
+        case jump(walking: Bool)
+    }
+
+    static var side: CGFloat { 20 }
+
+    /// Empty for a voice nobody has named.
+    let name: String
+    var identityID: IdentityID?
+    let shows: Shows
+    var playing = false
+    var onJump: () -> Void = {}
+
+    var body: some View {
+        Group {
+            switch shows {
+            case .face:
+                SpeakerFace(name: name, identityID: identityID, side: Self.side)
+            case .speaking(let tint):
+                Image(systemName: "waveform")
+                    .font(.system(size: 10, weight: .semibold))
+                    .foregroundStyle(tint)
+                    .symbolEffect(.variableColor.iterative, isActive: playing)
+                    .frame(width: Self.side, height: Self.side)
+                    .background(Circle().fill(tint.opacity(0.18)))
+                    .accessibilityLabel("Speaking")
+            case .jump(let walking):
+                Button(action: onJump) {
+                    Image(systemName: "arrow.down")
+                        .font(.system(size: 9, weight: .bold))
+                        .foregroundStyle(walking ? Color.white : Color.primary)
+                        .frame(width: Self.side, height: Self.side)
+                        .background(
+                            Circle().fill(walking ? Color.accentColor : Color.primary.opacity(0.15))
+                        )
+                }
+                .buttonStyle(.plain)
+                .help(walking ? "Next turn" : "Go to where they speak")
+            }
+        }
+        .frame(width: Self.side, height: Self.side)
+    }
+}
+
 /// One chip per speaker, each a menu that renames them everywhere in the
 /// meeting.
 ///
@@ -897,10 +955,12 @@ struct SpeakerChips: View {
         let speaking = isSpeaking(row)
         let tint = PersonTint.color(identity: row.identity?.id, name: row.displayName)
         return HStack(spacing: 6) {
-            SpeakerFace(
+            SpeakerChipBadge(
                 name: unnamed ? "" : row.displayName,
                 identityID: row.identity?.id,
-                side: 20
+                shows: showsArrow ? .jump(walking: walking) : speaking ? .speaking(tint) : .face,
+                playing: detail.playback.isPlaying,
+                onJump: { detail.jump(to: row) }
             )
             Button(row.displayName) { detail.beginNaming(target(row)) }
                 .buttonStyle(.plain)
@@ -928,34 +988,9 @@ struct SpeakerChips: View {
             Text(Format.shortDuration(row.speechSeconds))
                 .font(.caption2)
                 .foregroundStyle(.secondary)
-            if speaking {
-                Image(systemName: "waveform")
-                    .font(.system(size: 9, weight: .semibold))
-                    .foregroundStyle(tint)
-                    .symbolEffect(.variableColor.iterative, isActive: detail.playback.isPlaying)
-                    .accessibilityLabel("Speaking")
-            }
-            // The way to where they speak. Shown on hover, and kept while the
-            // walk is on, so a second click steps to their next turn. The
-            // name's own click still assigns, as before.
-            if showsArrow {
-                Button {
-                    detail.jump(to: row)
-                } label: {
-                    Image(systemName: "arrow.down")
-                        .font(.system(size: 9, weight: .bold))
-                        .foregroundStyle(walking ? Color.white : Color.primary)
-                        .frame(width: 16, height: 16)
-                        .background(
-                            Circle().fill(walking ? Color.accentColor : Color.primary.opacity(0.12))
-                        )
-                }
-                .buttonStyle(.plain)
-                .help(walking ? "Next turn" : "Go to where they speak")
-            }
         }
         .padding(.leading, 3)
-        .padding(.trailing, showsArrow ? 4 : 8)
+        .padding(.trailing, 8)
         .padding(.vertical, 3)
         .background {
             Capsule().fill(

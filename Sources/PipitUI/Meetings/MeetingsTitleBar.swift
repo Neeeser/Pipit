@@ -9,11 +9,10 @@ import SwiftUI
 /// with a control still moves the window and zooms it on a double-click, the
 /// two things a title bar is expected to do.
 struct MeetingsTitleBar<Content: View>: View {
-    /// The height of the system title bar, measured on macOS 26. The controls
-    /// are centred on it so they line up with the window buttons.
-    static var barHeight: CGFloat { 32 }
-    /// Room under the controls before the divider.
-    static var bottomInset: CGFloat { 6 }
+    /// The height of the title bar the window's empty compact toolbar makes,
+    /// measured on macOS 26. The window buttons are centred in it, and so are
+    /// the controls, with the same room above them as below.
+    static var barHeight: CGFloat { 40 }
 
     @ViewBuilder let content: Content
 
@@ -22,7 +21,6 @@ struct MeetingsTitleBar<Content: View>: View {
             .padding(.horizontal, 12)
             .frame(height: Self.barHeight)
             .frame(maxWidth: .infinity)
-            .padding(.bottom, Self.bottomInset)
             .background {
                 Color.clear
                     .contentShape(Rectangle())

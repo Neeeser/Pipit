@@ -638,6 +638,11 @@ public final class WindowManager {
         window.styleMask = [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView]
         window.titlebarAppearsTransparent = true
         window.titleVisibility = .hidden
+        // An empty compact toolbar makes the title bar 40 points tall with the
+        // window buttons centred in it, so the 24 point controls drawn there
+        // get the same room above as below.
+        window.toolbar = NSToolbar(identifier: autosaveName)
+        window.toolbarStyle = .unifiedCompact
         window.setContentSize(NSSize(width: 1_120, height: 720))
         window.isReleasedWhenClosed = false
         window.center()
