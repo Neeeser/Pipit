@@ -205,7 +205,7 @@ public enum BenchScorer {
     }
 
     /// Levenshtein distance with the substitution, insertion and deletion split.
-    static func editDistance(
+    public static func editDistance(
         reference: [String], hypothesis: [String]
     ) -> (distance: Int, substitutions: Int, insertions: Int, deletions: Int) {
         var previous = Array(0...hypothesis.count)

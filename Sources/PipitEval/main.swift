@@ -17,6 +17,7 @@ import PipitSpeakers
 //   pipit-eval echo      --meeting DIR [--json OUT] [--offset SECONDS] [--full-id]
 //   pipit-eval reprocess --meeting DIR [--recognize] [--support DIR] [--backups DIR]
 //   pipit-eval bench     [--suite ami-core] [--engine parakeet ...] [--diarizer local]
+//   pipit-eval live      --meeting DIR --engine parakeet|apple [--pace 1] [--seconds N] [--show-text] [--json OUT]
 //
 // The audio never leaves the machine and nothing here writes to a meeting.
 
@@ -44,6 +45,12 @@ struct Arguments {
     var backups: URL?
     var applicationSupport: URL
     var bench: BenchCommand.Options
+    /// `live` only: 1 feeds audio at recorded speed, 0 replays as fast as it can.
+    var pace = 0.0
+    var limitSeconds: Double?
+    var showText = false
+    var cleanedMic = false
+    var maximumPhraseSeconds: Double?
 
     init?(_ raw: [String]) {
         guard let command = raw.first else { return nil }
@@ -80,6 +87,14 @@ struct Arguments {
                 recognize = true
                 continue
             }
+            if flag == "--show-text" {
+                showText = true
+                continue
+            }
+            if flag == "--cleaned-mic" {
+                cleanedMic = true
+                continue
+            }
             // Every flag left takes a value. A trailing one used to fall off
             // the end and be dropped without a word, so `--offset` written last
             // measured the pair the manifest lines up and would have been
@@ -107,6 +122,15 @@ struct Arguments {
                 guard let seconds = Double(value) else { return nil }
                 referenceOffset = seconds
             case "--support": support = URL(fileURLWithPath: value)
+            case "--pace":
+                guard let speed = Double(value), speed >= 0 else { return nil }
+                pace = speed
+            case "--max-phrase":
+                guard let seconds = Double(value), seconds > 0 else { return nil }
+                maximumPhraseSeconds = seconds
+            case "--seconds":
+                guard let seconds = Double(value), seconds > 0 else { return nil }
+                limitSeconds = seconds
             case "--suite": benchOptions.suite = value
             case "--case": benchOptions.meetings.append(value)
             case "--truth": benchOptions.truthFiles.append(URL(fileURLWithPath: value))
@@ -175,6 +199,10 @@ func usage() -> Never {
                                  [--diarizer local|lseend|cloud] [--out FILE] [--baseline FILE]
                                  [--allow-missing-baseline] [--audio-dir DIR]
                                  [--repeats N] [--keep-scratch] [--resume]
+          pipit-eval live     --meeting MEETING_FOLDER --engine parakeet|apple [--pace 1] [--seconds N]
+                                 [--cleaned-mic] [--max-phrase SECONDS] [--show-text] [--json OUT]
+                                 # replays a meeting through the live transcript;
+                                 # --show-text and --json carry meeting text
         """)
     exit(2)
 }
@@ -455,6 +483,18 @@ case "reanalyze":
         meeting: folder, applicationSupport: arguments.applicationSupport,
         speakerCount: arguments.speakerCount
     )
+    if code != 0 { exit(code) }
+
+case "live":
+    guard let folder = arguments.meeting else { usage() }
+    let code = await LiveCommand.run(
+        LiveCommand.Options(
+            meeting: folder, applicationSupport: arguments.applicationSupport,
+            pace: arguments.pace, limitSeconds: arguments.limitSeconds,
+            showText: arguments.showText, json: arguments.json, cleanedMic: arguments.cleanedMic,
+            engine: LocalTranscriptionModel(rawValue: arguments.engine) ?? .whisper,
+            maximumPhraseSeconds: arguments.maximumPhraseSeconds
+        ))
     if code != 0 { exit(code) }
 
 case "bench":

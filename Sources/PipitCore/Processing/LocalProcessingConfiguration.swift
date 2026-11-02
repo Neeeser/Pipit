@@ -224,6 +224,18 @@ public enum LocalTranscriptionModel: String, Codable, CaseIterable, Sendable {
         offered.contains(selected) ? offered : offered + [selected]
     }
 
+    /// Whether the engine can also write a transcript while the meeting is
+    /// still recording. Every engine still writes the post-call transcript;
+    /// this only says whether live text is on offer. A new engine starts at
+    /// `.none` and moves once its live path is built and measured.
+    public var liveTranscription: LiveTranscriptionSupport {
+        switch self {
+        case .apple: .streaming
+        case .parakeet: .phrases
+        case .canary, .cohere, .whisper: .none
+        }
+    }
+
     public var backendIdentifier: String {
         switch self {
         case .apple: LocalSpeechStack.appleBackendIdentifier
@@ -233,6 +245,18 @@ public enum LocalTranscriptionModel: String, Codable, CaseIterable, Sendable {
         case .whisper: LocalSpeechStack.whisperBackendIdentifier
         }
     }
+}
+
+/// How an engine can produce text during a meeting.
+public enum LiveTranscriptionSupport: String, Sendable, Equatable, Codable {
+    /// After the meeting only.
+    case none
+    /// Each track is cut into phrases at pauses and every phrase is
+    /// transcribed as it closes. `LiveSpeechSegmenter` does the cutting.
+    case phrases
+    /// The engine takes the audio as one continuous stream and revises its
+    /// own text as more arrives.
+    case streaming
 }
 
 /// The forced-alignment settings Pipit depends on.

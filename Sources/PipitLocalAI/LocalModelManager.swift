@@ -467,7 +467,7 @@ public actor LocalModelManager {
         return models
     }
 
-    private func loadedParakeet() async throws -> AsrManager {
+    func loadedParakeet() async throws -> AsrManager {
         if let parakeetManager { return parakeetManager }
         guard Self.filesPresent(.parakeet, locations: locations, receipt: receipts[.parakeet])
         else { throw LocalModelError.notInstalled }
