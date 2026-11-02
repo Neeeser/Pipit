@@ -426,23 +426,7 @@ public final class WindowManager {
         let window =
             meetingsWindow
             ?? {
-                let created = makeWindow(
-                    title: "Meetings",
-                    size: NSSize(width: 1_120, height: 720),
-                    content: MeetingsWindowView(model: model)
-                )
-                created.setFrameAutosaveName("PipitMeetings")
-                created.isReleasedWhenClosed = false
-                // The content draws its own controls on the title bar line, so
-                // the tabs and Copy transcript take no row of their own.
-                created.styleMask.insert(.fullSizeContentView)
-                created.titlebarAppearsTransparent = true
-                created.titleVisibility = .hidden
-                // Left on, SwiftUI keeps managing the window's title and drew
-                // "Meetings" over the tabs despite the hidden title.
-                if let host = created.contentViewController as? NSHostingController<AnyView> {
-                    host.sceneBridgingOptions = []
-                }
+                let created = Self.makeMeetingsWindow(content: MeetingsWindowView(model: model))
                 meetingsWindow = created
                 installFindShortcut(for: created)
                 return created
@@ -634,6 +618,31 @@ public final class WindowManager {
         provisionalWindow?.close()
         provisionalWindow = nil
         provisionalPromptID = nil
+    }
+
+    /// The meetings window, its content running under a transparent title bar
+    /// so the tabs and Copy transcript take no row of their own.
+    ///
+    /// The style is set before the saved frame is restored. Set after, the
+    /// change kept the restored frame's content size and moved the window down
+    /// by a title bar on every launch.
+    static func makeMeetingsWindow(
+        content: some View, autosaveName: String = "PipitMeetings"
+    ) -> NSWindow {
+        let controller = NSHostingController(rootView: AnyView(content))
+        // Left on, SwiftUI keeps managing the window's title and drew
+        // "Meetings" over the tabs despite the hidden title.
+        controller.sceneBridgingOptions = []
+        let window = NSWindow(contentViewController: controller)
+        window.title = "Meetings"
+        window.styleMask = [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView]
+        window.titlebarAppearsTransparent = true
+        window.titleVisibility = .hidden
+        window.setContentSize(NSSize(width: 1_120, height: 720))
+        window.isReleasedWhenClosed = false
+        window.center()
+        window.setFrameAutosaveName(autosaveName)
+        return window
     }
 
     private func makeWindow(title: String, size: NSSize, content: some View) -> NSWindow {

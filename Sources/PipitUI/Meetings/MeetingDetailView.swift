@@ -135,8 +135,8 @@ public struct MeetingDetailView: View {
         }
     }
 
-    /// The commands that act on the meeting's folder. Always here, and also
-    /// spelled out on the line under the title when the pane is wide enough.
+    /// The commands that act on the meeting's folder. Reveal in Finder is also
+    /// a button on the line under the title when the pane is wide enough.
     private var moreMenu: some View {
         Menu {
             Button("Reveal in Finder") { detail.reveal() }
@@ -147,15 +147,13 @@ public struct MeetingDetailView: View {
                 Button("Remove echo") { requestMicrophoneRedo() }
             }
         } label: {
-            Image(systemName: "ellipsis")
+            Label("More actions", systemImage: "ellipsis")
+                .labelStyle(.iconOnly)
         }
-        .menuStyle(.borderlessButton)
+        .menuStyle(.button)
+        .buttonStyle(PillButtonStyle())
         .menuIndicator(.hidden)
-        // The pill around it, the same as Copy transcript beside it. A menu
-        // takes no button style, so the frame makes the whole pill clickable
-        // and the capsule is drawn behind it.
-        .frame(width: 34, height: 25)
-        .background(Capsule().fill(Color.primary.opacity(0.1)))
+        .fixedSize()
         .help("More")
         .accessibilityLabel("More actions")
     }
@@ -186,11 +184,12 @@ public struct MeetingDetailView: View {
                 titleField
             }
 
-            // With the folder actions spelled out where they fit, and without
-            // them where they do not. They are in the More menu either way.
+            // With Reveal in Finder where it fits, and without it where it does
+            // not. It is in the More menu either way, with the commands that
+            // are only there.
             ViewThatFits(in: .horizontal) {
-                metaLine(withActions: true)
-                metaLine(withActions: false)
+                metaLine(withReveal: true)
+                metaLine(withReveal: false)
             }
             .padding(.top, 3)
 
@@ -235,7 +234,7 @@ public struct MeetingDetailView: View {
             .onSubmit { detail.save() }
     }
 
-    private func metaLine(withActions: Bool) -> some View {
+    private func metaLine(withReveal: Bool) -> some View {
         HStack(spacing: 6) {
             if let metadata = detail.metadata {
                 Image(systemName: metadata.source.symbolName)
@@ -267,22 +266,15 @@ public struct MeetingDetailView: View {
             }
             folderMenu
             Spacer(minLength: 8)
-            if withActions {
-                HStack(spacing: 12) {
-                    Button("Reveal in Finder") { detail.reveal() }
-                        .help(detail.directory?.path ?? "")
-                    if detail.transcript != nil {
-                        Button("Rebuild transcript") { model.rebuildFocusedMeeting() }
-                            .help(
-                                "Re-assembles the transcript from the model output already on disk. Makes no request.")
-                    }
-                    if detail.transcript != nil, detail.canRedoMicrophone {
-                        Button("Remove echo") { requestMicrophoneRedo() }
-                            .help("Transcribes your side again without the other side's sound.")
-                    }
+            if withReveal {
+                Button {
+                    detail.reveal()
+                } label: {
+                    Label("Reveal in Finder", systemImage: "folder")
                 }
-                .buttonStyle(.link)
-                .fixedSize()
+                .buttonStyle(PillButtonStyle())
+                .controlSize(.small)
+                .help(detail.directory?.path ?? "")
             }
         }
         .font(.caption)

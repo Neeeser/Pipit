@@ -190,8 +190,12 @@ struct PillButtonStyle: ButtonStyle {
         let small = controlSize == .small || controlSize == .mini
         configuration.label
             .font(.system(size: small ? 11 : 13, weight: prominent ? .medium : .regular))
+            .lineLimit(1)
+            .fixedSize()
             .padding(.horizontal, small ? 9 : 12)
-            .padding(.vertical, small ? 3 : 5)
+            // One height per size whatever the label holds, so a pill with an
+            // icon and one with text alone line up side by side.
+            .frame(height: small ? 20 : 26)
             .foregroundStyle(prominent ? Color.white : Color.primary)
             .background(Capsule().fill(prominent ? Color.accentColor : Color.primary.opacity(0.1)))
             .contentShape(Capsule())
