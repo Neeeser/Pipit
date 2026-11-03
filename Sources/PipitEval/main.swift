@@ -61,6 +61,7 @@ struct Arguments {
             "--live-phrases": \.livePhrases,
             "--live-sliding": \.liveSliding,
             "--live-unified": \.liveUnified,
+            "--live-engine": \.liveEngine,
         ]
     }
 
@@ -203,7 +204,7 @@ func usage() -> Never {
                                  [--diarizer local|lseend|cloud] [--out FILE] [--baseline FILE]
                                  [--allow-missing-baseline] [--audio-dir DIR]
                                  [--repeats N] [--keep-scratch] [--resume]
-                                 [--live-phrases | --live-sliding | --live-unified]
+                                 [--live-phrases | --live-sliding | --live-unified | --live-engine]
           pipit-eval live     --meeting MEETING_FOLDER --engine parakeet|apple [--pace 1] [--seconds N]
                                  [--cleaned-mic] [--max-phrase SECONDS] [--show-text] [--json OUT]
                                  # replays a meeting through the live transcript;

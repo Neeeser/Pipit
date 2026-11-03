@@ -479,6 +479,8 @@ public struct AppSettings: Codable, Sendable, Equatable {
     /// default and in every file written before it existed
     /// (`docs/DIAGNOSTICS.md`, Automatic sharing).
     public var sharesDiagnosticsAutomatically: Bool
+    /// The transcript shown while a meeting records.
+    public var live: LiveTranscriptSettings
 
     public init(
         version: Int = AppSettings.currentVersion,
@@ -506,7 +508,8 @@ public struct AppSettings: Codable, Sendable, Equatable {
         firefoxAddOnProtocol: Int? = nil,
         firefoxAddOnVersion: String? = nil,
         lastLaunchedVersion: String? = nil,
-        sharesDiagnosticsAutomatically: Bool = false
+        sharesDiagnosticsAutomatically: Bool = false,
+        live: LiveTranscriptSettings = LiveTranscriptSettings()
     ) {
         self.version = version
         self.storageRootPath = storageRootPath
@@ -533,6 +536,7 @@ public struct AppSettings: Codable, Sendable, Equatable {
         self.firefoxAddOnVersion = firefoxAddOnVersion
         self.lastLaunchedVersion = lastLaunchedVersion
         self.sharesDiagnosticsAutomatically = sharesDiagnosticsAutomatically
+        self.live = live
     }
 
     /// Every field decodes with its default when absent, so a settings file
@@ -637,6 +641,8 @@ public struct AppSettings: Codable, Sendable, Equatable {
         // or with one that does not read as a boolean, is off.
         sharesDiagnosticsAutomatically =
             (try? container.decodeIfPresent(Bool.self, forKey: .sharesDiagnosticsAutomatically)) ?? false
+        live =
+            try container.decodeIfPresent(LiveTranscriptSettings.self, forKey: .live) ?? defaults.live
         // The stored number gated the migrations above; the decoded struct is
         // current-schema, and writing it back as such is what stops a
         // migration from re-running against a value the user has since chosen.
@@ -722,5 +728,63 @@ extension AppSettings {
         if processing.diarization == .openAI {
             models.diarization = models.transcription
         }
+    }
+}
+
+/// What the live transcript does while a meeting records.
+///
+/// The live text is for reading during the call. The transcript saved with the
+/// meeting still comes from the pass over the whole recording afterwards, so
+/// none of these choices changes what is written to disk.
+public struct LiveTranscriptSettings: Codable, Sendable, Equatable {
+    /// Transcribe while recording. On by default; off frees the processor and
+    /// the Neural Engine on a Mac that needs them for the call itself.
+    public var isEnabled: Bool
+    /// The engine that writes the live text, which can differ from the one
+    /// that writes the saved transcript.
+    public var engine: LocalTranscriptionModel
+    /// Open the live window when a recording starts, instead of waiting to be
+    /// opened from the menu.
+    public var opensWithRecording: Bool
+    /// Keep the live window out of screen shares and screenshots.
+    public var hiddenFromScreenSharing: Bool
+
+    public init(
+        isEnabled: Bool = true,
+        engine: LocalTranscriptionModel = LiveTranscriptSettings.preferredEngine,
+        opensWithRecording: Bool = false,
+        hiddenFromScreenSharing: Bool = true
+    ) {
+        self.isEnabled = isEnabled
+        self.engine = engine
+        self.opensWithRecording = opensWithRecording
+        self.hiddenFromScreenSharing = hiddenFromScreenSharing
+    }
+
+    /// Every field decodes with its default when absent, like the settings
+    /// file around it.
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        let defaults = LiveTranscriptSettings()
+        isEnabled = try container.decodeIfPresent(Bool.self, forKey: .isEnabled) ?? defaults.isEnabled
+        let stored = try? container.decodeIfPresent(LocalTranscriptionModel.self, forKey: .engine)
+        engine = stored.flatMap { Self.engines.contains($0) ? $0 : nil } ?? defaults.engine
+        opensWithRecording =
+            try container.decodeIfPresent(Bool.self, forKey: .opensWithRecording) ?? defaults.opensWithRecording
+        hiddenFromScreenSharing =
+            try container.decodeIfPresent(Bool.self, forKey: .hiddenFromScreenSharing)
+            ?? defaults.hiddenFromScreenSharing
+    }
+
+    /// The engines that can write live text on this Mac, in the order they
+    /// are offered: the offered engines that have a live path.
+    public static var engines: [LocalTranscriptionModel] {
+        LocalTranscriptionModel.offered.filter { $0.liveTranscription != .none }
+    }
+
+    /// The first live engine on offer, which is Apple's where it exists:
+    /// nothing to download, so live text works on a fresh install.
+    public static var preferredEngine: LocalTranscriptionModel {
+        engines.first ?? .parakeet
     }
 }

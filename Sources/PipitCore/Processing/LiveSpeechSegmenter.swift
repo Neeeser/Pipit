@@ -43,6 +43,15 @@ public struct LiveSpeechSegmenter: Sendable {
             speechThreshold: 0.5, pauseWindows: 3, maximumWindows: 54,
             paddingWindows: 1, minimumSpeechWindows: 2
         )
+
+        /// The tuning the live transcript uses. Measured against human
+        /// transcripts of far-field meetings, the default detector threshold
+        /// dropped about 17% of the words; a lower threshold with two windows
+        /// of padding kept most of them (43.3% WER against 46.9%).
+        public static let live = Tuning(
+            speechThreshold: 0.3, pauseWindows: 3, maximumWindows: 54,
+            paddingWindows: 2, minimumSpeechWindows: 1
+        )
     }
 
     /// Window indices of one phrase, `end` exclusive, padding included.
@@ -72,6 +81,14 @@ public struct LiveSpeechSegmenter: Sendable {
     public init(tuning: Tuning = .default) {
         self.tuning = tuning
     }
+
+    /// The first window of the phrase being spoken now, padding included, or
+    /// nil between phrases. The live transcript shows a provisional reading
+    /// of it before the phrase closes.
+    public var openPhraseStart: Int? { openedAt }
+
+    /// The number of windows pushed so far.
+    public var windowCount: Int { index }
 
     /// Takes the next window's speech probability and returns the phrase
     /// that window closed, if any.

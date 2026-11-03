@@ -30,6 +30,7 @@ public final class WindowManager {
     private var reportProblemWindow: NSWindow?
     private var reportProblemModel: ReportProblemModel?
     private var reportProblemCloseToken: NSObjectProtocol?
+    private var livePanel: LiveTranscriptPanel?
     /// The windows currently on screen that Pipit has to stay reachable behind.
     private var openWindows: Set<ObjectIdentifier> = []
     /// One per open window, so a window closed by any route is noticed.
@@ -57,6 +58,8 @@ public final class WindowManager {
         runtime.onPermissionRequired = { [weak self] notice in
             self?.showPermissionNotice(notice)
         }
+        runtime.live.onOpenRequest = { [weak self] in self?.showLiveTranscript() }
+        trackLiveSharing()
         runtime.onProcessingUpdate = { [weak self] meetingID in
             guard let self, let model = self.meetingsModel else { return }
             // Resolved through the conversation the identifier belongs to. A
@@ -77,6 +80,32 @@ public final class WindowManager {
                 if logicalID != meetingID {
                     await model.refresh(meetingID: meetingID)
                 }
+            }
+        }
+    }
+
+    /// Shows the live transcript window without taking focus from the call.
+    public func showLiveTranscript() {
+        let panel =
+            livePanel
+            ?? LiveTranscriptPanel(model: runtime.live) { [weak self] meetingID in
+                self?.showMeetings(select: meetingID)
+            }
+        livePanel = panel
+        panel.applySharing(hidden: runtime.settings.live.hiddenFromScreenSharing)
+        panel.orderFrontRegardless()
+    }
+
+    /// Re-applies the screen-sharing choice whenever it changes, so turning
+    /// it off in Settings shows the window in a share that is already running.
+    private func trackLiveSharing() {
+        withObservationTracking {
+            _ = runtime.settings.live.hiddenFromScreenSharing
+        } onChange: { [weak self] in
+            Task { @MainActor in
+                guard let self else { return }
+                self.livePanel?.applySharing(hidden: self.runtime.settings.live.hiddenFromScreenSharing)
+                self.trackLiveSharing()
             }
         }
     }

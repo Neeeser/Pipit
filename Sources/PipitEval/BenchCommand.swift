@@ -53,6 +53,9 @@ enum BenchCommand {
         /// Run Parakeet Unified through FluidAudio's streaming manager in
         /// place of Parakeet TDT.
         var liveUnified = false
+        /// Run the live engine the app uses during a call, for `--engine
+        /// apple` or `--engine parakeet`, in place of the after-call pass.
+        var liveEngine = false
     }
 
     /// Where a kept scratch directory goes: beside `--out` when there is one,
@@ -229,7 +232,7 @@ enum BenchCommand {
     static func makeBackends(
         models: LocalModelManager, cloud: OpenAIClient, configuration: AppSettings,
         diarizer: String, livePhrases: Bool = false, liveSliding: Bool = false,
-        liveUnified: Bool = false
+        liveUnified: Bool = false, liveEngine: Bool = false
     ) -> ProcessingBackends {
         // The same wiring PipitRuntime builds, minus the speaker store: the
         // harness must not touch the voice memory of whoever runs it.
@@ -241,7 +244,11 @@ enum BenchCommand {
                         switch choice {
                         case .cohere: CohereTranscriptionBackend(models: models)
                         case .canary: CanaryTranscriptionBackend(models: models)
+                        case .apple where liveEngine:
+                            LiveEngineTranscriptionBackend(models: models, engine: .apple)
                         case .apple: AppleSpeechTranscriptionBackend()
+                        case .parakeet where liveEngine:
+                            LiveEngineTranscriptionBackend(models: models, engine: .parakeet)
                         case .parakeet:
                             parakeetBackend(
                                 models: models, livePhrases: livePhrases, liveSliding: liveSliding,
@@ -356,7 +363,8 @@ enum BenchCommand {
                 models: models, cloud: cloud,
                 configuration: settings(engine: engine, diarizer: options.diarizer),
                 diarizer: options.diarizer, livePhrases: options.livePhrases,
-                liveSliding: options.liveSliding, liveUnified: options.liveUnified
+                liveSliding: options.liveSliding, liveUnified: options.liveUnified,
+                liveEngine: options.liveEngine
             )
             for benchCase in cases {
                 let plan = BenchResume.pending(

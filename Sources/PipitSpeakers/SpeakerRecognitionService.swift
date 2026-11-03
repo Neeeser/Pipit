@@ -176,6 +176,51 @@ public actor SpeakerRecognitionService {
         return results
     }
 
+    /// Names for the far-end speakers of a meeting that is still recording.
+    ///
+    /// Read-only: it scores each cluster against the named voices with the
+    /// same policy as `resolve` and writes nothing, because a live pass reruns
+    /// every minute over a growing recording and the after-call pass is the
+    /// one that records who was heard. Only named people are returned; an
+    /// unnamed voice stays a speaker number on screen.
+    public func liveNames(
+        meetingID: String,
+        clusters: [SpeakerClusterInput],
+        settings: SpeakerRecognitionSettings,
+        model: EmbeddingModelIdentifier = .fluidAudioOffline
+    ) async throws -> [String: String] {
+        guard settings.recognizeKnownVoices else { return [:] }
+        var profiles = try await store.searchableProfiles(model: model, excludingSeededIn: meetingID)
+        profiles.removeAll { !$0.identity.isNamed }
+        guard !profiles.isEmpty else { return [:] }
+        var names: [String: String] = [:]
+        var claimed: [IdentityID: [AudioSpan]] = [:]
+        let ordered = clusters.sorted { ($0.spans.first?.start ?? 0) < ($1.spans.first?.start ?? 0) }
+        for cluster in ordered {
+            let probe = VoiceVector.l2Normalized(cluster.centroid)
+            guard !probe.isEmpty else { continue }
+            let candidates = profiles.map { profile in
+                SpeakerCandidate(
+                    identityID: profile.identity.id, kind: profile.identity.kind,
+                    displayName: profile.identity.resolvedName,
+                    score: VoiceVector.cosine(probe, profile.centroid),
+                    isExpectedParticipant: false
+                )
+            }
+            let resolution = policy.resolve(
+                candidates: candidates, speechSeconds: cluster.speechSeconds,
+                concurrent: concurrent(with: cluster, claimed: claimed),
+                centroids: Self.centroids(of: profiles)
+            )
+            guard case .assign(let id) = resolution.outcome,
+                let profile = profiles.first(where: { $0.identity.id == id })
+            else { continue }
+            names[cluster.clusterID] = profile.identity.resolvedName
+            claimed[id, default: []] += cluster.spans
+        }
+        return names
+    }
+
     private static func centroids(of profiles: [SpeakerProfile]) -> [IdentityID: [Float]] {
         Dictionary(
             profiles.map { ($0.identity.id, $0.centroid) }, uniquingKeysWith: { first, _ in first }

@@ -272,7 +272,7 @@ struct LocalModelChoicePicker: View {
         .tag(model)
     }
 
-    private static func title(_ model: LocalTranscriptionModel) -> String {
+    static func title(_ model: LocalTranscriptionModel) -> String {
         switch model {
         case .parakeet: "Parakeet TDT v3"
         case .cohere: "Cohere Transcribe"

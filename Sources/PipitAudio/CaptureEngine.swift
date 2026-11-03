@@ -110,6 +110,11 @@ public final class CaptureEngine: Sendable {
     }
 
     private let state = LockedBox(State())
+    /// Receives a copy of every buffer written to disk, for the live
+    /// transcript. Called on the audio threads, so whatever is installed must
+    /// return at once: it hands the buffer to its own queue and nothing more.
+    public typealias LiveAudioSink = @Sendable (AudioBufferPacket, CaptureTrack) -> Void
+    private let liveSink = LockedBox<LiveAudioSink?>(nil)
     private let micPreRoll: PreRollBuffer
     private let remotePreRoll: PreRollBuffer
     private let clock: any Clock
@@ -194,6 +199,13 @@ public final class CaptureEngine: Sendable {
     }
 
     public var mode: Mode { state.withLock { $0.mode } }
+
+    /// Installs, or with nil removes, the receiver of live audio. Only
+    /// buffers that reach a segment writer are passed on, so the live
+    /// transcript hears exactly what is being saved.
+    public func setLiveAudioSink(_ sink: LiveAudioSink?) {
+        liveSink.withLock { $0 = sink }
+    }
     public var health: CaptureHealthSnapshot { state.withLock { $0.lastSnapshot } }
 
     // MARK: - lifecycle
@@ -612,6 +624,7 @@ public final class CaptureEngine: Sendable {
             writer = winner
         }
         writer?.enqueue(packet)
+        if writer != nil, let sink = liveSink.withLock({ $0 }) { sink(packet, track) }
     }
 
     /// The largest sample magnitude in the buffer, across every channel.

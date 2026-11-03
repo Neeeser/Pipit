@@ -19,6 +19,20 @@ struct RecordingSettingsPane: View {
                 providerRow("FaceTime", keyPath: \.faceTime)
                 providerRow("Unknown calls", keyPath: \.unknownCalls)
             }
+            Section("Live transcript") {
+                Toggle("Transcribe during meetings", isOn: liveBinding(\.isEnabled))
+                if LiveTranscriptSettings.engines.count > 1 {
+                    Picker("Engine", selection: liveBinding(\.engine)) {
+                        ForEach(LiveTranscriptSettings.engines, id: \.self) { engine in
+                            Text(LocalModelChoicePicker.title(engine)).tag(engine)
+                        }
+                    }
+                    .disabled(!runtime.settings.live.isEnabled)
+                }
+                Toggle("Open the live window when recording starts", isOn: liveBinding(\.opensWithRecording))
+                    .disabled(!runtime.settings.live.isEnabled)
+                Toggle("Hide the live window when sharing your screen", isOn: liveBinding(\.hiddenFromScreenSharing))
+            }
             Section("Ending a meeting") {
                 waitRow(
                     "Pause recording after the call disappears",
@@ -57,6 +71,17 @@ struct RecordingSettingsPane: View {
             }
         }
         .formStyle(.grouped)
+    }
+
+    private func liveBinding<Value>(_ keyPath: WritableKeyPath<LiveTranscriptSettings, Value>) -> Binding<Value> {
+        Binding(
+            get: { runtime.settings.live[keyPath: keyPath] },
+            set: { value in
+                var settings = runtime.settings
+                settings.live[keyPath: keyPath] = value
+                runtime.update(settings: settings)
+            }
+        )
     }
 
     /// Fixed steps rather than a free field, so the range the session
