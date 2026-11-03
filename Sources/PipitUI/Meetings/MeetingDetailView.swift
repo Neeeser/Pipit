@@ -8,12 +8,18 @@ import SwiftUI
 /// The header and the speaker strip stay put while the transcript scrolls, so
 /// changing who said what is one click away from any line rather than a scroll
 /// back to a card at the top.
+///
+/// Laid out for a window a quarter of the screen in size: the tabs share the
+/// title bar line, the header is two lines, and the recording is docked at the
+/// bottom, so the transcript gets most of the height.
 public struct MeetingDetailView: View {
     let model: MeetingsWindowModel
     let detail: MeetingReviewModel
     /// Confirms a copy for two seconds, because the clipboard says nothing.
     @State private var copied = false
     @State private var confirmingMicrophoneRedo = false
+    /// Whether the pane is tall enough to open the speaker lanes by default.
+    @State private var roomy = false
 
     public init(model: MeetingsWindowModel, detail: MeetingReviewModel) {
         self.model = model
@@ -22,8 +28,9 @@ public struct MeetingDetailView: View {
 
     public var body: some View {
         VStack(spacing: 0) {
-            header
+            titleBar
             Divider()
+            header
             // The folder can go away under an open pane: a meeting deleted in
             // the Finder, or one folded into another. Everything on screen is
             // then the last read rather than what is on disk, and nothing else
@@ -45,15 +52,9 @@ public struct MeetingDetailView: View {
                 Divider()
             }
             // Under the notices rather than over them: a meeting that did not
-            // finish is the more urgent thing to read, and this asks a question
-            // that can wait.
-            if let suggestion = detail.titleSuggestion {
-                suggestionBar(suggestion)
-                Divider()
-            }
-            // Under the title bar rather than over it. Accepting a title
-            // renames the directory, and the folder offer quotes that title, so
-            // the title is the question to answer first.
+            // finish is the more urgent thing to read. The suggested title is
+            // asked on the title's own line, so the folder offer comes first
+            // here, and it quotes whichever title the meeting has.
             if let folder = model.folderSuggestion(for: detail.meetingID) {
                 folderSuggestionBar(folder)
                 Divider()
@@ -62,20 +63,25 @@ public struct MeetingDetailView: View {
             if let receipt = model.receipt, receipt.meetingID == detail.meetingID {
                 receiptBar(receipt.text)
             }
-            // Over the tabs, so the recording keeps playing and stays in reach
-            // whichever of them is open.
+            Divider()
+            content
+            // Docked at the bottom, outside the tabs, so the recording keeps
+            // playing and stays in reach whichever of them is open, without
+            // pushing the transcript down.
             if detail.playback.hasAudio {
                 Divider()
-                MeetingPlayerBar(detail: detail)
+                MeetingPlayerBar(detail: detail, roomy: roomy)
             } else if isPreparingAudio {
                 Divider()
                 MeetingPlayerPlaceholder()
             }
-            Divider()
-            tabs
-            content
         }
         .background(Color(nsColor: .textBackgroundColor))
+        .onGeometryChange(for: Bool.self) {
+            $0.size.height >= 760
+        } action: {
+            roomy = $0
+        }
         .onDisappear { detail.playback.pause() }
         .confirmationDialog(
             "Remove echo from your side?", isPresented: $confirmingMicrophoneRedo,
@@ -106,46 +112,98 @@ public struct MeetingDetailView: View {
         }
     }
 
+    // MARK: - title bar
+
+    /// The tabs and the meeting's commands, on the line the window buttons
+    /// use.
+    private var titleBar: some View {
+        MeetingsTitleBar {
+            Spacer(minLength: 0)
+            Picker("", selection: Binding(get: { model.tab }, set: { model.tab = $0 })) {
+                ForEach(MeetingDetailTab.allCases) { Text($0.label).tag($0) }
+            }
+            .pickerStyle(.segmented)
+            .labelsHidden()
+            .fixedSize()
+            Spacer(minLength: 0)
+            revealButton
+            copyTranscriptButton
+            moreMenu
+        }
+    }
+
+    /// Shows the meeting's folder in Finder. An icon rather than "Open folder",
+    /// which is already the sidebar's button for the whole archive.
+    private var revealButton: some View {
+        Button {
+            detail.reveal()
+        } label: {
+            Label("Show in Finder", systemImage: "folder").labelStyle(.iconOnly)
+        }
+        .buttonStyle(PillButtonStyle())
+        .help("Show this meeting's folder in Finder")
+    }
+
+    /// The commands used now and then: rebuilding the files, and working the
+    /// speakers out again.
+    private var moreMenu: some View {
+        Menu {
+            if detail.transcript != nil {
+                Button("Rebuild transcript") { model.rebuildFocusedMeeting() }
+            }
+            if detail.transcript != nil, detail.canRedoMicrophone {
+                Button("Remove echo") { requestMicrophoneRedo() }
+            }
+            if detail.transcript != nil { Divider() }
+            // Only where somebody is still unnamed. With nobody to name it has
+            // nothing to do.
+            if detail.unnamedSpeakerCount > 0 {
+                Button(suggestNamesTitle) { detail.suggestSpeakerNames() }
+                    .disabled(detail.isSuggestingNames)
+            }
+            Menu("Re-analyze speakers") { reanalyzeItems }
+                .disabled(detail.isReanalyzing)
+        } label: {
+            Label("More actions", systemImage: "ellipsis")
+                .labelStyle(.iconOnly)
+        }
+        .menuStyle(.button)
+        .buttonStyle(PillButtonStyle())
+        .menuIndicator(.hidden)
+        .fixedSize()
+        .help("More")
+        .accessibilityLabel("More actions")
+    }
+
     // MARK: - header
 
+    /// The title, with the folder, an unfinished state and a suggested title
+    /// on the same line. Where and when the meeting was is in the title's
+    /// help: the sidebar row beside it already prints it, and a line of its
+    /// own under the title was most of what made the top of the pane crowded.
     private var header: some View {
         VStack(alignment: .leading, spacing: 0) {
-            TextField("Title", text: detail.titleBinding())
-                .textFieldStyle(.plain)
-                .font(.title2.weight(.semibold))
-                .onSubmit { detail.save() }
-
-            HStack(spacing: 6) {
-                if let metadata = detail.metadata {
-                    Text(metadata.source.displayName)
-                    Text("·")
-                    Text(Format.day(metadata.startedAt))
-                    Text("·")
-                    Text(Format.shortDuration(metadata.durationSeconds))
-                    if let source = metadata.recordedDateSource {
-                        // Only an imported file carries this. Where the date
-                        // came from decides whether the position this meeting
-                        // holds in a list sorted by date can be trusted, so it
-                        // is said either way rather than only when it is good
-                        // news.
-                        Text("·")
-                        Text(source.displayName)
-                            .help(
-                                source.isOriginal
-                                    ? "The recording carried this date. Importing it left the date alone."
-                                    : "The file said nothing about when it was recorded."
-                            )
-                    }
-                    StageBadge(state: metadata.processing.state)
+            // A hidden copy of the title sets the field's width, so what
+            // follows sits right after the words, and gives way when the title
+            // is longer than the room left.
+            HStack(spacing: 8) {
+                Text(detail.title.isEmpty ? "Title" : detail.title)
+                    .font(.title2.weight(.semibold))
+                    .lineLimit(1)
+                    .padding(.trailing, 6)
+                    .hidden()
+                    .overlay(alignment: .leading) { titleField }
+                    .help(aboutMeeting)
+                folderMenu
+                // A finished meeting says nothing by being finished.
+                if let state = detail.metadata?.processing.state, state != .complete {
+                    StageBadge(state: state)
                 }
-                if detail.isSplitRecording {
-                    Label("\(detail.recordings.count) parts", systemImage: "arrow.triangle.branch")
-                        .help("The call dropped and was rejoined. Both halves are shown in order.")
+                if let suggestion = detail.titleSuggestion {
+                    titleSuggestionPill(suggestion)
                 }
+                Spacer(minLength: 0)
             }
-            .font(.caption)
-            .foregroundStyle(.secondary)
-            .padding(.top, 4)
 
             if let warnings = detail.metadata?.captureWarnings, !warnings.isEmpty {
                 // What went wrong while this was recorded, kept with the
@@ -175,42 +233,46 @@ public struct MeetingDetailView: View {
                 .help("Some of the other side's words may appear under your name.")
                 .padding(.top, 4)
             }
-
-            HStack(spacing: 8) {
-                folderMenu
-                Text(archivePath)
-                    .lineLimit(1)
-                    .truncationMode(.head)
-                    .help(detail.directory?.path ?? "")
-                Button("Reveal in Finder") { detail.reveal() }.buttonStyle(.link)
-                if detail.transcript != nil {
-                    Button("Rebuild transcript") { model.rebuildFocusedMeeting() }
-                        .buttonStyle(.link)
-                        .help("Re-assembles the transcript from the model output already on disk. Makes no request.")
-                }
-                if detail.transcript != nil, detail.canRedoMicrophone {
-                    Button("Remove echo") { requestMicrophoneRedo() }
-                        .buttonStyle(.link)
-                        .help("Transcribes your side again without the other side's sound.")
-                }
-                Spacer(minLength: 0)
-            }
-            .font(.caption)
-            .foregroundStyle(.tertiary)
-            .padding(.top, 8)
         }
         .padding(.horizontal, 20)
-        .padding(.top, 16)
-        .padding(.bottom, 14)
+        .padding(.top, 10)
+        .padding(.bottom, 8)
     }
 
-    /// The folder, from the meetings root down. The absolute path is long
-    /// enough to push the two links off a narrow window, and the part a person
-    /// recognises is the end of it.
-    private var archivePath: String {
-        guard let directory = detail.directory else { return "" }
-        let components = directory.pathComponents
-        return components.suffix(4).joined(separator: "/")
+    private var titleField: some View {
+        TextField("Title", text: detail.titleBinding())
+            .textFieldStyle(.plain)
+            .font(.title2.weight(.semibold))
+            .onSubmit { detail.save() }
+    }
+
+    /// The source, the day and the length, and for an import where its date
+    /// came from: what the line under the title used to print.
+    private var aboutMeeting: String {
+        guard let metadata = detail.metadata else { return "" }
+        var lines = [
+            [
+                metadata.source.displayName,
+                Format.day(metadata.startedAt),
+                Format.shortDuration(metadata.durationSeconds),
+            ].joined(separator: " · ")
+        ]
+        if let source = metadata.recordedDateSource {
+            // Only an imported file carries this. Where the date came from
+            // decides whether the position this meeting holds in a list sorted
+            // by date can be trusted, so it is said either way.
+            lines.append(
+                source.isOriginal
+                    ? "\(source.displayName): the recording carried this date."
+                    : "\(source.displayName): the file said nothing about when it was recorded."
+            )
+        }
+        if detail.isSplitRecording {
+            lines.append(
+                "\(detail.recordings.count) parts: the call dropped and was rejoined, and both are shown in order."
+            )
+        }
+        return lines.joined(separator: "\n")
     }
 
     private func failureBar(_ failure: ProcessingFailure) -> some View {
@@ -249,9 +311,9 @@ public struct MeetingDetailView: View {
 
     /// Which folder this meeting is in, and the way to change it.
     ///
-    /// On the path line because the path line is where the folder already was:
-    /// with folders on disk, what that line prints and what this control sets
-    /// are the same fact.
+    /// On the line under the title, with the rest of what the meeting is. The
+    /// path itself is in the help of Reveal in Finder: printed on the line it
+    /// pushed everything after it off a narrow window.
     @ViewBuilder private var folderMenu: some View {
         let current = model.rows.first { $0.id == detail.meetingID }?.summary.folderName
         let tint =
@@ -281,12 +343,16 @@ public struct MeetingDetailView: View {
             HStack(spacing: 4) {
                 Image(systemName: "folder.fill").font(.system(size: 9))
                 Text(current ?? "Not in a folder")
+                Image(systemName: "chevron.down").font(.system(size: 7, weight: .bold))
             }
-            .font(.caption)
-            .foregroundStyle(tint ?? .secondary)
         }
-        .menuStyle(.borderlessButton)
-        .menuIndicator(.visible)
+        // A pill in the folder's colour, the way the sidebar tags the same
+        // folder. As a borderless menu it dropped the small size and the
+        // colour and drew in large white type.
+        .menuStyle(.button)
+        .buttonStyle(PillButtonStyle(tint: tint ?? .secondary))
+        .controlSize(.small)
+        .menuIndicator(.hidden)
         .fixedSize()
         .help("Filing a meeting moves its folder on disk. Nothing inside it is rewritten.")
     }
@@ -336,35 +402,6 @@ public struct MeetingDetailView: View {
         return "\u{201C}\(quote)\u{201D} at \(Format.duration(at))"
     }
 
-    /// The generated title, offered against the name the meeting already has.
-    ///
-    /// Shaped like the notice and receipt bars beside it rather than as a card
-    /// or a popover, so it reads as one more thing the pane is telling you.
-    /// Below the title rather than beside it, because a row that appears next
-    /// to the title moves the title while it is being read.
-    private func suggestionBar(_ suggestion: String) -> some View {
-        HStack(spacing: 7) {
-            Image(systemName: "sparkles")
-                .foregroundStyle(Color.accentColor)
-                .accessibilityHidden(true)
-            Text("Suggested title").foregroundStyle(.secondary).layoutPriority(1)
-            // A generated title can outrun a narrow pane, and the whole point
-            // is reading it before deciding.
-            Text(suggestion).lineLimit(1).truncationMode(.tail).help(suggestion)
-            Spacer(minLength: 8)
-            Button("Use it") { detail.acceptTitleSuggestion() }
-                .buttonStyle(.link)
-                .help("Renames this meeting, and its folder, to the suggested title.")
-            Button("Dismiss") { detail.declineTitleSuggestion() }
-                .buttonStyle(.link)
-                .help("Keeps the current title and stops offering this one.")
-        }
-        .font(.caption)
-        .padding(.horizontal, 20)
-        .padding(.vertical, 8)
-        .background(Color.accentColor.opacity(0.08))
-    }
-
     private func noticeBar(_ text: String) -> some View {
         HStack(spacing: 8) {
             Image(systemName: "exclamationmark.circle.fill").foregroundStyle(.orange)
@@ -391,20 +428,24 @@ public struct MeetingDetailView: View {
 
     // MARK: - speakers
 
+    /// The chips on one line, by talk time. The commands that act on all of
+    /// them are in the More menu; a spinner says when one of them is running.
     private var speakerStrip: some View {
         VStack(alignment: .leading, spacing: 7) {
-            HStack(spacing: 8) {
-                Text("Speakers").font(.caption).foregroundStyle(.secondary)
-                Spacer()
-                // Only where somebody is still unnamed. The control fills a
-                // gap, so with no gap it is not drawn rather than drawn dim.
-                if detail.unnamedSpeakerCount > 0 { suggestNames }
-                reanalyze
-            }
-            if detail.speakerRows.isEmpty {
-                Text(waitingText).font(.caption).foregroundStyle(.secondary)
-            } else {
-                SpeakerChips(model: model, detail: detail)
+            HStack(alignment: .top, spacing: 8) {
+                Group {
+                    if detail.speakerRows.isEmpty {
+                        Text(waitingText).font(.caption).foregroundStyle(.secondary)
+                    } else {
+                        SpeakerChips(model: model, detail: detail)
+                    }
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                if detail.isReanalyzing || detail.isSuggestingNames {
+                    ProgressView().controlSize(.small)
+                        .frame(minHeight: 26)
+                        .help(detail.isReanalyzing ? "Re-analyzing speakers" : "Suggesting names")
+                }
             }
             // Only where there is something to propose. A meeting whose voices
             // all matched, and one where nobody was named out loud, both draw
@@ -414,7 +455,7 @@ public struct MeetingDetailView: View {
             }
         }
         .padding(.horizontal, 20)
-        .padding(.vertical, 12)
+        .padding(.bottom, 10)
     }
 
     private var waitingText: String {
@@ -425,97 +466,45 @@ public struct MeetingDetailView: View {
         }
     }
 
-    /// Asks the model to name the speakers nothing else could.
-    ///
-    /// An icon with no label, because the row it sits on is already a label and
-    /// a caption plus a menu title. The same command is spelled out in the menu
-    /// beside it, which is what makes the icon learnable rather than guessed at.
-    private var suggestNames: some View {
-        Button {
-            detail.suggestSpeakerNames()
-        } label: {
-            if detail.isSuggestingNames {
-                ProgressView().controlSize(.small)
-            } else {
-                Image(systemName: "sparkles").font(.caption)
-            }
-        }
-        .buttonStyle(.borderless)
-        .disabled(detail.isSuggestingNames)
-        .help(suggestNamesTitle)
-    }
-
     private var suggestNamesTitle: String {
         let count = detail.unnamedSpeakerCount
         return "Suggest names for \(count) \(count == 1 ? "speaker" : "speakers")"
     }
 
-    private var reanalyze: some View {
-        Menu {
-            Button("Run with the count Pipit picks") {
-                detail.reanalyzeCount = ""
-                detail.reanalyzeSpeakers()
-            }
-            .disabled(!detail.localModelsReady)
-            Menu("Run with a set count") {
-                ForEach(2...8, id: \.self) { count in
-                    Button("\(count) speakers") {
-                        detail.reanalyzeCount = "\(count)"
-                        detail.reanalyzeSpeakers()
-                    }
+    /// Re-clusters the audio on this Mac. Next to Suggest names in the menu,
+    /// which reads the words and sends them away instead.
+    @ViewBuilder private var reanalyzeItems: some View {
+        Button("Run with the count Pipit picks") {
+            detail.reanalyzeCount = ""
+            detail.reanalyzeSpeakers()
+        }
+        .disabled(!detail.localModelsReady)
+        Menu("Run with a set count") {
+            ForEach(2...8, id: \.self) { count in
+                Button("\(count) speakers") {
+                    detail.reanalyzeCount = "\(count)"
+                    detail.reanalyzeSpeakers()
                 }
             }
-            .disabled(!detail.localModelsReady)
-            // Below a divider rather than beside the two run commands. Those
-            // re-cluster the audio on this Mac and clear names. This reads the
-            // words and sends them away. Same menu, different machine.
-            if detail.unnamedSpeakerCount > 0 {
-                Divider()
-                Button(suggestNamesTitle) { detail.suggestSpeakerNames() }
-                    .disabled(detail.isSuggestingNames)
-            }
-            Divider()
-            Text(
-                detail.localModelsReady
-                    ? "The words are not transcribed again. Names on whole speakers are cleared, "
-                        + "because the clusters they name no longer exist. Corrections to single "
-                        + "lines are kept."
-                    : "Runs on this Mac. Download the speech models in Settings to use it."
-            )
-        } label: {
-            Label(
-                detail.isReanalyzing ? "Re-analyzing…" : "Re-analyze speakers",
-                systemImage: "arrow.triangle.2.circlepath"
-            )
-            .font(.caption)
         }
-        .menuStyle(.borderlessButton)
-        .fixedSize()
-        .disabled(detail.isReanalyzing)
+        .disabled(!detail.localModelsReady)
+        Divider()
+        Text(
+            detail.localModelsReady
+                ? "The words are not transcribed again. Names on whole speakers are cleared, "
+                    + "because the clusters they name no longer exist. Corrections to single "
+                    + "lines are kept."
+                : "Runs on this Mac. Download the speech models in Settings to use it."
+        )
     }
 
-    // MARK: - tabs and content
-
-    private var tabs: some View {
-        HStack {
-            Picker("", selection: Binding(get: { model.tab }, set: { model.tab = $0 })) {
-                ForEach(MeetingDetailTab.allCases) { Text($0.label).tag($0) }
-            }
-            .pickerStyle(.segmented)
-            .labelsHidden()
-            .frame(width: 268)
-            Spacer()
-            copyTranscriptButton
-        }
-        .padding(.horizontal, 20)
-        .padding(.vertical, 10)
-    }
+    // MARK: - content
 
     /// Puts `transcript.md` on the clipboard.
     ///
-    /// On the tab row rather than in the transcript itself: it copies the whole
-    /// document whichever tab is open, and the row is the one bar that stays on
-    /// screen while the transcript scrolls.
+    /// On the title bar line, tinted, because it is the command people use the
+    /// most. It copies the whole document whichever tab is open, and that line
+    /// stays on screen while the transcript scrolls.
     private var copyTranscriptButton: some View {
         Button {
             guard detail.copyTranscript() else { return }
@@ -525,21 +514,19 @@ public struct MeetingDetailView: View {
                 copied = false
             }
         } label: {
-            Label(
-                copied ? "Copied" : "Copy transcript",
-                systemImage: copied ? "checkmark" : "doc.on.doc"
-            )
+            Label(copied ? "Copied" : "Copy", systemImage: copied ? "checkmark" : "doc.on.doc")
         }
-        .controlSize(.small)
+        .buttonStyle(PillButtonStyle(prominent: true))
         .disabled(detail.transcript == nil)
-        .help("Copies transcript.md, the whole transcript as it stands on disk.")
+        .help("Copy transcript: the whole transcript.md as it stands on disk.")
     }
 
     @ViewBuilder private var content: some View {
         switch model.tab {
         case .transcript: MeetingTranscriptView(model: model, detail: detail)
-        case .summary: summary
-        case .notes: notes
+        // Room under the divider the tab row used to provide.
+        case .summary: summary.contentMargins(.top, 14, for: .scrollContent)
+        case .notes: notes.contentMargins(.top, 14, for: .scrollContent)
         }
     }
 
@@ -689,6 +676,54 @@ public struct MeetingDetailView: View {
     }
 }
 
+// MARK: - title bar
+
+extension MeetingDetailView {
+    /// The generated title, offered against the name the meeting already has.
+    ///
+    /// A pill right after the title rather than a bar of its own, so the
+    /// question costs no height and sits beside the words it would replace.
+    /// The title keeps its place when the pill appears.
+    func titleSuggestionPill(_ suggestion: String) -> some View {
+        HStack(spacing: 6) {
+            Image(systemName: "sparkles")
+                .foregroundStyle(Color.accentColor)
+                .accessibilityHidden(true)
+            // A generated title can outrun a narrow pane, and the whole point
+            // is reading it before deciding.
+            Text(suggestion)
+                .lineLimit(1)
+                .truncationMode(.tail)
+                .frame(maxWidth: 220, alignment: .leading)
+                .fixedSize(horizontal: false, vertical: true)
+                .help("Suggested title: \(suggestion)")
+            // Grey, so the blue is left to Copy and Follow: this is a question
+            // asked once, not the pane's main command.
+            Button("Use title") { detail.acceptTitleSuggestion() }
+                .buttonStyle(PillButtonStyle())
+                .controlSize(.mini)
+                .help("Renames this meeting, and its folder, to the suggested title.")
+            Button {
+                detail.declineTitleSuggestion()
+            } label: {
+                Image(systemName: "xmark").font(.system(size: 8, weight: .bold))
+            }
+            .buttonStyle(.plain)
+            .foregroundStyle(.secondary)
+            .help("Keeps the current title and stops offering this one.")
+            .accessibilityLabel("Dismiss suggested title")
+        }
+        .font(.caption)
+        .padding(.leading, 9)
+        .padding(.trailing, 7)
+        .padding(.vertical, 3)
+        .background(Capsule().fill(Color.primary.opacity(0.06)))
+        .fixedSize()
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel("Suggested title")
+    }
+}
+
 /// Names the model heard, under the speakers they belong to.
 ///
 /// A recommendation rather than an answer: the pill says who it thinks a
@@ -783,31 +818,140 @@ struct SuggestionPills: View {
     }
 }
 
+/// The round spot at the start of a speaker chip: the speaker's face, a
+/// waveform while they are speaking, and the arrow to where they speak while
+/// the pointer is on the chip or the walk through their turns is on.
+///
+/// One spot for all three, so the chip keeps its width. An arrow added at the
+/// end of the chip widened it on hover, the last chip on a line wrapped to the
+/// next one and out from under the pointer, and it could not be clicked.
+struct SpeakerChipBadge: View {
+    enum Shows {
+        case face
+        case speaking(Color)
+        case jump(walking: Bool)
+    }
+
+    static var side: CGFloat { 20 }
+
+    /// Empty for a voice nobody has named.
+    let name: String
+    var identityID: IdentityID?
+    let shows: Shows
+    var playing = false
+    var onJump: () -> Void = {}
+
+    var body: some View {
+        Group {
+            switch shows {
+            case .face:
+                SpeakerFace(name: name, identityID: identityID, side: Self.side)
+            case .speaking(let tint):
+                Image(systemName: "waveform")
+                    .font(.system(size: 10, weight: .semibold))
+                    .foregroundStyle(tint)
+                    .symbolEffect(.variableColor.iterative, isActive: playing)
+                    .frame(width: Self.side, height: Self.side)
+                    .background(Circle().fill(tint.opacity(0.18)))
+                    .accessibilityLabel("Speaking")
+            case .jump(let walking):
+                Button(action: onJump) {
+                    Image(systemName: "arrow.down")
+                        .font(.system(size: 9, weight: .bold))
+                        .foregroundStyle(walking ? Color.white : Color.primary)
+                        .frame(width: Self.side, height: Self.side)
+                        .background(
+                            Circle().fill(walking ? Color.accentColor : Color.primary.opacity(0.15))
+                        )
+                }
+                .buttonStyle(.plain)
+                .help(walking ? "Next turn" : "Go to where they speak")
+            }
+        }
+        .frame(width: Self.side, height: Self.side)
+    }
+}
+
 /// One chip per speaker, each a menu that renames them everywhere in the
 /// meeting.
 ///
 /// An unnamed voice is outlined rather than left to look like the rest: it is
 /// the one row in the strip that is asking for something.
+///
+/// One line, most talk time first. The speakers that do not fit wait behind a
+/// "+N" chip, which grows the strip to as many lines as it takes and becomes
+/// Show less. A strip that always wrapped took a second line for a voice heard
+/// for a few seconds, and the transcript lost the height.
 struct SpeakerChips: View {
     let model: MeetingsWindowModel
     let detail: MeetingReviewModel
     /// The chip under the pointer, whose arrow is showing.
     @State private var hovered: String?
+    @State private var showsAll = false
 
     var body: some View {
-        // A wrapping row, because four or five speakers do not fit on one line
-        // in a narrow window and a horizontal scroll hides the last of them.
-        FlowRow(spacing: 6) {
-            ForEach(detail.speakerRows) { row in chip(row) }
+        let rows = detail.speakerRows
+        Group {
+            if showsAll {
+                FlowRow(spacing: 6) {
+                    ForEach(rows) { row in chip(row) }
+                    moreChip(hiding: [])
+                }
+                .transition(.opacity)
+            } else {
+                // The first that fits wins: every chip, then one fewer with a
+                // "+1", and so on down to a lone "+N".
+                ViewThatFits(in: .horizontal) {
+                    ForEach(Array(stride(from: rows.count, through: 0, by: -1)), id: \.self) { shown in
+                        HStack(spacing: 6) {
+                            ForEach(rows.prefix(shown)) { row in chip(row) }
+                            if shown < rows.count { moreChip(hiding: Array(rows.dropFirst(shown))) }
+                        }
+                    }
+                }
+                .transition(.opacity)
+            }
         }
+        .onChange(of: detail.meetingID) { showsAll = false }
     }
 
-    /// The face and the duration sit outside the menu, deliberately.
+    /// "+N" for the speakers out of sight, outlined orange when one of them
+    /// has no name yet, since the line would otherwise hide that it is asking
+    /// for something. With nothing hidden it is Show less.
+    private func moreChip(hiding hidden: [MeetingSpeakerRow]) -> some View {
+        let unnamed = hidden.contains(where: \.isUnnamed)
+        return Button {
+            withAnimation(.easeOut(duration: 0.2)) { showsAll.toggle() }
+        } label: {
+            Text(hidden.isEmpty ? "Show less" : "+\(hidden.count)")
+                .font(.callout)
+                .padding(.horizontal, 10)
+                .frame(height: 26)
+                .background(
+                    Capsule().fill(unnamed ? Color.orange.opacity(0.12) : Color.primary.opacity(0.06))
+                )
+                .overlay {
+                    if unnamed { Capsule().stroke(Color.orange.opacity(0.55), lineWidth: 1) }
+                }
+                .contentShape(Capsule())
+        }
+        .buttonStyle(.plain)
+        .fixedSize()
+        .help(hidden.isEmpty ? "Show the speakers on one line" : hidden.map(\.displayName).joined(separator: ", "))
+        .accessibilityLabel(
+            hidden.isEmpty
+                ? "Show fewer speakers"
+                : "\(hidden.count) more \(hidden.count == 1 ? "speaker" : "speakers")"
+        )
+    }
+
+    /// The face sits outside the name's button, deliberately. The talk time is
+    /// in the chip's help, so the line holds more people.
     ///
     /// A macOS borderless menu draws one element of its label and drops the
     /// rest: with the avatar inside, the name disappeared and the chip read as
     /// two letters. The menu therefore carries the name alone, and the capsule
-    /// around all three is what makes it one control.
+    /// around both is what makes it one control.
     private func chip(_ row: MeetingSpeakerRow) -> some View {
         let unnamed = row.isUnnamed
         let walking = detail.isWalking(row)
@@ -815,10 +959,12 @@ struct SpeakerChips: View {
         let speaking = isSpeaking(row)
         let tint = PersonTint.color(identity: row.identity?.id, name: row.displayName)
         return HStack(spacing: 6) {
-            SpeakerFace(
+            SpeakerChipBadge(
                 name: unnamed ? "" : row.displayName,
                 identityID: row.identity?.id,
-                side: 20
+                shows: showsArrow ? .jump(walking: walking) : speaking ? .speaking(tint) : .face,
+                playing: detail.playback.isPlaying,
+                onJump: { detail.jump(to: row) }
             )
             Button(row.displayName) { detail.beginNaming(target(row)) }
                 .buttonStyle(.plain)
@@ -843,37 +989,9 @@ struct SpeakerChips: View {
                         }
                     )
                 }
-            Text(Format.shortDuration(row.speechSeconds))
-                .font(.caption2)
-                .foregroundStyle(.secondary)
-            if speaking {
-                Image(systemName: "waveform")
-                    .font(.system(size: 9, weight: .semibold))
-                    .foregroundStyle(tint)
-                    .symbolEffect(.variableColor.iterative, isActive: detail.playback.isPlaying)
-                    .accessibilityLabel("Speaking")
-            }
-            // The way to where they speak. Shown on hover, and kept while the
-            // walk is on, so a second click steps to their next turn. The
-            // name's own click still assigns, as before.
-            if showsArrow {
-                Button {
-                    detail.jump(to: row)
-                } label: {
-                    Image(systemName: "arrow.down")
-                        .font(.system(size: 9, weight: .bold))
-                        .foregroundStyle(walking ? Color.white : Color.primary)
-                        .frame(width: 16, height: 16)
-                        .background(
-                            Circle().fill(walking ? Color.accentColor : Color.primary.opacity(0.12))
-                        )
-                }
-                .buttonStyle(.plain)
-                .help(walking ? "Next turn" : "Go to where they speak")
-            }
         }
         .padding(.leading, 3)
-        .padding(.trailing, showsArrow ? 4 : 8)
+        .padding(.trailing, 8)
         .padding(.vertical, 3)
         .background {
             Capsule().fill(

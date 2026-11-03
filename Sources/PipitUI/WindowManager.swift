@@ -426,13 +426,7 @@ public final class WindowManager {
         let window =
             meetingsWindow
             ?? {
-                let created = makeWindow(
-                    title: "Meetings",
-                    size: NSSize(width: 1_120, height: 720),
-                    content: MeetingsWindowView(model: model)
-                )
-                created.setFrameAutosaveName("PipitMeetings")
-                created.isReleasedWhenClosed = false
+                let created = Self.makeMeetingsWindow(content: MeetingsWindowView(model: model))
                 meetingsWindow = created
                 installFindShortcut(for: created)
                 return created
@@ -624,6 +618,36 @@ public final class WindowManager {
         provisionalWindow?.close()
         provisionalWindow = nil
         provisionalPromptID = nil
+    }
+
+    /// The meetings window, its content running under a transparent title bar
+    /// so the tabs and Copy transcript take no row of their own.
+    ///
+    /// The style is set before the saved frame is restored. Set after, the
+    /// change kept the restored frame's content size and moved the window down
+    /// by a title bar on every launch.
+    static func makeMeetingsWindow(
+        content: some View, autosaveName: String = "PipitMeetings"
+    ) -> NSWindow {
+        let controller = NSHostingController(rootView: AnyView(content))
+        // Left on, SwiftUI keeps managing the window's title and drew
+        // "Meetings" over the tabs despite the hidden title.
+        controller.sceneBridgingOptions = []
+        let window = NSWindow(contentViewController: controller)
+        window.title = "Meetings"
+        window.styleMask = [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView]
+        window.titlebarAppearsTransparent = true
+        window.titleVisibility = .hidden
+        // An empty compact toolbar makes the title bar 40 points tall with the
+        // window buttons centred in it, so the 24 point controls drawn there
+        // get the same room above as below.
+        window.toolbar = NSToolbar(identifier: autosaveName)
+        window.toolbarStyle = .unifiedCompact
+        window.setContentSize(NSSize(width: 1_120, height: 720))
+        window.isReleasedWhenClosed = false
+        window.center()
+        window.setFrameAutosaveName(autosaveName)
+        return window
     }
 
     private func makeWindow(title: String, size: NSSize, content: some View) -> NSWindow {

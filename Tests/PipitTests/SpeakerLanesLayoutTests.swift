@@ -6,6 +6,21 @@ import Testing
 
 @testable import PipitUI
 
+/// A one second silent recording, enough for the timeline to have a length.
+private func silentRecording(in root: URL) throws -> URL {
+    let audio = root.appendingPathComponent("recording.wav")
+    let format = try #require(AVAudioFormat(standardFormatWithSampleRate: 24_000, channels: 1))
+    let buffer = try #require(AVAudioPCMBuffer(pcmFormat: format, frameCapacity: 24_000))
+    buffer.frameLength = buffer.frameCapacity
+    let samples = try #require(buffer.floatChannelData?[0])
+    for index in 0..<Int(buffer.frameLength) { samples[index] = 0 }
+    do {
+        let file = try AVAudioFile(forWriting: audio, settings: format.settings)
+        try file.write(from: buffer)
+    }
+    return audio
+}
+
 @MainActor
 @Suite("SpeakerLanesLayout")
 struct SpeakerLanesLayoutTests {
@@ -59,16 +74,7 @@ struct SpeakerLanesLayoutTests {
     func hoverDoesNotMoveLanes(width: Double) throws {
         let root = try TestPaths.makeTemporaryDirectory()
         defer { try? FileManager.default.removeItem(at: root) }
-        let audio = root.appendingPathComponent("recording.wav")
-        let format = try #require(AVAudioFormat(standardFormatWithSampleRate: 24_000, channels: 1))
-        let buffer = try #require(AVAudioPCMBuffer(pcmFormat: format, frameCapacity: 24_000))
-        buffer.frameLength = buffer.frameCapacity
-        let samples = try #require(buffer.floatChannelData?[0])
-        for index in 0..<Int(buffer.frameLength) { samples[index] = 0 }
-        do {
-            let file = try AVAudioFile(forWriting: audio, settings: format.settings)
-            try file.write(from: buffer)
-        }
+        let audio = try silentRecording(in: root)
         let playback = MeetingPlaybackModel()
         playback.update(
             recordings: [.init(id: "rec-a", audio: audio, timelineOffset: 0)],
@@ -83,5 +89,70 @@ struct SpeakerLanesLayoutTests {
             #expect(hovered.lastLanePixel == baseline.lastLanePixel)
             #expect(hovered.playheadPixel == baseline.playheadPixel)
         }
+    }
+}
+
+@MainActor
+@Suite("SpeakerLanesCombined")
+struct SpeakerLanesCombinedTests {
+    /// Rows of the rendered plot that hold a pixel of the given colour.
+    private func rows(
+        _ playback: MeetingPlaybackModel, combined: Bool, height: CGFloat,
+        matching test: (NSColor) -> Bool
+    ) throws -> Set<Int> {
+        let tint: (String) -> Color = { $0 == "Synthetic speaker one" ? .red : .blue }
+        let view = NSHostingView(
+            rootView: SpeakerLanesPlot(
+                playback: playback, tint: tint, hover: .constant(nil), height: height, combined: combined
+            )
+            .frame(width: 200, height: height)
+            .background(.white)
+            .environment(\.colorScheme, .light)
+        )
+        view.frame = NSRect(x: 0, y: 0, width: 200, height: height)
+        view.layoutSubtreeIfNeeded()
+        let image = try #require(view.bitmapImageRepForCachingDisplay(in: view.bounds))
+        view.cacheDisplay(in: view.bounds, to: image)
+        var found: Set<Int> = []
+        for y in 0..<image.pixelsHigh {
+            for x in 0..<image.pixelsWide {
+                guard let color = image.colorAt(x: x, y: y)?.usingColorSpace(.deviceRGB) else { continue }
+                if test(color) { found.insert(y) }
+            }
+        }
+        return found
+    }
+
+    @Test("the closed strip draws every speaker on the same row")
+    func combinedDrawsEverySpeakerOnOneRow() throws {
+        let root = try TestPaths.makeTemporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let audio = try silentRecording(in: root)
+        let playback = MeetingPlaybackModel()
+        playback.update(
+            recordings: [.init(id: "rec-a", audio: audio, timelineOffset: 0)],
+            lines: [
+                PlaybackTimelineTests.line(speaker: "Synthetic speaker one", start: 0, end: 0.4, text: "One"),
+                PlaybackTimelineTests.line(speaker: "Synthetic speaker two", start: 0.5, end: 0.9, text: "Two"),
+            ]
+        )
+        // Past both turns, so both are drawn at full strength.
+        playback.seek(to: 1)
+        let red: (NSColor) -> Bool = {
+            $0.redComponent > $0.greenComponent + 0.3 && $0.redComponent > $0.blueComponent + 0.3
+        }
+        let blue: (NSColor) -> Bool = {
+            $0.blueComponent > $0.redComponent + 0.3 && $0.blueComponent > $0.greenComponent + 0.3
+        }
+
+        let combinedRed = try rows(playback, combined: true, height: SpeakerLanesPlot.combinedHeight, matching: red)
+        let combinedBlue = try rows(playback, combined: true, height: SpeakerLanesPlot.combinedHeight, matching: blue)
+        #expect(!combinedRed.isEmpty && !combinedBlue.isEmpty, "both speakers must be drawn")
+        #expect(combinedRed == combinedBlue, "both speakers must share one row")
+
+        // The lane per speaker, for contrast: the same two speakers on two rows.
+        let laneRed = try rows(playback, combined: false, height: 22, matching: red)
+        let laneBlue = try rows(playback, combined: false, height: 22, matching: blue)
+        #expect(laneRed.isDisjoint(with: laneBlue))
     }
 }

@@ -15,10 +15,27 @@ public struct MeetingsWindowView: View {
         self.model = model
     }
 
+    /// Wide enough for the filter control at its narrowest, 235 points, inside
+    /// the sidebar's margins.
+    static let sidebarMinWidth: CGFloat = 256
+    static let sidebarMargin: CGFloat = 10
+
     public var body: some View {
+        // Each pane runs under the transparent title bar on its own: the split
+        // view hosts every pane separately, and an inset on the split view
+        // alone left both panes below it.
         HSplitView {
-            sidebar.frame(minWidth: 240, idealWidth: 272, maxWidth: 380)
-            detail.frame(minWidth: 460)
+            sidebar
+                .ignoresSafeArea(.container, edges: .top)
+                .frame(minWidth: Self.sidebarMinWidth, idealWidth: 272, maxWidth: 380)
+            // Without the priority the split view opened every window with the
+            // sidebar at its widest, taking a third of a quarter-screen window
+            // from the transcript. With it the sidebar opens at its narrowest
+            // and the transcript gets the rest.
+            detail
+                .ignoresSafeArea(.container, edges: .top)
+                .frame(minWidth: 460)
+                .layoutPriority(1)
         }
         .frame(minWidth: 900, minHeight: 560)
         .task { await model.reload() }
@@ -71,26 +88,22 @@ public struct MeetingsWindowView: View {
         // offer both want it, and it walks every row the filter holds.
         let counts = model.sourceCounts
         return VStack(spacing: 0) {
+            // Holds the window buttons.
+            MeetingsTitleBar()
             VStack(spacing: 8) {
                 HStack(spacing: 8) {
                     searchField
                     modeSwitch
                 }
-                Picker(
-                    "",
-                    selection: Binding(
-                        get: { model.filter }, set: { model.filter = $0 }
-                    )
-                ) {
-                    ForEach(MeetingsFilter.allCases) { Text($0.label).tag($0) }
-                }
-                .pickerStyle(.segmented)
-                .labelsHidden()
+                MeetingsFilterPicker(
+                    selection: Binding(get: { model.filter }, set: { model.filter = $0 })
+                )
                 // Meaningless over a list of folders, where no row has a
                 // source of its own.
                 if !model.showsFolderList { sourceMenu(counts) }
             }
-            .padding(10)
+            .padding(.horizontal, Self.sidebarMargin)
+            .padding(.bottom, Self.sidebarMargin)
             Divider()
             // From the counts already in hand. `model.suggestedSource` walks
             // the rows again for them, and this runs on every keystroke.
@@ -459,18 +472,25 @@ public struct MeetingsWindowView: View {
 
     // MARK: - detail
 
+    /// A meeting draws its own title bar strip with its tabs on it. The other
+    /// panes get a bare one, so nothing of theirs sits under the window's title
+    /// bar.
     @ViewBuilder private var detail: some View {
-        if model.selection.count > 1 {
-            MeetingsSelectionView(model: model)
-        } else if model.selection.isEmpty, let folder = model.openFolderRow {
-            FolderDetailView(model: model, row: folder)
-        } else if let detail = model.detail {
+        let showsFolder = model.selection.isEmpty && model.openFolderRow != nil
+        if model.selection.count <= 1, !showsFolder, let detail = model.detail {
             MeetingDetailView(model: model, detail: detail)
         } else {
-            VStack(spacing: 6) {
-                Text("Select a meeting").font(.title3)
+            VStack(spacing: 0) {
+                MeetingsTitleBar()
+                if model.selection.count > 1 {
+                    MeetingsSelectionView(model: model)
+                } else if showsFolder, let folder = model.openFolderRow {
+                    FolderDetailView(model: model, row: folder)
+                } else {
+                    Text("Select a meeting").font(.title3)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                }
             }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
     }
 }
@@ -504,20 +524,23 @@ struct MeetingRowView: View {
 
     var body: some View {
         let selected = model.selection.contains(row.id)
+        // The title has the whole width of its line. The faces and the folder
+        // share the second line with the date, where losing a few characters
+        // costs nothing; beside the title they cut it off at a dozen letters.
         return HStack(spacing: 8) {
             kindIcon
-            VStack(alignment: .leading, spacing: 1) {
+            VStack(alignment: .leading, spacing: 2) {
                 Text(row.title).font(.callout).lineLimit(1)
                 HStack(spacing: 5) {
                     Text(subtitle).font(.caption2).foregroundStyle(.secondary).lineLimit(1)
+                        .layoutPriority(1)
                     if let folder = model.folderTag(for: row) {
-                        Spacer(minLength: 3)
                         FolderTagView(row: folder)
                     }
+                    Spacer(minLength: 0)
+                    trailing
                 }
             }
-            Spacer(minLength: 4)
-            trailing
         }
         .padding(.horizontal, 6)
         .padding(.vertical, 5)
@@ -532,7 +555,7 @@ struct MeetingRowView: View {
         }
         .contextMenu { menu }
         .accessibilityElement(children: .combine)
-        .accessibilityLabel("\(row.title), \(subtitle)")
+        .accessibilityLabel("\(row.title), \(row.summary.source.listName), \(subtitle)")
     }
 
     /// What a right-click offers. It acts on the whole selection when this row
@@ -622,9 +645,8 @@ struct MeetingRowView: View {
             }
     }
 
-    /// The source leads, because it is the fixed part of the line. A column of
-    /// clock times with the source somewhere after it is harder to run an eye
-    /// down, and the badge beside it is the colour of the same word.
+    /// The source is left to the badge, which already shows it. Spelled out
+    /// here as well, it was the part of the line that was always cut off.
     ///
     /// The date is spelled out under any heading that does not already name a
     /// day. Only Today and Yesterday do, so under "Earlier this month" and
@@ -632,7 +654,6 @@ struct MeetingRowView: View {
     /// meeting was without opening it.
     private var subtitle: String {
         var parts = [
-            row.summary.source.listName,
             Format.listDate(row.startedAt),
             Format.shortDuration(row.summary.durationSeconds),
         ]
@@ -653,17 +674,35 @@ struct MeetingRowView: View {
         } else if row.isProcessing {
             Circle().fill(.orange).frame(width: 7, height: 7)
         } else {
-            HStack(spacing: -5) {
+            HStack(spacing: -4) {
                 ForEach(row.speakers.prefix(3)) { speaker in
                     SpeakerFace(
                         name: speaker.displayName ?? "",
                         identityID: speaker.identityID,
-                        side: 17
+                        side: 15
                     )
                     .overlay(Circle().stroke(.background, lineWidth: 1.5))
                 }
             }
         }
+    }
+}
+
+/// All, Unnamed, Attention and Archived, across the top of the sidebar.
+///
+/// Small, because at the regular size it cannot shrink below 268 points and
+/// the sidebar gives it 252, so the last label was cut off. At the small size it
+/// shrinks to 235, which the sidebar's minimum width is set to hold.
+struct MeetingsFilterPicker: View {
+    @Binding var selection: MeetingsFilter
+
+    var body: some View {
+        Picker("", selection: $selection) {
+            ForEach(MeetingsFilter.allCases) { Text($0.label).tag($0) }
+        }
+        .pickerStyle(.segmented)
+        .labelsHidden()
+        .controlSize(.small)
     }
 }
 
