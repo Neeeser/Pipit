@@ -1,0 +1,287 @@
+{
+  "meeting": "TS3003c",
+  "overview": "The product-design team held its third meeting, the conceptual design meeting, to hear trend-watching, interface and component presentations and decide the concept for a remote control aimed at people aged sixty to eighty. They kept the docking station, chose a simple battery recharged in the dock over kinetic energy, put the lost-remote beeper in the dock as a button, dropped voice recognition because it adds cost the target group will not pay for and does not make the remote easier to use, kept the small LCD screen and therefore an advanced chip, and chose one standard remote that takes interchangeable case covers (wood-look or plastic, various colours). The remote lies flat in the dock, uses a single-curved case with the display on top, the on-off button at the top and rounded corners. The Industrial Designer still has to find out whether a wood finish costs more; for the next meeting the team works on look-and-feel and user interface design using the corporate image, with the Industrial and User Interface Designers working together.",
+  "action_items": [
+    {
+      "task": "Ask the manufacturing department what voice recognition would add to the production price",
+      "owner": "Industrial Designer",
+      "due": "",
+      "at": "18:51",
+      "quote": "So I'll have to ask the manufacturing department.",
+      "must_find": false
+    },
+    {
+      "task": "Research whether a wood or wood-coloured case is more expensive to produce",
+      "owner": "Industrial Designer",
+      "due": "",
+      "at": "23:08",
+      "quote": "I'll have to uh research.",
+      "must_find": false
+    },
+    {
+      "task": "Work on the look-and-feel design and make sure the corporate design image is in the remote, for example by checking the corporate website",
+      "owner": "",
+      "due": "next meeting",
+      "at": "36:09",
+      "quote": "It's important that the corporate design image uh is going to be in the remote. So check out the corporate website maybe.",
+      "must_find": true
+    },
+    {
+      "task": "Continue with the user interface design for the next meeting",
+      "owner": "User Interface Designer",
+      "due": "next meeting",
+      "at": "36:28",
+      "quote": "The user interface design, it's the same story.",
+      "must_find": true
+    },
+    {
+      "task": "Work together on the look-and-feel, user interface design and product evaluation, following the instructions the coach sends",
+      "owner": "Industrial Designer and User Interface Designer",
+      "due": "next meeting",
+      "at": "36:28",
+      "quote": "So the Industrial Designer and User Interface Designer are going to work together on this one.",
+      "must_find": true
+    }
+  ],
+  "decisions": [
+    {
+      "text": "Keep the docking station, which gives elderly users a fixed place for the remote and is a marketing point",
+      "at": "17:53",
+      "quote": "So maybe a docking station will help them give the remote a place.",
+      "must_find": true
+    },
+    {
+      "text": "Put the find-the-remote function in the docking station: a button on the dock makes the remote beep",
+      "at": "18:12",
+      "quote": "So you have a but button on your docking station which you can push, and then it starts beeping.",
+      "must_find": false
+    },
+    {
+      "text": "Drop voice recognition, because it would raise the cost significantly and would not make the remote much easier to use",
+      "at": "20:58",
+      "quote": "Maybe we have to uh discard the voice recognition.",
+      "must_find": true
+    },
+    {
+      "text": "Keep the LCD screen with extra information",
+      "at": "20:43",
+      "quote": "I personally think the L_C_D_ screen we wanna use, with the extra information, I think nobody has anything against it.",
+      "must_find": true
+    },
+    {
+      "text": "Use a simple battery recharged in the docking station rather than kinetic energy, because it is just as good and much cheaper",
+      "at": "21:45",
+      "quote": "Okay let me just choose for the battery.",
+      "must_find": true
+    },
+    {
+      "text": "Use an advanced chip, required by the display",
+      "at": "22:01",
+      "quote": "Okay, advanced chip.",
+      "must_find": true
+    },
+    {
+      "text": "Make one standard remote with interchangeable case covers that can be sold separately",
+      "at": "25:14",
+      "quote": "So everybody's okay with the changing covers?",
+      "must_find": true
+    },
+    {
+      "text": "Offer the case covers in wood (or a wood colour) and in plastic, including black and grey and other colours",
+      "at": "25:02",
+      "quote": "one remote, but it would have to be fancy with either the wood cover or the plastic one.",
+      "must_find": true
+    },
+    {
+      "text": "The remote lies flat in the docking station rather than standing up",
+      "at": "26:18",
+      "quote": "No just to lie down.",
+      "must_find": false
+    },
+    {
+      "text": "Keep a normal shape rather than a separate or flip-over design for left-handed users, since the basic functions are easy with either thumb",
+      "at": "30:44",
+      "quote": "I think we could just uh leave it a normal shape.",
+      "must_find": false
+    },
+    {
+      "text": "Use the single-curved case, so the screen sits at an angle that is easy to read while using the remote",
+      "at": "32:16",
+      "quote": "I suggest um the single curved",
+      "must_find": true
+    },
+    {
+      "text": "Put the display at the top of the remote",
+      "at": "34:41",
+      "quote": "On top.",
+      "must_find": false
+    },
+    {
+      "text": "Keep the on-off button at the top",
+      "at": "35:38",
+      "quote": "the on-off button, um still on the top",
+      "must_find": false
+    },
+    {
+      "text": "Make the corners round so the remote looks friendlier",
+      "at": "35:46",
+      "quote": "And I'd prefer the corners to be round.",
+      "must_find": false
+    }
+  ],
+  "open_questions": [
+    {
+      "text": "Whether a wood-coloured or wood case costs more to produce; the Industrial Designer did not know",
+      "at": "23:08",
+      "quote": "Mm I dunno. I'll have to uh research.",
+      "must_find": true
+    },
+    {
+      "text": "How to design one remote that looks good with both a wooden cover and a plastic cover",
+      "at": "24:21",
+      "quote": "We would have to look carefully into the design though.",
+      "must_find": false
+    },
+    {
+      "text": "How to make the otherwise normal-shaped remote a bit more fancy",
+      "at": "30:55",
+      "quote": "make it a l a bit more fancy. In one or ano another way.",
+      "must_find": false
+    }
+  ],
+  "topics": [
+    {
+      "title": "Opening and agenda",
+      "start": "00:21",
+      "end": "01:49",
+      "points": [
+        "Third meeting, the conceptual design phase, covering conceptual specification of components and design, and trend-watching.",
+        "Agenda: opening, three presentations, decision on the remote control concept, closing; about forty minutes available.",
+        "Nobody reported problems preparing."
+      ]
+    },
+    {
+      "title": "Recap of last meeting's requirements",
+      "start": "01:54",
+      "end": "02:55",
+      "points": [
+        "Agreed requirements: teletext, a docking station, an audio signal, a small screen, extras such as button information, and default materials.",
+        "Target market: customers aged sixty to eighty.",
+        "No one had comments on the requirements."
+      ]
+    },
+    {
+      "title": "Trend-watching presentation",
+      "start": "03:00",
+      "end": "07:20",
+      "points": [
+        "Marketing distributed more questionnaires, sent trend-watchers to Milan and Paris, and consulted additional trend-watchers.",
+        "Fancy design is by far the most important factor; innovativeness (functions other remotes lack) is about half as important, and ease of use about half as important again; for the sixty-to-eighty group these factors are more equal.",
+        "Older people prefer dark colours, recognisable shapes and familiar materials, especially wood.",
+        "The remote and docking station should blend into the room, with no eye-catching design; the docking station and small screen are the main innovations and should be included.",
+        "Trend-watchers advised a telephone shape with the remote standing upright in the dock, but older people would find that new, so Marketing preferred the remote lying flat in the dock, more like a telephone handset.",
+        "Marketing suggested two editions: a wood-like colour and feel for wealthier customers, and grey-black for people with less money."
+      ]
+    },
+    {
+      "title": "User interface presentation",
+      "start": "07:44",
+      "end": "13:16",
+      "points": [
+        "Continue with few buttons focused on primary functions: sound, on-off, channel up and down, numbers zero to nine.",
+        "New attractive functions: speech recognition and a special subtitle button.",
+        "Speech recognition could be built cheaply; it could make a lost remote give a signal when called, and handle commands such as sound off.",
+        "One subtitle button: one press for small subtitles, a double press for large subtitles for people who cannot read small ones.",
+        "Large buttons for user-friendliness, and a small display at the top showing button functions and the current channel.",
+        "Sketch: on-off button in the corner where most remotes put it, display on top where people look most, channel up/down where the thumb rests."
+      ]
+    },
+    {
+      "title": "Components presentation",
+      "start": "13:27",
+      "end": "15:15",
+      "points": [
+        "Energy: a basic battery, or optionally kinetic energy from shaking like a watch; kinetic energy would make the docking station obsolete, so the Industrial Designer did not see it as a real option.",
+        "Manufacturing can deliver flat, single-curved or double-curved casings with no technical restrictions.",
+        "Possible case supplement: an anti-slip rubber belt.",
+        "Buttons can be plastic or rubber; the chip-set should be advanced because of the LCD screen.",
+        "Wood raises the price and does not fit the image unless there are two product lines; form should follow function."
+      ]
+    },
+    {
+      "title": "Energy source, docking station and voice recognition",
+      "start": "15:19",
+      "end": "21:55",
+      "points": [
+        "Energy source was discussed first because it affects production price and image.",
+        "Four options: basic battery, hand dynamo (nobody wants to wind before watching TV), solar cells (not every room is light enough), and kinetic energy.",
+        "Marketing thought older people would not want to shake the remote before using it, and that losing the docking station would lose a marketing point.",
+        "The dock could recharge batteries and hold the find-the-lost-remote function; the User Interface Designer thought one battery would last six months or more with the small display.",
+        "The Project Manager said elderly people like everything in its place, so a dock gives the remote a home; a beep button on the dock is cheaper than voice recognition for finding the remote, and voice could still be used just for channels.",
+        "The Industrial Designer had no voice-recognition pricing and would ask manufacturing.",
+        "Marketing showed earlier research that the target group would not pay more for speech recognition and advised leaving it for the company's product for younger people.",
+        "The Industrial Designer noted the same research figure applied to the LCD; Marketing replied that question asked about preference, not willingness to pay, and that the LCD makes the remote easier to use while voice recognition would not.",
+        "The research referred to a large LCD like on advanced mobile phones.",
+        "The group kept the LCD since extra information is easy to ignore, dropped voice recognition for cost and little gain in ease of use, and chose a battery recharged in the dock as cheaper than kinetic energy."
+      ]
+    },
+    {
+      "title": "Chip",
+      "start": "21:45",
+      "end": "22:01",
+      "points": [
+        "There is no choice on the chip: the display requires an advanced chip."
+      ]
+    },
+    {
+      "title": "Case material and interchangeable covers",
+      "start": "22:09",
+      "end": "25:23",
+      "points": [
+        "Choice between wood, black and grey, or both; wood is more expensive and harder to shape but would appeal to elderly people wanting something exclusive to show their grandchildren.",
+        "Marketing said the wooden colour matters most, so the case need not be real wood.",
+        "The User Interface Designer proposed changeable cases like on some mobile phones: one standard remote with covers sold separately.",
+        "The Project Manager liked it as an advertising angle (give your grandfather a new cover) and a feature other remotes lack, allowing black, grey and other colours.",
+        "Marketing cautioned that the single remote must look good with both a wooden and a plastic cover; everyone agreed to changeable covers."
+      ]
+    },
+    {
+      "title": "Case shape and docking position",
+      "start": "25:24",
+      "end": "26:29",
+      "points": [
+        "Flat, single-curved and double-curved cases affect only form, not price or functionality, so the choice is up to design.",
+        "The remote will lie down in the dock rather than stand up.",
+        "The dock would sit on top of or beside the television, and the remote clicks into it."
+      ]
+    },
+    {
+      "title": "Interface layout and sketching",
+      "start": "26:29",
+      "end": "35:57",
+      "points": [
+        "The regular form is not very fancy.",
+        "Marketing praised putting the channel buttons under the right thumb to reduce RSI and proposed channel buttons on both sides for left-handed users.",
+        "The User Interface Designer suggested channel buttons on one side and volume on the other; Marketing and the Project Manager thought that would hurt ease of use, and duplicate buttons could confuse people.",
+        "The Project Manager sketched a flip-over remote usable either way up but rejected it because plus and minus would end up opposite.",
+        "The group concluded left-handed users can manage basic functions with their thumb and kept a normal shape, though it should be made more fancy somehow.",
+        "The Industrial Designer drew the flat, single-curved and double-curved cases and suggested the single curve may help prevent repetitive strain injury.",
+        "The Project Manager chose the single curve so the screen sits at an angle elderly users can read while using the remote.",
+        "The display goes on top, since a hand would cover it lower down and phones put screens on top.",
+        "Final sketch: curve, display at the top, buttons below with a few on each side for left- and right-handed users, the remaining buttons below, the on-off button still at the top, and rounded corners to look friendlier."
+      ]
+    },
+    {
+      "title": "Next steps and close",
+      "start": "35:57",
+      "end": "37:59",
+      "points": [
+        "Next meeting covers look-and-feel design, user interface design and product evaluation; the corporate design image must be in the remote, so the team may check the corporate website.",
+        "The Industrial Designer and User Interface Designer will work together, with instructions from the coach.",
+        "The Project Manager will put the minutes in the folder and saved the SMARTboard drawing in the projects folder.",
+        "The team will likely fill in questionnaires first, then reconvene in thirty minutes."
+      ]
+    }
+  ],
+  "human_not_covered": []
+}

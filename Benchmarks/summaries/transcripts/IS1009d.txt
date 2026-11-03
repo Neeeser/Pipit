@@ -1,0 +1,490 @@
+[00:39] Project Manager: Well hi everyone again.
+[00:40] Marketing Expert: Hello
+[00:41] Industrial Designer: Hello.
+[00:41] User Interface Designer: Hello.
+[00:43] Project Manager: Um like before we uh I have to redo the meetings from n th the minutes from the last meeting and so here we go.
+[00:50] Marketing Expert: Mm-hmm.
+[00:55] Project Manager: Uh it was discussed in the last meeting uh which was opened by the presentation from the interface um
+[01:05] Project Manager: designer that uh looks would be very important on this new remote and um it is to send messages of course to the T_V_. It should have nine channel buttons, a next button, volume buttons, subtitle buttons, switch to control features, colour contrast, sharpness etcetera.
+[01:05] User Interface Designer: Designer.
+[01:30] Project Manager: It should have a memory switch, a mute button in case the telephone rings or something. Uh speech recognition is one of her very f favourite personal uh features she would like see d d to be integrated in this um in this new remote. Um.
+[01:50] Project Manager: Should be child friendly design with few buttons, colourful maybe with s star shaped or other shaped buttons. Um she uh presented also an oversized remote which she guarantees nobody will ever be able to lose.
+[02:10] Marketing Expert: And she was challenged on that point
+[02:10] Project Manager: Um that's right.
+[02:12] User Interface Designer: Yes.
+[02:14] Project Manager: But uh her very f personal favourite really she, she would very much like to see a speech recogniser integrated in this remote. The industrial designer um presented her uh thoughts on the issue. She would like a special case made out of plastic that is very strong, not using any harmful materials, should be recyclable and should be colourful.
+[02:45] Project Manager: Should have an integrated circuit board that's highly sophisticated and temperature resistant.
+[02:52] Project Manager: She would like to see a timer and or alarm facility integrated. Uh technically this thing would also have a resistor and a capacitor, diode transistor, resonator, and if possible a rechargeable battery.
+[03:12] Project Manager: Uh and of course a circuit board.
+[03:15] Project Manager: And how it would works, you press the button, the chip is morse morse code related relays the uh to the generat to the generator amplification and uh the circuit board is very inexpensive to build and so she thinks this is a great feature uh to to to consider.
+[03:35] Marketing Expert: Okay.
+[03:42] Project Manager: She would like uh this whole thing should be push buttons with a simple chip
+[03:47] Project Manager: uh scrolling method is more expensive and not that practical anymore.
+[03:53] Project Manager: Should be battery operated and of course she would have the special cases.
+[04:00] Project Manager: The marketing expert uh who has to finally come up with to to to market this product has been watching the competition, has done some research on the internet and also has used h her personal observations to come up with the fact that such a remote sh should be small,
+[04:24] Project Manager: easy to use and it should be eye catching.
+[04:30] Project Manager: From her point of view of course one of the most important facts is that we should get to market before our competition does.
+[04:40] Project Manager: To do that uh maybe one or two features should be developed on which we could dwell on or in other words on which our campaign could be built on.
+[04:52] Project Manager: Too many new features or too many points would only confuse matter. So we prefer to have one or two features that can be really uh driven home.
+[05:02] Project Manager: Um it should have a fruit and vegetable design and should have a soft feel. She feels that's really what people want today.
+[05:12] Project Manager: And the decision that we took last time was that uh the special feature we would like to see is a speech recogniser,
+[05:22] Project Manager: the energy should be battery uh should be on a chip, should be trendy design, compact and strong, and should have buttons.
+[05:33] Project Manager: And that concludes the presentation from the last minutes from the last meeting.
+[05:40] Project Manager: Now uh we are ready for the presentation of the prototype.
+[05:47] Industrial Designer: Yeah.
+[05:47] User Interface Designer: Yeah. Just the look like, the button part I'll explain.
+[05:51] Industrial Designer: Yeah.
+[05:56] Industrial Designer: Uh so this is our what uh we have made. This is a model of the remote control which we are going to build. Uh this is us in a snail shape so uh it it is attractive um and it's it's blue in colour uh bright and uh it has yellow buttons and all the different colour buttons so it is a uh uh a looks-wise it is beautiful. Uh and also compact in shape. Uh um and also i it it will be easily fit into into the hands and you can access all the buttons easily.
+[06:03] Project Manager: Mm-hmm.
+[06:06] Marketing Expert: Mm-hmm.
+[06:12] Marketing Expert: Mm-hmm.
+[06:17] Marketing Expert: Mm-hmm.
+[06:21] Marketing Expert: Mm-hmm.
+[06:23] Marketing Expert: Mm-hmm.
+[06:28] Marketing Expert: Mm-hmm.
+[06:31] Marketing Expert: Mm-hmm. Good.
+[06:32] Industrial Designer: Yeah, oops, sorry.
+[06:35] Marketing Expert: You used to have all the buttons
+[06:38] Industrial Designer: Um yeah and um uh the material which we are going to use for the case is uh plastic and uh w which which is s strong um uh and also uh for the
+[06:54] Industrial Designer: Um the material is plastic and uh for the buttons it is uh s soft rubber um and als yeah. Yeah because uh uh you'll be touching the buttons more so it is soft when you touch it.
+[07:02] Marketing Expert: Oh that's good, no, that's nice and friendly.
+[07:06] Marketing Expert: Mm-hmm. Mm.
+[07:09] Project Manager: Mm-hmm, mm-hmm.
+[07:09] Marketing Expert: Mm-hmm.
+[07:10] Industrial Designer: And then um uh for the for the led, for the light emitting diode it is a fluorescent green and it's a a it is a bulb like an ordinary infrared.
+[07:14] Marketing Expert: Mm-hmm. Mm-hmm.
+[07:24] Industrial Designer: And and the button button's part uh will be explained by F Francina.
+[07:28] User Interface Designer: Okay. Now the um we decided upon including certain features on our remote. Now these features includes the s um signal emitting uh signal it's the led or L_E_D_ the infrared. Now uh we have included the switch on and off button.
+[07:29] Marketing Expert: Okay.
+[07:42] Marketing Expert: Yeah, okay, mm-hmm.
+[07:43] Project Manager: Mm-hmm, mm-hmm.
+[07:50] Marketing Expert: Mm-hmm.
+[07:53] User Interface Designer: Now we have included another feature that is the mute button
+[07:59] Marketing Expert: Mm-hmm.
+[08:01] User Interface Designer: on the side of the model. Then we have included one to nine buttons
+[08:02] Marketing Expert: Mm-hmm.
+[08:08] User Interface Designer: for controlling the programmes the different channels.
+[08:14] Marketing Expert: Mm-hmm.
+[08:16] User Interface Designer: We have also included two buttons for increasing or decreasing the volume.
+[08:26] Marketing Expert: Mm-hmm.
+[08:27] User Interface Designer: And we have also included two buttons for scrolling up and scrolling down the programme channels.
+[08:36] Marketing Expert: Mm.
+[08:36] User Interface Designer: Now our our model also contains a button which is called as the menu button.
+[08:41] Project Manager: What kind of button?
+[08:42] User Interface Designer: Menu button.
+[08:43] Project Manager: Menu? Uh menu th menu, uh one one.
+[08:44] User Interface Designer: Yes, menu
+[08:44] Marketing Expert: Menu button.
+[08:46] User Interface Designer: At the centre
+[08:47] Marketing Expert: Mm-hmm.
+[08:48] User Interface Designer: we have included a button which is fluorescent green colour and this is the menu button which will control the colour, sharpness, brightness
+[08:57] Marketing Expert: Mm-hmm. Of the screen. Mm, mm-hmm.
+[08:58] User Interface Designer: of this uh picture.
+[09:02] User Interface Designer: We have also included a button which is called as the swapping button.
+[09:08] User Interface Designer: Now this is uh a special, special feature which we have included. Now this button
+[09:15] User Interface Designer: is an elongated shaped button and this is slightly flexible so if it is turned towards the right it will take to the previous channel, if it is turned towards the right it will take to the next channel.
+[09:30] User Interface Designer: It will take the user to the previous and the next channel so this is a
+[09:36] User Interface Designer: swapping button.
+[09:40] Marketing Expert: The next channel in the numeric pattern, or
+[09:44] User Interface Designer: No, swapping is if if example you're you're watching the second channel and then you go to the tenth channel and if you want to go back to the second channel you can swap, this button. Yes.
+[09:47] Marketing Expert: Yeah, mm-hmm.
+[09:50] Marketing Expert: Mm.
+[09:53] Marketing Expert: Okay, okay.
+[09:59] User Interface Designer: And at the end, it this remote has inbuilt voice recogniser which c which will recognise the user's voice and then it'll act accordingly.
+[10:04] Project Manager: Okay.
+[10:07] Project Manager: Mm-hmm.
+[10:12] Project Manager: Mm-hmm.
+[10:14] User Interface Designer: So this is our proposed model. Now the marketing expert has to
+[10:14] Marketing Expert: Okay.
+[10:17] Marketing Expert: Mm-hmm.
+[10:20] Industrial Designer: Tell, yeah.
+[10:21] User Interface Designer: give her suggestion whether it'll be sellable or it'll be cost effective.
+[10:28] Marketing Expert: Okay, well um
+[10:31] Marketing Expert: what what I really like a lot about it is that you can reach the whole thing with one thumb, that you can really hold it in one h you don't need two hands and it's easily reachable even for somebody with a small hand, yeah?
+[10:35] User Interface Designer: Yes, yes.
+[10:37] Industrial Designer: Mm-hmm.
+[10:42] Project Manager: Yes the buttons are all raised, right?
+[10:44] User Interface Designer: Yes.
+[10:45] Marketing Expert: The buttons are all raised and if you hold it in the centre of your hand you can even reach it over here so you don't have to turn it around, turn it upside down, move it up, up and down, I really like that. You really did a good job on that, my little designers. Um and um I like the idea that the on-off button is in a really prominent place. That's that's a really good good thing.
+[10:45] Project Manager: Are raised, mm-hmm.
+[10:49] Project Manager: Right.
+[10:52] Project Manager: Or have two hands to operate it, yeah.
+[10:56] Industrial Designer: Mm-hmm.
+[10:56] User Interface Designer: Mm.
+[11:10] Project Manager: Yes, and it sort of sticks up so that you really you don't have to g first go like oh yeah here it's on and yeah, mm-hmm.
+[11:12] Marketing Expert: Yeah, that's great.
+[11:14] Industrial Designer: Hmm.
+[11:15] Marketing Expert: Mm-hmm.
+[11:16] Industrial Designer: Mm-hmm.
+[11:16] User Interface Designer: Abs okay.
+[11:17] Marketing Expert: The colour's very attractive. Um the um these buttons uh around here are the mute
+[11:27] User Interface Designer: No, these the front buttons which are here, are the mute buttons. Yes, yes.
+[11:27] Marketing Expert: and these mm-hmm
+[11:31] Marketing Expert: On both sides they're mute? So you can push either one? Okay.
+[11:34] User Interface Designer: Yes.
+[11:35] Project Manager: So if you're left-handed or right-handed it doesn't matter.
+[11:37] Marketing Expert: And this brings the menu up on the screen? This brings the menu up on the screen and the orange ones are
+[11:39] User Interface Designer: Pardon me? This is the menu yes, yes.
+[11:44] User Interface Designer: A the the these these two are th to increase or decrease the volumes, and these two are to uh scroll the programme channels.
+[11:47] Marketing Expert: Okay.
+[11:51] Marketing Expert: F f okay. Right, very good.
+[11:54] User Interface Designer: Scroll up or scroll down the channels.
+[11:55] Marketing Expert: Uh it looks mm looks like something I can sell.
+[11:59] Marketing Expert: Okay and now I'm supposed to yeah.
+[12:02] Project Manager: Well, I have one question uh will there be anything written on the buttons, like that people know, or they have to learn that from a piece of paper which button does what?
+[12:13] User Interface Designer: Yes, it will have uh these buttons will have the numbers and all the rest of the buttons will have symbols. Yes, which can be easily recognised.
+[12:14] Industrial Designer: Ah. Yeah, definitely.
+[12:19] Project Manager: Will have symbols so that that that the user really knows you know and doesn't have to first learn it
+[12:20] Industrial Designer: Yeah. Yeah.
+[12:20] Marketing Expert: Yeah.
+[12:22] Industrial Designer: Yeah.
+[12:22] User Interface Designer: Yes.
+[12:23] Industrial Designer: Yeah.
+[12:23] Marketing Expert: Good point because we need the symbols 'cause we're going into an international market we can't have anything that's language dependent.
+[12:24] User Interface Designer: Yes.
+[12:26] Industrial Designer: Yeah of course, and also
+[12:27] User Interface Designer: Yes.
+[12:28] Industrial Designer: Hmm.
+[12:28] Project Manager: Yeah. But anyway it would ha i i i it has to have some kind of of symbols, text or something so that people kn
+[12:29] Industrial Designer: Yeah.
+[12:29] User Interface Designer: Yes.
+[12:31] Industrial Designer: Yeah we can
+[12:33] Marketing Expert: Symbols on it. Mm-hmm, mm-hmm.
+[12:33] Industrial Designer: Text.
+[12:34] User Interface Designer: Yes.
+[12:34] Industrial Designer: Text that we can have on the case itself, we can it will be printed on the case and symbols as well as the buttons. Yeah.
+[12:37] User Interface Designer: Yes.
+[12:37] Project Manager: That's right.
+[12:38] Marketing Expert: Mm-hmm.
+[12:39] Project Manager: Okay, yeah just wanted make sure of that mm-hmm.
+[12:39] User Interface Designer: And
+[12:41] Marketing Expert: Mm, 'kay, mm.
+[12:41] User Interface Designer: and one more feature is we we have a holder for this remote which is an oyster shape. A shell shape.
+[12:45] Marketing Expert: Mm-hmm.
+[12:48] Marketing Expert: For the snail, yeah, mm-hmm, we have the snail shell. He goes right back into his shell. Well you know I think we could do something really funny with this too because the snail is known to be slow and we could have some sort of little comic effect on our marketing about how this is a rapid snail or something like that you know that would, that would really work. So
+[12:49] User Interface Designer: Yes, yes.
+[12:49] Project Manager: Right, mm-hmm.
+[12:49] Industrial Designer: Yeah. So it is yeah, yeah shell.
+[12:50] Project Manager: Mm-hmm.
+[12:50] User Interface Designer: Yes, snail shell. Yes.
+[12:53] Project Manager: Right.
+[12:58] Industrial Designer: Mm-hmm.
+[13:04] User Interface Designer: Mm-hmm.
+[13:04] Industrial Designer: Mm.
+[13:06] User Interface Designer: Y Yes
+[13:06] Industrial Designer: Yeah, of course, yeah.
+[13:09] Project Manager: Now what, what are our special features for the marketing? That's really the voice recognition that's really unusual
+[13:16] Marketing Expert: I think voice recognition is our big selling point 'cause nobody else seems to have that in in this price range.
+[13:19] Industrial Designer: Mm. Mm-hmm. Mm.
+[13:22] Project Manager: And then, and then the other thing would basically be sh shape or practicality of use.
+[13:29] Marketing Expert: Yep uh well I think that everybody's gonna say their remote control is practical. I think we have to, we have to dwell on on on the appearance. We're really gonna have the be the
+[13:30] Project Manager: You know.
+[13:36] Project Manager: Colours.
+[13:40] Project Manager: Mm-hmm.
+[13:44] Project Manager: Cutest.
+[13:44] Marketing Expert: cutest remote control on the block. So I think we have to play with the image, play with the snail image um play with the visual and then the voice recognition. I think those are the two things to push. The look
+[13:46] Industrial Designer: Mm.
+[13:46] Project Manager: Yeah.
+[13:55] Industrial Designer: Mm-hmm.
+[13:58] Marketing Expert: and the voice recognition. They're gonna be our two selling points.
+[14:02] Project Manager: Okay, now uh having said that
+[14:05] Marketing Expert: I'm supposed to make a little presentation, aren't I?
+[14:08] Project Manager: No, now this was our evaluation criteria which we uh just have done. Now we're gonna talk about financing.
+[14:11] Marketing Expert: Okay.
+[14:16] Marketing Expert: Ah, but in my instructions I think it said I was supposed to go to the board and do something. No?
+[14:21] Project Manager: Well, there is a production evaluation. Is that you?
+[14:25] Marketing Expert: Yeah, that's me.
+[14:26] Project Manager: But that's after the financing. See? Fi see?
+[14:27] Marketing Expert: Oh, okay. Sorry, sorry. Mm-mm.
+[14:33] Project Manager: Um.
+[14:35] Project Manager: Okay, we had looks and voice recognition. Okay now on the financing we bring up the mm there it is. Okay uh energy source we say that's battery, right?
+[14:54] Industrial Designer: Mm.
+[14:55] Marketing Expert: That's right.
+[14:56] Project Manager: Okay, now.
+[15:00] Project Manager: So we I guess we use one.
+[15:03] Industrial Designer: Yeah.
+[15:03] User Interface Designer: Yes.
+[15:05] Project Manager: What?
+[15:09] Project Manager: T cell or chart you are trying to change is protected. Well, that's nice.
+[15:14] Project Manager: She told me I could just ch change it here and then it would
+[15:18] Project Manager: It doesn't work.
+[15:21] Project Manager: Hmm.
+[15:24] Marketing Expert: Can you just fill it in in the yellow boxes? Or
+[15:27] Project Manager: Oh, okay yeah, okay, let's see. Okay, one, okay. Oh go away. Um kinetic source so that's in the energy source that's all we need. Uh electronics, simple chip on print? Is that's what we're using? One of those?
+[15:27] Industrial Designer: Yeah.
+[15:29] User Interface Designer: Yes.
+[15:38] Industrial Designer: Mm-hmm.
+[15:42] Industrial Designer: Yeah, yeah.
+[15:42] User Interface Designer: Yes.
+[15:45] Project Manager: Come on. Okay, one. Uh regular chip on print. No.
+[15:52] Industrial Designer: No.
+[15:52] Project Manager: That's all we need, the one case, uncurved flat, single curved, double curved.
+[15:53] Industrial Designer: Yeah.
+[15:59] Marketing Expert: Well.
+[16:02] Industrial Designer: This is a
+[16:03] User Interface Designer: Single curve? Mm.
+[16:05] Marketing Expert: I guess it's double curved.
+[16:07] Project Manager: Double curved? One of those?
+[16:09] Marketing Expert: Mm-hmm.
+[16:12] Project Manager: Case materi s supplements. Plastic we said, right?
+[16:15] Industrial Designer: Yeah.
+[16:15] User Interface Designer: Plastic.
+[16:18] Project Manager: Uh wood, rubber?
+[16:19] Marketing Expert: Rubber, because we're gonna have the soft buttons.
+[16:20] Industrial Designer: Yeah.
+[16:22] Project Manager: Uh but, yes but
+[16:24] Industrial Designer: I think uh that is uh f for rubbers that is uh yeah case material.
+[16:27] Project Manager: That's just for the case material, so special colours though, we having that, right?
+[16:28] User Interface Designer: Is this for the case? Yes.
+[16:29] Marketing Expert: Oh okay, the mm-hmm, mm' kay.
+[16:32] Industrial Designer: Mm-hmm.
+[16:32] User Interface Designer: Yes.
+[16:33] Marketing Expert: Mm-hmm.
+[16:35] Project Manager: And then we have to interface push buttons.
+[16:39] Marketing Expert: Mm-hmm.
+[16:39] User Interface Designer: Yes.
+[16:43] Project Manager: Scroll wheel, no. Integrated scroll wheel, L_C_ display?
+[16:47] Marketing Expert: No, 'cause we didn't put the clock in it after all, right?
+[16:48] User Interface Designer: No.
+[16:49] Project Manager: Button.
+[16:51] Industrial Designer: Yeah.
+[16:51] Project Manager: No.
+[16:52] Marketing Expert: Mm-hmm.
+[16:52] Project Manager: Uh, button supplement special colour?
+[16:53] User Interface Designer: Speci
+[16:55] User Interface Designer: Yes
+[16:57] Project Manager: Special form?
+[16:59] User Interface Designer: Yes d we do have special form.
+[16:59] Marketing Expert: Yes.
+[17:02] Project Manager: And special material, rubber, wood, yes.
+[17:05] Industrial Designer: Yeah.
+[17:07] Project Manager: Okay.
+[17:10] Project Manager: Total seven point six whatever that means.
+[17:14] Industrial Designer: Uh, I think that's the price.
+[17:16] User Interface Designer: One two three four five six seven eight nine
+[17:16] Project Manager: That's the price.
+[17:18] Industrial Designer: Maybe it is it just n
+[17:19] Project Manager: Mm? Eight, eight point two.
+[17:26] User Interface Designer: Nine points, okay, yes.
+[17:26] Project Manager: That's hmm?
+[17:29] Project Manager: Eight point two, right?
+[17:32] Project Manager: So, we looks like we are
+[17:35] Project Manager: well within budget.
+[17:36] Industrial Designer: Yeah.
+[17:36] Marketing Expert: Mm-hmm.
+[17:36] User Interface Designer: Okay.
+[17:37] Project Manager: Okay.
+[17:40] Project Manager: I guess I should save this I suppose, huh?
+[17:42] Marketing Expert: Yeah.
+[17:48] Project Manager: Oops.
+[17:59] Project Manager: Uh-huh huh huh.
+[18:04] User Interface Designer: On the desktop.
+[18:06] Project Manager: I just tried that. My documents, computer. My compu Ah oh here it is, yes.
+[18:07] Industrial Designer: AMI. AMI should for
+[18:16] Project Manager: Okay, fine. Save.
+[18:21] Project Manager: Okay good, so that's the good news. We gonna be popular. Um.
+[18:25] Industrial Designer: Yeah.
+[18:25] Marketing Expert: Mm-hmm.
+[18:31] Project Manager: So that uh I think financing was pretty simple.
+[18:34] Marketing Expert: Mm-hmm.
+[18:35] Project Manager: Now we would like to have a presentation by the marketing expert on production evaluation.
+[18:42] Marketing Expert: Okay, I'll take my file down so you can bring it up.
+[18:57] Marketing Expert: 'Kay should be able to get it now.
+[19:02] Marketing Expert: 'Kay, why don't you move just to the next slide right away.
+[19:05] Project Manager: You wanna go to the next slide? Okay.
+[19:06] Marketing Expert: Yeah right away. Okay, well uh obviously my method for uh s m the marketing of this thing is first to ask the big question, will it sell? And I think we should show this prototype to people from various age and socio-economic groups and see about any fine tuning that maybe little things we haven't thought of. We can't accept every suggestion of course, but maybe we just need to get a few. And show the the prototype to consumer research groups, we don't s want somebody to suddenly come to us and tell us that this button is toxic and you know some child will swallow it and then we won't sell any. So we have to get some input from those people. And then after that we just have to go with our best intuition and you know we like it, we think it's good, we're gonna get behind it and sell it. Um, next slide please.
+[19:25] User Interface Designer: Okay.
+[19:26] Industrial Designer: Mm-hmm.
+[19:30] Industrial Designer: Yeah.
+[19:40] Industrial Designer: Mm-hmm.
+[19:43] Industrial Designer: Mm.
+[19:45] Industrial Designer: Mm-hmm.
+[19:57] Marketing Expert: Okay, now the things that I was thinking and th my wish list has really been realised in this prototype. I wanted the shape to be biomorphic, I didn't want anything with angles and all square, I wanted it to be comfy and roundy so we we've got that. The size is small, the colour's bright and warm which is what we wanted. We wanted the feel to be as soft as possible, we'll have the soft buttons and the way this is shaped, even though it's gonna be hard plastic, it feels good in your hand so that's nice. And functionality I put last on my list because people aren't going to use it before they buy it. So paradoxically the other features, in other words, the look, the feel um and the shape, that's what people are gonna get in the store. They don't have a television in the store, they can't play with it.
+[20:20] Industrial Designer: Mm-hmm.
+[20:38] User Interface Designer: Fee selling.
+[20:40] Industrial Designer: Yeah.
+[20:43] User Interface Designer: Yes.
+[20:43] Industrial Designer: Yeah.
+[20:43] Marketing Expert: Um so they'll be our main selling points. So um th those have been fulfilled by your prototype and go ahead to the next slide please. Okay, so um the shape um I think is a a one. That's really, really excellent shape. The size is small um and th these points are in the importance for the, for the marketing, these aren't i in how I feel. I think that it's I think that it's plenty small enough to sell but I think we're sort of right the scale is one to seven. I think we're sort of right in the middle as far as c other competitors.
+[21:21] User Interface Designer: Okay.
+[21:24] Marketing Expert: And our colour I think is great. The colours are bright and warm and we really do great job there. And given um the constraints that we had I think we got it as soft as possible. And then functionality um I think you did a really good job on functionality, obviously we could have ad added different functions but then we'd disturb something else so I would say that we got to a five out of seven on on functionality. So I think that basically we've got a great product and we can get off and running with it.
+[21:50] User Interface Designer: Okay.
+[21:50] Industrial Designer: Mm-hmm.
+[21:53] Industrial Designer: Yeah.
+[21:54] Project Manager: Um I just realised one thing. In the financing there was no room for our voice recogniser.
+[21:57] Marketing Expert: Yes.
+[22:02] User Interface Designer: Yes.
+[22:02] Marketing Expert: Ah.
+[22:03] Industrial Designer: Yeah.
+[22:04] Project Manager: And uh I don't know how we can evaluate that or how we can include that, too.
+[22:11] Marketing Expert: Well, um we had what, eight eight euros twenty as our cost?
+[22:15] Project Manager: Eight, eight twenty, yes.
+[22:16] Industrial Designer: Eight twenty so
+[22:17] Marketing Expert: And so we've got we've still got four euros to go to spend.
+[22:17] Industrial Designer: We have um four euros, yeah
+[22:20] Project Manager: I mean maximum we have another four point three euros I mean four thirty.
+[22:24] Marketing Expert: Mm-hmm. Well um that's
+[22:27] Project Manager: But I mean we have no way of presenting that to management as you know as a f finished, as a finished product and saying okay with the voice recogniser that costs so much.
+[22:40] Marketing Expert: Mm-hmm.
+[22:42] Project Manager: So um we just have to beware of that. I mean and know whether the four thirty will really cover that.
+[22:46] Industrial Designer: Yeah.
+[22:51] Marketing Expert: Well as we know in today's technic technological world you can do just about anything at any price, the the the problem is quality. So we're just gonna have to settle for whatever quality that will buy us. And um it may not be the greatest quality but it may sell anyway. As we've seen with so many of these kinds of products.
+[22:51] Industrial Designer: Yeah.
+[22:59] Industrial Designer: Yeah.
+[23:01] Industrial Designer: Yeah, yeah.
+[23:02] User Interface Designer: Yes, yes.
+[23:09] Industrial Designer: Yeah, still.
+[23:09] Project Manager: Yeah.
+[23:11] Industrial Designer: Yeah.
+[23:14] Project Manager: I'm sorry to interrupt then but I just uh recog I just remembered that there was no that that was not um included uh that there was no room for any special features, okay? So to beware of that. You wanna go to this next slide, marketing expert?
+[23:22] Industrial Designer: Included, yeah.
+[23:25] Industrial Designer: Hmm, hmm
+[23:27] User Interface Designer: Yeah mm.
+[23:32] Marketing Expert: Uh, well I isn't this my last slide? Maybe. Go ahead. I think that was my last slide, yeah. Um.
+[23:35] Project Manager: I dunno. Yes it is. Mm-hmm.
+[23:42] Marketing Expert: Mm okay.
+[23:45] Marketing Expert: And I'm supposed to present this scale on the whiteboard. Um and we're supposed to talk about those things as a team now, so if you put my last slide back up there.
+[23:56] Project Manager: Oh.
+[23:58] Marketing Expert: I'm sorry I've um forgot to do that, um.
+[24:02] Project Manager: Why? Wh why you need that up?
+[24:06] Marketing Expert: Hmm? Well because I can't remember what I put on there.
+[24:09] Marketing Expert: Okay. Now I'm supposed to see how long my leash is here.
+[24:16] Project Manager: I think you can make it there.
+[24:17] Marketing Expert: Mm 'kay.
+[24:19] Marketing Expert: You ready. So now we're all supposed to say what we think. Um okay so on shape
+[24:32] Marketing Expert: I gave it a one.
+[24:34] Marketing Expert: Wait what would you ra uh one being good and seven being the worst. Um what do you think the shape is? One, okay, and Be Betsy?
+[24:38] User Interface Designer: Worse, okay.
+[24:41] User Interface Designer: One.
+[24:44] Project Manager: Yes I think uh shape is one.
+[24:46] Industrial Designer: Yeah, even my yeah, shape is one.
+[24:46] Marketing Expert: Okay, uh-huh one, okay. And how about on size?
+[24:56] Marketing Expert: On size
+[24:57] Project Manager: You you gave it a four.
+[24:58] Marketing Expert: I gave it a four, yeah, I feel it's just average.
+[25:02] Project Manager: Um, I dunno.
+[25:05] Project Manager: I think I would give it at least a two.
+[25:07] Marketing Expert: Okay.
+[25:09] User Interface Designer: One.
+[25:10] Marketing Expert: Mm-hmm.
+[25:11] Industrial Designer: Yeah, even I think it is one. It's quite small.
+[25:13] Marketing Expert: Okay. Okay you're the designer, of course you wanna give it a one. Um and then how about how we doing on colour?
+[25:25] Project Manager: Colour uh I
+[25:26] Marketing Expert: Colour, I gave it a one. I really like all those nice bright, warm colours.
+[25:28] Project Manager: One. I I like the colours. One.
+[25:31] User Interface Designer: One. Yes.
+[25:31] Marketing Expert: One.
+[25:32] Industrial Designer: Yeah, one.
+[25:33] Marketing Expert: One, one, one, okay. And how about the feel?
+[25:41] Marketing Expert: Taking into um consideration texture and comfort in the hand.
+[25:47] Project Manager: Uh, I think I would give it a two.
+[25:50] Marketing Expert: Okay, I gave it a three, two, yeah? Three.
+[25:52] User Interface Designer: I'll give three.
+[25:55] Industrial Designer: Uh maybe two, yeah.
+[25:56] Marketing Expert: Two, okay.
+[25:59] Marketing Expert: And the next is functionality where I I admit I was a little hard on our team here, but
+[26:09] Project Manager: Well it's also you can't really try it out uh the other things you have have more is are more tangible so from that point of view but um
+[26:11] Marketing Expert: Yeah.
+[26:14] Marketing Expert: Mm-hmm.
+[26:20] Project Manager: I'll give it a three.
+[26:22] Marketing Expert: Okay.
+[26:26] User Interface Designer: Two.
+[26:26] Marketing Expert: Two, okay.
+[26:28] Industrial Designer: Uh three, mm-hmm.
+[26:29] Marketing Expert: Three?
+[26:31] Marketing Expert: Okay.
+[26:34] Marketing Expert: Well, um.
+[26:37] Marketing Expert: It looks like we've got got ourselves a pretty good product. Um the functionality's the only place where maybe we have to think about m m maybe, heaven forbid, having another meeting. But um otherwise I think we're we're ready to go to go with this product.
+[26:51] Industrial Designer: Yeah.
+[27:00] Marketing Expert: Anybody else have any other comments or any other things that we feel we should evaluate?
+[27:10] Project Manager: Uh.
+[27:17] Project Manager: Here is what we looking at uh satisfaction on for example room for creativity.
+[27:25] Project Manager: Um.
+[27:29] Project Manager: Is there more room for creativity or are we absolutely happy?
+[27:35] User Interface Designer: We can always improve, yes.
+[27:35] Industrial Designer: Maybe we can yeah, include some more buttons and uh um yeah features. We can make the buttons few buttons smaller. Uh I think they are quite big, so I think I I mean we can just have small buttons and more buttons in that case. If we want to have more features than that.
+[27:38] User Interface Designer: Yes, features.
+[27:54] Marketing Expert: Mm-hmm. Well then again if we're gonna um do the speech recognition thing we're gon there gonna be some buttons that are gonna have to be added for that for the recording of the the speech. So that that's where we're gonna have to do maybe we can eliminate one of the mute buttons, instead of having two mute buttons. And um then maybe we can do something with the um
+[28:01] Industrial Designer: Yeah.
+[28:03] Industrial Designer: Yeah, definitely.
+[28:04] User Interface Designer: Yes.
+[28:06] User Interface Designer: Voices.
+[28:07] Industrial Designer: Mm-hmm.
+[28:13] Industrial Designer: Yeah, definitely, yeah, two mu mute buttons.
+[28:13] User Interface Designer: Yes. Yes.
+[28:24] Marketing Expert: the volume control. Maybe we can put that all on one button.
+[28:28] Industrial Designer: Hmm.
+[28:29] Marketing Expert: Um and a couple of other th maybe comp uh consolidate some of the usage an and see what we can do with that.
+[28:38] Industrial Designer: Mm-hmm.
+[28:38] Project Manager: Y um al always bearing in mind that right now we are of course well within the budget and that we still you know we probably can't, with this particular item, we probably can't just uh add a whole lot of more things. Uh um we need uh you know we need to leave space money-wise for the voice recogniser.
+[28:38] User Interface Designer: And maybe
+[28:42] Marketing Expert: Mm-hmm.
+[28:52] Marketing Expert: No.
+[28:53] Industrial Designer: Yeah.
+[29:01] Marketing Expert: Mm-hmm.
+[29:04] Marketing Expert: Mm-hmm.
+[29:04] User Interface Designer: Yes.
+[29:05] Industrial Designer: Mm-hmm.
+[29:05] Project Manager: Um.
+[29:09] Project Manager: So th the question really is how do we feel with the project process? Uh, um are we happy with the creativity that has passed here or we're not happy with the new product we created or that was created?
+[29:28] Project Manager: Uh I think personally I think uh I'm pretty happy.
+[29:31] Marketing Expert: I'm pretty happy with it too, yeah um, it's something I think I can market. Yeah.
+[29:32] Industrial Designer: Even I'm happy.
+[29:32] Project Manager: Um an
+[29:35] Industrial Designer: Yeah.
+[29:36] Project Manager: and then the next question is are we happy with the leadership of this project? Uh
+[29:42] Marketing Expert: I think you've done a good job, Miss leader.
+[29:44] User Interface Designer: Yes, yes you've done a good job.
+[29:44] Industrial Designer: Yeah, yeah, definitely.
+[29:45] Project Manager: And I think team work I think was very very good, I think we really yeah.
+[29:49] Marketing Expert: Yeah I d I do too I think we worked well together as a team, yeah. Mm-hmm.
+[29:49] Industrial Designer: Mm-hmm. Yeah. Yeah.
+[29:52] Project Manager: Mm-hmm. And uh I think we are we happy with the means we used? We used whiteboard, we didn't use digital p well digital pens I guess are these things.
+[30:03] Marketing Expert: Yeah maybe we could've used the whiteboard a little bit more, yeah, we didn't use that enough.
+[30:04] User Interface Designer: Whiteboard more, yes, yes.
+[30:06] Industrial Designer: Yeah, probably.
+[30:07] Project Manager: Yes, we could. Uh, it's maybe not in the best position in the room um you know like sometimes it's positioned so that it's much better visible for everybody and I think from that point of view we sort of ignored it a little bit.
+[30:18] Marketing Expert: Mm-hmm.
+[30:21] Marketing Expert: And we used the slide because it was better positioned.
+[30:22] User Interface Designer: Yes.
+[30:23] Project Manager: Yes, I think so, I think absolutely, and fortunately we all had slides presentation which made it a little easier. Um did we new did we find new ideas? I think we did.
+[30:24] Industrial Designer: Yeah.
+[30:24] User Interface Designer: No.
+[30:25] Marketing Expert: Mm I think that's true mm-hmm.
+[30:30] Industrial Designer: Hmm.
+[30:30] Marketing Expert: Mm-hmm.
+[30:30] User Interface Designer: Yes.
+[30:35] Industrial Designer: Yeah, many.
+[30:35] Marketing Expert: I think we were we were very good, yeah, mm.
+[30:37] Project Manager: I think we we did, uh in more than one respect and uh so I think we did very well here.
+[30:40] Marketing Expert: Mm-hmm.
+[30:46] Marketing Expert: Okay.
+[30:47] Project Manager: Are the costs within budget? Yes, yes. Uh is the project evaluated? Yes. Um then celebration.
+[30:51] Marketing Expert: Yes, yes.
+[30:53] Industrial Designer: Yeah.
+[30:53] Marketing Expert: Celebration. Today we have apple juice and after we sell m million of 'em we have champagne.
+[30:54] User Interface Designer: Cel celebration yes, yes.
+[30:55] Industrial Designer: Ah.
+[31:04] Project Manager: So I I thank you all very much. Um, I think this was very good and um
+[31:09] Marketing Expert: Mm-hmm.
+[31:09] Industrial Designer: Yeah.
+[31:12] Project Manager: I think we did come up with a new product that's uh feasible. Feasible from the production point of view and feasible from a marketing point of view.
+[31:16] Marketing Expert: Mm-hmm.
+[31:20] Marketing Expert: Mm-hmm.
+[31:22] Project Manager: So, thank you.
+[31:22] Marketing Expert: Okay.
+[31:23] Industrial Designer: Yeah.
+[31:24] User Interface Designer: Thank you.
+[31:24] Industrial Designer: Thank you very much.
+[31:24] Marketing Expert: Okay. Watch I I have my cord behind you here. Okay.
+[31:28] User Interface Designer: Okay.
+[31:34] Project Manager: I always get it on here, but getting it off is
+[31:36] Industrial Designer: Do we do we have some time left?
+[31:41] Industrial Designer: Uh you have
+[31:42] User Interface Designer: They say it's forty minutes.
+[31:44] Project Manager: Ah yes we have time later but we don't
+[31:44] Marketing Expert: But we we were told we could end the final meeting at any time, whenever we felt we were finished.
+[31:48] User Interface Designer: Okay.
+[31:49] Industrial Designer: Oh, alright.
+[31:58] Marketing Expert: It'll take me the rest of the time to get my microphone out from my necklace.
+[32:05] Marketing Expert: Oh, there we go.

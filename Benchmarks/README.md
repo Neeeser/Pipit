@@ -5,6 +5,9 @@ meeting output with published reference transcripts. The benchmark covers
 transcription, speaker separation, attribution, chunking, and transcript
 assembly together.
 
+`pipit-eval summaries` scores the summary and notes a language model writes
+from a transcript. See [Summary evaluation](#summary-evaluation).
+
 ## Repository data
 
 | Path | Contents |
@@ -12,6 +15,9 @@ assembly together.
 | `ground-truth/*.json` | Reference speakers, turns, words, and word timings |
 | `manifest.json` | Corpus files, checksums, partitions, windows, and suite rosters |
 | `baselines.json` | Recorded results keyed by engine, diarizer, and case |
+| `summaries/transcripts/*.txt` | Full AMI meeting transcripts in the form Pipit sends a model |
+| `summaries/truth/*.json` | Answer keys: action items, decisions, open questions, and topics |
+| `summaries/human/*.json` | The summaries the AMI annotators wrote, kept for comparison |
 
 Audio is downloaded into `~/Library/Caches/pipit-bench`. The repository contains
 no recordings. CI rejects committed audio files.
@@ -131,6 +137,58 @@ gate.
 For repeated runs, numeric comparisons use the mean. The repeated 8-gram check
 uses the worst run.
 
+## Summary evaluation
+
+`pipit-eval summaries` sends each meeting in `summaries/transcripts` through the
+client the app would use for a model, with the app's summary prompt, and scores
+the answer against `summaries/truth`:
+
+```sh
+scripts/eval.sh summaries \
+  --model ollama:qwen3.5:4b \
+  --model openai:gpt-6-luna \
+  --repeats 3
+```
+
+`--instructions FILE` scores a draft of the prompt without rebuilding. A model
+is `provider:model` with provider `openai`, `openrouter` or `ollama`, or
+`custom:<base url>|<model>` for any chat completions server. OpenAI and
+OpenRouter keys come from `OPENAI_API_KEY` and `OPENROUTER_API_KEY`, or from
+the keys Pipit stores in the keychain.
+
+Each answer key lists every action item, decision, and open question in its
+meeting with the line it rests on. A model wrote the keys from the transcripts
+alone, and they were then checked by hand against the transcripts. Items the
+AMI annotators also listed carry `must_find`. The annotators' own summaries
+list far fewer items, a median of two action items per meeting, so they set a
+floor rather than the key.
+
+Scoring has two parts:
+
+- Matching, with no judge. A model's item matches a key item of the same kind
+  when their embeddings are close, by OpenAI's small embedding model unless
+  `--embedder ollama:<model>` names a local one. The pairing is one to one.
+  `near-misses.txt` lists the closest pairs either side of the threshold.
+- A judge, `openai:gpt-6-luna` unless `--judge` names another. It checks the
+  overview, whether each note is true to the transcript, whether the notes
+  cover each key topic, and whether items that matched nothing were said or
+  made up. Every result records the judge and the version of its
+  instructions. Compare scores only when both match.
+
+The command prints three tables: what each model found, the judge's grades,
+and reliability. Answers, verdicts, and embeddings are kept in the output
+folder, `bench-scratch/summaries/<time>` unless `--out` names one. A rerun with
+the same `--out` only asks for what is new.
+
+Rebuild the transcripts and human summaries from the pinned annotations:
+
+```sh
+scripts/fetch-bench-audio.sh --annotations ami
+python3 scripts/build-summary-transcripts.py \
+  --annotations ~/Library/Caches/pipit-bench/ami_public_manual_1.6.2.zip \
+  ES2004a ES2004b ES2004c ES2004d IS1009b IS1009c IS1009d TS3003b TS3003c TS3003d
+```
+
 ## Data provenance
 
 `scripts/fetch-bench-audio.sh` downloads recordings and annotation archives at
@@ -146,8 +204,10 @@ Ground truth comes from these sources:
 - [NOTSOFAR-1](https://huggingface.co/datasets/microsoft/NOTSOFAR), evaluation
   release `240825.1_eval_full_with_GT`
 
-The derived word text, timings, and speaker identifiers are distributed under
-the source corpora's Creative Commons Attribution 4.0 licenses. The recordings
+The derived word text, timings, and speaker identifiers, and the summary
+transcripts, human summaries, and answer keys derived from AMI, are
+distributed under the source corpora's Creative Commons Attribution 4.0
+licenses. The recordings
 remain in the local cache and are not redistributed.
 
 Regenerate the committed truth with `scripts/build-bench-truth.py`. The script

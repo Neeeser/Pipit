@@ -1,0 +1,173 @@
+{
+  "meeting": "ES2004a",
+  "overview": "This was the kickoff meeting of a four-person team (Project Manager, Marketing Expert, User Interface Designer, Industrial Designer) asked to design a new remote control that is original, trendy and easy for everyone to use. The Project Manager went through the agenda and the three design phases, the team practised with the whiteboard by drawing favourite animals, and the Project Manager gave the finances: a 25 euro selling price, a 12.50 euro production cost and a 50 million euro profit target, for an international market. The team then traded experiences with remote controls: too many small buttons and unclear symbols, the appeal of a universal remote, an LCD menu like a mobile phone, a large-print option and a flip-top case, with open concerns about older users and about cost. They agreed the remote should be simple and user-friendly for all ages and should reflect the company's fashion-led image, and plastic is acceptable. Everyone now goes off for about half an hour of individual work before the next meeting, where the Project Manager will present again.",
+  "action_items": [
+    {
+      "task": "Each team member does their individual work for the functional design phase before the next meeting in about half an hour",
+      "owner": "",
+      "due": "Next meeting, in about half an hour",
+      "at": "16:10",
+      "quote": "we're all gonna go off and do our individual things",
+      "must_find": true
+    },
+    {
+      "task": "Make the project figures (selling price, cost, profit aim) available later, possibly in the shared folder",
+      "owner": "Project Manager",
+      "due": "",
+      "at": "09:50",
+      "quote": "I could put it in the shared folder or something",
+      "must_find": false
+    },
+    {
+      "task": "Prepare another PowerPoint presentation for the next meeting",
+      "owner": "Project Manager",
+      "due": "Next meeting",
+      "at": "16:21",
+      "quote": "I get to do another fantastic PowerPoint presentation",
+      "must_find": false
+    }
+  ],
+  "decisions": [
+    {
+      "text": "The remote is aimed at everyone: it must be user-friendly for all age groups, not a particular segment such as the business market",
+      "at": "10:38",
+      "quote": "it's everyone user-friendly to everyone",
+      "must_find": false
+    },
+    {
+      "text": "The product is for the international market, and different languages are not a key concern",
+      "at": "10:53",
+      "quote": "I don't think it's a case of worrying about different languages",
+      "must_find": false
+    },
+    {
+      "text": "The remote should be a universal control that integrates all devices into one handset",
+      "at": "11:48",
+      "quote": "you wanna integrate everything into one",
+      "must_find": false
+    },
+    {
+      "text": "The remote should look simple and uncluttered, avoiding many tiny buttons with tiny labels",
+      "at": "12:14",
+      "quote": "I hate looking at a control and seeing a million tiny little buttons",
+      "must_find": false
+    },
+    {
+      "text": "The design should reflect the company's image of putting fashion into electronics",
+      "at": "16:24",
+      "quote": "we put the fashion into electronics",
+      "must_find": false
+    },
+    {
+      "text": "The casing does not need to be metal; lightweight moulded plastic is acceptable and can still look good",
+      "at": "16:53",
+      "quote": "we don't have to use metal",
+      "must_find": false
+    }
+  ],
+  "open_questions": [
+    {
+      "text": "Whether to undercut the price of current remotes (about 20 pounds) or whether a lower price would make the product look like a cheap option",
+      "at": "10:08",
+      "quote": "is it going to make our product look a cheapie-cheapie option?",
+      "must_find": false
+    },
+    {
+      "text": "Whether the 50 million euro profit aim is for the first year; the Project Manager only presumed so",
+      "at": "10:30",
+      "quote": "Yi yes, um yeah, I presume so.",
+      "must_find": false
+    },
+    {
+      "text": "How to make the remote usable for the older generation (the age gap), whatever design is chosen",
+      "at": "13:53",
+      "quote": "that's another issue how we tackle that",
+      "must_find": false
+    },
+    {
+      "text": "What quality of screen could be afforded within the 12.50 euro production cost; probably only a black and white LCD",
+      "at": "14:44",
+      "quote": "how much of a excellent screen you could get",
+      "must_find": true
+    },
+    {
+      "text": "Whether a flip-top design is affordable given its cost implications",
+      "at": "15:48",
+      "quote": "I think that's a cost thing",
+      "must_find": true
+    },
+    {
+      "text": "Whether using plastic actually makes the remote cheaper",
+      "at": "16:53",
+      "quote": "I don't know if using plastic does make it cheaper",
+      "must_find": false
+    }
+  ],
+  "topics": [
+    {
+      "title": "Opening, agenda and project brief",
+      "start": "01:20",
+      "end": "02:48",
+      "points": [
+        "First meeting of the team; agenda: get to know each other, tool training, project plan, discuss own ideas, in about 25 minutes.",
+        "The team is developing a remote control that should be original (not already in the shops), trendy, appealing to a wide market and user-friendly from grandparents to children.",
+        "The project runs in three phases: functional design (individual work on what the product needs to do and how), conceptual design, and detailed design (how to put it into practice)."
+      ]
+    },
+    {
+      "title": "Whiteboard practice: favourite animals",
+      "start": "02:50",
+      "end": "09:21",
+      "points": [
+        "Each person drew their favourite animal on the whiteboard and named its characteristics, to practise with the pens.",
+        "Project Manager: a tiger, described as majestic, independent and proud.",
+        "User Interface Designer: a sitting dog, described as supportive (a best friend that does not discriminate), loyal and intuitive.",
+        "Industrial Designer: began as a T-Rex, turned into a pelican and ended as a crocodile, described as scary and strong.",
+        "Marketing Expert: an eagle, described as independent, free-spirited and intrepid."
+      ]
+    },
+    {
+      "title": "Finances and target market",
+      "start": "09:23",
+      "end": "11:06",
+      "points": [
+        "Selling price is 25 euros, estimated at about 17 pounds (roughly 1.4 euros to the pound).",
+        "The Industrial Designer noted that remotes currently on the market cost about 20 pounds; the Marketing Expert asked whether to undercut that price or whether it would make the product look cheap.",
+        "Production cost is 12.50 euros, half of the selling price.",
+        "The profit aim is 50 million euros, presumed to be for the first year.",
+        "The market is international (for example Australia and America) and covers all age groups, not a business niche; different languages are not a key concern."
+      ]
+    },
+    {
+      "title": "Experiences with remote controls and first design ideas",
+      "start": "11:15",
+      "end": "16:08",
+      "points": [
+        "The Project Manager had a cheap universal remote programmed for three videos, a TV and an amplifier; it kept losing the signals and had to be re-programmed, but having one remote instead of six was good.",
+        "The Marketing Expert only uses the basic functions (on, off, volume, channel) and wants a remote usable by someone like her.",
+        "Complaints about current remotes: too many tiny buttons with tiny labels, hunting for buttons like teletext, and symbols people are meant to understand but do not.",
+        "The Project Manager suggested main buttons on the front with a section that opens up for other functions such as sound options and recording.",
+        "The Marketing Expert and User Interface Designer suggested a small LCD display with menus, like a mobile phone, to reduce the number of buttons.",
+        "The Project Manager raised older users: her grandfather can answer a mobile but not text; the Industrial Designer's grandfather is better at teletext than he is.",
+        "The Industrial Designer said the remote needs to be self-intuitive, like picture-based phone menus; the Project Manager finds Windows-based phones confusing.",
+        "The Industrial Designer doubted a good screen fits the 12.50 euro cost and assumed a black and white LCD.",
+        "The Marketing Expert suggested a large-print button for older users, as in large-print books; teletext has a similar option.",
+        "The Project Manager suggested a dual design: basic buttons for play, volume and programme, plus a menu with obvious pictures for recording and similar functions.",
+        "The Marketing Expert suggested a flip-top remote for a bigger screen; the User Interface Designer said it could look smaller and less bulky; the Project Manager flagged cost.",
+        "The Marketing Expert said it need not be as stylish as a mobile phone and could be lightweight, easily moulded plastic."
+      ]
+    },
+    {
+      "title": "Company image and close",
+      "start": "16:10",
+      "end": "17:28",
+      "points": [
+        "The Project Manager closed the meeting: about half an hour of individual work before the next meeting, where she will present again.",
+        "The Industrial Designer pointed out the company website's slogan about putting fashion into electronics, so design matters, though plastic can still look good.",
+        "The Marketing Expert clarified her point was only that metal is not needed and presumed plastic is cheaper.",
+        "The Project Manager mentioned Sky remotes (moulded, distinctive) and Telewest remotes (silver plastic, smarter) as examples to think about."
+      ]
+    }
+  ],
+  "human_not_covered": []
+}

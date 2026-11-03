@@ -17,8 +17,11 @@ import PipitSpeakers
 //   pipit-eval echo      --meeting DIR [--json OUT] [--offset SECONDS] [--full-id]
 //   pipit-eval reprocess --meeting DIR [--recognize] [--support DIR] [--backups DIR]
 //   pipit-eval bench     [--suite ami-core] [--engine parakeet ...] [--diarizer local]
+//   pipit-eval summaries --model ollama:qwen3.5:4b [--model openai:gpt-6-luna ...]
 //
 // The audio never leaves the machine and nothing here writes to a meeting.
+// `summaries` sends public corpus transcripts to the models it is told to score
+// and to its judge, which may be a cloud provider.
 
 struct Arguments {
     var command: String
@@ -44,6 +47,7 @@ struct Arguments {
     var backups: URL?
     var applicationSupport: URL
     var bench: BenchCommand.Options
+    var summaries = SummaryEvalCommand.Options()
 
     init?(_ raw: [String]) {
         guard let command = raw.first else { return nil }
@@ -78,6 +82,10 @@ struct Arguments {
             }
             if flag == "--recognize" {
                 recognize = true
+                continue
+            }
+            if flag == "--no-judge" {
+                summaries.judge = nil
                 continue
             }
             // Every flag left takes a value. A trailing one used to fall off
@@ -115,7 +123,16 @@ struct Arguments {
             case "--audio-dir": benchOptions.audioDirectory = URL(fileURLWithPath: value)
             case "--out": benchOptions.out = URL(fileURLWithPath: value)
             case "--baseline": benchOptions.baseline = URL(fileURLWithPath: value)
-            case "--repeats": benchOptions.repeats = max(1, Int(value) ?? 1)
+            case "--repeats":
+                benchOptions.repeats = max(1, Int(value) ?? 1)
+                summaries.repeats = benchOptions.repeats
+            case "--model": summaries.models.append(value)
+            case "--judge": summaries.judge = value
+            case "--embedder": summaries.embedder = value
+            case "--instructions": summaries.instructions = URL(fileURLWithPath: value)
+            case "--context":
+                guard let tokens = Int(value), tokens > 0 else { return nil }
+                summaries.contextTokens = tokens
             default: break
             }
         }
@@ -126,6 +143,9 @@ struct Arguments {
         benchOptions.engines = engines
         benchOptions.applicationSupport = support
         bench = benchOptions
+        summaries.meetings = benchOptions.meetings
+        summaries.out = benchOptions.out
+        summaries.benchmarks = benchOptions.benchmarks.appendingPathComponent("summaries", isDirectory: true)
     }
 }
 
@@ -175,6 +195,11 @@ func usage() -> Never {
                                  [--diarizer local|lseend|cloud] [--out FILE] [--baseline FILE]
                                  [--allow-missing-baseline] [--audio-dir DIR]
                                  [--repeats N] [--keep-scratch] [--resume]
+          pipit-eval summaries --model PROVIDER:MODEL [--model ...] [--case MEETING ...]
+                                 [--repeats N] [--instructions FILE] [--context TOKENS]
+                                 [--judge PROVIDER:MODEL | --no-judge] [--out DIR]
+                                 [--embedder openai:MODEL | ollama:MODEL]
+                                 # providers: openai, openrouter, ollama, custom:<url>|<model>
         """)
     exit(2)
 }
@@ -459,6 +484,10 @@ case "reanalyze":
 
 case "bench":
     let code = await BenchCommand.run(arguments.bench)
+    if code != 0 { exit(code) }
+
+case "summaries":
+    let code = await SummaryEvalCommand.run(arguments.summaries)
     if code != 0 { exit(code) }
 
 default:

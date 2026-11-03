@@ -1,0 +1,302 @@
+{
+  "meeting": "TS3003b",
+  "overview": "In the second meeting, on functional design, the Marketing Expert, User Interface Designer and Industrial Designer presented their research, and the Project Manager announced new requirements: a remote for the TV only, no teletext, a target market of forty plus, and the corporate image visible in the design. The team kept teletext anyway because people value it and it carries subtitles, chose to target elderly people (roughly sixty to eighty, still to be confirmed) with a simple, basic layout of number buttons, dropped the touchscreen, and agreed to focus on extras: a docking station with a locator beep and a small screen that explains each button. Whether both extras fit the budget and the exact age range of the target group are still open. For the next meeting the Industrial Designer works on the components concept, the User Interface Designer on the user interface concept, and trend watching is also due.",
+  "action_items": [
+    {
+      "task": "Prepare the components concept for the next meeting.",
+      "owner": "Industrial Designer",
+      "due": "next meeting",
+      "at": "35:05",
+      "quote": "the Industrial Designer will do the components concept",
+      "must_find": true
+    },
+    {
+      "task": "Prepare the user interface concept for the next meeting.",
+      "owner": "User Interface Designer",
+      "due": "next meeting",
+      "at": "35:05",
+      "quote": "User Interface Designer the user interface concept",
+      "must_find": true
+    },
+    {
+      "task": "Do the trend watching for the next meeting.",
+      "owner": "",
+      "due": "next meeting",
+      "at": "35:05",
+      "quote": "and the trend-watching",
+      "must_find": true
+    },
+    {
+      "task": "Keep the agreed target group, requirements and current trends in mind when preparing for the next meeting.",
+      "owner": "",
+      "due": "next meeting",
+      "at": "35:24",
+      "quote": "just keep in mind the things we've said about the target group",
+      "must_find": false
+    },
+    {
+      "task": "Research what extras elderly people would like in a new remote control.",
+      "owner": "Marketing Expert",
+      "due": "",
+      "at": "30:01",
+      "quote": "maybe we should do some research into",
+      "must_find": false
+    },
+    {
+      "task": "Look further into whether to target the really elderly, around sixty to eighty.",
+      "owner": "Marketing Expert",
+      "due": "",
+      "at": "34:10",
+      "quote": "I'd have to look into that a little more.",
+      "must_find": false
+    }
+  ],
+  "decisions": [
+    {
+      "text": "The remote controls only the TV, because supporting more devices would be too complex and take too long to market.",
+      "at": "17:38",
+      "quote": "we've uh got to design a um remote which is only suitable for T_V_",
+      "must_find": true
+    },
+    {
+      "text": "The corporate image must be visible in the design and in how the device works.",
+      "at": "19:02",
+      "quote": "putting the corporate image uh in our product",
+      "must_find": true
+    },
+    {
+      "text": "Teletext stays on the remote, against the new requirement to drop it, as long as it does not raise the cost much, because users rate it as important and it provides subtitles.",
+      "at": "24:34",
+      "quote": "Just that, that we just keep the teletext.",
+      "must_find": true
+    },
+    {
+      "text": "The remote gets a button that turns on big subtitles directly, aimed at elderly users.",
+      "at": "24:53",
+      "quote": "make a k a button ex for example for big subtitles",
+      "must_find": false
+    },
+    {
+      "text": "The target group is elderly people (discussed as roughly sixty to eighty) rather than the sixteen to forty-five group, since the company's new products are aimed at younger customers.",
+      "at": "23:13",
+      "quote": "maybe we can focus ourself on the elderly people",
+      "must_find": true
+    },
+    {
+      "text": "The remote has few buttons, to keep it simple.",
+      "at": "25:28",
+      "quote": "I think uh that's very important we have a few buttons.",
+      "must_find": true
+    },
+    {
+      "text": "The touchscreen display for device-specific functions is dropped, since the remote is only for TV.",
+      "at": "26:02",
+      "quote": "So we can s we can skip the display, so uh we don't need it.",
+      "must_find": true
+    },
+    {
+      "text": "The remote keeps a basic layout with number buttons instead of a scroll button or joystick, since elderly people are not used to scroll buttons.",
+      "at": "27:05",
+      "quote": "So perhaps we should s stick to the basic layout.",
+      "must_find": true
+    },
+    {
+      "text": "The team will focus on extras rather than on cutting the number of buttons.",
+      "at": "29:56",
+      "quote": "So we're just gonna focus on the extras?",
+      "must_find": true
+    },
+    {
+      "text": "The remote gets a docking station, kept simple enough to fit the budget.",
+      "at": "29:42",
+      "quote": "That's a good advantage point as well.",
+      "must_find": true
+    },
+    {
+      "text": "The remote can be located by an audio signal: a button on the docking station makes the remote beep.",
+      "at": "30:42",
+      "quote": "So audio signal should be possible as well.",
+      "must_find": true
+    },
+    {
+      "text": "The remote gets a small, simple (not touch) screen that explains what a button does when it is pressed, to make it easy to learn for elderly users.",
+      "at": "31:43",
+      "quote": "That's a good idea. So Some extra info. Feedback.",
+      "must_find": true
+    },
+    {
+      "text": "The remote should have a fancy design.",
+      "at": "32:09",
+      "quote": "Should be fancy to, fancy design",
+      "must_find": true
+    },
+    {
+      "text": "The remote should be easy to learn.",
+      "at": "32:09",
+      "quote": "fancy design, easy to learn",
+      "must_find": true
+    },
+    {
+      "text": "The remote uses default, simple materials such as plastic rather than high-tech materials, to keep it robust and cheap.",
+      "at": "32:44",
+      "quote": "elderly people don't mind if it's a titanium cover or just a plastic one",
+      "must_find": false
+    },
+    {
+      "text": "Different cultures are handled by selling versions for different language markets, using the explanation screen, rather than a language button.",
+      "at": "34:45",
+      "quote": "It's better to put it on different markets with it all.",
+      "must_find": true
+    }
+  ],
+  "open_questions": [
+    {
+      "text": "The Marketing Expert considers the forty-plus market small and uncritical, so a remote for it risks being a standard, non-innovative product.",
+      "at": "20:35",
+      "quote": "Besides that, I think the market for forty plus is like",
+      "must_find": true
+    },
+    {
+      "text": "It is unclear whether the budget allows both the docking station and the LCD screen; the Industrial Designer thinks they will have to choose one.",
+      "at": "31:04",
+      "quote": "I think we'll have to choose between the docking station or the screen",
+      "must_find": false
+    },
+    {
+      "text": "It is unknown whether the explanation screen fits into the costs.",
+      "at": "31:54",
+      "quote": "that would fit into the",
+      "must_find": false
+    },
+    {
+      "text": "The exact target age is not settled: forty plus in general, or the really elderly around sixty to eighty.",
+      "at": "33:08",
+      "quote": "let's um specify the target group",
+      "must_find": true
+    },
+    {
+      "text": "The Marketing Expert doubts that a TV-only remote for the forty-plus market can beat the competition, since that group is less critical and existing TV-only remotes already have few buttons.",
+      "at": "28:37",
+      "quote": "So I think it would be very hard to actually gain on the competition here.",
+      "must_find": false
+    }
+  ],
+  "topics": [
+    {
+      "title": "Opening and agenda",
+      "start": "00:56",
+      "end": "02:58",
+      "points": [
+        "This is the functional design phase; the aim is agreement on user requirements, technical function design and working design.",
+        "The air conditioning in wings C and E is being adapted and may cause trouble for a couple of days.",
+        "The Project Manager takes the minutes this time; each person presents for about seven minutes, followed by discussion of new project requirements and a decision on which control functions to include, all within forty minutes."
+      ]
+    },
+    {
+      "title": "Marketing Expert's research on user requirements",
+      "start": "03:02",
+      "end": "09:06",
+      "points": [
+        "Research used a usability lab with one hundred test subjects who were observed and filled out a questionnaire, plus market research.",
+        "75% find their remote ugly and 80% would spend more on a fancy-looking remote.",
+        "50% use only about 10% of the buttons, and 50% say their remote gets lost in the room.",
+        "Relevance on a one to ten scale: channel selection 10, volume 10, power 9, teletext 6.5; audio, video and channel settings are rarely used but still considered important.",
+        "Channel selection is used about 168 times per hour.",
+        "Users aged 16 to 45 are 60% of the market, like new functions, are critical and do not spend easily; users aged 46 to 65 are 40%, are less interested in features but spend more easily.",
+        "About a quarter link remotes with RSI and 34% find a new remote hard to learn.",
+        "His recommendations: target 16 to 45 with a fancy, future-oriented design, very few buttons, robust emphasised channel and volume buttons, possibly a docking station that makes the remote beep and recharges its batteries, and possibly an LCD screen, which younger users wanted; both would raise production costs."
+      ]
+    },
+    {
+      "title": "User Interface Designer's technical functions",
+      "start": "09:20",
+      "end": "15:04",
+      "points": [
+        "He proposed one remote for several devices (DVD, TV, stereo) while staying user friendly.",
+        "General functions stay as people know them, such as a red on/off button.",
+        "His preferred design: a touchscreen that shows only the functions of the selected device, with physical buttons to select the device.",
+        "Physical buttons should be large and simple so old and young people can use them.",
+        "The Industrial Designer worried a touchscreen would push the cost above the 12.50 euro budget; the User Interface Designer said a simple monochrome touchscreen costs about 20 euros or less.",
+        "The Industrial Designer also said a touchscreen is fragile and scratches easily; the Marketing Expert agreed this needed looking into."
+      ]
+    },
+    {
+      "title": "Industrial Designer's working design",
+      "start": "15:23",
+      "end": "17:02",
+      "points": [
+        "A button press closes a conductive disk on the plate, the chip identifies the button and drives the infrared LED to send a signal to the TV, possibly with a visible bulb so you see the press.",
+        "He recommended default materials and simple plastics with simple, robust inner workings, investing in design and user interface rather than high-tech materials that would raise the cost of every unit."
+      ]
+    },
+    {
+      "title": "New project requirements",
+      "start": "17:21",
+      "end": "19:28",
+      "points": [
+        "The remote must work for TV only, because more devices would be too complex and lengthen time to market.",
+        "Teletext should be dropped because internet is expected to replace it, possibly on TVs.",
+        "The target customer is forty plus, because the company is developing a separate product for younger customers.",
+        "The corporate image must be visible in the design and in how the device works."
+      ]
+    },
+    {
+      "title": "Debate on teletext and the forty-plus market",
+      "start": "19:34",
+      "end": "25:13",
+      "points": [
+        "The Marketing Expert argued that forty-plus viewers are unlikely to own internet TVs for many years and rated teletext as important, so dropping it would be a mistake.",
+        "He also argued the forty-plus market is small and uncritical, so the product would become a standard, non-innovative remote.",
+        "The Project Manager countered that the forty and fifty plus generation is the largest share of the Dutch population and that 40% of the market is worth targeting with good design and few buttons.",
+        "The Industrial Designer compared it to a successful mobile phone for the elderly and said a remote built on that idea, focused on functionality, could sell well.",
+        "The User Interface Designer pointed out that deaf people need teletext for subtitles; nobody opposed keeping teletext, and the Project Manager proposed a button for big subtitles."
+      ]
+    },
+    {
+      "title": "Number of buttons and channel selection",
+      "start": "25:13",
+      "end": "29:22",
+      "points": [
+        "The Project Manager wanted few buttons; the Marketing Expert said a TV-only remote needs only 0-9, next and previous channel, volume up and down and some teletext buttons.",
+        "The User Interface Designer said this means the display can be skipped.",
+        "The Project Manager suggested a scroll button or joystick instead of number buttons, like a Sony phone; the Marketing Expert said few TVs can switch or browse channels that fast, and the Industrial Designer said elderly users are not used to scroll buttons, so the basic layout stays.",
+        "The Marketing Expert argued there is little to gain over competitors by reducing buttons on a TV-only remote, since they already have few, and that winning there would take a large marketing effort."
+      ]
+    },
+    {
+      "title": "Extras: docking station, locator beep and explanation screen",
+      "start": "28:56",
+      "end": "32:09",
+      "points": [
+        "The Project Manager proposed focusing on extras such as the docking station; the Industrial Designer said it fits the budget if it is not too fancy and the remote stays small.",
+        "The Marketing Expert suggested researching which extras elderly people want.",
+        "Because 50% lose their remote, the docking station gets a button that makes the remote beep, like some phones or a whistle key chain.",
+        "The Industrial Designer said they may have to choose between the docking station and an LCD screen because of cost.",
+        "The Marketing Expert proposed a small, cheap, non-touch screen that explains what a button does, since elderly people find new devices hard to learn; the Project Manager liked it, but its cost is uncertain."
+      ]
+    },
+    {
+      "title": "Materials, target group and cultures",
+      "start": "32:09",
+      "end": "34:53",
+      "points": [
+        "The Project Manager recapped: fancy design, easy to learn, few buttons, docking station, LCD screen, general functions, default materials.",
+        "Default materials suit elderly users, who do not care about titanium versus plastic and are likely more careful with their remotes.",
+        "The Project Manager asked whether the target is forty to eighty or the really elderly, around sixty to eighty, like the elderly phone; the Marketing Expert said that would be good for the company image and a good market if the product is innovative, but needs more research.",
+        "TV sets are not different across countries; the explanation screen makes it easier to adapt to different cultures and languages, and the Project Manager preferred separate language markets over a language button."
+      ]
+    },
+    {
+      "title": "Next meeting",
+      "start": "35:05",
+      "end": "35:47",
+      "points": [
+        "The Project Manager will put the minutes in the project document folder.",
+        "For the next meeting: the Industrial Designer does the components concept, the User Interface Designer the user interface concept, and trend watching is also due.",
+        "Everyone should keep the target group, requirements and trends in mind; the personal coach will send specific instructions.",
+        "The meeting broke for lunch."
+      ]
+    }
+  ],
+  "human_not_covered": []
+}

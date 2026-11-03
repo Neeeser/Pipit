@@ -1,0 +1,688 @@
+[00:11] Project Manager: So
+[00:20] Project Manager: Hello.
+[00:22] Marketing Expert: Good afternoon. Sorry I'm a little late. Got stuck in the traffic.
+[00:26] Project Manager: No problem.
+[00:29] Project Manager: Okay. That's possible on uh this time of day. Starts at three o'clock. Uh Uh, let me see. Our fourth and last meeting.
+[00:37] Marketing Expert: Yeah.
+[00:47] Project Manager: There he is.
+[00:51] Project Manager: Yes.
+[00:55] Project Manager: Okay this our last meeting. In this meeting we will discuss our final design. And we will do some evaluation about the, not only the product, but also the project. And then we're going to close the project today as well. So after this you will be uh free to go and uh spend all your money.
+[01:20] Project Manager: And this uh design, detailed design meeting uh we will discuss uh the look-and-feel of the design, the usability interface design, and we will do the product evaluation. Um, in order to do that we have this agenda.
+[01:40] Project Manager: We'll have the prototype presentation first. Then we will set up some evaluation cri um criteria. Then we will look at the finance. Uh we will have to see if everything we wanna do is also possible within our budget. Because everything costs money, and the more functions you wanna have the more money it will cost. So we have to see if it fits within the twelve and a half Euro per remote.
+[02:09] Project Manager: But we will see that later. Then we will do the project uh evaluation, and the closing after that. We've got forty minutes. So we will be finished at half past three. But first um
+[02:25] Project Manager: we will do the this is prototype presentation. So, if some yeah if somebody wants step forward.
+[02:33] Industrial Designer: Okay.
+[02:37] Industrial Designer: Well this is what me and Richard came up with. The default spot for the on-off button. The mute button just below that. Then there's the volume and channel selectors.
+[02:51] Industrial Designer: Simple plus-minus button. Uh we thought of a help button. If you hold it and you press another button, uh the help goes to the L_C_D_ screen.
+[03:04] Industrial Designer: Then there's the zero to one to zero buttons. A button for teletext. A button for the subtitles. And the company logo.
+[03:15] Industrial Designer: So it's rather simple prototype. And uh we'll have to see from testing uh how the users take it.
+[03:26] Project Manager: Okay.
+[03:27] Marketing Expert: Um, is this the moment where we ask or can ask questions about the functionality?
+[03:30] User Interface Designer: So
+[03:33] Industrial Designer: Sure uh just pop in at any time.
+[03:33] User Interface Designer: Yeah. Yeah.
+[03:36] Marketing Expert: Um, when you're in teletext there usually are buttons where you just you just press it and you g go to the next teletext page.
+[03:46] User Interface Designer: Uh, that's just uh the normal uh as th as the normal uh remote controls uh So um
+[03:56] User Interface Designer: You put it uh you um came in uh page uh one hundred. Now you can use the normal uh one to zero buttons. And you But you can also uh use the um button th for uh changing the the channel.
+[04:00] Marketing Expert: Mm-hmm.
+[04:12] User Interface Designer: S so uh the shifting uh button. Uh for uh yeah shif shifting up in uh on t on t uh teletext, and shifting uh down. So
+[04:15] Marketing Expert: Okay.
+[04:22] Marketing Expert: Okay. Um
+[04:26] Marketing Expert: Yeah.
+[04:29] Project Manager: Okay. Uh but um I thought in a few meetings earlier we uh uh tried to keep it uh simple. Uh just a few buttons and large buttons. But uh I think these are altogether quite a quite a few buttons.
+[04:40] User Interface Designer: Oh yeah?
+[04:50] Project Manager: So I'm wondering if we if we neely really need all of those buttons.
+[04:57] Industrial Designer: I think if you look at
+[04:59] Industrial Designer: most controls, they've got more buttons than this. And well the on-off button, it's it's a necessity. You can't drop that one. The volume and channel buttons, you need you obviously need those those.
+[05:02] Project Manager: That's right.
+[05:03] User Interface Designer: Yeah.
+[05:06] Project Manager: Yeah.
+[05:06] User Interface Designer: Yeah.
+[05:13] Project Manager: Yeah.
+[05:14] Industrial Designer: The mute button could be replaced uh by pressing the volume-down button twice. So we could cancel that one. I think the help button really is necessary because there's no other way to know when someone wants to know what a button does.
+[05:26] User Interface Designer: Yeah yeah.
+[05:34] Project Manager: Mm.
+[05:34] User Interface Designer: Uh, or you can build in uh when you press uh one button uh uh Yeah. But m Yeah. We disc discuss that already. But uh we think uh old people uh don't know that uh option. So uh they just put in uh put press uh the button and uh
+[05:38] Project Manager: Long time. Yeah. If you put
+[05:54] Project Manager: Yeah. Okay.
+[05:56] Industrial Designer: Well, you can't
+[05:59] Industrial Designer: leave out the number buttons I guess.
+[06:01] User Interface Designer: And uh
+[06:01] Project Manager: Yeah. Uh teletext and subtitles are yeah necessary. Okay.
+[06:02] Industrial Designer: And Yeah. So it's rather basic already.
+[06:04] User Interface Designer: Oh.
+[06:04] Marketing Expert: Yeah.
+[06:08] Marketing Expert: Yeah. Think so. That's what I pointed out earlier. If you just make a control for just the T_V_ there's just not much to gain here.
+[06:15] User Interface Designer: Yeah.
+[06:15] Project Manager: Yep. Okay. So we had somebody about th interfa Something about the design of the buttons there?
+[06:23] Industrial Designer: Yeah, they're It's rather hard to draw on the white-board. But they're supposed to be equal sized, round, with a with a little logo on it for the for the volume, the the triangle and stuff. Just for recognition.
+[06:24] User Interface Designer: Yeah. Yeah, it
+[06:24] Project Manager: Just n normal plain buttons.
+[06:36] User Interface Designer: Yeah yeah. Just to recognise it, so uh
+[06:36] Project Manager: Yeah. 'Kay.
+[06:39] User Interface Designer: Uh yeah and now we don't need uh LEDs or um
+[06:42] Project Manager: No.
+[06:43] User Interface Designer: Y uh s some uh remote controls uh do it also, but um uh because we use the little display we don't uh have to use it. Uh so
+[06:47] Project Manager: No.
+[06:52] Project Manager: Yeah. Okay.
+[06:54] Industrial Designer: So and for the materials we've just chosen for rubber buttons. With a a different colour than the case. So they jump out.
+[06:57] User Interface Designer: Nay.
+[06:58] Project Manager: Yep.
+[07:05] Project Manager: Okay. That's nice. Then because we only have thirty minutes left, I will move on to the finance part, which is pretty exciting, to see if it's all possible what we wanna do. And I can tell you
+[07:05] Industrial Designer: And uh that's about it.
+[07:24] Project Manager: that we're going to have a pretty hard time producing this for twelve and a half Euros.
+[07:33] User Interface Designer: Mm.
+[07:34] Project Manager: If we see I don't know if I've filled in correctly, so just correct me if you see uh something wrong. I counted two batteries. But maybe we can also use one. I don't know if it's possible.
+[07:45] Marketing Expert: Since it rechargeable.
+[07:46] Project Manager: It's rechargeable. That's right.
+[07:47] User Interface Designer: Yeah we can u just uh
+[07:51] Project Manager: Okay. That's two Euros off. We need the advanced chip. So there's not much to uh
+[07:54] User Interface Designer: 'Kay.
+[07:57] Industrial Designer: Yep.
+[08:01] Project Manager: to save there. Here we have the single curves. Uh we can see that the difference between uncurved and the single curved is one Euro. Um,
+[08:12] User Interface Designer: Mm.
+[08:15] Project Manager: I don't know, but I think the single curved is good for design, and also for the display to have a prominent place on the remote control. I think we have to keep that.
+[08:20] User Interface Designer: Yeah.
+[08:25] Industrial Designer: Yes.
+[08:27] User Interface Designer: Yeah.
+[08:28] Project Manager: Then we have the case material supplements. It's plastic. It's the cheapest one we need. So that's uh not much to save either. But then the biggest costs are the buttons.
+[08:42] Project Manager: So maybe we really should try to discard some buttons to uh keep our costs low. Because you have to we will have to get the twelve and a half Euros at the end. Um,
+[08:46] User Interface Designer: Okay.
+[08:50] User Interface Designer: Yeah.
+[09:00] Project Manager: so if we Let's fir first count the buttons we have now. Because I Sixteen. Nah, that will be even more then. Eighteen Euros.
+[09:03] User Interface Designer: Uh Sixteen, I believe so.
+[09:16] Project Manager: So,
+[09:16] User Interface Designer: Uh seventeen.
+[09:18] Project Manager: seventeen.
+[09:18] Marketing Expert: Um
+[09:19] User Interface Designer: Uh with the help button.
+[09:22] Industrial Designer: Yep.
+[09:22] Project Manager: Okay, including the help? Yeah. Uh seventeen. I think we can uh discard the help and the mute button
+[09:22] Marketing Expert: Damn.
+[09:23] User Interface Designer: Yeah.
+[09:30] Project Manager: uh by pressing down volume long, or pressing down a a number
+[09:36] User Interface Designer: .
+[09:37] Industrial Designer: Yep.
+[09:37] Project Manager: long. That saves us uh one Euro already. 'Cause then we have got fifteen I think?
+[09:43] Industrial Designer: Yeah.
+[09:44] Marketing Expert: Wouldn't Yeah. No. That wouldn't be an option.
+[09:45] Project Manager: Fifteen buttons.
+[09:48] Project Manager: And this is
+[09:49] Marketing Expert: Uh, d I assume you'd count the volume and channel thingies for two buttons each, right?
+[09:54] Project Manager: No those are one, I think.
+[09:55] User Interface Designer: Yeah.
+[09:57] Marketing Expert: Well, think actually there're two buttons, aren't they?
+[09:57] User Interface Designer: Where did uh Uh, it's just one button. But, um
+[10:04] User Interface Designer: Yeah. There were uh two uh for one big button. But they are uh more expensive than the small ones. Uh, yeah. So
+[10:14] Project Manager: Yeah but th it's not stated in this files. So maybe we can we can even make one button with the volume and the channel in one, by pressing
+[10:16] User Interface Designer: It's just a.
+[10:24] Marketing Expert: Well I was thinking, maybe you could just integrate three of those numbers to one button.
+[10:30] Project Manager: That's possibility as well.
+[10:32] Marketing Expert: That would cut the cost.
+[10:34] Project Manager: So And it's good for the design as well. So you can make
+[10:39] Project Manager: Uh let's see. If you make this
+[10:58] Project Manager: Looks a bit like uh
+[11:04] Project Manager: a cross.
+[11:10] Project Manager: Plus. Min.
+[11:14] User Interface Designer: But I don't don't know if if it's cheaper. So uh, we've still got four buttons, but just um So
+[11:17] Project Manager: Uh s yeah channel. Yeah w
+[11:24] Project Manager: Yeah th I think they count uh the materials.
+[11:27] User Interface Designer: You got uh not not a butt button itself, but uh on the um
+[11:32] Project Manager: Yeah on the chip there. Yeah.
+[11:33] User Interface Designer: Yeah. On the chip you've got still uh four uh four buttons. So
+[11:34] Industrial Designer: Yeah.
+[11:35] Marketing Expert: Mm-hmm.
+[11:36] Project Manager: That's right. That's right.
+[11:38] Marketing Expert: Yeah.
+[11:38] Project Manager: But I think because we have the advanced chip we can just count this as one button. But No but I think
+[11:41] User Interface Designer: Yeah, but
+[11:45] Marketing Expert: But, I think this really is four buttons anyhow.
+[11:49] Industrial Designer: Yes.
+[11:51] Project Manager: Yeah. Maybe it is, but then it seems to me that it's impossible to get the twelve and a half Euros. Also the L_C_ display, I think it's, I think it's too expensive for the display we use. I think they uh try t
+[12:01] Marketing Expert: Yes.
+[12:03] Industrial Designer: Uh that's that's a big cost.
+[12:11] Industrial Designer: If we leave out the display we can also save money on the chip.
+[12:17] Project Manager: That's right, but what's the big advantage of our remote then?
+[12:25] Marketing Expert: Only the docking station, I guess.
+[12:27] Project Manager: Yeah.
+[12:29] Industrial Designer: Which isn't the the docking station isn't even in this c s schematic.
+[12:35] Project Manager: No. That's extra. That's extra. That's right.
+[12:35] Industrial Designer: So it's not even taken into the price.
+[12:40] Marketing Expert: Maybe we should to a different supplier.
+[12:43] Project Manager: That's an option. Poland. Something. Polish supplier. Don't you think we can, if we can count this as v as one button, and integrate th uh these buttons in three, then we save a lot of money as well.
+[12:47] Marketing Expert: Yeah.
+[13:02] Industrial Designer: We we could save money on it. But would it make the remote more usable for elderly people?
+[13:08] User Interface Designer: .
+[13:09] Marketing Expert: Yeah, that's what I'm wondering.
+[13:11] Industrial Designer: My mother can't even send send an S_M_S_ message.
+[13:15] Industrial Designer: So
+[13:15] Project Manager: Yeah. That's a point.
+[13:17] Marketing Expert: Um
+[13:18] User Interface Designer: Are we gonna buy a um a remote control uh when you can uh use it? So um
+[13:25] User Interface Designer: Yeah.
+[13:27] User Interface Designer: We m uh we must um stay below the um below um twelve uh fifty or Can't uh go um
+[13:36] Project Manager: Yep.
+[13:36] Industrial Designer: Yeah.
+[13:39] Project Manager: No.
+[13:41] Marketing Expert: Well, since the market research
+[13:44] Marketing Expert: indicated that older people spend their money easier, more easy, maybe it's feasible to just put the price of the remote up a little. Especially since we have those nice features.
+[13:55] User Interface Designer: Nay.
+[13:58] Project Manager: Yeah but uh we have to stick to the twelve and a half Euros. We don't have any more budget to develop it. Yeah. So
+[14:05] Industrial Designer: The margin will get too small. Yeah.
+[14:05] User Interface Designer: Is it impossible to
+[14:09] User Interface Designer: But it is possible to make one uh for uh twelve fifty.
+[14:14] User Interface Designer: I don't think so.
+[14:14] Project Manager: It is. If you leave out the L_C_ display. And if you use less buttons.
+[14:15] Marketing Expert: It would be a be a pretty rigid one.
+[14:16] User Interface Designer: S
+[14:20] User Interface Designer: Yeah.
+[14:23] Project Manager: Say Or you can take the single chip.
+[14:24] Industrial Designer: Ten.
+[14:24] User Interface Designer: But, you can't use uh
+[14:31] Project Manager: There it is.
+[14:32] User Interface Designer: Yeah.
+[14:35] User Interface Designer: But we want to make a uh so uh uh fancy and a good uh Yeah.
+[14:37] Project Manager: But then w
+[14:43] Project Manager: Good looking.
+[14:43] User Interface Designer: Uh, wi with n Oh, with uh
+[14:49] Project Manager: Yeah.
+[14:49] User Interface Designer: attractive uh o options. So uh, you can stay uh below uh twelve fifty. So
+[14:56] Project Manager: I think it's uh difficult as well, but
+[14:56] Marketing Expert: Or b Basically becoming a choice between like either a good remote and a higher production cost, or just any other remote control.
+[15:07] Industrial Designer: No remote.
+[15:09] Project Manager: Or we can leave out the ten buttons and take one scroll wheel for the programme numbers.
+[15:17] User Interface Designer: Scroll-wheel's one.
+[15:17] Project Manager: Then w
+[15:17] Industrial Designer: That's
+[15:18] Project Manager: Because then we save ten buttons. Then we have five and one. And and see. If we have this one and we've got the advanced
+[15:19] User Interface Designer: No, it
+[15:21] User Interface Designer: Yeah.
+[15:33] Project Manager: W uh, we're getting close.
+[15:34] Industrial Designer: We're getting closer.
+[15:35] User Interface Designer: Yeah.
+[15:38] Marketing Expert: But how does scroll-wheel work here?
+[15:42] Project Manager: Then you will
+[15:48] Project Manager: Or maybe you can
+[15:51] Project Manager: um scroll. If you scroll you will see the numbers on the L_C_D_ display. Until you've got the right number, then you push it.
+[15:58] Industrial Designer: Yeah.
+[16:01] Marketing Expert: That would bring up the price of the scroll-wheel also.
+[16:05] Project Manager: Alright. It's gotta scroll and push. Okay but then you you can push uh some other button as well.
+[16:05] Marketing Expert: Integrated scroll-wheel push-button. But Yeah.
+[16:06] User Interface Designer: Mm.
+[16:13] Industrial Designer: You could just not scroll for a half a second.
+[16:16] Project Manager: Yeah. That's right. So if you scroll to a number and then you wait a half second, then it g turns to that channel.
+[16:17] Industrial Designer: So you won't need a button.
+[16:22] Marketing Expert: I think that would be like the end of our usability.
+[16:25] Project Manager: But it would definitely crop cost, a lot. And we need the battery.
+[16:25] User Interface Designer: D yeah.
+[16:31] Marketing Expert: Yeah, but
+[16:41] Project Manager: And the regular chip is not possible? It has to be advanced?
+[16:46] Industrial Designer: If you want to use an L_C_D_ screen you you need an advanced chip, yes.
+[16:48] Project Manager: It has to be advanced. Yeah. Okay. And we can save a Euro by a flat design.
+[16:50] User Interface Designer: Hmm.
+[16:59] Project Manager: That's an option we can Then we're almost there.
+[17:01] Industrial Designer: Yep.
+[17:01] User Interface Designer: Ja ja.
+[17:06] Industrial Designer: Yeah if you v could just leave out one more button.
+[17:10] Project Manager: Yeah. So if we
+[17:13] User Interface Designer: Yeah, or we have to uh skip the subtitle uh button.
+[17:16] Industrial Designer: Yeah.
+[17:17] Project Manager: Yeah but I think that's That is a big advantage, if we're
+[17:17] User Interface Designer: So Yeah
+[17:20] User Interface Designer: Yeah it's a big advantage. But um, it's
+[17:22] Project Manager: But Can we use can't we integrate the teletext and the subtitles in one button?
+[17:28] Industrial Designer: I think so. Yeah.
+[17:28] User Interface Designer: Uh, yeah.
+[17:29] Project Manager: If you push it three times?
+[17:29] Marketing Expert: Well, think it's pretty much the teletext subtitles are right now you just push the teletext button, go to page eight eight eight, and teletext disappears. But the subtitles stay there.
+[17:31] User Interface Designer: Yeah.
+[17:37] Project Manager: Yeah.
+[17:37] User Interface Designer: Yeah.
+[17:41] User Interface Designer: But if you push the teletext button twice
+[17:42] Marketing Expert: I think that's the case on most
+[17:42] Industrial Designer: What if you have to scroll to page eighty eight? Eight hundred eighty eight.
+[17:45] User Interface Designer: It's uh
+[17:48] User Interface Designer: One m uh one b uh, a few buttons.
+[17:48] Project Manager: Ah that's not really that
+[17:49] Marketing Expert: Well, that could be just uh like the scroll to eight, click, scroll to eight, click, scroll to eight, click.
+[17:54] Industrial Designer: Yeah. Okay.
+[17:56] Marketing Expert: But then again that would be d j just pretty much not an option for older people, who don't even know what a scroll-wheel is.
+[18:02] Industrial Designer: No.
+[18:04] User Interface Designer: Yeah.
+[18:05] Marketing Expert: Holding a
+[18:05] Project Manager: No.
+[18:07] Marketing Expert: remote with which they expect to have like ten buttons for the numbers one to zero.
+[18:16] Marketing Expert: With only five buttons on it.
+[18:19] Marketing Expert: And a scroll-wheel.
+[18:21] Project Manager: I think if you make a good advertisement uh on television and in the in the guide, you can explain to the people how to use the scroll wheel.
+[18:35] Project Manager: If you just make it real simple.
+[18:40] Project Manager: Because it saves it saves a lot of money. And we can keep our L_C_D_ screen, which can provide extra information. How to use the scroll wheel. How to use the other bu buttons as subtitles.
+[18:48] Marketing Expert: True. True.
+[18:50] User Interface Designer: Hmm.
+[18:53] Project Manager: And it's good for the innovative design as well. If you would erase these.
+[19:02] Project Manager: Mm eraser?
+[19:17] Project Manager: And we put uh
+[19:26] Project Manager: Looks a bit odd maybe.
+[19:29] Marketing Expert: That's a pretty big scroll wheel.
+[19:41] Project Manager: That is
+[19:50] Project Manager: Something like that. Then, yeah. We've got the scroll-wheel. One, two, three, four, five buttons, if we erase this one.
+[20:14] Project Manager: And these are two buttons then.
+[20:27] Industrial Designer: We could make two buttons out of that. And just um
+[20:34] Industrial Designer: If you press the volume button you can control the volume with the scroll-wheel.
+[20:36] Project Manager: Yeah.
+[20:39] Industrial Designer: So that would save two buttons. If you do the same for the channel.
+[20:41] Project Manager: Yeah.
+[20:43] Project Manager: That's really a good good idea, I think.
+[20:51] Project Manager: And it will make the use of the scroll wheel uh more obvious indeed.
+[20:55] Industrial Designer: More obvious.
+[20:59] Project Manager: So we make one for the volume, one for the channel.
+[21:11] Project Manager: Plus scroll. That's right. So we've got one, two, three. Yeah, we can leave the teletext in if we want.
+[21:14] Industrial Designer: So if we
+[21:22] Industrial Designer: Yeah. So
+[21:23] User Interface Designer: Yeah.
+[21:23] Project Manager: That's m that's better.
+[21:24] Marketing Expert: So this is five buttons.
+[21:25] Industrial Designer: If we leave out all those buttons, perhaps you can go with the flat flat case. And make it smaller overall.
+[21:34] Industrial Designer: So if you put the the volume and channel buttons on the same height as the on-off button, the screen right behi under that, than the scroll button
+[21:35] Project Manager: Y yeah.
+[21:41] Project Manager: Mm yeah.
+[21:45] Project Manager: Uh yeah, and then you can
+[21:45] Industrial Designer: you get a a much smaller remote.
+[21:47] User Interface Designer: Uh yeah.
+[21:48] Project Manager: That's right.
+[21:50] Industrial Designer: And it
+[21:51] Project Manager: So we can
+[21:51] Industrial Designer: sh
+[21:53] Project Manager: decrease this one to four buttons.
+[21:56] Industrial Designer: Yeah?
+[21:57] Marketing Expert: Right now we have five.
+[21:58] User Interface Designer: But uh, you can make a f quite a big uh remote remote control for uh just the same price as a small one. Just uh you only have to pay for the double curved or single curved. It uh it's a bit uh
+[22:06] Project Manager: Yeah. That's no problem.
+[22:12] Project Manager: Yeah. Yeah. It's uh it's more the moulds in which they are being made, I think. Single curved is really easy to just fill in. And cases come right out of the machine. And single curved you have to have a different uh different machine, than a flat one.
+[22:19] Marketing Expert: Mm.
+[22:22] User Interface Designer: .
+[22:30] Project Manager: I think this is a really easy one. Um,
+[22:35] Project Manager: what does everybody think about a flat or a single curved design? Freek, what do you think?
+[22:44] Marketing Expert: Well, I still think we should go for the single curve design. But then again,
+[22:47] Industrial Designer: Yeah.
+[22:48] User Interface Designer: .
+[22:49] Industrial Designer: Richard's argument was very good. Yeah.
+[22:50] User Interface Designer: Yeah.
+[22:50] Marketing Expert: all these changes are not really okay with me. But since
+[22:51] Project Manager: Yeah.
+[22:53] Project Manager: Yep.
+[22:56] Project Manager: We have to cut costs. Yeah. Yeah I'm ag
+[22:57] Marketing Expert: we just have to.
+[22:58] User Interface Designer: Yeah.
+[23:00] Marketing Expert: I'd rather just go to the board and
+[23:04] Project Manager: Ask for more money.
+[23:04] Marketing Expert: get us to spend eighteen dollars a a remote.
+[23:06] Project Manager: Yeah. Yeah. I am agreeing with the usability. Yeah.
+[23:09] Marketing Expert: Or do some market research and see what the options are.
+[23:13] Project Manager: Yeah. But th um I think we can then keep the single curved one. Just to express our L_C_D_ screen a bit more. So people will use it more, and especially for the help functions, it will be good if we have scroll bar, scroll button. It will be necessary to have good help function, as well.
+[23:23] Industrial Designer: Yep.
+[23:23] Marketing Expert: Yeah.
+[23:24] User Interface Designer: Yeah.
+[23:43] Project Manager: So this is scroll.
+[23:56] Project Manager: I think it was better to have this price list a bit earlier. Before we went on to the to the whole design.
+[24:00] Marketing Expert: Yes. Definitely.
+[24:01] User Interface Designer: The th
+[24:05] Project Manager: But I'm glad we could make a bit.
+[24:10] Marketing Expert: Yeah.
+[24:11] Project Manager: It's pretty different, if you saw the last one than this one.
+[24:12] Marketing Expert: It's pretty different. But this is not really like for the group we were making our remote. This will really require a lot of marketing
+[24:18] User Interface Designer: No.
+[24:22] Project Manager: Yeah. It will.
+[24:22] Marketing Expert: to get this to sell.
+[24:25] Project Manager: Yeah.
+[24:27] User Interface Designer: But um
+[24:27] Marketing Expert: 'Cause if older people like familiar forms and familiar stuff. This is not familiar for them.
+[24:35] Project Manager: No, but I think
+[24:35] Marketing Expert: So we're gonna have to do a lotta convincing them.
+[24:38] Project Manager: I think the most
+[24:39] User Interface Designer: But they know the scroll-buttons from uh old radios. Uh they cal also uh buttons like that for uh changing uh channels. So maybe it's uh
+[24:45] Project Manager: That's right. We can let l We can stick it out, a bit. Like a old old buttons. Maybe that's recognisable for them as well. Yeah. That's a good one.
+[24:45] Marketing Expert: Yeah.
+[24:51] User Interface Designer: Yeah. Yeah.
+[24:56] User Interface Designer: Yeah.
+[24:58] Project Manager: So, I'm afraid we have to move on. And it's uh it's b uh less frightening, I think. If they see this design they think oh, there are only five buttons, and uh But we will see.
+[25:13] User Interface Designer: Yeah.
+[25:13] Marketing Expert: That's true. Might uh might be confusing too.
+[25:16] Project Manager: Yeah. That's definitely right.
+[25:16] Marketing Expert: They'd be like, what? Only five buttons?
+[25:17] User Interface Designer: Mm-hmm.
+[25:20] Project Manager: Yeah.
+[25:21] User Interface Designer: But very special, so uh
+[25:24] Project Manager: I would buy it.
+[25:26] Marketing Expert: Yeah. But you're not sixty.
+[25:28] Project Manager: That's right. I would buy it if I was six. No I don't know. What it costs under twelve and a half Euros? No?
+[25:37] Project Manager: Uh, yes they are.
+[25:39] User Interface Designer: No.
+[25:40] Project Manager: No. But we can go on with the project evaluation.
+[25:46] Marketing Expert: Mm-hmm.
+[25:49] Project Manager: Let's see. I can sit down I think. We still have fifteen minutes left, so we're nice on schedule.
+[25:55] Industrial Designer: Yeah.
+[25:57] Project Manager: Um, the project process.
+[26:00] Marketing Expert: So um, I like set up all these criteria.
+[26:04] Project Manager: Evaluation criteria. That's right. That was the the point I forgot.
+[26:04] Marketing Expert: And evaluation of the
+[26:08] Marketing Expert: thingy.
+[26:10] Project Manager: I should
+[26:12] Project Manager: There we are. Evaluation criteria. Go ahead. We've got five minutes I think for those criteria. No we've got fifteen minutes but
+[26:15] Marketing Expert: Thank you.
+[26:22] Marketing Expert: Five more minutes?
+[26:25] Marketing Expert: Okay.
+[26:36] Project Manager: Uh yes. What?
+[26:42] Marketing Expert: 'Kay so I did some literature study study, and analysis of the requirements we set up earlier.
+[26:48] Project Manager: Uh yeah.
+[26:49] Marketing Expert: Translated it into criteria, which would be these. Um, is the remote fancy? The shape, look and feel. Innovative? What new functions are there? Uh, easy to use?
+[27:03] Marketing Expert: Uh, learnability is a very important factor here. Uh, is it functional? Are there not too many functions uh among the functions? And are the those functions that are there, are they useful? And the cost.
+[27:20] Marketing Expert: The target group. Is the remote really for the group we're making it for? And recognability. If our company is If it is easily recognisable that our company made it?
+[27:36] Marketing Expert: And
+[27:38] Marketing Expert: So we're supposed to evaluate it right now.
+[27:41] Project Manager: Okay.
+[27:44] Marketing Expert: Let's see.
+[27:47] Marketing Expert: Oh I have to say this was a little hard, because the minutes of our last meeting
+[27:53] Marketing Expert: were not here.
+[27:53] Project Manager: Yeah, that's because my pen failed to upload his data. I tried to but it's uh it's giving errors by downloading the software.
+[27:54] User Interface Designer: Mm.
+[27:57] Marketing Expert: Okay.
+[27:57] User Interface Designer: Yeah?
+[27:59] Marketing Expert: Interesting.
+[28:03] Marketing Expert: So
+[28:04] User Interface Designer: Mm. 'Kay.
+[28:07] Marketing Expert: Is the design fancy, on a scale of one to seven?
+[28:10] Project Manager: I think it's fancy.
+[28:12] Industrial Designer: Six.
+[28:13] Project Manager: Yeah.
+[28:14] User Interface Designer: Uh six. Yeah.
+[28:14] Marketing Expert: We all go for six? Good.
+[28:15] Project Manager: Six.
+[28:20] Marketing Expert: Um, is the design innovative?
+[28:24] User Interface Designer: Mm. Sh
+[28:24] Project Manager: Very. Subtitles, buttons. Yeah. Seven. Yeah. So we've got twenty cents for our docking station, huh?
+[28:24] Marketing Expert: I think so, with our L_C_D_ screen, docking station, scroll-buttons.
+[28:29] Industrial Designer: Yeah.
+[28:30] Marketing Expert: Seven?
+[28:31] User Interface Designer: Yeah.
+[28:36] Marketing Expert: Should be do-able. Is the design easy to use?
+[28:39] Project Manager: Yeah. That's right.
+[28:42] User Interface Designer: Mm. Not really.
+[28:43] Project Manager: That's a bit dodgy.
+[28:45] Marketing Expert: Well
+[28:47] Marketing Expert: Would be for us. But
+[28:49] User Interface Designer: For old people I I
+[28:50] Project Manager: I would say four. Four or five between. Between four or five.
+[28:51] Industrial Designer: Four or five. Yes.
+[28:52] User Interface Designer: W Yeah. Four.
+[28:55] Marketing Expert: I'd go for four, too.
+[28:56] User Interface Designer: Yeah.
+[28:56] Project Manager: Yeah.
+[29:01] Project Manager: Is it functional?
+[29:02] Marketing Expert: Is the design functional? Um, do we have all functions that we want to include?
+[29:07] Project Manager: Yes.
+[29:08] User Interface Designer: N Yeah.
+[29:08] Marketing Expert: I think we do. Do we have too many functions? I don't think so. It's pretty slim.
+[29:10] Industrial Designer: No.
+[29:11] User Interface Designer: No.
+[29:11] Project Manager: No. Think it's uh seven.
+[29:15] Marketing Expert: Seven.
+[29:18] Marketing Expert: Oh, and do we um
+[29:21] Marketing Expert: take care of the biggest frustrations of the remote control? Like it getting lost and
+[29:29] User Interface Designer: Mm m
+[29:29] Marketing Expert: R_S_I_ influences? Think we do.
+[29:29] Industrial Designer: Mm, we haven't thought of that one.
+[29:32] Project Manager: It was. I had them worked out.
+[29:37] Project Manager: Mm. They are ugly, not very functional, and getting lost.
+[29:45] User Interface Designer: Yeah.
+[29:45] Marketing Expert: Are the production costs within the preset limits? Well they are now.
+[29:49] Project Manager: Yeah.
+[29:54] Marketing Expert: Does the design fit the group of focus?
+[29:58] Industrial Designer: I think that's a three.
+[29:58] User Interface Designer: Mm, th yeah.
+[29:59] Marketing Expert: Yeah. I think it doesn't.
+[30:00] Project Manager: No I think with our new radio button, I think it's uh
+[30:02] User Interface Designer: Yeah.
+[30:05] User Interface Designer: Uh
+[30:05] Project Manager: I think it's better.
+[30:07] User Interface Designer: We have to test it s But
+[30:08] Marketing Expert: I don't know.
+[30:09] Industrial Designer: I still I think it's too m too fancy. Too too flashy.
+[30:10] Marketing Expert: I think
+[30:11] Project Manager: I think it
+[30:14] Marketing Expert: I think a radio button is not exactly what older people expect to have a remote control.
+[30:20] User Interface Designer: Uh, yeah, true.
+[30:21] Project Manager: Yeah.
+[30:23] Project Manager: I would give it a four.
+[30:29] Marketing Expert: I'm not sure. I think I'd go for two.
+[30:32] User Interface Designer: I go for three. So
+[30:33] Project Manager: Then we have to do the three. It's the
+[30:35] Marketing Expert: 'Kay.
+[30:43] Marketing Expert: Is the company company recognisable? Well, we have the logo there.
+[30:45] Project Manager: Yes it is. Yeah.
+[30:45] User Interface Designer: Yeah yeah.
+[30:48] Marketing Expert: So
+[30:52] Project Manager: And they wanna put fashion in their products. Uh in the slogan of the company. And we have the removable front cases. So, I think it's very recognisable. Yep.
+[31:02] User Interface Designer: Yeah.
+[31:02] Marketing Expert: Yeah.
+[31:10] Marketing Expert: So that will be this.
+[31:15] Marketing Expert: I was also supposed to calculate the score, but
+[31:19] Marketing Expert: thought we would have another private thingy after this.
+[31:21] Project Manager: We've got a calculate it.
+[31:24] Project Manager: Mm?
+[31:25] Industrial Designer: Twendag sieven an twendag.
+[31:26] Marketing Expert: Is this Like after this, are we done? Or
+[31:28] Project Manager: N We've gonna We're going to evaluate it.
+[31:29] Marketing Expert: We're gonna go to our other room again.
+[31:32] Marketing Expert: Well, anyhow. These are seven factors times seven is forty
+[31:36] Marketing Expert: something. Two?
+[31:39] Marketing Expert: No. Nine?
+[31:39] Project Manager: Forty nine.
+[31:42] Marketing Expert: Uh, minus one.
+[31:46] Marketing Expert: Minus three, minus four.
+[31:50] Marketing Expert: Minus four.
+[31:53] Marketing Expert: So that would be minus eight.
+[31:56] Marketing Expert: Forty one out of forty nine.
+[31:56] Project Manager: Forty one.
+[31:59] Project Manager: That's
+[32:05] Project Manager: Around eighty percent. What is it?
+[32:06] Marketing Expert: Okay.
+[32:08] Marketing Expert: Guess I'll just type that in on the bottom here.
+[32:14] Project Manager: That's eighty four percent.
+[32:22] User Interface Designer: Hmm.
+[32:22] Project Manager: I think that's a pretty nice score.
+[32:25] Industrial Designer: Yeah.
+[32:25] User Interface Designer: Yeah.
+[32:37] Marketing Expert: Hmm. 'Kay. So that will be the evaluation.
+[32:41] Project Manager: Okay. Thank you.
+[32:46] Project Manager: So, that brings us to the project evaluation.
+[32:54] Project Manager: Yep. Thank you. Project process. Did we move through the right phases, you think? Along the process?
+[33:04] Industrial Designer: Yes.
+[33:05] User Interface Designer: Yeah. But it
+[33:06] Marketing Expert: Think we should have a should have had the finance thingy a lot earlier.
+[33:11] User Interface Designer: Yeah.
+[33:12] Project Manager: That's right.
+[33:13] Marketing Expert: In the design phase.
+[33:15] Project Manager: So lack of information about prices.
+[33:18] Marketing Expert: Yeah.
+[33:18] Industrial Designer: Yeah. That's true.
+[33:18] User Interface Designer: Yeah.
+[33:20] Marketing Expert: Definitely.
+[33:20] Project Manager: Okay.
+[33:23] Project Manager: Uh
+[33:30] Project Manager: Okay. Satisfaction. Was there room for creativity?
+[33:34] Marketing Expert: No.
+[33:36] Project Manager: No? It's because of the finance sheet. Yeah.
+[33:37] Marketing Expert: Not too much. No.
+[33:41] User Interface Designer: Yeah.
+[33:41] Industrial Designer: Yeah, there w there was enough room, but the finance uh
+[33:42] Marketing Expert: Yeah, true. But
+[33:43] Project Manager: The room was Yeah.
+[33:44] User Interface Designer: Yeah.
+[33:49] Marketing Expert: And I would've liked to go for the
+[33:52] Marketing Expert: younger users also.
+[33:54] User Interface Designer: .
+[33:56] Marketing Expert: And just to be able to access internet and
+[33:59] Marketing Expert: get something of your own.
+[34:01] User Interface Designer: Mm.
+[34:04] Project Manager: Restrictions.
+[34:09] Project Manager: Internet access.
+[34:13] Project Manager: 'Kay. Leadership. Was it clear what everybody had to do uh according to their roles and functions?
+[34:24] Industrial Designer: Yes.
+[34:24] Marketing Expert: Yeah.
+[34:24] Project Manager: Yeah?
+[34:24] User Interface Designer: Yeah.
+[34:26] Project Manager: Teamwork? Did it work out? Working together? Also, you two of you with the uh last phase?
+[34:27] User Interface Designer: So
+[34:31] Industrial Designer: Yes, was okay.
+[34:32] User Interface Designer: Yeah.
+[34:34] Project Manager: Nice.
+[34:40] Industrial Designer: The tasks are very structured, so you can just do step by step and it's very easy.
+[34:45] User Interface Designer: Mm-hmm.
+[34:45] Marketing Expert: Mm-hmm.
+[34:49] Project Manager: tasks.
+[34:51] Project Manager: Okay. Were the means sufficient for the tasks uh we had to do? Or were they too much?
+[34:59] Industrial Designer: Well, the smart-board, the d d drawing is just a pain in the ass, but
+[34:59] User Interface Designer: Mm.
+[35:05] Industrial Designer: The digital the digital pen is very nice.
+[35:05] Project Manager: Smart-board.
+[35:07] User Interface Designer: Yeah.
+[35:08] Project Manager: If it wants to download its uh data.
+[35:09] Marketing Expert: Yeah. Yeah.
+[35:09] User Interface Designer: But
+[35:10] Industrial Designer: Yes. Yeah.
+[35:11] User Interface Designer: Uh
+[35:17] Project Manager: Failed download.
+[35:23] Project Manager: Smart-board was irritating.
+[35:32] Project Manager: So you rather wanted to have a flip-over? Or something else?
+[35:37] Industrial Designer: A flip-over or a more precise uh
+[35:38] User Interface Designer: Yeah. A flipper's uh easier, so
+[35:41] User Interface Designer: Yeah.
+[35:42] Marketing Expert: Yeah.
+[35:42] Project Manager: Faster as well, I think. Yeah.
+[35:42] Industrial Designer: digit Yes.
+[35:48] Project Manager: Flip-over.
+[35:50] User Interface Designer: But if you want to share uh of uh when you make um a picture like this uh on the presentation, it's easier to uh share it with uh other people. Uh so uh you can sh save it uh and uh put it on the internet, or uh uh in shared f uh folder or uh sh uh shared directory. So
+[36:03] Project Manager: Yeah.
+[36:12] Marketing Expert: Yeah, I tried to open the file on my laptop, but
+[36:14] User Interface Designer: So Yeah? No?
+[36:15] Industrial Designer: No. Didn't work.
+[36:16] Marketing Expert: not possible.
+[36:17] Project Manager: Uh you need a smart board uh application I think.
+[36:19] Marketing Expert: Yeah.
+[36:21] User Interface Designer: T can uh can you export it uh like a Yeah.
+[36:22] Project Manager: But I think you can Yeah. Should be possible. Yeah you can export it as image.
+[36:25] Marketing Expert: no.
+[36:28] Project Manager: Must Yeah must be
+[36:29] Marketing Expert: Should've done that then.
+[36:33] Project Manager: So the sharing of the information was uh was okay?
+[36:34] User Interface Designer: .
+[36:37] Marketing Expert: Pen is here.
+[36:38] Industrial Designer: Yes.
+[36:38] Project Manager: Uh, network. Yeah, pen is here on the table.
+[36:38] User Interface Designer: Uh.
+[36:46] User Interface Designer: Uh, yeah.
+[36:51] User Interface Designer: So you can Uh
+[36:52] Project Manager: Yeah. It's possible.
+[36:55] Marketing Expert: Mm. Yeah.
+[36:55] User Interface Designer: It's possible.
+[36:57] Project Manager: Okay.
+[36:58] User Interface Designer: Okay.
+[37:00] Project Manager: That's nice. Have we found new ideas for
+[37:05] Project Manager: having this kind of meetings? Or
+[37:08] User Interface Designer: Um, yeah maybe um uh when we n uh just uh give the numbers of of uh
+[37:20] User Interface Designer: Uh uh o one of uh out of s uh sev Um it's uh easier to uh to do the th things that are like that on a computer. Uh, so uh just l uh like uh at u university uh
+[37:23] Project Manager: Yeah.
+[37:30] Project Manager: Yeah.
+[37:32] Project Manager: So
+[37:36] Project Manager: Yeah. So everybody puts his own score. And then it mediates the score, and you can get one Yeah. That's better. So that's uh
+[37:36] User Interface Designer: So
+[37:36] Marketing Expert: Mm-hmm.
+[37:38] User Interface Designer: Yeah.
+[37:39] Marketing Expert: Yeah.
+[37:41] User Interface Designer: Yeah.
+[37:43] Industrial Designer: Yeah.
+[37:48] Project Manager: How do we call?
+[38:00] Project Manager: Evaluation
+[38:04] Project Manager: criteria.
+[38:14] Project Manager: Okay. Mm, any more ideas? Or questions about the project? Or about the product?
+[38:24] User Interface Designer: Mm.
+[38:28] Project Manager: Because I think
+[38:34] Project Manager: then that we get to our last sheet.
+[38:40] Project Manager: Are the costs within the budget?
+[38:43] User Interface Designer: Mm yeah.
+[38:44] Project Manager: Yeah.
+[38:44] Marketing Expert: They are.
+[38:45] Industrial Designer: Considering we are not going to make a docking station.
+[38:46] Project Manager: Do we
+[38:50] Project Manager: Docking station. That's a good point. But maybe because of the docking station the price of the remote can also be a little bit higher?
+[38:52] User Interface Designer: .
+[39:00] Marketing Expert: Yeah.
+[39:01] Industrial Designer: Perhaps.
+[39:01] Project Manager: Uh and I think you can compensate that as well.
+[39:04] User Interface Designer: Mm.
+[39:05] Project Manager: So I think that shouldn't be the biggest problem, because it's very cheap to make as well.
+[39:10] Industrial Designer: Mm-hmm.
+[39:11] User Interface Designer: Yeah.
+[39:11] Project Manager: Do we think we gonna get the twelve and a half million? Or what was it? Fifteen fifteen million. I think we will. If we gonna export this product. It's innovative. Especially in America. People are pretty decadent.
+[39:16] Marketing Expert: Fifty grand.
+[39:24] Marketing Expert: Yeah.
+[39:29] User Interface Designer: Yeah. Mm.
+[39:31] Project Manager: Sometimes.
+[39:32] Marketing Expert: Yeah, still I think I mean if we're n gonna make a scroll-button anyway
+[39:33] User Interface Designer: Yeah.
+[39:37] Project Manager: You can do more.
+[39:38] Marketing Expert: it'd be more for the younger people than for the older people. So maybe we should just re-focus.
+[39:41] User Interface Designer: Ah.
+[39:41] Project Manager: Yeah.
+[39:45] Project Manager: Just put it on the market for everybody. You can you can change markets where by changing the front covers. That's one thing you can change it with. So you can also try to uh reach the younger people by uh putting fancy covers on on the market. Just as a test. See how it works. That's I think a good advantage.
+[39:47] Marketing Expert: Or specifically for younger people.
+[39:47] User Interface Designer: Ah.
+[39:53] User Interface Designer: Ah.
+[39:54] Marketing Expert: That's true.
+[40:09] Marketing Expert: Yeah, I think then it would be way more uh popular with younger people than it is, than would be with
+[40:19] Marketing Expert: older people.
+[40:20] Project Manager: Yeah.
+[40:21] Marketing Expert: Even if it were their covers.
+[40:23] User Interface Designer: Hmm.
+[40:23] Project Manager: Uh, uh then I think we can have our little celebration, right now.
+[40:25] Marketing Expert: But
+[40:29] Marketing Expert: Party party.
+[40:30] Project Manager: That's it. Yeah. I think we still have to fit in one more questionnaire. I think. I don't know. I didn't get a message
+[40:34] User Interface Designer: Where's the champagne?
+[40:35] Marketing Expert: 'Kay.
+[40:40] Project Manager: from the from ending of the Oh I think I have one now. Five more minutes? Oh that's nice.
+[40:43] User Interface Designer: Uh, I believe y uh
+[40:44] Marketing Expert: Oh you did.
+[40:47] User Interface Designer: Okay.
+[40:51] Project Manager: Then we still have some questions. If somebody has some questions they can ask them now. Or we can put these in the project folder as well. Maybe that's
+[41:01] Marketing Expert: Mm-hmm.
+[41:02] User Interface Designer: Yeah.
+[41:18] Project Manager: Export as picture, I think.
+[41:22] Marketing Expert: Yeah.
+[41:22] User Interface Designer: Yeah.
+[41:36] Project Manager: Hmm. This is another network, I guess.
+[41:49] Project Manager: Does somebody see the project folder? I don't.
+[41:57] Project Manager: Hmm.
+[42:00] Project Manager: My Documents.
+[42:07] User Interface Designer: Uh maybe uh they will save it. So uh
+[42:09] Project Manager: Yeah, I'll just put it in My Documents and uh That's okay.
+[42:10] Marketing Expert: Yeah, it probably will.
+[42:21] Project Manager: Okay.
+[42:26] Project Manager: I think I'm going to make our final presentation now.
+[42:31] Marketing Expert: Oh yeah, you're supposed to make a final
+[42:32] Project Manager: And then I will be back in about ten minutes to show you the final presentation.
+[42:40] User Interface Designer: Okay.
+[42:40] Industrial Designer: Okay.
+[42:41] Project Manager: Summary of the project.
+[42:44] Marketing Expert: Are we supposed to go into our own rooms again?
+[42:46] User Interface Designer: Uh maybe we have to fill uh another questionnaire. So uh
+[42:48] Project Manager: Yeah. Questionnaire. I think you all get a questionnaire in in your room. And then I'll meet you in I think about ten minutes, or something. Okay. Thank you.
+[42:50] Marketing Expert: Yeah.
+[42:51] User Interface Designer: Yeah. Yeah.
+[42:57] Industrial Designer: Okay.
+[42:57] User Interface Designer: Okay.
+[43:03] Project Manager: Hopefully my pen will download its software.
+[43:06] Marketing Expert: Yeah.
+[43:07] Project Manager: Oh. Or data.
+[43:10] Marketing Expert: That'd be nice.

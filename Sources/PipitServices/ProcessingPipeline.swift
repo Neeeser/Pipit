@@ -3030,7 +3030,8 @@ public actor ProcessingPipeline {
                 wantsDescription: settings.enrichment.generateDescription,
                 wantsSummary: settings.enrichment.generateSummary,
                 wantsNotes: settings.enrichment.generateNotes,
-                folders: folderCatalogue(for: metadata, settings: settings)
+                folders: folderCatalogue(for: metadata, settings: settings),
+                startedAt: metadata.startedAt
             ),
             model: settings.models.metadata
         )

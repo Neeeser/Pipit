@@ -19,7 +19,7 @@ extension APIKeyProviding {
     public func invalidateCachedKey() {}
 }
 
-public struct OpenAIClient: AIBackend {
+public struct OpenAIClient: AIBackend, StructuredLanguageModel {
     public struct Configuration: Sendable {
         public var baseURL: URL
         public var requestTimeout: TimeInterval
@@ -173,7 +173,21 @@ public struct OpenAIClient: AIBackend {
         else {
             throw ProcessingError.malformedResponse(reason: "enrichment")
         }
-        return LanguageModelPrompts.enrichment(from: object)
+        return LanguageModelPrompts.enrichment(from: object, for: request)
+    }
+
+    /// Asked with the model's own reasoning effort, unlike the app's requests:
+    /// the developer tools use this for judging, which is the kind of question
+    /// that deliberation helps.
+    public func structuredAnswer(_ prompt: LanguageModelPrompt, model: String) async throws -> Data {
+        let data = try await postJSON(path: "responses", body: Self.responsesBody(model: model, prompt: prompt))
+        let text = try extractOutputText(from: data)
+        guard let payload = text.data(using: .utf8),
+            (try? JSONSerialization.jsonObject(with: payload)) is [String: Any]
+        else {
+            throw ProcessingError.malformedResponse(reason: "structured answer")
+        }
+        return payload
     }
 
     private static func responsesBody(model: String, prompt: LanguageModelPrompt) -> [String: Any] {
@@ -221,7 +235,7 @@ public struct OpenAIClient: AIBackend {
         request.httpMethod = "POST"
         request.timeoutInterval = configuration.requestTimeout
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.httpBody = try JSONSerialization.data(withJSONObject: body)
+        request.httpBody = try RequestJSON.data(body)
         try authorize(&request)
         return try await perform(request)
     }

@@ -1,0 +1,394 @@
+[00:56] Project Manager: Okay. Everybody found his place again? Yeah? That's nice. Okay so this is our second meeting. And uh still failing?
+[01:00] Marketing Expert: Yes.
+[01:11] Marketing Expert: Yeah.
+[01:12] Project Manager: Uh now we're going um into the functional design. Um important thing of this phase is that we're going to uh try to get an agreement about the user requirements, technical function design, and the working design.
+[01:32] Project Manager: So that we can move onto the second uh phase. But first this phase. Um first an announcement. There's a little adaptation in the air conditioning system. So
+[01:49] Project Manager: There's our ghost mouse again. That that means that you can have a little trouble with, little trouble with the air conditioning, that's because of this uh
+[02:00] User Interface Designer: Okay.
+[02:00] Marketing Expert: Okay.
+[02:01] Project Manager: It's in wing C_ and E_. So it should be over in a in a while, couple of days. But it's going to be cold anyway, so I don't think you're gonna need it. Then our agenda. Now first the opening. Uh this time I will take the minutes.
+[02:12] Marketing Expert: No.
+[02:20] Project Manager: Uh you're going to have a presentation. All of you. Um and we've got forty minutes for the whole uh prese for the whole uh presentations. So uh I suggest we take about seven minutes per presentation, and then we can have a little discussion about the new project requirements uh which have been sent to me.
+[02:43] Project Manager: And then the decision on the control functions uh which we wanna include and those which we don't wanna include. So we've got forty minutes for all of it. So I suggest um let's start with the first presentation. Um who wants to be first?
+[02:58] Marketing Expert: Yes.
+[03:02] Marketing Expert: Think I'll go first.
+[03:03] Project Manager: Okay. So
+[03:07] Project Manager: Just maybe it's easier if you um Yeah I think you will tell your presentation as well. Just which function you have and what you're gonna talk about.
+[03:26] Marketing Expert: 'Kay. My name is Freek Van Ponnen. I'm the Market Expert. But you already knew that.
+[03:31] Marketing Expert: Um I've done some research. We have we uh have been doing research in a usability lab where we observed um users operating remote controls. Uh we let them fill out a questionnaire. We had one hundred of these uh test subjects.
+[03:49] Marketing Expert: Uh in addition we did some market research. Uh see what the market consists of. What ages are involved.
+[03:58] Marketing Expert: Well these are three quite astonishing results, I thought. Um remotes are being considered ugly. F uh seventy five percent of the um
+[04:10] Marketing Expert: people questioned uh indicated that they thought their remote were was ugly. Um and an additional eighty percent indicated that they would spend more money on a fancy-looking remote control. So
+[04:24] Marketing Expert: Um in addition remotes were not very functional. Fifty percent of the people indicated they only loo used about ten percent of the buttons on a remote control.
+[04:34] Marketing Expert: And fifty percent of the people indicated that their remote tended to get lost in their room.
+[04:40] Marketing Expert: So
+[04:41] User Interface Designer: Mm.
+[04:42] Marketing Expert: some things.
+[04:45] Marketing Expert: Then we did some research to the most relevant functions. Channel selection and volume selection um both got a ten on a scale of one to ten for relevancy. The power button got a nine. And teletext got a six and a half. So these are the most
+[05:03] Marketing Expert: most uh important functions on a remote control. Then there are some one-time use function. That's what I like to call them. That uh audio settings, video settings, and channel settings buttons. Which are not really used very frequently, but are still considered to be of some importance.
+[05:21] Marketing Expert: Um channel selection was also indicated to be used very frequently. One hundred and sixty eight times per hour.
+[05:31] Marketing Expert: Then these are the This is the market. Um sixty percent of the market consists of users between the ages sixteen and forty f six.
+[05:42] Marketing Expert: Um Main characteristic of this group is that they're very critical on the remote control. Um they like to use new f new functions. But they also are very critical. They won't spend their money very easily. So
+[05:57] Marketing Expert: Um the users of forty six to sixty five years cons The make up forty percent of the market.
+[06:05] Marketing Expert: They are not really very interested in features. But they do tend to spend their money a lot easier.
+[06:13] Marketing Expert: Um What I think this indicates for our um
+[06:19] Marketing Expert: design. I think we should make a remote for the future. And this means we would
+[06:25] Marketing Expert: um have to focus on the age ages sixteen to forty five.
+[06:30] Marketing Expert: Uh this also makes up most the biggest part of the market, so that will also be where our main profit would be gettable.
+[06:40] Marketing Expert: Um this would mean we would have to make a fancy design.
+[06:44] Marketing Expert: Um The results also indicated that um about one quarter of the people questioned thought that the remote control caused R_S_ R_S_I_.
+[06:57] Marketing Expert: Um this is certainly something to take into account. And thirty four percent thought that it was hard to learn a n how to operate a new control, remote control. So these are two factors that I think should be included in the design. Besides of course that the remote must look very nice.
+[07:17] Marketing Expert: And the functionality
+[07:20] Marketing Expert: As a lot of people indicated, they only use about ten percent of the buttons, I think we should make very few buttons. Uh this will also be uh beneficial to the design of the remote.
+[07:33] Marketing Expert: Uh I think the most frequently used buttons should be emphasised. Especially the channel selection and audio uh selection buttons. 'Cause they're used most and so they should be robust. They shouldn't break down easily.
+[07:49] Marketing Expert: Um
+[07:51] Marketing Expert: Then as mo as a lot of people indicated that their um remote got lost in the room, it might be
+[07:59] Marketing Expert: and I say might be because it would um certainly boost the uh production costs a lot. But it might be a good idea to make a docking station. And this would, could get a button in it which would send a signal to the remote which would then beep.
+[08:16] Marketing Expert: So you'd know where it is in the room. And in addition to this it could um recharge the batteries in the remote if you put it in.
+[08:25] Marketing Expert: Then um a surprisingly great deal of people w indicated that um an L_C_D_ screen in the remote control would be preferred. This was um
+[08:39] Marketing Expert: mostly people in the age of sixteen to twenty five. But up till forty five it remains feasible. This would also greatly increase the production costs but I think these are just some small factors we could consider.
+[08:57] Project Manager: Okay.
+[08:58] Marketing Expert: That would be all.
+[08:59] Project Manager: Thank you. So anybody have um any questions until now?
+[09:04] Marketing Expert: Any questions?
+[09:06] Project Manager: About functional requirements? Okay that's clear.
+[09:06] User Interface Designer: Mm-hmm.
+[09:07] Industrial Designer: No.
+[09:09] Project Manager: Now to the second.
+[09:10] Marketing Expert: 'Kay.
+[09:20] User Interface Designer: Uh okay. Um I've been looking at uh the user interface of it. Um f for the techno f functions uh of of it. Um
+[09:27] Project Manager: Yeah.
+[09:34] Project Manager: Yeah you can take your time. We've got uh plenty of time, so
+[09:34] User Interface Designer: Okay.
+[09:36] User Interface Designer: Mm?
+[09:37] Marketing Expert: Yeah you should go to the top thingy. Slide show. Oh yeah.
+[09:38] User Interface Designer: Oh. Uh.
+[09:41] Project Manager: Yeah. There it is. Yeah.
+[09:41] User Interface Designer: Okay.
+[09:44] User Interface Designer: Um yeah. I think uh we uh must use the general functions uh of the uh remote control. Uh uh I've do I've uh done a little uh research on the internet and not much information about it, Um about uh interface but uh Uh
+[10:11] User Interface Designer: Yeah I I've been thinking about a simple manner uh to put a lot of functions uh uh in one um in one uh remote control. Uh so uh you've got a lot of devi uh devices like uh D_V_D_ uh uh television, uh stereo. So um
+[10:29] User Interface Designer: But uh it must be uh user-friendly. So um uh you c you can't put a a lot of uh functions uh in one uh Yeah. Uh uh uh Yeah. In one um remote control. But um
+[10:45] Project Manager: One remote.
+[10:48] User Interface Designer: Yeah.
+[10:51] User Interface Designer: Um yeah. Got uh many functions in one uh remote control, um but um yeah you can see, this is uh quite simple uh remote control.
+[11:03] User Interface Designer: Um few uh buttons but uh This uh re uh remote control got a a lot of uh buttons. Um uh people uh don't like it, uh so um
+[11:15] User Interface Designer: Well what uh I was uh thinking about was um uh keep the general functions uh like they are. So uh like uh the on-off uh button. Uh keep it uh yeah l like a red button. Uh everybody everybody knows it so uh uh you don't have to change that. Um
+[11:38] User Interface Designer: My personal uh preferences um. Use a display for uh specific uh functions of the different uh device. So um
+[11:48] User Interface Designer: Wh what I was th uh thinking about was um you've got um
+[12:05] User Interface Designer: Uh this the remote control uh and uh you got here the general functions, uh like uh the on-off button uh sound uh I dunno um And um here you've got a s kind of a display.
+[12:22] User Interface Designer: It's a touchscreen. So um yeah you got a general f uh f the functions of the device uh for a D_V_D_ player or uh so um the pl yeah um f for uh playing uh reverse uh. And um you got here uh real buttons for uh selecting uh a device.
+[12:45] User Interface Designer: So um this button is for a D_V_D_ or So um for every um device you've got a uh a f a b a part uh display of a part buttons. So uh you you never got uh all the buttons uh on w one device. So uh that's uh my uh idea about it. Um yeah and
+[13:06] Project Manager: Hmm.
+[13:10] Project Manager: 'Kay.
+[13:14] User Interface Designer: Uh let's see. Uh yeah. So a touchscreen. Uh and um th the buttons uh the real buttons uh we have to use um. We better c um uh use uh quite uh large buttons uh for um yeah. Everybody uh have to use it so
+[13:32] User Interface Designer: Uh ol even even old people um young people. So uh we must keep uh buttons uh quite s uh simple and quite large. So uh Um
+[13:43] Project Manager: Yeah.
+[13:46] User Interface Designer: Yeah. Uh yeah.
+[13:50] User Interface Designer: That was uh my uh part of it. So
+[13:51] Project Manager: Okay. Anybody has questions about the technical functions?
+[13:56] Industrial Designer: Well I think if we are gonna use a touchscreen uh we're gonna go way above the twelve and a half Euros.
+[14:01] User Interface Designer: N I I don't think so. Uh you got uh quite a cheap uh touchscreen. S um it's uh not uh in colour or something. Uh it's just uh um one colo Uh yeah.
+[14:02] Project Manager: Yeah.
+[14:06] Project Manager: Touchscreen.
+[14:16] User Interface Designer: Uh I seen uh w uh something on the internet uh not today but uh a few uh weeks ago. Uh you got uh yeah quite an uh
+[14:30] User Interface Designer: a kind of uh touchscreen um and it's uh for
+[14:37] User Interface Designer: uh twenty uh Euros or uh less uh. So it's possible.
+[14:42] Project Manager: Huh.
+[14:43] Marketing Expert: Hmm.
+[14:44] Project Manager: 'Kay. That's nice. Uh
+[14:46] Marketing Expert: Well it would certainly make a fancy design.
+[14:48] User Interface Designer: Yeah.
+[14:49] Project Manager: Yeah.
+[14:49] Industrial Designer: But the It wouldn't be very robust. It's very fragile and you can get scratches on it.
+[14:49] Marketing Expert: So
+[14:55] Marketing Expert: That is true.
+[14:55] Project Manager: That's right. Uh maybe we can first um listen to your presentation? Uh And then we have a little discussion about the requirements and uh design.
+[14:56] User Interface Designer: Yeah that's true.
+[14:56] Marketing Expert: We would have to look into that.
+[15:01] User Interface Designer: Uh.
+[15:01] Marketing Expert: Yeah.
+[15:01] Industrial Designer: That's.
+[15:04] Industrial Designer: Okay.
+[15:19] Project Manager: I think it's going to Uh it's not too much. Okay.
+[15:23] Industrial Designer: Okay I've got a presentation about the working design. Um first about how it works. It's really simple of course. Everybody knows how a remote works. The user presses a button. The remote determines what button it is, uses the infrared to send a signal to the T_V_. The T_V_ switches to the frequency, or what function it is.
+[15:44] Industrial Designer: So we've got um the the plate. It gots conductive disks for every button. When the user presses a button, a signal got sent, goes to the LED and transmits tranmi transmits its to the T_V_.
+[15:59] Industrial Designer: It's a very simple device, technically speaking. So this is a schematic overview. You've got the buttons. The power source. And uh when a button gets pressed, its goes to the chip. The chip uh controls the infrared bulb and perf perhaps a normal bulb. When you press a button you can actually see your pressed button.
+[16:25] Industrial Designer: Well um I think we should use default materials, simple plastics. Keep the inner workings simple, so it's robust. Uh I think we should focus on aesthetics, the design and the user interface, because if you're going to use high-tech materials the price is going to go sky-high.
+[16:44] Industrial Designer: And uh you only have to design a remote once, and if you use high-tech materials it come back in every product.
+[16:51] Industrial Designer: So it's, in my idea, it's uh it's gonna be smart to invest in di in design and not in uh in the product itself.
+[17:01] Industrial Designer: That's it.
+[17:02] Project Manager: Okay. Thank you.
+[17:10] Project Manager: Okay.
+[17:18] Project Manager: Uh
+[17:21] Project Manager: Okay now I hope everybody has a little bit more insight in the functions we all have and what we are doing right now. Um I'm the Project Manager so I'm here to mess things up and uh tell you some new uh requirements.
+[17:38] Project Manager: Um that's, we've uh got to design a um remote which is only suitable for T_V_. Um that's because uh it will be too complex and the time to market will be too big, if we wanna have it uh for more functions.
+[17:48] User Interface Designer: Okay.
+[17:58] User Interface Designer: Mm.
+[17:58] Project Manager: So it has to be simple. Uh another point is we have to skip the teletext, because in the world of uh upcoming internet uh we think teletext is going to be uh a thing of the past. And uh it's a function we don't need in our remote control.
+[18:21] Project Manager: Um internet is also mentioned in a function we can use. Uh maybe also on televisions it will be available as well.
+[18:31] Project Manager: Another one is uh the customer is uh forty plus. Uh that's the the market we have to to to target, because we are going to develop a new product which is specially designed for the younger customers.
+[18:46] Project Manager: Um this is uh a bit pity for the Marketing uh Expert. Because he was uh aiming on the the younger persons. So we have to find a market which is above forty plus uh but which will suit our
+[19:02] Project Manager: uh remote control, and the other way round. And we have to be very uh attent in uh putting the corporate image uh in our product. So it has to be visible in our design, in the way our device works. And uh we have to be uh very clear on this point as well. So I suggest
+[19:28] Project Manager: let's have a discussion on the control functions.
+[19:33] Project Manager: Yeah.
+[19:34] Marketing Expert: So is there any discussion possible about the new product requirement?
+[19:36] Project Manager: Uh we can see if we can find a way uh between the functions we wanna use and the market we wanna reach with our product. Um
+[19:48] User Interface Designer: Mm.
+[19:49] Marketing Expert: Yeah 'cause you're you're saying that teletext is gonna be an old feature and it's not gonna be used anymore anyway pretty soon. And new T_V_s will have internet access on them. But I think if you're targeting people of forty plus, the chance that they will have a T_V_ with internet access
+[20:09] Marketing Expert: within the next like twenty years is very slim.
+[20:13] User Interface Designer: Yeah.
+[20:14] Marketing Expert: In addition people indicated that teletext simply was an important feature for the remote control. So I think it's pretty dumb to put no teletext feature on it.
+[20:27] Marketing Expert: I'm pretty much against it.
+[20:29] Project Manager: Against the no teletext?
+[20:29] User Interface Designer: Mm.
+[20:30] Marketing Expert: Yes.
+[20:32] Project Manager: Um
+[20:35] Marketing Expert: Besides that, I think the market for forty plus is like
+[20:39] Marketing Expert: pretty small.
+[20:43] Marketing Expert: But I mean if I s if I see this, it's I think we're just gonna go for another
+[20:44] Project Manager: Yeah it's it is
+[20:44] User Interface Designer: forty
+[20:49] Project Manager: Standard remote.
+[20:50] Marketing Expert: pretty
+[20:52] Project Manager: No I think we can
+[20:52] Marketing Expert: and not innovative
+[20:55] Marketing Expert: remote control.
+[20:55] Project Manager: I think we can do a lot with the design and the simple buttons which were also mentioned. Uh if we put a lot of effort in those, we can make a remote control with uh just two or three buttons. Or just a remote which is suitable for the market we wanna reach because it is forty percent of the market.
+[21:13] User Interface Designer: Yeah.
+[21:16] Project Manager: And um if you look in Holland at the whole generation of forty plus, fifty plus, it it's the the biggest share of the of the whole population now.
+[21:30] Marketing Expert: Yes but it's not the biggest part of the
+[21:34] Marketing Expert: market.
+[21:35] Project Manager: No.
+[21:35] Marketing Expert: And besides that, they're not very critical so I mean they don't really care
+[21:40] Marketing Expert: what the remote control is like. They'll just pretty much take the first thing they see and which looks acceptable.
+[21:48] Project Manager: But don't you think that if we make a remote which is uh typically made for this market, that people think the people think that's the the device I've looked for although I didn't realise it. So let's try it.
+[22:06] Marketing Expert: No. I think that would be the case in the
+[22:10] Marketing Expert: sixteen to forty five age category.
+[22:16] Marketing Expert: because they are critical and they they want to have a fancy remote control.
+[22:20] User Interface Designer: Yeah.
+[22:21] Marketing Expert: People of forty plus, I mean they want it to work, but
+[22:27] Marketing Expert: as soo as soon as it works it's okay with them.
+[22:31] User Interface Designer: Mm.
+[22:31] Project Manager: Yeah.
+[22:32] Industrial Designer: I think that if we're If we put our marketing right um we can sell this just like um I don't know if you've heard about it in the news, the the elderly mobile phone?
+[22:33] Marketing Expert: So
+[22:42] Project Manager: Yeah. It's a big success.
+[22:44] Industrial Designer: Yeah if we if we make a remote control just l with that idea in mind, we could make tons of money, I think. We don't have to focus on on on the on the design then but on functionality. We just
+[22:45] Marketing Expert: I haven't heard of it.
+[22:45] Project Manager: Very big success. Yeah.
+[22:51] Marketing Expert: Hmm.
+[22:51] Project Manager: Uh. I think so as well.
+[22:52] User Interface Designer: Mm.
+[23:00] Industrial Designer: change our focus on the project, and I think
+[23:04] Industrial Designer: we can uh we can sell this.
+[23:07] Project Manager: Uh I simply think um
+[23:13] Project Manager: uh that the new products we are gonna make, uh spef specifically design, are designed for uh younger people, uh so maybe we can focus ourself on the elderly people.
+[23:28] Project Manager: And I think we have to um see what requirements we need for those um remote controls. 'Cause what you told is the channel selection is important. Volume selection, power and teletext. Okay. Um
+[23:43] Marketing Expert: Yes.
+[23:44] User Interface Designer: Mm.
+[23:47] Marketing Expert: Yes.
+[23:47] User Interface Designer: Yeah.
+[23:50] Marketing Expert: But obviously the board tends to disagree.
+[23:53] Project Manager: No we we haven't voted yet, so Uh I think teletext can be uh
+[24:01] Project Manager: um can be a function as well. But only if uh if it won't
+[24:08] Project Manager: higher the the cost, because I don't know if it will be a lot more money to implement teletext as well, but I don't think it will be a problem.
+[24:18] Project Manager: Or is teletext a
+[24:18] User Interface Designer: But um deaf people need uh teletext for uh for subtitles. So it's Yeah.
+[24:23] Project Manager: Yeah.
+[24:23] Marketing Expert: Yeah, also.
+[24:25] Project Manager: Yeah. So I suggest uh
+[24:26] Marketing Expert: I think it'd definitely be a bad idea not to include teletext.
+[24:27] User Interface Designer: It's Mm.
+[24:28] Project Manager: Yeah. Is anybody um really against teletext?
+[24:34] Industrial Designer: No.
+[24:34] Project Manager: No? Just that, that we just keep the teletext.
+[24:41] Project Manager: I think that's a good idea as well, especially for the subtitles.
+[24:46] Project Manager: Maybe we can
+[24:49] Project Manager: make that um
+[24:53] Project Manager: another point of advantage in our remote control, if we uh make a k a button ex for example for big subtitles, which is instantly on the remote control. For elderly people they can think, oh I wanna have subtitles, and they push the button and they get the big subtitles.
+[25:05] User Interface Designer: Yeah yeah.
+[25:11] Industrial Designer: Uh that's a good idea.
+[25:12] User Interface Designer: Yeah. Yeah.
+[25:13] Project Manager: Um so I think teletext can v can be very useful in our advantage. Um
+[25:23] Project Manager: Functionality should be few buttons, you said.
+[25:27] Marketing Expert: Yes.
+[25:28] Project Manager: I think uh that's very important we have a few buttons.
+[25:28] User Interface Designer: Yeah.
+[25:32] Marketing Expert: Mm-hmm.
+[25:35] Project Manager: So to keep it simple.
+[25:35] Marketing Expert: But
+[25:37] Marketing Expert: I don't think that's really an issue any more 'cause
+[25:41] Marketing Expert: Well might be.
+[25:43] User Interface Designer: If it's only for televi Yeah.
+[25:44] Marketing Expert: But I mean it, if it's only for T_V_ you're not gonna need a lot of buttons anyway. You need a one to zero button, next channel, previous channel,
+[25:46] User Interface Designer: Yeah.
+[25:48] Project Manager: No.
+[25:51] User Interface Designer: Yeah.
+[25:54] Marketing Expert: volume up, volume down, and some teletext buttons but
+[25:59] Project Manager: Yeah.
+[26:01] Project Manager: But do you need
+[26:01] Marketing Expert: I think if you if you only l
+[26:02] User Interface Designer: So we can s we can skip the display, so uh we don't need it.
+[26:06] Project Manager: But do you need the buttons for one to zero. Maybe c we can
+[26:07] Marketing Expert: Nah.
+[26:12] User Interface Designer: Uh
+[26:12] Marketing Expert: Think if you're gonna include teletext you do. I think many people like to use that. 'Cause if you should, if you want to switch from channel one to like thirty five, you don't wanna push the next channel button thirty five times.
+[26:16] Project Manager: Maybe we can use uh
+[26:17] User Interface Designer: Yeah.
+[26:24] User Interface Designer: Yeah.
+[26:24] Project Manager: No, maybe we can implement the scroll button?
+[26:29] Project Manager: Or a joystick like?
+[26:30] User Interface Designer: Mm.
+[26:32] Project Manager: There are other ways too. Just look if you look at telephones. The Sony telephone has a scroll button which is very useful in searching names or
+[26:35] User Interface Designer: Yeah.
+[26:37] User Interface Designer: Mm-hmm.
+[26:39] User Interface Designer: Yeah.
+[26:43] Marketing Expert: That's true but um
+[26:46] Marketing Expert: I don't think there are many T_V_s that can switch channels that fast. And so you would need like
+[26:53] Marketing Expert: the T_V_ would need an a function where you can actually view all channels and scroll through it.
+[27:00] Marketing Expert: And I dunno if many channels would
+[27:03] Marketing Expert: do have that. If many T_V_s have that.
+[27:05] Industrial Designer: Yeah. And besides that it's um If we're gonna focus on elderly people they'll have to adapt. They're not used to using scroll buttons. So perhaps we should s stick to the basic layout.
+[27:06] User Interface Designer: Mm.
+[27:15] Project Manager: That's right.
+[27:15] Marketing Expert: Mm-hmm.
+[27:15] User Interface Designer: Mm.
+[27:20] Project Manager: the numbers yeah. Yeah they can see how much buttons there are going to be on on the display, and if it's too much we can uh reconsider it. But I think there won't be very much buttons. Or there don't have to be a lot.
+[27:31] User Interface Designer: Yeah.
+[27:33] Marketing Expert: But I don't think I think if you're gonna make a remote control only to operate a T_V_, you there's not much you can gain on
+[27:41] Marketing Expert: um having as few buttons as possible. 'Cause I think there are pretty many remote controls that can only operate a T_V_, which already only have the minimum number of buttons. I don't think there's much to be gained in that area.
+[27:55] User Interface Designer: Hmm.
+[27:56] Project Manager: The number of buttons? I think it's very important in the in the design.
+[27:57] Marketing Expert: Yeah.
+[28:01] Project Manager: You can make a very fancy design uh with putting the buttons on the right places. And if you have less buttons you can do a lot more with
+[28:11] Marketing Expert: That is true but I think there's simply not much to gain on the competition when you when you're making a remote control only for to operate only the T_V_.
+[28:21] Project Manager: To operate only the T_V_ yeah.
+[28:21] Marketing Expert: 'Cause if you have a a remote control only to operate a T_V_ there's simply not a lot of buttons required.
+[28:29] Marketing Expert: There's not a lot of functions required so most existing remote controls simply don't have a lot of buttons either.
+[28:35] Project Manager: No.
+[28:35] User Interface Designer: No.
+[28:37] Project Manager: So.
+[28:37] Marketing Expert: So I think it would be very hard to actually gain on the competition here.
+[28:42] Project Manager: 'Kay. So we can
+[28:42] Marketing Expert: That would that would cost a a big marketing
+[28:48] Project Manager: Yeah.
+[28:48] Marketing Expert: expedition
+[28:49] Project Manager: That's right.
+[28:50] Marketing Expert: which was one of the arguments to make it only for the T_V_ because we didn't have the time to market a lot.
+[28:56] Project Manager: Yeah. So you suggest we could better um focus on for example the docking station.
+[29:05] Project Manager: Uh uh like other functions.
+[29:09] Marketing Expert: Maybe.
+[29:09] Project Manager: Instead of f of less buttons.
+[29:12] Marketing Expert: Well yeah I think, mean we obviously need a good way to position all the buttons and
+[29:19] Marketing Expert: But I don't think we should spend very much time in that.
+[29:22] Project Manager: Mm. No. Do you think the docking station will
+[29:27] Project Manager: uh is allowed in the budget we have?
+[29:32] Industrial Designer: It should be possible yes. If it's not too fancy. And if the remote stays rather small, it should be possible yeah.
+[29:33] Project Manager: 'Cause it can be
+[29:34] User Interface Designer: No.
+[29:36] Project Manager: No.
+[29:38] Project Manager: Yeah. Because I think that's uh
+[29:39] User Interface Designer: No.
+[29:42] Project Manager: That's a good advantage point as well. If we have a fancy-looking docking station or very That's a nice requirement.
+[29:45] Industrial Designer: Yes.
+[29:48] User Interface Designer: Hmm.
+[29:54] Project Manager: Docking station.
+[29:56] Industrial Designer: So we're just gonna focus on the extras?
+[30:00] Project Manager: I think so.
+[30:01] Industrial Designer: Yeah.
+[30:01] User Interface Designer: Mm.
+[30:01] Marketing Expert: Yeah I think maybe we should do some research into
+[30:05] Marketing Expert: what elderly people like to have in a
+[30:08] Project Manager: Yeah.
+[30:08] Marketing Expert: like to have extra in a new remote control.
+[30:11] Project Manager: That's a good point. Um
+[30:16] Project Manager: You said they easily get lost as well.
+[30:19] Marketing Expert: Yes well fifty percent of the people indicated that remote control tended to get lost.
+[30:22] Project Manager: Yeah. So maybe we should implement the audio sign, or something.
+[30:29] Marketing Expert: Yeah that was what I suggested. You have it on Yeah you have it's on some phones too, which have a docking station. And you just press a button and the phone goes ringing.
+[30:30] Project Manager: Yeah.
+[30:31] Industrial Designer: Like with your key-chain, if you whistle it goes uh it makes a sound.
+[30:32] Project Manager: Yeah.
+[30:34] User Interface Designer: Hm.
+[30:38] Industrial Designer: Yeah.
+[30:42] Project Manager: Yeah. So audio signal should be possible as well. I think it's not too expensive. Uh another
+[30:43] Marketing Expert: So you know where it is.
+[30:48] User Interface Designer: No.
+[30:54] Project Manager: point is the L_C_D_ screen.
+[30:59] Project Manager: Um I don't know if that will rise the cost too much, because
+[31:04] Industrial Designer: Y i um I think we'll have to choose between the docking station or the screen, 'cause
+[31:10] Project Manager: Yeah. It will be too much as well.
+[31:10] Industrial Designer: it's uh
+[31:11] User Interface Designer: Mm.
+[31:12] Marketing Expert: I think since a lot of people indicated that a new remote control is hard to learn, and we're focusing on elderly people here which tend to have a hard time understanding new devices, it might be a good idea to have just a little screen on it, which would explain a button if you press it. Which would tell you what it does.
+[31:31] Project Manager: Yeah.
+[31:32] Marketing Expert: And it wouldn't have to be touchscreen or a very expensive screen, but
+[31:35] Project Manager: Based.
+[31:35] User Interface Designer: Okay. Yeah.
+[31:38] Project Manager: Just the L_C_D_. Oh just the normal screen.
+[31:42] Marketing Expert: Just a small screen with two
+[31:43] Project Manager: That's a good idea. So Some extra info. Feedback.
+[31:46] Marketing Expert: Yeah.
+[31:48] Project Manager: Yeah. I think that's a good idea as well.
+[31:48] User Interface Designer: Yeah.
+[31:51] Marketing Expert: But I dunno if that would
+[31:54] Project Manager: As the small screen.
+[31:54] Marketing Expert: that would fit into the
+[31:59] Marketing Expert: costs.
+[32:04] Project Manager: Extra button info.
+[32:09] Project Manager: I think that should be possible as well. Um let's see what did we say. Mm. More. Should be fancy to, fancy design, easy to learn. Few buttons, we talked about that. Docking station, L_C_D_. Um general functions
+[32:32] Project Manager: Yeah.
+[32:36] Project Manager: 'Kay.
+[32:40] Project Manager: And default materials.
+[32:44] Project Manager: I think that's a good idea as well, because um elderly people don't mind if it's a titanium cover or just a plastic one. So that doesn't really matter. So I think we nee
+[32:55] Marketing Expert: No.
+[32:55] User Interface Designer: Mm.
+[32:58] Marketing Expert: I think probably elderly people would be a little bit more careful with their remote controls than
+[33:05] Marketing Expert: youngsters.
+[33:08] Project Manager: Uh let's um specify the target group. Because are we talking about elderly elderly people or people from forty to eighty. Because I think what we're going to design now is for people above sixty, maybe.
+[33:28] User Interface Designer: Mm. Yeah.
+[33:29] Marketing Expert: Yeah.
+[33:30] Project Manager: Uh what do we want? If we want um a with uh for example the the telephone for elderly people, we can
+[33:30] Marketing Expert: I think
+[33:40] Project Manager: target the real elderly people.
+[33:44] Marketing Expert: I think that would be a If we should do something like that it would be a, I think it would be really good for uh for the image of the company.
+[33:53] Project Manager: Yeah.
+[33:53] Marketing Expert: And I think, I think there would be a good market for it.
+[33:57] Project Manager: So that's the
+[33:58] Marketing Expert: If we're able to really bring an innovative product.
+[34:02] Project Manager: Now you're talking about sixty to eighty for example.
+[34:05] Marketing Expert: Yeah the really
+[34:06] Project Manager: Yeah. Sixty.
+[34:07] User Interface Designer: Mm.
+[34:08] Marketing Expert: But
+[34:10] Marketing Expert: I'd have to look into that a little more.
+[34:12] Project Manager: Okay. And different cultures. Are we
+[34:17] Industrial Designer: Well I don't think they have different television sets uh
+[34:21] User Interface Designer: Mm.
+[34:22] Project Manager: Okay.
+[34:22] Industrial Designer: in uh every country.
+[34:24] Project Manager: No.
+[34:24] User Interface Designer: No.
+[34:25] Industrial Designer: 'Cause
+[34:27] Project Manager: We've got five minutes left just now. Small warning.
+[34:28] User Interface Designer: So 'Kay.
+[34:29] Marketing Expert: 'Kay. And with uh the little screen in it, which explains the buttons. You could I think we n it would be a lot easier to
+[34:34] Project Manager: Should
+[34:38] Marketing Expert: adapt it to different cultures.
+[34:41] Project Manager: Yeah. In different languages, you know. Yeah.
+[34:43] Marketing Expert: Yeah.
+[34:43] Industrial Designer: Yeah.
+[34:43] User Interface Designer: Yeah.
+[34:45] Project Manager: or you have to put a language button in it, but that will be a bit unnecessary I think. It's better to put it on different markets with it all. Okay. So that's the the target. Uh then a few small things.
+[34:45] User Interface Designer: Right.
+[34:48] User Interface Designer: No. Yeah.
+[34:50] Marketing Expert: Yeah.
+[34:53] User Interface Designer: Yeah.
+[34:54] Industrial Designer: Yeah.
+[35:05] Project Manager: Uh okay. I will put the minutes in the project uh project document folder. Um what we're going to do for the next meeting is the Industrial Designer will do the components concept, User Interface Designer the user interface concept, and the trend-watching.
+[35:24] Project Manager: So just keep in mind the things we've said about the target group, uh requirements, and the trends which are uh going on. And uh specific instructions will be sent to you by uh the personal coach.
+[35:40] Marketing Expert: 'Kay.
+[35:40] Project Manager: So um I thank you for this meeting. And I think we have a lunch-break now.
+[35:46] Marketing Expert: That's good.
+[35:47] User Interface Designer: Yeah.
+[35:47] Project Manager: So that's a good thing.

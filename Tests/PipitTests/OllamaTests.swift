@@ -46,7 +46,33 @@ struct OllamaTests {
         ) {
             _ = try await client.enrich(request(), model: "m")
         }
+        // Held to the schema, then JSON mode, then plain words.
+        #expect(server.requests.count == 3)
+    }
+
+    @Test("a schema answer that never closes is asked again in JSON mode, with output capped")
+    func aSchemaAnswerThatNeverClosesIsAskedAgainInJSONMode() async throws {
+        // Seen with a small Gemma model: held to the schema it writes a good
+        // start, then whitespace until it runs out of room, and the object
+        // never closes. The same model in plain JSON mode answers in seconds.
+        let server = StubServer { [self] request in
+            request.json?["format"] is [String: Any]
+                ? chatReply("{\"title\": \"Ship on Friday\"\n\n\n\t\t\t\t")
+                : chatReply(#"{"title":"Ship on Friday"}"#)
+        }
+        let client = OllamaClient(
+            configuration: .init(baseURL: server.baseURL()), session: server.session
+        )
+        let result = try await client.enrich(request(), model: "small-model")
+        #expect(result.title == "Ship on Friday")
+
         #expect(server.requests.count == 2)
+        let second = try #require(server.requests.last?.json)
+        #expect(second["format"] as? String == "json")
+        for sent in server.requests {
+            let options = try #require(sent.json?["options"] as? [String: Any])
+            #expect((options["num_predict"] as? Int ?? 0) > 0, "a looping model stops instead of running for minutes")
+        }
     }
 
     @Test("a running Ollama is found with its models, by name")
