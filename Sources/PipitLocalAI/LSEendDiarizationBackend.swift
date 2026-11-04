@@ -27,7 +27,7 @@ public struct LSEendDiarizationBackend: DiarizationBackend {
     }
 
     public var identifier: String {
-        "\(LocalSpeechStack.lseendBackendIdentifierPrefix)\(variant)-0.15.6"
+        "\(LocalSpeechStack.lseendBackendIdentifierPrefix)\(variant)-0.18.2"
     }
     public var isLocal: Bool { true }
     public var limits: BackendAudioLimits { .none }
@@ -128,7 +128,7 @@ extension LocalModelManager {
             return LSEendDiarizationBackend.output(
                 segments: segments,
                 configuration: [
-                    "backend": "\(LocalSpeechStack.lseendBackendIdentifierPrefix)\(variant)-0.15.6",
+                    "backend": "\(LocalSpeechStack.lseendBackendIdentifierPrefix)\(variant)-0.18.2",
                     "pipeline": "ls-eend",
                     "variant": "\(variant)",
                 ]

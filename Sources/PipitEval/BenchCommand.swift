@@ -45,6 +45,17 @@ enum BenchCommand {
         /// ratchet. Off, a gated run fails on the missing entry itself, so a
         /// suite cannot silently regress on a case nobody recorded.
         var allowMissingBaseline = false
+        /// Run Parakeet phrase by phrase, cut at pauses the way the live
+        /// transcript cuts them, instead of over the whole track.
+        var livePhrases = false
+        /// Run Parakeet through FluidAudio's sliding-window streamer.
+        var liveSliding = false
+        /// Run Parakeet Unified through FluidAudio's streaming manager in
+        /// place of Parakeet TDT.
+        var liveUnified = false
+        /// Run the live engine the app uses during a call, for `--engine
+        /// apple` or `--engine parakeet`, in place of the after-call pass.
+        var liveEngine = false
     }
 
     /// Where a kept scratch directory goes: beside `--out` when there is one,
@@ -206,9 +217,22 @@ enum BenchCommand {
         }
     }
 
+    /// Segmenter tuning for `--live-phrases`, overridable for a sweep with
+    /// PIPIT_PHRASE_TUNING="threshold,pause,maximum,padding,minimum".
+    static func phraseTuning() -> LiveSpeechSegmenter.Tuning {
+        let parts = (ProcessInfo.processInfo.environment["PIPIT_PHRASE_TUNING"] ?? "")
+            .split(separator: ",").compactMap { Double($0) }
+        guard parts.count == 5 else { return .default }
+        return LiveSpeechSegmenter.Tuning(
+            speechThreshold: Float(parts[0]), pauseWindows: Int(parts[1]), maximumWindows: Int(parts[2]),
+            paddingWindows: Int(parts[3]), minimumSpeechWindows: Int(parts[4])
+        )
+    }
+
     static func makeBackends(
         models: LocalModelManager, cloud: OpenAIClient, configuration: AppSettings,
-        diarizer: String
+        diarizer: String, livePhrases: Bool = false, liveSliding: Bool = false,
+        liveUnified: Bool = false, liveEngine: Bool = false
     ) -> ProcessingBackends {
         // The same wiring PipitRuntime builds, minus the speaker store: the
         // harness must not touch the voice memory of whoever runs it.
@@ -220,8 +244,16 @@ enum BenchCommand {
                         switch choice {
                         case .cohere: CohereTranscriptionBackend(models: models)
                         case .canary: CanaryTranscriptionBackend(models: models)
+                        case .apple where liveEngine:
+                            LiveEngineTranscriptionBackend(models: models, engine: .apple)
                         case .apple: AppleSpeechTranscriptionBackend()
-                        case .parakeet: ParakeetTranscriptionBackend(models: models)
+                        case .parakeet where liveEngine:
+                            LiveEngineTranscriptionBackend(models: models, engine: .parakeet)
+                        case .parakeet:
+                            parakeetBackend(
+                                models: models, livePhrases: livePhrases, liveSliding: liveSliding,
+                                liveUnified: liveUnified
+                            )
                         case .whisper: WhisperTranscriptionBackend(models: models)
                         }
                     },
@@ -330,7 +362,9 @@ enum BenchCommand {
             let backends = makeBackends(
                 models: models, cloud: cloud,
                 configuration: settings(engine: engine, diarizer: options.diarizer),
-                diarizer: options.diarizer
+                diarizer: options.diarizer, livePhrases: options.livePhrases,
+                liveSliding: options.liveSliding, liveUnified: options.liveUnified,
+                liveEngine: options.liveEngine
             )
             for benchCase in cases {
                 let plan = BenchResume.pending(
@@ -703,5 +737,18 @@ enum BenchCommand {
         return sorted.count.isMultiple(of: 2)
             ? (sorted[middle - 1] + sorted[middle]) / 2
             : sorted[middle]
+    }
+}
+
+extension BenchCommand {
+    /// The Parakeet pass the live options ask for, the whole-track pass when
+    /// none is set.
+    static func parakeetBackend(
+        models: LocalModelManager, livePhrases: Bool, liveSliding: Bool, liveUnified: Bool
+    ) -> any TranscriptionBackend {
+        if liveUnified { return ParakeetUnifiedTranscriptionBackend(models: models) }
+        if liveSliding { return ParakeetSlidingTranscriptionBackend(models: models) }
+        if livePhrases { return ParakeetPhraseTranscriptionBackend(models: models, tuning: phraseTuning()) }
+        return ParakeetTranscriptionBackend(models: models)
     }
 }

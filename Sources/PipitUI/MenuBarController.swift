@@ -447,6 +447,10 @@ public final class MenuBarController: NSObject, NSMenuDelegate {
         note.target = self
         menu.addItem(note)
 
+        let live = NSMenuItem(title: "Show Live Transcript", action: #selector(openLiveTranscript), keyEquivalent: "t")
+        live.target = self
+        menu.addItem(live)
+
         if status.isProvisional {
             menu.addItem(.separator())
             let keep = NSMenuItem(title: "Keep This Recording", action: #selector(keepProvisional), keyEquivalent: "")
@@ -552,6 +556,8 @@ public final class MenuBarController: NSObject, NSMenuDelegate {
     @objc private func openPeople() { windows.showPeople() }
 
     @objc private func openMeetings() { windows.showMeetings() }
+
+    @objc private func openLiveTranscript() { windows.showLiveTranscript() }
 
     @objc private func togglePause() {
         runtime.setDetectionPaused(!runtime.status.detectionPaused)

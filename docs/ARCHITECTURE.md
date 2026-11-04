@@ -295,6 +295,57 @@ or a model that answers in prose, gets one more request with the schema written
 into the instructions, and `ModelJSON` reads the object out of the reply
 whether it is fenced, preceded by prose, or preceded by thinking.
 
+## Live transcript
+
+While a meeting records, Pipit can show what is being said in a floating
+window. The live text is for reading during the call. The transcript saved with
+the meeting still comes from the speech processing above, run over the whole
+recording after the call.
+
+```text
+SegmentWriter receives a buffer -> LiveAudioQueue -> LiveTranscriptSession
+  mic:    LiveTrackResampler -> LiveEchoRemover -> live engine -> lines
+  remote: LiveTrackResampler -> live engine -> lines
+          -> far-end scratch file -> repeated speaker passes
+```
+
+`CaptureEngine` pushes every buffer that reaches a segment writer into a
+`LiveAudioQueue`. The push takes one lock and appends to storage reserved in
+advance, so the audio threads never allocate or wait. A full queue drops new
+buffers and counts them; the recording is already written by then.
+
+`LiveTranscriptSession` drains the queue on its own task. Each track is
+resampled to 16 kHz mono and placed on one timeline by host time. The
+microphone is cleaned of the far end with the shipped echo canceller, using the
+far end at the same timeline position as the reference. Each track feeds its own
+engine through its own stream, so an engine waiting for the speech model does
+not hold up the other track. The session never waits on the main actor.
+
+`LiveTrackEngine` puts the live engines behind one interface. Apple's
+`SpeechAnalyzer` streams provisional and final text. Parakeet cuts each track
+into phrases at pauses with the voice detector, reads an open phrase every two
+seconds for provisional text, and settles it when the phrase closes. The engine
+is chosen in Settings, separately from the one that writes the saved transcript.
+
+Far-end speakers are labelled by running the offline diarizer over a scratch
+file of the far end so far. The first pass runs once 20 seconds of far end are
+written; each later pass waits four times as long as the previous one took,
+between 20 seconds and 4 minutes. `LiveSpeakerLabels` keeps each speaker's label across
+passes by time overlap, and `SpeakerRecognitionService.liveNames` names voices
+the person has named without writing to the voice store. The scratch file lives
+under the processing scratch directory in Caches and is deleted when the
+recording ends.
+
+`LiveTranscriptPanel` is a borderless, non-activating panel. It opens from the
+menu or, when the setting is on, with each recording. Typed notes go to
+`notes.md` through the same path as Add Note. The panel sets
+`NSWindow.sharingType` to `.none` while the setting to hide it from screen
+sharing is on.
+
+`pipit-eval bench --live-engine` scores the live engines against reference
+transcripts, and `pipit-eval live-session` replays a recorded meeting through
+the session to check that it keeps up.
+
 ## Speaker identity
 
 Diarization writes immutable speaker intervals. `speakers.map.json` adds mutable

@@ -241,12 +241,25 @@ struct LocalConfigurationTests {
     func thePinnedModelIdentifiersAreTheOnesThatWereMeasured() async throws {
         #expect(LocalSpeechStack.whisperModel == "openai_whisper-large-v3-v20240930_turbo_632MB")
         #expect(LocalSpeechStack.whisperPackage == "argmax-oss-swift 1.1.0")
-        #expect(LocalSpeechStack.diarizerPackage == "FluidAudio 0.15.6")
+        #expect(LocalSpeechStack.diarizerPackage == "FluidAudio 0.18.2")
     }
 }
 
 @Suite("LocalModelStorage")
 struct LocalModelStorageTests {
+    @Test("a diarizer installed by an older FluidAudio is adopted before it loads")
+    func olderDiarizerInstallIsAdopted() {
+        // FluidAudio 0.18 loads the diarizer offline only from a folder tagged
+        // with its pinned revision. A 0.15 install has no tag, so loading it
+        // offline failed every meeting at the speaker step.
+        let older = LocalUnitReceipt(revision: "FluidAudio 0.15.6", bytes: 1, installedAt: Date())
+        let current = LocalUnitReceipt(
+            revision: LocalSpeechStack.revision(for: .diarizer), bytes: 1, installedAt: Date()
+        )
+        #expect(LocalModelManager.diarizerNeedsAdoption(receipt: older))
+        #expect(!LocalModelManager.diarizerNeedsAdoption(receipt: current))
+    }
+
     @Test("models never land in Documents")
     func modelsNeverLandInDocuments() async throws {
         // WhisperKit's own default is ~/Documents/huggingface, which puts
@@ -406,13 +419,13 @@ struct LocalModelStorageTests {
         )
         #expect(LocalSpeechStack.alignerIdentifier == "fluidaudio-parakeet-ctc-0.6b")
         #expect(
-            LocalSpeechStack.revision(for: .cohere) == "cohere-transcribe-03-2026-q8 @ FluidAudio 0.15.6"
+            LocalSpeechStack.revision(for: .cohere) == "cohere-transcribe-03-2026-q8 @ FluidAudio 0.18.2"
         )
         #expect(
-            LocalSpeechStack.revision(for: .parakeet) == "parakeet-tdt-0.6b-v3-int8 @ FluidAudio 0.15.6"
+            LocalSpeechStack.revision(for: .parakeet) == "parakeet-tdt-0.6b-v3-int8 @ FluidAudio 0.18.2"
         )
         #expect(
-            LocalSpeechStack.revision(for: .ctcAligner) == "parakeet-ctc-0.6b @ FluidAudio 0.15.6"
+            LocalSpeechStack.revision(for: .ctcAligner) == "parakeet-ctc-0.6b @ FluidAudio 0.18.2"
         )
 
         // Alignment tuning: the aligner's segments feed duplicate

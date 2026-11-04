@@ -111,26 +111,7 @@ public enum AppleSpeechError: Error, CustomStringConvertible {
         /// asset download, the way picking any model is; the OS shows and owns
         /// that download.
         static func transcribe(audio: URL) async throws -> Output {
-            guard
-                let locale = await SpeechTranscriber.supportedLocale(equivalentTo: Locale.current)
-            else { throw AppleSpeechError.localeUnsupported }
-            let transcriber = SpeechTranscriber(
-                locale: locale,
-                transcriptionOptions: [],
-                reportingOptions: [],
-                attributeOptions: [.audioTimeRange]
-            )
-            if await AssetInventory.status(forModules: [transcriber]) != .installed {
-                // Reserving an already-reserved locale is a no-op; a failure here
-                // surfaces through the installation request below.
-                _ = try? await AssetInventory.reserve(locale: locale)
-                if let request = try await AssetInventory.assetInstallationRequest(
-                    supporting: [transcriber]
-                ) {
-                    try await request.downloadAndInstall()
-                }
-            }
-
+            let transcriber = try await preparedTranscriber(reportingOptions: [])
             let file = try AVAudioFile(forReading: audio)
             let seconds = Double(file.length) / file.processingFormat.sampleRate
             let analyzer = try await SpeechAnalyzer(
@@ -154,6 +135,34 @@ public enum AppleSpeechError: Error, CustomStringConvertible {
                 }
             }
             return Output(text: text, runs: runs, durationSeconds: seconds)
+        }
+
+        /// A transcriber for the current locale with its system assets in
+        /// place. The post-call pass asks for final results only; the live
+        /// transcript also asks for the volatile ones.
+        static func preparedTranscriber(
+            reportingOptions: Set<SpeechTranscriber.ReportingOption>
+        ) async throws -> SpeechTranscriber {
+            guard
+                let locale = await SpeechTranscriber.supportedLocale(equivalentTo: Locale.current)
+            else { throw AppleSpeechError.localeUnsupported }
+            let transcriber = SpeechTranscriber(
+                locale: locale,
+                transcriptionOptions: [],
+                reportingOptions: reportingOptions,
+                attributeOptions: [.audioTimeRange]
+            )
+            if await AssetInventory.status(forModules: [transcriber]) != .installed {
+                // Reserving an already-reserved locale is a no-op; a failure here
+                // surfaces through the installation request below.
+                _ = try? await AssetInventory.reserve(locale: locale)
+                if let request = try await AssetInventory.assetInstallationRequest(
+                    supporting: [transcriber]
+                ) {
+                    try await request.downloadAndInstall()
+                }
+            }
+            return transcriber
         }
     }
 #endif

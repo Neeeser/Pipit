@@ -83,6 +83,13 @@ extension LocalModelManager {
         return provenance
     }
 
+    /// Diarizes the far end of a meeting that is still recording, from a
+    /// scratch file of the audio so far. Nothing is cached between passes:
+    /// each covers more audio than the last.
+    public func diarizeLive(audio: URL) async throws -> DiarizationOutput {
+        try await diarize(audio: audio, cacheKey: nil, speakerCount: nil, progress: { _ in })
+    }
+
     /// Diarizes one file.
     ///
     /// When `cacheKey` is given, segmentation and embedding extraction are kept

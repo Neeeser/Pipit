@@ -91,7 +91,7 @@ public struct DiarizationRun: Codable, Sendable, Equatable, Identifiable {
     public var id: String
     public var track: CaptureTrack
     /// Which backend produced it, for example
-    /// `fluidaudio-offline-0.15.6` or `gpt-4o-transcribe-diarize`.
+    /// `fluidaudio-offline-0.18.2` or `gpt-4o-transcribe-diarize`.
     public var backend: String
     public var producedAt: Date
     /// The track lead-in already added to every interval below, kept as

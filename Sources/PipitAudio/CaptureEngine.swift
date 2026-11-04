@@ -2,6 +2,7 @@ import AVFoundation
 import Accelerate
 import Foundation
 import PipitCore
+import Synchronization
 
 /// Live capture health for the menu bar and the manifest.
 public struct CaptureHealthSnapshot: Sendable, Equatable {
@@ -110,6 +111,10 @@ public final class CaptureEngine: Sendable {
     }
 
     private let state = LockedBox(State())
+    /// Receives every buffer written to disk, for the live transcript. A
+    /// concrete queue rather than a closure: the audio threads push into it
+    /// and nothing more.
+    private let liveQueue = Mutex<LiveAudioQueue?>(nil)
     private let micPreRoll: PreRollBuffer
     private let remotePreRoll: PreRollBuffer
     private let clock: any Clock
@@ -194,6 +199,13 @@ public final class CaptureEngine: Sendable {
     }
 
     public var mode: Mode { state.withLock { $0.mode } }
+
+    /// Installs, or with nil removes, the queue live audio goes to. Only
+    /// buffers that reach a segment writer are passed on, so the live
+    /// transcript hears exactly what is being saved.
+    public func setLiveAudioQueue(_ queue: LiveAudioQueue?) {
+        liveQueue.withLock { $0 = queue }
+    }
     public var health: CaptureHealthSnapshot { state.withLock { $0.lastSnapshot } }
 
     // MARK: - lifecycle
@@ -612,6 +624,7 @@ public final class CaptureEngine: Sendable {
             writer = winner
         }
         writer?.enqueue(packet)
+        if writer != nil, let queue = liveQueue.withLock({ $0 }) { queue.push(packet, track: track) }
     }
 
     /// The largest sample magnitude in the buffer, across every channel.
