@@ -4,14 +4,12 @@ import SwiftUI
 /// The meeting's recording, docked at the bottom of the pane.
 ///
 /// Outside the tabs, so it stays put while the summary or the notes are read
-/// against what is playing. One lane holds every speaker in their own colour;
-/// the Lanes button opens a lane per speaker above it.
-///
-/// The open lanes are a row of the same three parts as the controls under
-/// them, with the names as wide as the controls on the left and an empty space
-/// as wide as the buttons on the right. Both rows then put the lanes at the
-/// same place, so their playheads line up. A Grid did not: it left its middle
-/// column at a fraction of the room.
+/// against what is playing. Closed, one lane between the controls holds every
+/// speaker in their own colour. The Lanes button opens a lane per speaker
+/// above the controls, across the whole bar, with a time ruler over them and
+/// each speaker's talk time at the end. The open lanes are then the thing to
+/// click or drag, so the single lane goes, and the lanes get the width it and
+/// the controls beside it held.
 struct MeetingPlayerBar: View {
     let detail: MeetingReviewModel
     /// Whether the pane is tall enough for the lanes to start open.
@@ -22,9 +20,6 @@ struct MeetingPlayerBar: View {
     @AppStorage("MeetingPlayerLanes") private var lanesChoice = ""
     @State private var hover: CGFloat?
     @State private var lanesHover: CGFloat?
-    /// The widths either side of the combined lane.
-    @State private var leadingWidth: CGFloat = 0
-    @State private var trailingWidth: CGFloat = 0
 
     private var playback: MeetingPlaybackModel { detail.playback }
 
@@ -37,19 +32,12 @@ struct MeetingPlayerBar: View {
     }
 
     var body: some View {
-        VStack(spacing: 4) {
+        VStack(spacing: 0) {
             if lanesShown {
-                HStack(spacing: Self.spacing) {
-                    SpeakerLaneLabels(playback: playback, tint: tint(for:))
-                        .frame(width: leadingWidth, alignment: .trailing)
-                    SpeakerLanesPlot(
-                        playback: playback, tint: tint(for:), hover: $lanesHover,
-                        height: SpeakerLaneLabels.height(lanes: playback.lanes.count),
-                        rowHeight: SpeakerLaneLabels.rowHeight, rowSpacing: SpeakerLaneLabels.rowSpacing
-                    )
-                    Color.clear.frame(width: trailingWidth, height: 1)
-                }
-                .padding(.top, 12)
+                OpenSpeakerLanes(
+                    playback: playback, tint: tint(for:), talkSeconds: talkSeconds(_:), hover: $lanesHover
+                )
+                .padding(.top, 10)
             }
             HStack(spacing: Self.spacing) {
                 HStack(spacing: Self.spacing) {
@@ -57,16 +45,15 @@ struct MeetingPlayerBar: View {
                     PlaybackClock(playback: playback)
                 }
                 .fixedSize()
-                .onGeometryChange(for: CGFloat.self) {
-                    $0.size.width
-                } action: {
-                    leadingWidth = $0
-                }
 
-                SpeakerLanesPlot(
-                    playback: playback, tint: tint(for:), hover: $hover,
-                    height: SpeakerLanesPlot.combinedHeight, combined: true
-                )
+                if lanesShown {
+                    Spacer(minLength: 0)
+                } else {
+                    SpeakerLanesPlot(
+                        playback: playback, tint: tint(for:), hover: $hover,
+                        height: SpeakerLanesPlot.combinedHeight, combined: true
+                    )
+                }
 
                 HStack(spacing: Self.spacing) {
                     Button(rateLabel) { playback.cycleRate() }
@@ -97,11 +84,6 @@ struct MeetingPlayerBar: View {
                 }
                 .buttonStyle(PillButtonStyle())
                 .fixedSize()
-                .onGeometryChange(for: CGFloat.self) {
-                    $0.size.width
-                } action: {
-                    trailingWidth = $0
-                }
             }
             .frame(height: 46)
         }
@@ -151,6 +133,15 @@ struct MeetingPlayerBar: View {
         return "\(text)×"
     }
 
+    /// The same time the speaker's chip gives, summed over both halves of a
+    /// rejoined call. A lane with no chip, the words nobody was matched to,
+    /// adds up its own stretches.
+    private func talkSeconds(_ lane: SpeakerLane) -> Double {
+        let rows = detail.speakerRows.filter { $0.displayName == lane.name }
+        if !rows.isEmpty { return rows.reduce(0) { $0 + $1.speechSeconds } }
+        return lane.spans.reduce(0) { $0 + ($1.end - $1.start) }
+    }
+
     /// The colour this speaker has on the chips and over their turns.
     private func tint(for name: String) -> Color {
         let identity = detail.speakerRows.first { $0.displayName == name }?.identity?.id
@@ -197,6 +188,52 @@ private struct PlaybackClock: View {
     }
 }
 
+/// The open lanes: the names, the lanes under the ruler, and the talk time
+/// under its heading. One stack per column keeps each name, lane and time on
+/// the same line without measuring anything, and the lanes take every point
+/// the two outer columns leave.
+struct OpenSpeakerLanes: View {
+    let playback: MeetingPlaybackModel
+    let tint: (String) -> Color
+    let talkSeconds: (SpeakerLane) -> Double
+    @Binding var hover: CGFloat?
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 12) {
+            // Only as wide as the names. A spacer that could stretch sideways
+            // made this column split the row with the lanes, which then
+            // stopped halfway across a wide window.
+            VStack(alignment: .trailing, spacing: 0) {
+                Color.clear.frame(width: 1, height: LaneRuler.height)
+                SpeakerLaneLabels(playback: playback, tint: tint)
+            }
+            .fixedSize(horizontal: true, vertical: false)
+            VStack(spacing: 0) {
+                LaneRuler(timeline: playback.timeline)
+                SpeakerLanesPlot(
+                    playback: playback, tint: tint, hover: $hover,
+                    height: SpeakerLaneLabels.height(lanes: playback.lanes.count),
+                    rowHeight: SpeakerLaneLabels.rowHeight, rowSpacing: SpeakerLaneLabels.rowSpacing
+                )
+            }
+            VStack(alignment: .trailing, spacing: SpeakerLaneLabels.rowSpacing) {
+                Text("Talk time")
+                    .font(.system(size: 10))
+                    .foregroundStyle(.secondary)
+                    .frame(height: LaneRuler.height, alignment: .bottom)
+                ForEach(playback.lanes) { lane in
+                    Text(Format.shortDuration(talkSeconds(lane)))
+                        .font(.system(size: 10.5))
+                        .monospacedDigit()
+                        .foregroundStyle(.secondary)
+                        .frame(height: SpeakerLaneLabels.rowHeight)
+                }
+            }
+            .fixedSize()
+        }
+    }
+}
+
 /// The speakers' names, one per lane, beside the lanes they label.
 ///
 /// Lanes rather than a waveform: a waveform says how loud the room was, and the
@@ -223,6 +260,9 @@ struct SpeakerLaneLabels: View {
                     .frame(height: Self.rowHeight)
             }
         }
+        // A long name is cut rather than taking the lanes' room.
+        .frame(maxWidth: 140, alignment: .trailing)
+        .fixedSize(horizontal: true, vertical: false)
     }
 
     private func isSpeaking(_ name: String) -> Bool {
@@ -378,5 +418,58 @@ struct SpeakerLanesPlot: View {
             lane.spans.contains { $0.start <= at && at <= $0.end }
         }
         return speaker.map { "\($0.name) · \(time)" } ?? time
+    }
+}
+
+/// Times along the top of the open lanes, so a stretch can be read off as
+/// "about twenty minutes in" without hovering.
+struct LaneRuler: View {
+    let timeline: PlaybackTimeline
+
+    static let height: CGFloat = 16
+    /// Room a label needs beside the next one.
+    nonisolated static let minimumSpacing: CGFloat = 64
+
+    var body: some View {
+        // Drawn rather than laid out: a label centred on its mark widened a
+        // stack's bounds and moved the whole ruler off the lanes under it.
+        let duration = timeline.duration
+        let renderer = TranscriptRenderer()
+        Canvas { context, size in
+            let baseline = size.height - 0.5
+            var rule = Path()
+            rule.move(to: CGPoint(x: 0, y: baseline))
+            rule.addLine(to: CGPoint(x: size.width, y: baseline))
+            context.stroke(rule, with: .color(.primary.opacity(0.12)), lineWidth: 1)
+            let step = Self.interval(duration: duration, width: size.width)
+            guard duration > 0, step > 0 else { return }
+            for seconds in stride(from: 0.0, to: duration, by: step) {
+                let x = CGFloat(seconds / duration) * size.width
+                var tick = Path()
+                tick.move(to: CGPoint(x: x + 0.5, y: baseline))
+                tick.addLine(to: CGPoint(x: x + 0.5, y: baseline - 5))
+                context.stroke(tick, with: .color(.primary.opacity(0.25)), lineWidth: 1)
+                let label = Text(renderer.timecode(timeline.timelineSeconds(at: seconds)))
+                    .font(.system(size: 10).monospacedDigit())
+                    .foregroundStyle(Color.secondary)
+                // The first label starts at its mark, so it does not hang
+                // off the left end; the rest are centred on theirs.
+                context.draw(
+                    label, at: CGPoint(x: x, y: baseline - 6),
+                    anchor: seconds == 0 ? .bottomLeading : .bottom
+                )
+            }
+        }
+        .frame(height: Self.height)
+        .accessibilityHidden(true)
+    }
+
+    /// The gap between marks: the shortest of a few round lengths that keeps
+    /// the labels apart at this width.
+    nonisolated static func interval(duration: Double, width: CGFloat) -> Double {
+        guard duration > 0, width > 0 else { return 0 }
+        let steps: [Double] = [30, 60, 120, 300, 600, 900, 1_800, 3_600, 7_200]
+        let fits = steps.first { CGFloat($0 / duration) * width >= minimumSpacing }
+        return fits ?? steps[steps.count - 1]
     }
 }

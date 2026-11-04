@@ -156,3 +156,51 @@ struct SpeakerLanesCombinedTests {
         #expect(laneRed.isDisjoint(with: laneBlue))
     }
 }
+
+@MainActor
+@Suite("OpenSpeakerLanes")
+struct OpenSpeakerLanesTests {
+    @Test("open lanes reach across a wide bar instead of stopping halfway")
+    func lanesFillTheWidth() throws {
+        let root = try TestPaths.makeTemporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let audio = try silentRecording(in: root)
+        let playback = MeetingPlaybackModel()
+        playback.update(
+            recordings: [.init(id: "rec-a", audio: audio, timelineOffset: 0)],
+            lines: [PlaybackTimelineTests.line(speaker: "Synthetic speaker", start: 0, end: 0.99, text: "Test")]
+        )
+        playback.seek(to: 1)
+        let width: CGFloat = 1_200
+        let view = NSHostingView(
+            rootView: OpenSpeakerLanes(
+                playback: playback, tint: { _ in .red }, talkSeconds: { _ in 1 }, hover: .constant(nil)
+            )
+            .frame(width: width)
+            .background(.white)
+            .environment(\.colorScheme, .light)
+        )
+        view.frame = NSRect(x: 0, y: 0, width: width, height: view.fittingSize.height)
+        view.layoutSubtreeIfNeeded()
+        let image = try #require(view.bitmapImageRepForCachingDisplay(in: view.bounds))
+        view.cacheDisplay(in: view.bounds, to: image)
+        // The lane is one unbroken red bar, the longest red run on any row of
+        // pixels; the red name beside it breaks up into letters.
+        var longestRun = 0
+        for y in 0..<image.pixelsHigh {
+            var run = 0
+            for x in 0..<image.pixelsWide {
+                let red =
+                    image.colorAt(x: x, y: y)?.usingColorSpace(.deviceRGB).map {
+                        $0.redComponent > 0.8 && $0.greenComponent < 0.5 && $0.blueComponent < 0.5
+                    } ?? false
+                run = red ? run + 1 : 0
+                longestRun = max(longestRun, run)
+            }
+        }
+        let laneWidth = CGFloat(longestRun) / (CGFloat(image.pixelsWide) / width)
+        // The names and the talk time take a little over 150 points of the 1200;
+        // the lane gets the rest.
+        #expect(laneWidth > width * 0.75, "the lane is \(laneWidth) of \(width) points wide")
+    }
+}
