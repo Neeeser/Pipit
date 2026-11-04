@@ -34,7 +34,10 @@ struct MeetingPlayerBar: View {
     var body: some View {
         VStack(spacing: 0) {
             if lanesShown {
-                openLanes.padding(.top, 10)
+                OpenSpeakerLanes(
+                    playback: playback, tint: tint(for:), talkSeconds: talkSeconds(_:), hover: $lanesHover
+                )
+                .padding(.top, 10)
             }
             HStack(spacing: Self.spacing) {
                 HStack(spacing: Self.spacing) {
@@ -87,40 +90,6 @@ struct MeetingPlayerBar: View {
         .controlSize(.small)
         .padding(.horizontal, 16)
         .background(Color.primary.opacity(0.025))
-    }
-
-    /// Three columns: the names, the lanes under the ruler, and the talk time
-    /// under its heading. One stack per column keeps each name, lane and time
-    /// on the same line without measuring anything.
-    private var openLanes: some View {
-        HStack(alignment: .top, spacing: Self.spacing) {
-            VStack(alignment: .trailing, spacing: 0) {
-                Color.clear.frame(height: LaneRuler.height)
-                SpeakerLaneLabels(playback: playback, tint: tint(for:))
-            }
-            VStack(spacing: 0) {
-                LaneRuler(timeline: playback.timeline)
-                SpeakerLanesPlot(
-                    playback: playback, tint: tint(for:), hover: $lanesHover,
-                    height: SpeakerLaneLabels.height(lanes: playback.lanes.count),
-                    rowHeight: SpeakerLaneLabels.rowHeight, rowSpacing: SpeakerLaneLabels.rowSpacing
-                )
-            }
-            VStack(alignment: .trailing, spacing: SpeakerLaneLabels.rowSpacing) {
-                Text("Talk time")
-                    .font(.system(size: 10))
-                    .foregroundStyle(.secondary)
-                    .frame(height: LaneRuler.height, alignment: .bottom)
-                ForEach(playback.lanes) { lane in
-                    Text(Format.shortDuration(talkSeconds(lane)))
-                        .font(.system(size: 10.5))
-                        .monospacedDigit()
-                        .foregroundStyle(.secondary)
-                        .frame(height: SpeakerLaneLabels.rowHeight)
-                }
-            }
-            .fixedSize()
-        }
     }
 
     private static let spacing: CGFloat = 12
@@ -216,6 +185,52 @@ private struct PlaybackClock: View {
         .font(.caption)
         .monospacedDigit()
         .fixedSize()
+    }
+}
+
+/// The open lanes: the names, the lanes under the ruler, and the talk time
+/// under its heading. One stack per column keeps each name, lane and time on
+/// the same line without measuring anything, and the lanes take every point
+/// the two outer columns leave.
+struct OpenSpeakerLanes: View {
+    let playback: MeetingPlaybackModel
+    let tint: (String) -> Color
+    let talkSeconds: (SpeakerLane) -> Double
+    @Binding var hover: CGFloat?
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 12) {
+            // Only as wide as the names. A spacer that could stretch sideways
+            // made this column split the row with the lanes, which then
+            // stopped halfway across a wide window.
+            VStack(alignment: .trailing, spacing: 0) {
+                Color.clear.frame(width: 1, height: LaneRuler.height)
+                SpeakerLaneLabels(playback: playback, tint: tint)
+            }
+            .fixedSize(horizontal: true, vertical: false)
+            VStack(spacing: 0) {
+                LaneRuler(timeline: playback.timeline)
+                SpeakerLanesPlot(
+                    playback: playback, tint: tint, hover: $hover,
+                    height: SpeakerLaneLabels.height(lanes: playback.lanes.count),
+                    rowHeight: SpeakerLaneLabels.rowHeight, rowSpacing: SpeakerLaneLabels.rowSpacing
+                )
+            }
+            VStack(alignment: .trailing, spacing: SpeakerLaneLabels.rowSpacing) {
+                Text("Talk time")
+                    .font(.system(size: 10))
+                    .foregroundStyle(.secondary)
+                    .frame(height: LaneRuler.height, alignment: .bottom)
+                ForEach(playback.lanes) { lane in
+                    Text(Format.shortDuration(talkSeconds(lane)))
+                        .font(.system(size: 10.5))
+                        .monospacedDigit()
+                        .foregroundStyle(.secondary)
+                        .frame(height: SpeakerLaneLabels.rowHeight)
+                }
+            }
+            .fixedSize()
+        }
     }
 }
 
