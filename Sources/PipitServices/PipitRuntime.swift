@@ -805,7 +805,7 @@ public final class PipitRuntime {
             model: live
         )
         liveSession = session
-        captureEngine.setLiveAudioSink(session.sink)
+        captureEngine.setLiveAudioQueue(session.queue)
         Task { await session.start() }
         if settings.live.opensWithRecording { live.onOpenRequest?() }
     }
@@ -814,7 +814,7 @@ public final class PipitRuntime {
     /// awaited: a live engine waiting behind another meeting's processing for
     /// the speech model must not hold up the end of this one.
     private func stopLiveTranscript() {
-        captureEngine.setLiveAudioSink(nil)
+        captureEngine.setLiveAudioQueue(nil)
         guard let session = liveSession else { return }
         liveSession = nil
         Task { await session.stop() }

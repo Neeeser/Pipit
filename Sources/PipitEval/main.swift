@@ -209,6 +209,10 @@ func usage() -> Never {
                                  [--cleaned-mic] [--max-phrase SECONDS] [--show-text] [--json OUT]
                                  # replays a meeting through the live transcript;
                                  # --show-text and --json carry meeting text
+          pipit-eval live-session --meeting MEETING_FOLDER --engine apple|parakeet [--pace 1]
+                                 [--seconds N] [--support DIR]
+                                 # replays a meeting through the app's live session
+                                 # and reports whether it kept up
         """)
     exit(2)
 }
@@ -500,6 +504,16 @@ case "live":
             showText: arguments.showText, json: arguments.json, cleanedMic: arguments.cleanedMic,
             engine: LocalTranscriptionModel(rawValue: arguments.engine) ?? .whisper,
             maximumPhraseSeconds: arguments.maximumPhraseSeconds
+        ))
+    if code != 0 { exit(code) }
+
+case "live-session":
+    guard let folder = arguments.meeting else { usage() }
+    let code = await LiveSessionCommand.run(
+        LiveSessionCommand.Options(
+            meeting: folder, applicationSupport: arguments.applicationSupport,
+            engine: LocalTranscriptionModel(rawValue: arguments.engine) ?? .apple,
+            pace: arguments.pace, limitSeconds: arguments.limitSeconds
         ))
     if code != 0 { exit(code) }
 

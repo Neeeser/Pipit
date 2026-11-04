@@ -171,6 +171,39 @@ struct LiveTranscriptTests {
         #expect(canceller.references.last == [9, 9, 9, 9])
     }
 
+    @Test("a full live queue drops new buffers and counts them, keeping the oldest in order")
+    func queueDropsNewestWhenFull() {
+        let queue = LiveAudioQueue(capacity: 3)
+        for index in 0..<5 {
+            queue.push(Self.packet(seconds: 0.01, hostTime: Double(index)), track: .mic)
+        }
+        let first = queue.drain()
+        #expect(first.items.map(\.packet.hostTime) == [0, 1, 2])
+        #expect(first.dropped == 2)
+        queue.push(Self.packet(seconds: 0.01, hostTime: 9), track: .remote)
+        let second = queue.drain()
+        #expect(second.items.map(\.packet.hostTime) == [9])
+        #expect(second.items.first?.track == .remote)
+        #expect(second.dropped == 0)
+    }
+
+    @Test("buffers pushed from many threads at once all arrive or are counted")
+    func queueAcrossThreads() async {
+        let queue = LiveAudioQueue(capacity: 500)
+        await withTaskGroup(of: Void.self) { group in
+            for thread in 0..<8 {
+                group.addTask {
+                    for index in 0..<100 {
+                        queue.push(Self.packet(seconds: 0.001, hostTime: Double(thread * 1_000 + index)), track: .mic)
+                    }
+                }
+            }
+        }
+        let drained = queue.drain()
+        #expect(drained.items.count + drained.dropped == 800)
+        #expect(drained.items.count == 500)
+    }
+
     @Test("the scratch file reads back everything appended before it was sealed")
     func growingWaveReadsBack() throws {
         let url = FileManager.default.temporaryDirectory

@@ -6,27 +6,30 @@ import PipitSpeakers
 
 /// The live transcript of one recording, from the first buffer to stop.
 ///
-/// Capture hands every buffer it saves to `sink`, which only queues it: the
-/// audio threads never wait on anything here. A queue that falls behind drops
-/// its oldest buffers, which costs live text and nothing else, because the
-/// recording on disk is written by the segment writers before this sees the
-/// buffer.
+/// Capture pushes every buffer it saves into `queue`, and the audio threads
+/// do nothing more: this drains the queue on its own schedule. A queue that
+/// fills drops new buffers, which costs live text and nothing else, because
+/// the recording on disk is written by the segment writers before this sees
+/// the buffer.
 ///
 /// From the queue each track is resampled to 16 kHz mono on one timeline. The
 /// microphone is cleaned of the far end, both tracks go to the chosen engine,
 /// and the far end is written to a scratch file a speaker pass reads every
 /// minute or so to label who spoke. None of it is the meeting's transcript:
 /// the pass over the whole recording writes that after the call.
-actor LiveTranscriptSession {
-    typealias Item = (packet: AudioBufferPacket, track: CaptureTrack)
+public actor LiveTranscriptSession {
+    /// About a minute of buffers on both tracks at the rates the sources
+    /// deliver, so a model load or a speaker pass loses nothing.
+    private static let queueCapacity = 8_000
+    /// How long the reader waits when the queue is empty.
+    private static let pollNanoseconds: UInt64 = 20_000_000
 
-    /// Enough for several seconds of buffers on both tracks, so a pause while
-    /// a model loads loses nothing; past it the oldest go first.
-    private static let queueLimit = 1_000
-
-    nonisolated let sink: CaptureEngine.LiveAudioSink
-    private let stream: AsyncStream<Item>
-    private let input: AsyncStream<Item>.Continuation
+    public nonisolated let queue = LiveAudioQueue(capacity: LiveTranscriptSession.queueCapacity)
+    private var stopping = false
+    private var dropped = 0
+    /// What the replay harness reads: buffers dropped and audio processed.
+    public private(set) var processedSeconds: Double = 0
+    public var droppedBuffers: Int { dropped }
 
     private let meetingID: String
     private let engineChoice: LocalTranscriptionModel
@@ -40,6 +43,18 @@ actor LiveTranscriptSession {
     private var resamplers: [CaptureTrack: LiveTrackResampler] = [:]
     private var echo: LiveEchoRemover?
     private var engines: [CaptureTrack: any LiveTrackEngine] = [:]
+    /// Audio on its way to each engine. The reader hands samples over and
+    /// moves on, so an engine waiting for the speech model, held by another
+    /// meeting's processing, does not stop the other track or echo removal.
+    private var feeds: [CaptureTrack: AsyncStream<EngineChunk>.Continuation] = [:]
+    private var feeders: [Task<Void, Never>] = []
+    struct EngineChunk: Sendable {
+        var samples: [Float]
+        var start: Int
+    }
+    /// About ten minutes of one-buffer chunks per engine before the oldest
+    /// are dropped, off the audio threads.
+    private static let engineBacklog = 60_000
     private var readers: [Task<Void, Never>] = []
     private var consumer: Task<Void, Never>?
     private var speakerLoop: Task<Void, Never>?
@@ -52,7 +67,7 @@ actor LiveTranscriptSession {
     private var usedLabels: Set<String> = []
     private var lastReported: Double = 0
 
-    init(
+    public init(
         meetingID: String, engine: LocalTranscriptionModel, models: LocalModelManager,
         speakers: SpeakerRecognitionService?, speakerSettings: SpeakerRecognitionSettings,
         scratch: URL, model: LiveTranscriptModel
@@ -64,23 +79,20 @@ actor LiveTranscriptSession {
         self.speakerSettings = speakerSettings
         self.scratch = scratch
         self.model = model
-        let (stream, input) = AsyncStream<Item>.makeStream(bufferingPolicy: .bufferingNewest(Self.queueLimit))
-        self.stream = stream
-        self.input = input
-        sink = { packet, track in input.yield((packet, track)) }
     }
 
     /// Loads the engines and starts reading the queue. Buffers that arrive
     /// while the engines load wait in the queue.
-    func start() async {
+    public func start() async {
         do {
             for track in CaptureTrack.allCases {
                 engines[track] = try await models.liveEngine(engineChoice)
             }
         } catch {
-            Log.processing.notice("live transcript unavailable: \(String(describing: error), privacy: .public)")
+            Log.processing.notice(
+                "live transcript unavailable: \(String(describing: type(of: error)), privacy: .public)")
             engines = [:]
-            input.finish()
+            stopping = true
             await model.setState(.unavailable(Self.reason(for: engineChoice)))
             return
         }
@@ -92,6 +104,14 @@ actor LiveTranscriptSession {
             Log.processing.notice("live echo removal unavailable")
         }
         for (track, engine) in engines {
+            let (chunks, feed) = AsyncStream<EngineChunk>.makeStream(
+                bufferingPolicy: .bufferingNewest(Self.engineBacklog)
+            )
+            feeds[track] = feed
+            feeders.append(
+                Task {
+                    for await chunk in chunks { await engine.feed(chunk.samples, start: chunk.start) }
+                })
             let model = self.model
             readers.append(
                 Task {
@@ -107,53 +127,82 @@ actor LiveTranscriptSession {
 
     /// Stops reading, settles the provisional text, and removes the scratch
     /// file. Safe to call more than once.
-    func stop() async {
-        input.finish()
+    public func stop() async {
+        stopping = true
         await consumer?.value
         consumer = nil
         speakerLoop?.cancel()
         await speakerLoop?.value
         speakerLoop = nil
-        if let echo, let cleaned = echo.flush(), let engine = engines[.mic] {
-            await engine.feed(cleaned.samples, start: cleaned.start)
-        }
+        if let echo, let cleaned = echo.flush() { send(cleaned.samples, start: cleaned.start, to: .mic) }
+        for feed in feeds.values { feed.finish() }
+        for feeder in feeders { await feeder.value }
+        feeds = [:]
+        feeders = []
         for engine in engines.values { await engine.finish() }
         for reader in readers { await reader.value }
         readers = []
         engines = [:]
         farEnd = nil
         try? FileManager.default.removeItem(at: scratch)
+        if dropped > 0 {
+            Log.processing.notice("live transcript dropped \(self.dropped, privacy: .public) buffers")
+        }
         await model.setState(.ended)
     }
 
     private func consume() async {
-        for await item in stream {
-            let origin = self.origin ?? item.packet.hostTime
-            self.origin = origin
-            let resampler = resamplers[item.track] ?? LiveTrackResampler(origin: origin)
-            resamplers[item.track] = resampler
-            guard let converted = resampler.convert(item.packet) else { continue }
-            heard = max(heard, converted.start + converted.samples.count)
-            switch item.track {
-            case .remote:
-                echo?.addReference(converted.samples, start: converted.start)
-                writeFarEnd(converted.samples, start: converted.start)
-                await engines[.remote]?.feed(converted.samples, start: converted.start)
-            case .mic:
-                if let echo {
-                    if let cleaned = echo.addMicrophone(converted.samples, start: converted.start) {
-                        await engines[.mic]?.feed(cleaned.samples, start: cleaned.start)
-                    }
-                } else {
-                    await engines[.mic]?.feed(converted.samples, start: converted.start)
-                }
+        while true {
+            let batch = queue.drain()
+            if batch.dropped > 0 {
+                if dropped == 0 { Log.processing.notice("live transcript fell behind and dropped audio") }
+                dropped += batch.dropped
             }
-            let seconds = Double(heard) / LiveTrackResampler.sampleRate
-            if seconds - lastReported >= 0.5 {
-                lastReported = seconds
-                await model.advance(to: seconds)
+            if batch.items.isEmpty {
+                if stopping { return }
+                try? await Task.sleep(nanoseconds: Self.pollNanoseconds)
+                continue
+            }
+            for item in batch.items { await process(item) }
+        }
+    }
+
+    private func process(_ item: LiveAudioItem) async {
+        let origin = self.origin ?? item.packet.hostTime
+        self.origin = origin
+        let resampler = resamplers[item.track] ?? LiveTrackResampler(origin: origin)
+        resamplers[item.track] = resampler
+        guard let converted = resampler.convert(item.packet) else { return }
+        heard = max(heard, converted.start + converted.samples.count)
+        switch item.track {
+        case .remote:
+            echo?.addReference(converted.samples, start: converted.start)
+            writeFarEnd(converted.samples, start: converted.start)
+            send(converted.samples, start: converted.start, to: .remote)
+        case .mic:
+            if let echo {
+                if let cleaned = echo.addMicrophone(converted.samples, start: converted.start) {
+                    send(cleaned.samples, start: cleaned.start, to: .mic)
+                }
+            } else {
+                send(converted.samples, start: converted.start, to: .mic)
             }
         }
+        let seconds = Double(heard) / LiveTrackResampler.sampleRate
+        processedSeconds = seconds
+        if seconds - lastReported >= 0.5 {
+            lastReported = seconds
+            // Posted, not awaited: the main thread can be held for seconds by
+            // an open menu or a window appearing, and the reader waiting on it
+            // let the queue fill behind it. The window catches up when the
+            // main thread does.
+            let model = self.model
+            Task { @MainActor in model.advance(to: seconds) }
+        }
+    }
+
+    private func send(_ samples: [Float], start: Int, to track: CaptureTrack) {
+        feeds[track]?.yield(EngineChunk(samples: samples, start: start))
     }
 
     private func writeFarEnd(_ samples: [Float], start: Int) {
@@ -229,7 +278,7 @@ actor LiveTranscriptSession {
             }
             await model.label(turns: turns, names: names)
         } catch {
-            Log.processing.notice("live speaker pass skipped")
+            Log.processing.notice("live speaker pass skipped: \(String(describing: type(of: error)), privacy: .public)")
         }
     }
 
