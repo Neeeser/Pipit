@@ -1455,6 +1455,61 @@ struct LocalPipelineTests {
         #expect(document.generatedNotes == "- Bryn sends the connector list.")
     }
 
+    @Test("the structure a summary was written from is kept for the tabs until summary.md is edited")
+    func theStructureASummaryWasWrittenFromIsKeptForTheTabs() async throws {
+        let root = try TestPaths.makeTemporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let meeting = try PipelineFixtures.makeRecordedMeeting(root: root, seconds: 6)
+        // A meeting summarised before the structure existed has only the
+        // markdown, and reads as it always did.
+        try meeting.store.writeSummary("## Summary\n\nAn older summary.")
+        #expect(meeting.store.readGeneratedSummary() == nil)
+        #expect(meeting.store.readSummaryDocument().summary == "An older summary.")
+
+        let structure = GeneratedSummary(
+            overview: "We agreed on the pilot.",
+            topics: [
+                GeneratedSummary.Topic(
+                    title: "Pilot", at: 1, points: ["Friday is the date"],
+                    decisions: [GeneratedSummary.Item(text: "Ship on Friday", at: 2)],
+                    actionItems: [GeneratedSummary.ActionItem(task: "Send the connector list", owner: "Bryn", at: 3)]
+                )
+            ]
+        )
+        let backend = FakeAIBackend()
+        backend.enrichment = MeetingEnrichment(
+            title: "Pilot", summary: structure.summaryMarkdown, notes: structure.notesMarkdown,
+            generatedSummary: structure
+        )
+        let pipeline = PipelineFixtures.makePipeline(
+            repository: meeting.repository, backend: backend,
+            transcriber: StubLocalTranscriber(segments: [
+                RawTranscriptSegment(
+                    start: 0, end: 5, text: "we ship friday", speaker: nil,
+                    words: [RawTranscriptWord(start: 0, end: 2, text: " we ship friday")]
+                )
+            ]),
+            diarizer: StubLocalDiarizer(
+                intervals: [DiarizationInterval(start: 0, end: 5, clusterID: "S1")],
+                chunkEmbeddings: Self.embeddings(cluster: "S1", seed: 65, spans: [(0, 5)])
+            ),
+            speakers: nil,
+            settings: AppSettings(),
+            scratchRoot: root.appendingPathComponent("scratch")
+        )
+        await pipeline.process(meetingID: meeting.metadata.id)
+
+        #expect(meeting.store.readGeneratedSummary() == structure)
+        #expect(meeting.store.readSummaryDocument().summary == structure.summaryMarkdown)
+        #expect(Reprocessing.derivedFiles(in: meeting.store.layout).contains(meeting.store.layout.structuredSummary))
+
+        // A person editing summary.md wins: the tabs show their text, not
+        // the structure it no longer matches.
+        let edited = (meeting.store.readSummary() ?? "") + "\n\nOne more line."
+        try meeting.store.writeSummary(edited)
+        #expect(meeting.store.readGeneratedSummary() == nil)
+    }
+
     @Test("asking by hand still refuses a name the user cleared")
     func askingByHandStillRefusesANameTheUserCleared() async throws {
         // The stage guard, reached through the on-demand entry point

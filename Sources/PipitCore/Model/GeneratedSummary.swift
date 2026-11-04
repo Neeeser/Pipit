@@ -139,3 +139,10 @@ public struct GeneratedSummary: Codable, Sendable, Equatable {
         return " [\(text)]"
     }
 }
+
+/// `raw/summary.json`: the structure, and the `summary.md` text written from
+/// it, so a reader can tell whether the markdown has been edited since.
+struct StructuredSummaryFile: Codable {
+    var markdown: String
+    var summary: GeneratedSummary
+}

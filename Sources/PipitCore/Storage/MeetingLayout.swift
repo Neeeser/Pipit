@@ -49,6 +49,10 @@ public struct MeetingLayout: Sendable, Equatable {
     public var transcriptMarkdown: URL { root.appendingPathComponent("transcript.md") }
     public var notes: URL { root.appendingPathComponent("notes.md") }
     public var summary: URL { root.appendingPathComponent("summary.md") }
+    /// The summary and notes as structure, which the Summary and Notes tabs
+    /// draw from. Derived and application-maintained, so it sits under `raw/`
+    /// while `summary.md` stays the document a person opens.
+    public var structuredSummary: URL { raw.appendingPathComponent("summary.json") }
     /// The listenable mixdown of both tracks.
     public var recordingAudio: URL { root.appendingPathComponent("recording.m4a") }
     /// Raw API responses, kept verbatim as ground truth for what the model said.

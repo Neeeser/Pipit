@@ -3050,7 +3050,11 @@ public actor ProcessingPipeline {
         )
         if !document.isEmpty {
             // Written to summary.md, never to notes.md: the user's notes are theirs.
-            try store.writeSummary(document.markdown)
+            if let structure = enrichment.generatedSummary {
+                try store.writeSummary(document.markdown, structure: structure)
+            } else {
+                try store.writeSummary(document.markdown)
+            }
         }
     }
 

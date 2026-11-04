@@ -492,6 +492,10 @@ public final class MeetingReviewModel {
     /// the Notes tab beside them rather than on the Summary tab under a second
     /// heading.
     public var generatedNotes: String?
+    /// The summary and notes as structure, when enrichment wrote them that
+    /// way and nobody has edited `summary.md` since. Older meetings and edited
+    /// files show `summary` and `generatedNotes` instead.
+    public var generatedSummary: GeneratedSummary?
     public var isEnriching = false
     public var isSuggestingNames = false
     public var errorMessage: String?
@@ -674,6 +678,7 @@ public final class MeetingReviewModel {
         let document = found.store.readSummaryDocument()
         summary = document.summary
         generatedNotes = document.generatedNotes
+        generatedSummary = found.store.readGeneratedSummary()
         transcript = try? found.store.readCanonicalTranscript()
         expectedParticipants = found.metadata.participants
             .filter { $0.origin == .human }
