@@ -1,3 +1,4 @@
+import AppKit
 import Testing
 
 @testable import PipitUI
@@ -24,5 +25,14 @@ struct LaneRulerTests {
     func emptyTimeline() {
         #expect(LaneRuler.interval(duration: 0, width: 500) == 0)
         #expect(LaneRuler.interval(duration: 600, width: 0) == 0)
+    }
+
+    @Test("the ruler is tall enough to hold a label above its marks")
+    func rulerHoldsItsLabels() {
+        // The canvas clips anything outside its frame, which cut the tops off
+        // the digits when the ruler was shorter than label plus gap.
+        let font = NSFont.monospacedDigitSystemFont(ofSize: LaneRuler.labelSize, weight: .regular)
+        let lineHeight = ceil(font.ascender - font.descender + font.leading)
+        #expect(LaneRuler.height >= LaneRuler.labelGap + lineHeight)
     }
 }
