@@ -155,8 +155,6 @@ struct LiveTranscriptView: View {
     @State private var tucked = false
     @State private var atBottom = true
     @State private var note = ""
-    @State private var hovering = false
-    @State private var idleTask: Task<Void, Never>?
     @FocusState private var noteFocused: Bool
 
     var body: some View {
@@ -183,12 +181,12 @@ struct LiveTranscriptView: View {
                 .strokeBorder(Color.primary.opacity(0.18), lineWidth: 0.5)
         )
         .clipShape(RoundedRectangle(cornerRadius: LiveStyle.corner))
+        // The window shrinks only when the person asks, with the button in
+        // the header. Shrinking on its own after a quiet spell hid the
+        // transcript while they were reading it.
         .onHover { inside in
-            hovering = inside
             if inside, tucked { setTucked(false) }
-            scheduleTuck()
         }
-        .onAppear { scheduleTuck() }
         .onChange(of: model.mention?.id) { _, mention in
             if tucked { onTuck(true, mention != nil) }
         }
@@ -328,12 +326,15 @@ struct LiveTranscriptView: View {
 
     private static let bottom = "live-bottom"
 
-    /// Consecutive lines from one speaker, shown under one name.
+    /// Consecutive lines from one speaker, shown under one name. Far-end lines
+    /// no speaker pass has labelled yet stay apart: they may be different
+    /// people, and merging them turned the whole far end into one paragraph.
     private var groups: [[LiveTranscriptLine]] {
         var out: [[LiveTranscriptLine]] = []
         for line in model.transcript.lines {
-            if let last = out.last?.last, last.kind != .note, line.kind != .note,
-                model.speakerKey(of: last) == model.speakerKey(of: line), line.start - last.end < 8
+            let key = model.speakerKey(of: line)
+            if let last = out.last?.last, last.kind != .note, line.kind != .note, key != "others",
+                model.speakerKey(of: last) == key, line.start - last.end < 8
             {
                 out[out.count - 1].append(line)
             } else {
@@ -434,20 +435,6 @@ struct LiveTranscriptView: View {
         guard tucked != value else { return }
         withAnimation(.easeInOut(duration: 0.25)) { tucked = value }
         onTuck(value, model.mention != nil)
-    }
-
-    /// Shrinks to the strip after half a minute without the pointer over the
-    /// window, unless a note is being typed or the person is reading back.
-    private func scheduleTuck() {
-        idleTask?.cancel()
-        guard !hovering, !tucked else { return }
-        idleTask = Task {
-            try? await Task.sleep(nanoseconds: 30_000_000_000)
-            guard !Task.isCancelled, !hovering, note.isEmpty, !noteFocused, atBottom,
-                model.state == .live
-            else { return }
-            setTucked(true)
-        }
     }
 }
 
