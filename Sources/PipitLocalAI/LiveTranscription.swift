@@ -92,7 +92,7 @@ public struct LiveStreamText: Sendable {
 
         public static func start() async throws -> AppleLiveTranscriber {
             let transcriber = try await AppleSpeechAnalyzerRunner.preparedTranscriber(
-                reportingOptions: [.volatileResults]
+                reportingOptions: [.volatileResults, .fastResults]
             )
             guard
                 let format = await SpeechAnalyzer.bestAvailableAudioFormat(compatibleWith: [transcriber]),
