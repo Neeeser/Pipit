@@ -1,72 +1,145 @@
 import PipitCore
 import SwiftUI
 
-/// The meeting's recording, under the speakers and over the tabs.
+/// The meeting's recording, docked at the bottom of the pane.
 ///
-/// Over the tabs rather than inside the transcript, so it stays put while the
-/// summary or the notes are read against what is playing.
+/// Outside the tabs, so it stays put while the summary or the notes are read
+/// against what is playing. Closed, one lane between the controls holds every
+/// speaker in their own colour. The Lanes button opens a lane per speaker
+/// above the controls, across the whole bar, with a time ruler over them and
+/// each speaker's talk time at the end. The open lanes are then the thing to
+/// click or drag, so the single lane goes, and the lanes get the width it and
+/// the controls beside it held.
 struct MeetingPlayerBar: View {
     let detail: MeetingReviewModel
+    /// Whether the pane is tall enough for the lanes to start open.
+    let roomy: Bool
+
+    /// The person's own choice, kept across meetings and launches. Empty
+    /// until they press Lanes, and then the pane's height decides.
+    @AppStorage("MeetingPlayerLanes") private var lanesChoice = ""
+    @State private var hover: CGFloat?
+    @State private var lanesHover: CGFloat?
 
     private var playback: MeetingPlaybackModel { detail.playback }
 
+    private var lanesShown: Bool {
+        switch lanesChoice {
+        case "open": true
+        case "closed": false
+        default: roomy
+        }
+    }
+
     var body: some View {
-        HStack(spacing: 14) {
-            HStack(spacing: 4) {
-                Button {
-                    playback.skip(by: -15)
-                } label: {
-                    Image(systemName: "gobackward.15").font(.system(size: 15))
-                }
-                .buttonStyle(.borderless)
-                .help("Back 15 seconds")
-
-                Button {
-                    playback.toggle()
-                } label: {
-                    Image(systemName: playback.isPlaying ? "pause.fill" : "play.fill")
-                        .font(.system(size: 12, weight: .semibold))
-                        .foregroundStyle(Color(nsColor: .textBackgroundColor))
-                        .frame(width: 30, height: 30)
-                        .background(Circle().fill(Color.primary))
-                }
-                .buttonStyle(.plain)
-                .help(playback.isPlaying ? "Pause" : "Play")
-                .accessibilityLabel(playback.isPlaying ? "Pause" : "Play")
-
-                Button {
-                    playback.skip(by: 15)
-                } label: {
-                    Image(systemName: "goforward.15").font(.system(size: 15))
-                }
-                .buttonStyle(.borderless)
-                .help("Forward 15 seconds")
+        VStack(spacing: 0) {
+            if lanesShown {
+                OpenSpeakerLanes(
+                    playback: playback, tint: tint(for:), talkSeconds: talkSeconds(_:), hover: $lanesHover
+                )
+                .padding(.top, 10)
             }
+            HStack(spacing: Self.spacing) {
+                HStack(spacing: Self.spacing) {
+                    transport
+                    PlaybackClock(playback: playback)
+                }
+                .fixedSize()
 
-            PlaybackClock(playback: playback)
+                if lanesShown {
+                    Spacer(minLength: 0)
+                } else {
+                    SpeakerLanesPlot(
+                        playback: playback, tint: tint(for:), hover: $hover,
+                        height: SpeakerLanesPlot.combinedHeight, combined: true
+                    )
+                }
 
-            SpeakerLanesView(playback: playback, tint: tint(for:))
+                HStack(spacing: Self.spacing) {
+                    Button(rateLabel) { playback.cycleRate() }
+                        .monospacedDigit()
+                        .help("Playback speed")
 
-            Button(rateLabel) { playback.cycleRate() }
-                .monospacedDigit()
-                .help("Playback speed")
+                    Button {
+                        playback.follows.toggle()
+                    } label: {
+                        Label("Follow", systemImage: "text.line.first.and.arrowtriangle.forward")
+                    }
+                    .buttonStyle(PillButtonStyle(prominent: playback.follows))
+                    .accessibilityAddTraits(playback.follows ? .isSelected : [])
+                    .help("Keep the transcript on what is playing")
 
-            Toggle(isOn: Binding(get: { playback.follows }, set: { playback.follows = $0 })) {
-                Label("Follow", systemImage: "text.line.first.and.arrowtriangle.forward")
+                    // A button rather than a toggle, with an arrow that says
+                    // which way the lanes will move.
+                    Button {
+                        lanesChoice = lanesShown ? "closed" : "open"
+                    } label: {
+                        HStack(spacing: 4) {
+                            Text("Lanes")
+                            Image(systemName: lanesShown ? "chevron.down" : "chevron.up")
+                                .font(.system(size: 8, weight: .bold))
+                        }
+                    }
+                    .help(lanesShown ? "Hide the lane for each speaker" : "Show a lane for each speaker")
+                }
+                .buttonStyle(PillButtonStyle())
+                .fixedSize()
             }
-            .toggleStyle(.button)
-            .help("Keep the transcript on what is playing")
+            .frame(height: 46)
         }
         .controlSize(.small)
-        .padding(.horizontal, 20)
-        .padding(.vertical, 10)
+        .padding(.horizontal, 16)
         .background(Color.primary.opacity(0.025))
+    }
+
+    private static let spacing: CGFloat = 12
+
+    private var transport: some View {
+        HStack(spacing: 4) {
+            Button {
+                playback.skip(by: -15)
+            } label: {
+                Image(systemName: "gobackward.15").font(.system(size: 15))
+            }
+            .buttonStyle(.borderless)
+            .help("Back 15 seconds")
+
+            Button {
+                playback.toggle()
+            } label: {
+                Image(systemName: playback.isPlaying ? "pause.fill" : "play.fill")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(Color(nsColor: .textBackgroundColor))
+                    .frame(width: 30, height: 30)
+                    .background(Circle().fill(Color.primary))
+            }
+            .buttonStyle(.plain)
+            .help(playback.isPlaying ? "Pause" : "Play")
+            .accessibilityLabel(playback.isPlaying ? "Pause" : "Play")
+
+            Button {
+                playback.skip(by: 15)
+            } label: {
+                Image(systemName: "goforward.15").font(.system(size: 15))
+            }
+            .buttonStyle(.borderless)
+            .help("Forward 15 seconds")
+        }
     }
 
     private var rateLabel: String {
         let rate = playback.rate
         let text = rate == rate.rounded() ? String(Int(rate)) : String(format: "%g", rate)
         return "\(text)×"
+    }
+
+    /// The same time the speaker's chip gives, summed over both halves of a
+    /// rejoined call. A lane with no chip, the words nobody was matched to,
+    /// adds up its own stretches.
+    private func talkSeconds(_ lane: SpeakerLane) -> Double {
+        let rows = detail.speakerRows.filter { $0.displayName == lane.name }
+        if !rows.isEmpty { return rows.reduce(0) { $0 + $1.speechSeconds } }
+        return lane.spans.reduce(0) { $0 + ($1.end - $1.start) }
     }
 
     /// The colour this speaker has on the chips and over their turns.
@@ -115,38 +188,81 @@ private struct PlaybackClock: View {
     }
 }
 
-/// One thin lane per speaker, lit where they talk, with the playhead across
-/// them. Click or drag to move the playhead.
+/// The open lanes: the names, the lanes under the ruler, and the talk time
+/// under its heading. One stack per column keeps each name, lane and time on
+/// the same line without measuring anything, and the lanes take every point
+/// the two outer columns leave.
+struct OpenSpeakerLanes: View {
+    let playback: MeetingPlaybackModel
+    let tint: (String) -> Color
+    let talkSeconds: (SpeakerLane) -> Double
+    @Binding var hover: CGFloat?
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 12) {
+            // Only as wide as the names. A spacer that could stretch sideways
+            // made this column split the row with the lanes, which then
+            // stopped halfway across a wide window.
+            VStack(alignment: .trailing, spacing: 0) {
+                Color.clear.frame(width: 1, height: LaneRuler.height)
+                SpeakerLaneLabels(playback: playback, tint: tint)
+            }
+            .fixedSize(horizontal: true, vertical: false)
+            VStack(spacing: 0) {
+                LaneRuler(timeline: playback.timeline)
+                SpeakerLanesPlot(
+                    playback: playback, tint: tint, hover: $hover,
+                    height: SpeakerLaneLabels.height(lanes: playback.lanes.count),
+                    rowHeight: SpeakerLaneLabels.rowHeight, rowSpacing: SpeakerLaneLabels.rowSpacing
+                )
+            }
+            VStack(alignment: .trailing, spacing: SpeakerLaneLabels.rowSpacing) {
+                Text("Talk time")
+                    .font(.system(size: 10))
+                    .foregroundStyle(.secondary)
+                    .frame(height: LaneRuler.height, alignment: .bottom)
+                ForEach(playback.lanes) { lane in
+                    Text(Format.shortDuration(talkSeconds(lane)))
+                        .font(.system(size: 10.5))
+                        .monospacedDigit()
+                        .foregroundStyle(.secondary)
+                        .frame(height: SpeakerLaneLabels.rowHeight)
+                }
+            }
+            .fixedSize()
+        }
+    }
+}
+
+/// The speakers' names, one per lane, beside the lanes they label.
 ///
 /// Lanes rather than a waveform: a waveform says how loud the room was, and the
 /// question the bar answers is who was talking when.
-struct SpeakerLanesView: View {
+struct SpeakerLaneLabels: View {
     let playback: MeetingPlaybackModel
     let tint: (String) -> Color
-    /// Where the pointer is over the lanes, as a fraction of their width.
-    @State private var hover: CGFloat?
+
+    static let rowHeight: CGFloat = 14
+    static let rowSpacing: CGFloat = 3
+
+    static func height(lanes: Int) -> CGFloat {
+        max(rowHeight, CGFloat(lanes) * (rowHeight + rowSpacing) - rowSpacing)
+    }
 
     var body: some View {
-        let rowHeight = SpeakerLanesPlot.rowHeight
-        let rowSpacing = SpeakerLanesPlot.rowSpacing
-        let lanes = playback.lanes
-        let height = max(rowHeight, CGFloat(lanes.count) * (rowHeight + rowSpacing) - rowSpacing)
-        HStack(spacing: 8) {
-            VStack(alignment: .trailing, spacing: rowSpacing) {
-                ForEach(lanes) { lane in
-                    Text(lane.name)
-                        .font(.system(size: 9.5, weight: isSpeaking(lane.name) ? .semibold : .regular))
-                        .foregroundStyle(tint(lane.name))
-                        .lineLimit(1)
-                        .truncationMode(.tail)
-                        .frame(height: rowHeight)
-                }
+        VStack(alignment: .trailing, spacing: Self.rowSpacing) {
+            ForEach(playback.lanes) { lane in
+                Text(lane.name)
+                    .font(.system(size: 11, weight: isSpeaking(lane.name) ? .semibold : .regular))
+                    .foregroundStyle(tint(lane.name))
+                    .lineLimit(1)
+                    .truncationMode(.tail)
+                    .frame(height: Self.rowHeight)
             }
-            .frame(width: 64, alignment: .trailing)
-
-            SpeakerLanesPlot(playback: playback, tint: tint, hover: $hover, height: height)
         }
-        .frame(maxWidth: .infinity)
+        // A long name is cut rather than taking the lanes' room.
+        .frame(maxWidth: 140, alignment: .trailing)
+        .fixedSize(horizontal: true, vertical: false)
     }
 
     private func isSpeaking(_ name: String) -> Bool {
@@ -161,9 +277,15 @@ struct SpeakerLanesPlot: View {
     let tint: (String) -> Color
     @Binding var hover: CGFloat?
     let height: CGFloat
+    /// Every speaker on one row, each in their own colour: the strip the bar
+    /// shows while the lane per speaker is closed.
+    var combined = false
+    var rowHeight: CGFloat = SpeakerLanesPlot.rowHeight
+    var rowSpacing: CGFloat = SpeakerLanesPlot.rowSpacing
 
     static let rowHeight: CGFloat = 10
     static let rowSpacing: CGFloat = 2
+    static let combinedHeight: CGFloat = 14
 
     var body: some View {
         let lanes = playback.lanes
@@ -235,22 +357,27 @@ struct SpeakerLanesPlot: View {
     /// Played stretches at full strength and the rest faded, so the strip
     /// also reads as how far through the meeting this is.
     private func lanesCanvas(_ lanes: [SpeakerLane]) -> some View {
-        let rowHeight = Self.rowHeight
-        let rowSpacing = Self.rowSpacing
+        let laneHeight = combined ? height : rowHeight
+        let laneSpacing = rowSpacing
+        let combined = combined
         let duration = playback.timeline.duration
         let position = playback.position
         let boundaries = playback.timeline.boundaries
         let colours = lanes.map { tint($0.name) }
         return Canvas { context, size in
             guard duration > 0 else { return }
-            for (row, lane) in lanes.enumerated() {
-                let y = CGFloat(row) * (rowHeight + rowSpacing) + 2
-                let track = CGRect(x: 0, y: y, width: size.width, height: rowHeight - 4)
+            let tracks = combined ? min(lanes.count, 1) : lanes.count
+            for row in 0..<tracks {
+                let y = CGFloat(row) * (laneHeight + laneSpacing) + 2
+                let track = CGRect(x: 0, y: y, width: size.width, height: laneHeight - 4)
                 context.fill(Path(roundedRect: track, cornerRadius: 3), with: .color(.primary.opacity(0.08)))
+            }
+            for (row, lane) in lanes.enumerated() {
+                let y = combined ? 2 : CGFloat(row) * (laneHeight + laneSpacing) + 2
                 for span in lane.spans {
                     let x = CGFloat(span.start / duration) * size.width
                     let length = max(2, CGFloat((span.end - span.start) / duration) * size.width)
-                    let rect = CGRect(x: x, y: y, width: length, height: rowHeight - 4)
+                    let rect = CGRect(x: x, y: y, width: length, height: laneHeight - 4)
                     let colour = colours[row].opacity(span.start < position ? 1 : 0.45)
                     context.fill(Path(roundedRect: rect, cornerRadius: 3), with: .color(colour))
                 }
@@ -291,5 +418,58 @@ struct SpeakerLanesPlot: View {
             lane.spans.contains { $0.start <= at && at <= $0.end }
         }
         return speaker.map { "\($0.name) · \(time)" } ?? time
+    }
+}
+
+/// Times along the top of the open lanes, so a stretch can be read off as
+/// "about twenty minutes in" without hovering.
+struct LaneRuler: View {
+    let timeline: PlaybackTimeline
+
+    static let height: CGFloat = 16
+    /// Room a label needs beside the next one.
+    nonisolated static let minimumSpacing: CGFloat = 64
+
+    var body: some View {
+        // Drawn rather than laid out: a label centred on its mark widened a
+        // stack's bounds and moved the whole ruler off the lanes under it.
+        let duration = timeline.duration
+        let renderer = TranscriptRenderer()
+        Canvas { context, size in
+            let baseline = size.height - 0.5
+            var rule = Path()
+            rule.move(to: CGPoint(x: 0, y: baseline))
+            rule.addLine(to: CGPoint(x: size.width, y: baseline))
+            context.stroke(rule, with: .color(.primary.opacity(0.12)), lineWidth: 1)
+            let step = Self.interval(duration: duration, width: size.width)
+            guard duration > 0, step > 0 else { return }
+            for seconds in stride(from: 0.0, to: duration, by: step) {
+                let x = CGFloat(seconds / duration) * size.width
+                var tick = Path()
+                tick.move(to: CGPoint(x: x + 0.5, y: baseline))
+                tick.addLine(to: CGPoint(x: x + 0.5, y: baseline - 5))
+                context.stroke(tick, with: .color(.primary.opacity(0.25)), lineWidth: 1)
+                let label = Text(renderer.timecode(timeline.timelineSeconds(at: seconds)))
+                    .font(.system(size: 10).monospacedDigit())
+                    .foregroundStyle(Color.secondary)
+                // The first label starts at its mark, so it does not hang
+                // off the left end; the rest are centred on theirs.
+                context.draw(
+                    label, at: CGPoint(x: x, y: baseline - 6),
+                    anchor: seconds == 0 ? .bottomLeading : .bottom
+                )
+            }
+        }
+        .frame(height: Self.height)
+        .accessibilityHidden(true)
+    }
+
+    /// The gap between marks: the shortest of a few round lengths that keeps
+    /// the labels apart at this width.
+    nonisolated static func interval(duration: Double, width: CGFloat) -> Double {
+        guard duration > 0, width > 0 else { return 0 }
+        let steps: [Double] = [30, 60, 120, 300, 600, 900, 1_800, 3_600, 7_200]
+        let fits = steps.first { CGFloat($0 / duration) * width >= minimumSpacing }
+        return fits ?? steps[steps.count - 1]
     }
 }
