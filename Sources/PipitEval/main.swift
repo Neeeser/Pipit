@@ -18,6 +18,7 @@ import PipitSpeakers
 //   pipit-eval reprocess --meeting DIR [--recognize] [--support DIR] [--backups DIR]
 //   pipit-eval bench     [--suite ami-core] [--engine parakeet ...] [--diarizer local]
 //   pipit-eval summaries --model ollama:qwen3.5:4b [--model openai:gpt-6-luna ...]
+//   pipit-eval rewrite-summary --meeting DIR [--model openai:gpt-6-luna]
 //
 // The audio never leaves the machine and nothing here writes to a meeting.
 // `summaries` sends public corpus transcripts to the models it is told to score
@@ -200,6 +201,9 @@ func usage() -> Never {
                                  [--judge PROVIDER:MODEL | --no-judge] [--out DIR]
                                  [--embedder local:HF_MODEL | ollama:MODEL]
                                  # providers: openai, openrouter, ollama, custom:<url>|<model>
+          pipit-eval rewrite-summary --meeting MEETING_FOLDER [--model PROVIDER:MODEL]
+                                 [--backups DIR]   # writes summary.md and raw/summary.json
+                                 # again, after copying both to the backups folder
         """)
     exit(2)
 }
@@ -484,6 +488,15 @@ case "reanalyze":
 
 case "bench":
     let code = await BenchCommand.run(arguments.bench)
+    if code != 0 { exit(code) }
+
+case "rewrite-summary":
+    guard let folder = arguments.meeting else { usage() }
+    let code = await RewriteSummaryCommand.run(
+        meeting: folder, model: arguments.summaries.models.first ?? "openai:gpt-6-luna",
+        backups: arguments.backups
+            ?? arguments.applicationSupport.appendingPathComponent("Backups", isDirectory: true)
+    )
     if code != 0 { exit(code) }
 
 case "summaries":
