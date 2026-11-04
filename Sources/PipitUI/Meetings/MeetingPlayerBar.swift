@@ -428,10 +428,10 @@ struct LaneRuler: View {
 
     /// Tall enough for a label's full line above its mark; the canvas clips
     /// anything drawn outside it.
-    static let height: CGFloat = 20
-    static let labelSize: CGFloat = 10
+    nonisolated static let height: CGFloat = 20
+    nonisolated static let labelSize: CGFloat = 10
     /// How far a label's bottom edge sits above the rule.
-    static let labelGap: CGFloat = 6
+    nonisolated static let labelGap: CGFloat = 6
     /// Room a label needs beside the next one.
     nonisolated static let minimumSpacing: CGFloat = 64
 
