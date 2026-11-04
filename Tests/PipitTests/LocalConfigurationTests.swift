@@ -247,6 +247,19 @@ struct LocalConfigurationTests {
 
 @Suite("LocalModelStorage")
 struct LocalModelStorageTests {
+    @Test("a diarizer installed by an older FluidAudio is adopted before it loads")
+    func olderDiarizerInstallIsAdopted() {
+        // FluidAudio 0.18 loads the diarizer offline only from a folder tagged
+        // with its pinned revision. A 0.15 install has no tag, so loading it
+        // offline failed every meeting at the speaker step.
+        let older = LocalUnitReceipt(revision: "FluidAudio 0.15.6", bytes: 1, installedAt: Date())
+        let current = LocalUnitReceipt(
+            revision: LocalSpeechStack.revision(for: .diarizer), bytes: 1, installedAt: Date()
+        )
+        #expect(LocalModelManager.diarizerNeedsAdoption(receipt: older))
+        #expect(!LocalModelManager.diarizerNeedsAdoption(receipt: current))
+    }
+
     @Test("models never land in Documents")
     func modelsNeverLandInDocuments() async throws {
         // WhisperKit's own default is ~/Documents/huggingface, which puts

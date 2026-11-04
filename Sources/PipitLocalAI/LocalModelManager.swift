@@ -455,8 +455,14 @@ public actor LocalModelManager {
     /// re-analysis does not reload 21 MB of CoreML.
     func loadedDiarizerModels() async throws -> OfflineDiarizerModels {
         if let diarizerModels { return diarizerModels }
-        guard Self.filesPresent(.diarizer, locations: locations, receipt: receipts[.diarizer])
+        guard let receipt = receipts[.diarizer],
+            Self.filesPresent(.diarizer, locations: locations, receipt: receipt)
         else { throw LocalModelError.notInstalled }
+        if Self.diarizerNeedsAdoption(receipt: receipt) {
+            let models = try await adoptOlderDiarizerInstall()
+            diarizerModels = models
+            return models
+        }
         // Nothing is downloaded from here. Anything missing at this point is a
         // deleted or damaged install, and it should say so rather than quietly
         // pulling files in the middle of processing a meeting.
@@ -464,6 +470,33 @@ public actor LocalModelManager {
         defer { ModelHub.offlineMode = false }
         let models = try await OfflineDiarizerModels.load(from: locations.diarizerDirectory)
         diarizerModels = models
+        return models
+    }
+
+    /// Whether the diarizer on disk came from a FluidAudio build older than
+    /// this one. FluidAudio 0.18 pins the diarizer repository to one revision
+    /// and loads offline only from a folder tagged with it. Installs written
+    /// by 0.15 carry no tag, so an offline load reports every file missing
+    /// although all of them are on disk.
+    public static func diarizerNeedsAdoption(receipt: LocalUnitReceipt) -> Bool {
+        !receipt.matchesCurrentBuild(for: .diarizer)
+    }
+
+    /// Lets FluidAudio check an older install against its pinned revision once,
+    /// with the network allowed: it lists the revision, keeps every file whose
+    /// content matches, tags the folder, and fetches only files that differ.
+    /// The receipt is rewritten afterwards so later loads stay offline.
+    private func adoptOlderDiarizerInstall() async throws -> OfflineDiarizerModels {
+        let models = try await OfflineDiarizerModels.load(from: locations.diarizerDirectory)
+        receipts[.diarizer] = LocalUnitReceipt(
+            revision: LocalSpeechStack.revision(for: .diarizer),
+            bytes: DirectorySize.bytes(of: locations.containerDirectory(for: .diarizer)),
+            installedAt: Date(),
+            detail: receipts[.diarizer]?.detail
+        )
+        try? receiptStore.write(receipts)
+        refreshState()
+        Log.processing.info("older diarizer install adopted for the current build")
         return models
     }
 
