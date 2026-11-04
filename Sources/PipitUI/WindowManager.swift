@@ -93,7 +93,7 @@ public final class WindowManager {
             }
         livePanel = panel
         panel.applySharing(hidden: runtime.settings.live.hiddenFromScreenSharing)
-        panel.orderFrontRegardless()
+        panel.present()
     }
 
     /// Re-applies the screen-sharing choice whenever it changes, so turning

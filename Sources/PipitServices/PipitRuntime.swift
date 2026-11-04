@@ -791,6 +791,7 @@ public final class PipitRuntime {
     private func startLiveTranscript(meetingID: String, title: String) {
         live.begin(title: title, meetingID: meetingID)
         live.localUserName = settings.localUserName
+        live.hiddenFromSharing = settings.live.hiddenFromScreenSharing
         live.saveNote = { [weak self] text in self?.addNote(text) }
         guard settings.live.isEnabled else {
             live.setState(.off)
@@ -878,6 +879,8 @@ public final class PipitRuntime {
         let sharingChanged = newSettings.sharesDiagnosticsAutomatically != settings.sharesDiagnosticsAutomatically
         settings = newSettings
         settingsSnapshot.withLock { $0 = newSettings }
+        live.localUserName = newSettings.localUserName
+        live.hiddenFromSharing = newSettings.live.hiddenFromScreenSharing
         if sharingChanged { automaticSharingDidChange(to: newSettings.sharesDiagnosticsAutomatically) }
         do {
             try settingsStore.save(newSettings)

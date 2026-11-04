@@ -54,6 +54,27 @@ enum LiveSessionCommand {
             meetingID: "replay", engine: options.engine, models: models, speakers: nil,
             speakerSettings: SpeakerRecognitionSettings(), scratch: scratch, model: model
         )
+        // How long after the words were spoken each update arrived, by
+        // whether it was the first grey reading of a line or its final text.
+        let delays = LockedBox<(first: [Double], final: [Double], open: Set<CaptureTrack>)>(([], [], []))
+        let clock = LockedBox<Date?>(nil)
+        await MainActor.run {
+            model.onUpdate = { update, track in
+                guard let start = clock.withLock({ $0 }), !update.text.isEmpty else { return }
+                let now = Date().timeIntervalSince(start)
+                delays.withLock { state in
+                    // The first reading of a line, timed from when its
+                    // speaker began: how long the person waits to see words.
+                    if !state.open.contains(track) { state.first.append(now - update.start) }
+                    if update.isFinal {
+                        state.final.append(now - update.end)
+                        state.open.remove(track)
+                    } else {
+                        state.open.insert(track)
+                    }
+                }
+            }
+        }
         let began = Date()
         await session.start()
         note(String(format: "live-session: engine ready in %.1fs", Date().timeIntervalSince(began)))
@@ -84,6 +105,7 @@ enum LiveSessionCommand {
             }
         }
         let feedStart = Date()
+        clock.withLock { $0 = feedStart }
         let origin = 1_000.0
         var positions = Dictionary(uniqueKeysWithValues: tracks.map { ($0.0, 0) })
         while true {
@@ -138,7 +160,23 @@ enum LiveSessionCommand {
                 speech.count, speech.filter { $0.kind == .speech(.mic) }.count,
                 speech.filter { $0.kind == .speech(.remote) }.count, speakers.count
             ))
+        if options.pace == 1 {
+            let measured = delays.withLock { $0 }
+            print(
+                String(
+                    format: "first words      %.1f s median, %.1f s at the 90th percentile, after the speaker began\n"
+                        + "line settles     %.1f s median, %.1f s at the 90th percentile, after the speaker stopped",
+                    percentile(measured.first, 0.5), percentile(measured.first, 0.9),
+                    percentile(measured.final, 0.5), percentile(measured.final, 0.9)
+                ))
+        }
         return dropped == 0 ? 0 : 3
+    }
+
+    private static func percentile(_ values: [Double], _ fraction: Double) -> Double {
+        let sorted = values.sorted()
+        guard !sorted.isEmpty else { return .nan }
+        return sorted[min(sorted.count - 1, Int(Double(sorted.count) * fraction))]
     }
 
     private static func packet(_ samples: ArraySlice<Float>, hostTime: Double) -> AudioBufferPacket? {

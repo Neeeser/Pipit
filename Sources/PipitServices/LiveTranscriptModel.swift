@@ -30,10 +30,14 @@ public final class LiveTranscriptModel {
     public private(set) var elapsed: Double = 0
     /// The line that last said the person's name, while it is recent.
     public private(set) var mention: LiveTranscriptLine?
-    /// The person's own name, for spotting mentions.
-    @ObservationIgnored public var localUserName = ""
+    /// The person's own name, for their lines and for spotting mentions.
+    public var localUserName = ""
+    /// Whether the window is kept out of screen shares, for its badge.
+    public var hiddenFromSharing = true
     /// Saves a typed note with the meeting. Set by the runtime.
     @ObservationIgnored public var saveNote: ((String) -> Void)?
+    /// Sees every engine update as it lands, for the replay harness to time.
+    @ObservationIgnored public var onUpdate: ((LiveTextUpdate, CaptureTrack) -> Void)?
     /// Asks the window layer to show the live window.
     @ObservationIgnored public var onOpenRequest: (() -> Void)?
 
@@ -53,6 +57,7 @@ public final class LiveTranscriptModel {
     func retitle(_ title: String) { meetingTitle = title }
 
     func apply(_ update: LiveTextUpdate, track: CaptureTrack) {
+        onUpdate?(update, track)
         transcript.apply(update, track: track)
         guard track == .remote, update.isFinal, !localUserName.isEmpty, localUserName != "Me",
             LiveTranscript.mentions(localUserName, in: update.text),
@@ -86,10 +91,15 @@ public final class LiveTranscriptModel {
     /// The label for a line's speaker.
     public func speakerName(of line: LiveTranscriptLine) -> String {
         switch line.kind {
-        case .note: return "Your note"
-        case .speech(.mic): return "You"
+        case .note: return "Note"
+        case .speech(.mic):
+            // The name the saved transcript uses for the person recording.
+            let name = localUserName.trimmingCharacters(in: .whitespacesAndNewlines)
+            return name.isEmpty ? "Me" : name
         case .speech(.remote):
-            guard let speaker = transcript.speaker(of: line) else { return "Others" }
+            // Grey until a speaker pass covers the line, then a number or a
+            // recognised name.
+            guard let speaker = transcript.speaker(of: line) else { return "Speaker" }
             return transcript.displayName(ofSpeaker: speaker)
         }
     }
