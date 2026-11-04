@@ -165,15 +165,21 @@ floor rather than the key.
 
 Scoring has two parts:
 
-- Matching, with no judge. A model's item matches a key item of the same kind
-  when their embeddings are close, by OpenAI's small embedding model unless
-  `--embedder ollama:<model>` names a local one. The pairing is one to one.
-  `near-misses.txt` lists the closest pairs either side of the threshold.
-- A judge, `openai:gpt-6-luna` unless `--judge` names another. It checks the
-  overview, whether each note is true to the transcript, whether the notes
-  cover each key topic, and whether items that matched nothing were said or
-  made up. Every result records the judge and the version of its
-  instructions. Compare scores only when both match.
+- Matching. A sentence embedding model proposes which of a model's items say
+  the same thing as a key item of the same kind, and the pairing is one to
+  one. The default is `hindsight-ai/hs-embed-1`, run on this Mac by
+  `scripts/embed-texts.py` through `uv`; `--embedder ollama:<model>` names a
+  model Ollama serves instead. Embeddings find items about the same subject
+  but cannot tell a decision from its opposite, so when there is a judge it
+  confirms each proposed pair and only confirmed pairs count. Each run in
+  `runs.json` lists the key items found and missed, the pairs the judge
+  rejected, and the items that matched nothing.
+- A judge, `openai:gpt-6-luna` unless `--judge` names another, and none with
+  `--no-judge`. Besides confirming pairs it checks the overview, whether each
+  note is true to the transcript, whether the notes cover each key topic, and
+  whether items that matched nothing were said or made up. Every result
+  records the judge and the version of its instructions. Compare scores only
+  when both match.
 
 The command prints three tables: what each model found, the judge's grades,
 and reliability. Answers, verdicts, and embeddings are kept in the output

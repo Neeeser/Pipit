@@ -198,7 +198,7 @@ func usage() -> Never {
           pipit-eval summaries --model PROVIDER:MODEL [--model ...] [--case MEETING ...]
                                  [--repeats N] [--instructions FILE] [--context TOKENS]
                                  [--judge PROVIDER:MODEL | --no-judge] [--out DIR]
-                                 [--embedder openai:MODEL | ollama:MODEL]
+                                 [--embedder local:HF_MODEL | ollama:MODEL]
                                  # providers: openai, openrouter, ollama, custom:<url>|<model>
         """)
     exit(2)

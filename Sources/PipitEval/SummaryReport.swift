@@ -34,6 +34,12 @@ struct SummaryReport {
                     share(scores.ownerRight, scores.ownerChecked),
                 ]))
         }
+        let all = runs.compactMap(\.scores)
+        if judge != nil {
+            out.append(
+                "matching: the judge confirmed \(all.map(\.confirmed).reduce(0, +)) of the "
+                    + "\(all.map(\.proposed).reduce(0, +)) pairs the embeddings proposed")
+        }
 
         out.append("")
         out.append(
@@ -44,18 +50,17 @@ struct SummaryReport {
             let overview = verdicts.isEmpty ? nil : verdicts.map(\.overview.score).reduce(0, +) / Double(verdicts.count)
             let points = verdicts.flatMap(\.points)
             let topics = verdicts.flatMap(\.keyTopics)
-            let unmatched = verdicts.flatMap(\.unmatched)
             // Invented items are counted against everything the model listed,
             // matched or not, so a model that lists more is not punished for it.
-            let listed = runs.filter { $0.model == model && $0.verdict != nil }.compactMap(\.scores)
-                .reduce(0) { $0 + $1.actions.given + $1.decisions.given + $1.questions.given }
+            let judged = runs.filter { $0.model == model && $0.verdict != nil }.compactMap(\.scores)
+            let listed = judged.reduce(0) { $0 + $1.actions.given + $1.decisions.given + $1.questions.given }
             out.append(
                 row([
                     model,
                     overview.map { String(format: "%.0f%%", $0 * 100) } ?? "-",
-                    share(points.filter(\.supported).count, points.count),
-                    share(topics.filter(\.covered).count, topics.count),
-                    share(unmatched.filter { $0.verdict == "invented" }.count, listed),
+                    share(points.filter(\.yes).count, points.count),
+                    share(topics.filter(\.yes).count, topics.count),
+                    share(judged.map(\.invented).reduce(0, +), listed),
                     "\(verdicts.count) of \(runs.filter { $0.model == model }.count)",
                 ]))
         }
