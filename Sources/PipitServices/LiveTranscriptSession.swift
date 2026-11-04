@@ -14,8 +14,8 @@ import PipitSpeakers
 ///
 /// From the queue each track is resampled to 16 kHz mono on one timeline. The
 /// microphone is cleaned of the far end, both tracks go to the chosen engine,
-/// and the far end is written to a scratch file a speaker pass reads every
-/// minute or so to label who spoke. None of it is the meeting's transcript:
+/// and the far end is written to a scratch file that speaker passes read,
+/// from about 20 seconds in, to label who spoke. None of it is the meeting's transcript:
 /// the pass over the whole recording writes that after the call.
 public actor LiveTranscriptSession {
     /// About a minute of buffers on both tracks at the rates the sources
@@ -30,6 +30,8 @@ public actor LiveTranscriptSession {
     /// What the replay harness reads: buffers dropped and audio processed.
     public private(set) var processedSeconds: Double = 0
     public var droppedBuffers: Int { dropped }
+    /// Speaker passes run so far, for the replay harness.
+    public private(set) var speakerPasses = 0
 
     private let meetingID: String
     private let engineChoice: LocalTranscriptionModel
@@ -230,21 +232,35 @@ public actor LiveTranscriptSession {
         }
     }
 
-    /// Runs a speaker pass over the far end so far, every minute at first and
-    /// less often as the call grows, since each pass covers all of it.
+    /// Runs a speaker pass over the far end so far. The first runs as soon as
+    /// there is enough audio to tell voices apart, so lines get names early in
+    /// the call. After that the wait is a multiple of how long the last pass
+    /// took: each pass covers the whole call so far, so passes slow down as it
+    /// grows, and the multiple keeps them from occupying the models.
     private func labelSpeakers() async {
-        var wait: Double = 45
+        var wait = Self.speakerPassPoll
         while !Task.isCancelled {
             try? await Task.sleep(nanoseconds: UInt64(wait * 1_000_000_000))
             guard !Task.isCancelled else { return }
-            await labelOnce()
-            let seconds = Double(heard) / LiveTrackResampler.sampleRate
-            wait = seconds < 20 * 60 ? 60 : seconds < 60 * 60 ? 120 : 240
+            let started = Date()
+            guard await labelOnce() else {
+                wait = Self.speakerPassPoll
+                continue
+            }
+            let took = Date().timeIntervalSince(started)
+            wait = min(Self.speakerPassLongestWait, max(Self.speakerPassShortestWait, took * 4))
         }
     }
 
-    private func labelOnce() async {
-        guard let farEnd, let first = farEndStart, farEnd.seconds >= 20 else { return }
+    /// How often to check whether there is enough far end for a first pass.
+    private static let speakerPassPoll: Double = 5
+    private static let speakerPassShortestWait: Double = 20
+    private static let speakerPassLongestWait: Double = 240
+
+    /// One speaker pass. False when there was too little far end to run one.
+    private func labelOnce() async -> Bool {
+        guard let farEnd, let first = farEndStart, farEnd.seconds >= 20 else { return false }
+        defer { speakerPasses += 1 }
         do {
             try farEnd.seal()
             let output = try await models.diarizeLive(audio: farEnd.url)
@@ -280,6 +296,7 @@ public actor LiveTranscriptSession {
         } catch {
             Log.processing.notice("live speaker pass skipped: \(String(describing: type(of: error)), privacy: .public)")
         }
+        return true
     }
 
     private static func reason(for engine: LocalTranscriptionModel) -> String {

@@ -306,7 +306,7 @@ recording after the call.
 SegmentWriter receives a buffer -> LiveAudioQueue -> LiveTranscriptSession
   mic:    LiveTrackResampler -> LiveEchoRemover -> live engine -> lines
   remote: LiveTrackResampler -> live engine -> lines
-          -> far-end scratch file -> speaker pass every 1 to 4 minutes
+          -> far-end scratch file -> repeated speaker passes
 ```
 
 `CaptureEngine` pushes every buffer that reaches a segment writer into a
@@ -328,7 +328,9 @@ seconds for provisional text, and settles it when the phrase closes. The engine
 is chosen in Settings, separately from the one that writes the saved transcript.
 
 Far-end speakers are labelled by running the offline diarizer over a scratch
-file of the far end so far. `LiveSpeakerLabels` keeps each speaker's label across
+file of the far end so far. The first pass runs once 20 seconds of far end are
+written; each later pass waits four times as long as the previous one took,
+between 20 seconds and 4 minutes. `LiveSpeakerLabels` keeps each speaker's label across
 passes by time overlap, and `SpeakerRecognitionService.liveNames` names voices
 the person has named without writing to the voice store. The scratch file lives
 under the processing scratch directory in Caches and is deleted when the

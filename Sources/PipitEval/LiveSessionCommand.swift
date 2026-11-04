@@ -146,6 +146,7 @@ enum LiveSessionCommand {
         let dropped = await session.droppedBuffers
         let speech = transcript.lines.filter { $0.kind != .note }
         let speakers = Set(transcript.turns.map(\.speaker))
+        let passes = await session.speakerPasses
         print(
             String(
                 format: """
@@ -154,11 +155,11 @@ enum LiveSessionCommand {
                     worst lag        %.1f s behind the audio fed
                     dropped buffers  %d
                     lines            %d (%d you, %d others)
-                    speakers         %d labelled on the far end
+                    speakers         %d labelled on the far end, %d speaker passes
                     """,
                 seconds, fedFor, total, seconds / max(total, 0.001), worstLag, dropped,
                 speech.count, speech.filter { $0.kind == .speech(.mic) }.count,
-                speech.filter { $0.kind == .speech(.remote) }.count, speakers.count
+                speech.filter { $0.kind == .speech(.remote) }.count, speakers.count, passes
             ))
         if options.pace == 1 {
             let measured = delays.withLock { $0 }
