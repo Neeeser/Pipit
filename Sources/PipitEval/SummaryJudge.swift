@@ -13,7 +13,7 @@ import PipitIntegrations
 struct SummaryJudge: Sendable {
     /// Raise when the instructions or the schema change, so old scores are
     /// recognisably from a different judge.
-    static let version = 2
+    static let version = 3
 
     static let instructions = """
         You check meeting notes that a model wrote from a transcript, for a tool that \
@@ -21,14 +21,14 @@ struct SummaryJudge: Sendable {
         answer from the transcript, not from what seems likely.
 
         pairs: each numbered pair holds an item from a reference set of notes and an item \
-        the model wrote. same is true when the model's item states the same task, decision \
-        or question as the reference item, in any wording and even with less detail. It is \
+        the model wrote. same is true when the model's item states the same task or question \
+        as the reference item, in any wording and even with less detail. It is \
         false when they share a subject but say different or opposite things, or name a \
         different task.
 
         items: for each numbered item the model listed, real when the transcript shows it \
         was said or agreed as the model states it, and invented when it was not, including \
-        when the model turned a suggestion into a decision or gave a task to the wrong \
+        when the model turned a suggestion into a commitment or gave a task to the wrong \
         person.
 
         overview: why_they_met, where_it_landed and what_happens_next ask whether the \

@@ -1471,7 +1471,6 @@ struct LocalPipelineTests {
             topics: [
                 GeneratedSummary.Topic(
                     title: "Pilot", at: 1, points: ["Friday is the date"],
-                    decisions: [GeneratedSummary.Item(text: "Ship on Friday", at: 2)],
                     actionItems: [GeneratedSummary.ActionItem(task: "Send the connector list", owner: "Bryn", at: 3)]
                 )
             ]

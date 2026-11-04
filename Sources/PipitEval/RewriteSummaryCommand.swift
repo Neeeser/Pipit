@@ -55,9 +55,9 @@ enum RewriteSummaryCommand {
             try store.writeSummary(document.markdown, structure: structure)
             print(
                 String(
-                    format: "%@  %.0fs  %d topics, %d action items, %d decisions, %d open questions",
+                    format: "%@  %.0fs  %d topics, %d action items, %d of them questions",
                     metadata.id, Date().timeIntervalSince(started), structure.topics.count,
-                    structure.actionItems.count, structure.decisions.count, structure.openQuestions.count))
+                    structure.actionItems.count, structure.actionItems.filter(\.isQuestion).count))
             print("  previous files in \(backup.path)")
             return 0
         } catch {

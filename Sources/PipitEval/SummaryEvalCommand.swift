@@ -50,7 +50,6 @@ enum SummaryEvalCommand {
 
     struct Scores: Codable, Sendable {
         var actions = KindScore()
-        var decisions = KindScore()
         var questions = KindScore()
         var ownerRight = 0
         var ownerChecked = 0
@@ -369,15 +368,15 @@ enum SummaryEvalCommand {
                     truth: truth.actionItems.map {
                         Entry(text: $0.task, at: time($0.at), mustFind: $0.mustFind, owner: $0.owner)
                     },
-                    model: summary.actionItems.map { Entry(text: $0.task, at: $0.at, owner: $0.owner) }),
-                Kind(
-                    name: "decision",
-                    truth: truth.decisions.map { Entry(text: $0.text, at: time($0.at), mustFind: $0.mustFind) },
-                    model: summary.decisions.map { Entry(text: $0.text, at: $0.at) }),
+                    model: summary.actionItems.filter { !$0.isQuestion }.map {
+                        Entry(text: $0.task, at: $0.at, owner: $0.owner)
+                    }),
                 Kind(
                     name: "open question",
                     truth: truth.openQuestions.map { Entry(text: $0.text, at: time($0.at), mustFind: $0.mustFind) },
-                    model: summary.openQuestions.map { Entry(text: $0.text, at: $0.at) }),
+                    model: summary.actionItems.filter(\.isQuestion).map {
+                        Entry(text: $0.task, at: $0.at, owner: $0.owner)
+                    }),
             ]
         }
 
@@ -389,11 +388,11 @@ enum SummaryEvalCommand {
     }
 
     private static func texts(of summary: GeneratedSummary) -> [String] {
-        summary.actionItems.map(\.task) + summary.decisions.map(\.text) + summary.openQuestions.map(\.text)
+        summary.actionItems.map(\.task)
     }
 
     private static func texts(of truth: SummaryTruth) -> [String] {
-        truth.actionItems.map(\.task) + truth.decisions.map(\.text) + truth.openQuestions.map(\.text)
+        truth.actionItems.map(\.task) + truth.openQuestions.map(\.text)
     }
 
     static func score(
@@ -438,7 +437,6 @@ enum SummaryEvalCommand {
             }
             switch kind.name {
             case "action item": scores.actions = result
-            case "decision": scores.decisions = result
             default: scores.questions = result
             }
         }
@@ -447,8 +445,7 @@ enum SummaryEvalCommand {
         // start it copied from the transcript.
         let starts = meeting.lineStarts
         let times =
-            summary.topics.map(\.at) + summary.actionItems.map(\.at) + summary.decisions.map(\.at)
-            + summary.openQuestions.map(\.at)
+            summary.topics.map(\.at) + summary.actionItems.map(\.at)
         scores.timesGiven = times.count
         scores.timesOnLines = times.filter { $0.map(starts.contains) ?? false }.count
 

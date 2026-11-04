@@ -3,24 +3,11 @@ import Foundation
 /// What a language model wrote about a meeting, as structure rather than prose.
 ///
 /// The model is asked for the meeting one topic at a time, with each topic's
-/// decisions, action items and open questions inside it. Small models find the
-/// items next to the talk that produced them and miss them when asked for one
-/// list at the end, so the meeting-wide lists are collected from the topics
-/// here instead of asked for separately.
+/// action items inside it. Small models find the items next to the talk that
+/// produced them and miss them when asked for one list at the end, so the
+/// meeting-wide list is collected from the topics here instead of asked for
+/// separately.
 public struct GeneratedSummary: Codable, Sendable, Equatable {
-    /// A decision or an open question, at the moment it was said.
-    public struct Item: Codable, Sendable, Equatable {
-        public var text: String
-        /// Seconds from the start of the meeting, or nil when the model gave
-        /// no time that lands inside it.
-        public var at: Double?
-
-        public init(text: String, at: Double? = nil) {
-            self.text = text
-            self.at = at
-        }
-    }
-
     public struct ActionItem: Codable, Sendable, Equatable {
         public var task: String
         /// Empty when nobody in particular took it.
@@ -28,13 +15,34 @@ public struct GeneratedSummary: Codable, Sendable, Equatable {
         /// When it is due, in the words the model used. Empty when no deadline
         /// was said.
         public var due: String
+        /// Seconds from the start of the meeting, or nil when the model gave
+        /// no time that lands inside it.
         public var at: Double?
+        /// A question someone has to go and answer, written as the task of
+        /// finding out.
+        public var isQuestion: Bool
 
-        public init(task: String, owner: String = "", due: String = "", at: Double? = nil) {
+        public init(task: String, owner: String = "", due: String = "", at: Double? = nil, isQuestion: Bool = false) {
             self.task = task
             self.owner = owner
             self.due = due
             self.at = at
+            self.isQuestion = isQuestion
+        }
+
+        private enum CodingKeys: String, CodingKey {
+            case task, owner, due, at, isQuestion
+        }
+
+        /// `isQuestion` defaults to false, so a structure written before it
+        /// existed still reads.
+        public init(from decoder: any Decoder) throws {
+            let container = try decoder.container(keyedBy: CodingKeys.self)
+            task = try container.decode(String.self, forKey: .task)
+            owner = try container.decode(String.self, forKey: .owner)
+            due = try container.decode(String.self, forKey: .due)
+            at = try container.decodeIfPresent(Double.self, forKey: .at)
+            isQuestion = try container.decodeIfPresent(Bool.self, forKey: .isQuestion) ?? false
         }
     }
 
@@ -42,20 +50,13 @@ public struct GeneratedSummary: Codable, Sendable, Equatable {
         public var title: String
         public var at: Double?
         public var points: [String]
-        public var decisions: [Item]
         public var actionItems: [ActionItem]
-        public var openQuestions: [Item]
 
-        public init(
-            title: String, at: Double? = nil, points: [String] = [], decisions: [Item] = [],
-            actionItems: [ActionItem] = [], openQuestions: [Item] = []
-        ) {
+        public init(title: String, at: Double? = nil, points: [String] = [], actionItems: [ActionItem] = []) {
             self.title = title
             self.at = at
             self.points = points
-            self.decisions = decisions
             self.actionItems = actionItems
-            self.openQuestions = openQuestions
         }
     }
 
@@ -68,8 +69,6 @@ public struct GeneratedSummary: Codable, Sendable, Equatable {
     }
 
     public var actionItems: [ActionItem] { topics.flatMap(\.actionItems) }
-    public var decisions: [Item] { topics.flatMap(\.decisions) }
-    public var openQuestions: [Item] { topics.flatMap(\.openQuestions) }
 
     public var isEmpty: Bool { overview.isEmpty && topics.isEmpty }
 
@@ -97,8 +96,7 @@ public struct GeneratedSummary: Codable, Sendable, Equatable {
 
     // MARK: - markdown
 
-    /// The Summary tab's half of `summary.md`: the overview, then the
-    /// meeting-wide lists.
+    /// The first half of `summary.md`: the overview, then the action items.
     public var summaryMarkdown: String {
         var sections: [String] = []
         if !overview.isEmpty { sections.append(overview) }
@@ -111,14 +109,10 @@ public struct GeneratedSummary: Codable, Sendable, Equatable {
             return line + Self.stamp(item.at)
         }
         if !actions.isEmpty { sections.append("### Action items\n\n" + actions.joined(separator: "\n")) }
-        let decided = decisions.map { "- \($0.text)" + Self.stamp($0.at) }
-        if !decided.isEmpty { sections.append("### Decisions\n\n" + decided.joined(separator: "\n")) }
-        let open = openQuestions.map { "- \($0.text)" + Self.stamp($0.at) }
-        if !open.isEmpty { sections.append("### Open questions\n\n" + open.joined(separator: "\n")) }
         return sections.joined(separator: "\n\n")
     }
 
-    /// The Notes tab's half of `summary.md`: one section per topic.
+    /// The second half of `summary.md`: the timeline, one section per topic.
     public var notesMarkdown: String {
         topics.map { topic in
             let heading = "### \(topic.title)" + Self.stamp(topic.at)

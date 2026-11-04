@@ -174,13 +174,17 @@ enum LanguageModelPrompts {
 
         topics: the subjects the meeting worked on, in the order they came up, each with \
         the time it started. Keep talk about one subject together even when it is \
-        interrupted. points are the facts, figures, reasons and concerns someone who \
-        missed it would need, one idea each. Under each topic, list what the group \
-        decided, the tasks people took on or agreed to, and the questions left \
-        unanswered, so each is found next to the talk that produced it. A task's owner is \
-        the person who will do it, named as the transcript names them, and is empty when \
-        nobody in particular took it; due is a deadline someone said for that task, and is \
-        empty when nobody said one.
+        interrupted. points are the facts, figures, reasons, concerns and outcomes someone \
+        who missed it would need, one idea each, including what the group settled.
+
+        Under each topic, action_items are the tasks people took on there: someone said \
+        they would do it, or it was given to them to do. Leave out ideas, plans mentioned in \
+        passing and work nobody took on, because the list is what people will be held to. \
+        A question someone has to go and answer is an action item too, written as the task \
+        of finding out, with question set to true; leave out questions that were only asked \
+        in conversation. owner is the person who will do it, named as the transcript names \
+        them, and is empty when nobody in particular took it; due is a deadline someone said \
+        for that task, and is empty when nobody said one.
 
         overview: a few sentences on why the group met, where it landed and what happens \
         next, for someone who will read nothing else.
@@ -322,17 +326,14 @@ enum LanguageModelPrompts {
         """
 
     private static var topicSchema: [String: Any] {
-        let item = strictObject([("text", ["type": "string"]), ("at", ["type": "string"])])
         let task = strictObject([
             ("task", ["type": "string"]), ("owner", ["type": "string"]), ("due", ["type": "string"]),
-            ("at", ["type": "string"]),
+            ("at", ["type": "string"]), ("question", ["type": "boolean"]),
         ])
         return strictObject([
             ("title", ["type": "string"]), ("at", ["type": "string"]),
             ("points", ["type": "array", "items": ["type": "string"]]),
-            ("decisions", ["type": "array", "items": item]),
             ("action_items", ["type": "array", "items": task]),
-            ("open_questions", ["type": "array", "items": item]),
         ])
     }
 
@@ -381,8 +382,8 @@ enum LanguageModelPrompts {
     }
 
     /// Reads the structure leniently, keeping what is usable from an answer
-    /// that is partly wrong: an item with no text is dropped, a time that does
-    /// not land inside the meeting is dropped and the item kept, and a task
+    /// that is partly wrong: a task with no text is dropped, a time that does
+    /// not land inside the meeting is dropped and the task kept, and a task
     /// that is only its owner's name is dropped.
     static func generatedSummary(from object: [String: Any], durationSeconds: Double) -> GeneratedSummary {
         func text(_ value: Any?) -> String {
@@ -403,14 +404,6 @@ enum LanguageModelPrompts {
             if durationSeconds > 0, seconds > durationSeconds + 60 { return nil }
             return seconds
         }
-        func items(_ value: Any?) -> [GeneratedSummary.Item] {
-            var seen = Set<String>()
-            return ((value as? [[String: Any]]) ?? []).compactMap { entry in
-                let body = text(entry["text"])
-                guard !body.isEmpty, seen.insert(body.lowercased()).inserted else { return nil }
-                return GeneratedSummary.Item(text: body, at: time(entry["at"]))
-            }
-        }
         let topics = ((object["topics"] as? [[String: Any]]) ?? []).compactMap { entry -> GeneratedSummary.Topic? in
             let title = text(entry["title"])
             let points = ((entry["points"] as? [Any]) ?? []).map(text).filter { !$0.isEmpty }
@@ -422,19 +415,15 @@ enum LanguageModelPrompts {
                 guard !body.isEmpty, body.lowercased() != owner.lowercased(),
                     seenTasks.insert(body.lowercased()).inserted
                 else { return nil }
+                // A small model answering in JSON mode sometimes writes the
+                // flag as a string.
+                let question = (task["question"] as? Bool) ?? ((task["question"] as? String) == "true")
                 return GeneratedSummary.ActionItem(
-                    task: body, owner: owner, due: text(task["due"]), at: time(task["at"])
+                    task: body, owner: owner, due: text(task["due"]), at: time(task["at"]), isQuestion: question
                 )
             }
-            let topic = GeneratedSummary.Topic(
-                title: title, at: time(entry["at"]), points: points,
-                decisions: items(entry["decisions"]), actionItems: actions,
-                openQuestions: items(entry["open_questions"])
-            )
-            let isEmpty =
-                title.isEmpty && points.isEmpty && topic.decisions.isEmpty && actions.isEmpty
-                && topic.openQuestions.isEmpty
-            return isEmpty ? nil : topic
+            guard !title.isEmpty || !points.isEmpty || !actions.isEmpty else { return nil }
+            return GeneratedSummary.Topic(title: title, at: time(entry["at"]), points: points, actionItems: actions)
         }
         return GeneratedSummary(overview: text(object["overview"]), topics: topics)
     }

@@ -9,7 +9,6 @@ import SwiftUI
 public enum MeetingDetailTab: String, CaseIterable, Identifiable, Sendable {
     case transcript
     case summary
-    case notes
 
     public var id: String { rawValue }
 
@@ -17,7 +16,6 @@ public enum MeetingDetailTab: String, CaseIterable, Identifiable, Sendable {
         switch self {
         case .transcript: "Transcript"
         case .summary: "Summary"
-        case .notes: "Notes"
         }
     }
 }

@@ -50,7 +50,7 @@ struct ChatCompletionsClientTests {
     func theAnswerIsAskedForAsASchemaWithTheKeyAndTheAppsName() async throws {
         let answer = #"""
             {"topics":[{"title":"Release","at":"[00:01]","points":["Friday is the date"],
-            "decisions":[{"text":"Ship on Friday","at":"00:09"}],"action_items":[],"open_questions":[]}],
+            "action_items":[{"task":"Ship on Friday","owner":"Ben","due":"","at":"00:09","question":false}]}],
             "overview":"Ana and Ben agreed.","title":"Ship on Friday"}
             """#
         let server = StubServer { [self] _ in reply(answer) }
@@ -58,7 +58,7 @@ struct ChatCompletionsClientTests {
             .enrich(enrichment(), model: "meta-llama/llama-3.3-70b-instruct")
 
         #expect(result.title == "Ship on Friday")
-        #expect(result.summary == "Ana and Ben agreed.\n\n### Decisions\n\n- Ship on Friday [00:09]")
+        #expect(result.summary == "Ana and Ben agreed.\n\n### Action items\n\n- Ship on Friday (Ben) [00:09]")
         #expect(result.generatedSummary?.topics.first?.at == 1, "a time copied with its brackets still reads")
 
         let sent = try #require(server.requests.first)

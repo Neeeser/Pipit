@@ -525,8 +525,7 @@ public struct MeetingDetailView: View {
         switch model.tab {
         case .transcript: MeetingTranscriptView(model: model, detail: detail)
         // Room under the divider the tab row used to provide.
-        case .summary: MeetingSummaryTab(detail: detail).contentMargins(.top, 14, for: .scrollContent)
-        case .notes: MeetingNotesTab(model: model, detail: detail).contentMargins(.top, 14, for: .scrollContent)
+        case .summary: MeetingSummaryTab(model: model, detail: detail).contentMargins(.top, 14, for: .scrollContent)
         }
     }
 }
