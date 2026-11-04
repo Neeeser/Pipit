@@ -680,9 +680,24 @@ public final class MeetingReviewModel {
             .map(\.displayName)
     }
 
+    /// Who talked most first, for the chips and the lanes alike. A glance
+    /// reads the people who carried the meeting, and a voice the diarizer
+    /// split off for a few seconds falls to the end, where the chip row hides
+    /// what does not fit. Equal times keep the order they first spoke in.
+    static func byTalkTime(_ rows: [MeetingSpeakerRow]) -> [MeetingSpeakerRow] {
+        rows.enumerated()
+            .sorted { lhs, rhs in
+                lhs.element.speechSeconds == rhs.element.speechSeconds
+                    ? lhs.offset < rhs.offset
+                    : lhs.element.speechSeconds > rhs.element.speechSeconds
+            }
+            .map(\.element)
+    }
+
     /// The parts that need the identity store, which the file read does not.
     public func reloadSpeakers() async {
-        speakerRows = await runtime.speakers(inMeeting: meetingID).filter(\.hasSpeechToShow)
+        speakerRows = Self.byTalkTime(
+            await runtime.speakers(inMeeting: meetingID).filter(\.hasSpeechToShow))
         playback.setLaneOrder(speakerRows.map(\.displayName))
         speakerSuggestions = runtime.speakerSuggestions(inMeeting: meetingID)
         unnamedSpeakerCount = runtime.unnamedSpeakerCount(inMeeting: meetingID)
