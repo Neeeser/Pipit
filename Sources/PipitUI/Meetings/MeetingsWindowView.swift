@@ -575,8 +575,10 @@ struct MeetingRowView: View {
         }
         if many {
             let plan = model.mergePlan(for: targets)
-            Button("Merge Meetings") { model.merge(targets) }
-                .disabled(!plan.canMerge)
+            Button("Merge \(plan.canMerge ? plan.combineIDs.count + 1 : targets.count) Meetings") {
+                model.merge(targets)
+            }
+            .disabled(!plan.canMerge)
         }
         Divider()
         Menu(many ? "Move \(targets.count) to Folder" : "Move to Folder") {

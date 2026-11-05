@@ -166,15 +166,27 @@ struct MergeMeetingsTests {
 
     /// Waits for the background job a link starts, which no call returns.
     @MainActor
-    private static func waitForRequests(
-        _ count: Int, on backend: FakeAIBackend, atLeastFor seconds: Double = 0
-    ) async {
+    private static func waitForRequests(_ count: Int, on backend: FakeAIBackend) async {
+        await waitUntil { backend.enrichmentRequests.count >= count }
+    }
+
+    @MainActor
+    private static func waitUntil(_ condition: @MainActor () -> Bool) async {
         let deadline = Date().addingTimeInterval(10)
-        while backend.enrichmentRequests.count < count, Date() < deadline {
+        while !condition(), Date() < deadline {
             try? await Task.sleep(nanoseconds: 20_000_000)
         }
-        // A request that should not happen has no event to wait for.
-        if seconds > 0 { try? await Task.sleep(nanoseconds: UInt64(seconds * 1_000_000_000)) }
+    }
+
+    /// Lets the test hold the model's answer until it says so, so everything
+    /// else a merge started has run while the first request is still open.
+    private final class Gate: @unchecked Sendable {
+        private let lock = NSLock()
+        private var open = false
+        func release() { lock.withLock { open = true } }
+        func wait() async {
+            while !lock.withLock({ open }) { try? await Task.sleep(nanoseconds: 2_000_000) }
+        }
     }
 
     /// The request is the first thing to happen; the write and the state that
@@ -233,8 +245,18 @@ struct MergeMeetingsTests {
         let model = MeetingsWindowModel(runtime: runtime)
         await model.reload()
 
+        let gate = Gate()
+        backend.enrichInterference = { await gate.wait() }
         model.merge(model.rows)
-        await Self.waitForRequests(1, on: backend, atLeastFor: 0.5)
+        // The first request is open. Anything else the merge asked for has run
+        // by the time the test gets the main actor back, and a second ask would
+        // have added a debt that a second request pays once this one ends.
+        await Self.waitForRequests(1, on: backend)
+        for _ in 0..<50 { await Task.yield() }
+        gate.release()
+        await Self.waitForComplete(ids[0], in: runtime)
+        await Self.waitUntil { runtime.repository.findMeeting(id: ids[0])?.store.readSummaryDocument().summary != nil }
+        for _ in 0..<200 { await Task.yield() }
 
         #expect(backend.enrichmentRequests.count == 1)
         #expect(runtime.repository.logicalMeeting(id: ids[0])?.recordings.count == 3)

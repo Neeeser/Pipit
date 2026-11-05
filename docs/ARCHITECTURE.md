@@ -427,11 +427,23 @@ from zero, so every correction names the recording it belongs to.
 The summary belongs to the conversation, not to a recording. Enrichment for the
 recording a conversation started with reads every recording in time order, with
 each line stamped on the conversation's timeline, which is the one the summary's
-moments are played against. A recording folded into an earlier one skips
-enrichment. Linking or separating recordings puts the first recording back at the
-enriching stage once every recording in the conversation has finished processing,
-and a continuation that finishes later asks for the same. `transcript.md` is
-still written per recording and does not include continuations.
+moments are played against (`PlaybackTimeline.position(timelineSeconds:)` maps a
+moment to the recording that holds it). A conversation too long for one OpenAI
+request is cut in proportion across its recordings, so the later ones are not
+dropped. A recording folded into an earlier one skips enrichment, and so does one
+that is linked while its own request is in flight.
+
+Linking or separating recordings, or a continuation finishing, leaves the
+conversation owing a rewrite of its summary. The rewrite asks the model once from
+every recording that has words, writes only the summary, title and description,
+and never changes the processing state, the folder or the calendar link, so a
+failed request is reported and leaves a finished meeting finished. It waits while
+any recording is still being processed, and every job that ends pays what its
+conversation owes. The debt is in memory: a rewrite interrupted by quitting is
+not resumed, and the summary stays as it was last written. Separating after
+merging a row that was already a conversation does not restore the earlier
+grouping. `transcript.md` is still written per recording and does not include
+continuations.
 
 ## Reading the archive
 

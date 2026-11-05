@@ -1957,23 +1957,32 @@ public final class PipitRuntime {
         guard let target = repository.logicalMeeting(id: earlierID),
             target.id != meetingID
         else { return }
-        _ = try? later.store.updateMetadata { metadata in
-            metadata.mergedIntoMeetingID = target.id
-            metadata.possibleContinuationOf = nil
-            metadata.possibleContinuationReason = nil
-        }
+        // The later recording may still be processing, and its run ends by
+        // moving its folder to a name that carries the title. A store resolved
+        // before that move reads a folder that is no longer there, so each write
+        // resolves the recording again and the link is refused, not half made,
+        // when the write cannot land.
+        guard
+            updateLinked(
+                meetingID,
+                {
+                    $0.mergedIntoMeetingID = target.id
+                    $0.possibleContinuationOf = nil
+                    $0.possibleContinuationReason = nil
+                })
+        else { return }
         // A recording that already holds continuations of its own hands them to
         // the target, so no recording is ever linked through another one.
-        let carried = later.metadata.absorbedMeetingIDs
+        let carried =
+            repository.findMeeting(id: meetingID, includingMerged: true)?
+            .metadata.absorbedMeetingIDs ?? later.metadata.absorbedMeetingIDs
         if !carried.isEmpty {
             for childID in carried {
-                guard let child = repository.findMeeting(id: childID, includingMerged: true)
-                else { continue }
-                _ = try? child.store.updateMetadata { $0.mergedIntoMeetingID = target.id }
+                updateLinked(childID, { $0.mergedIntoMeetingID = target.id })
             }
-            _ = try? later.store.updateMetadata { $0.absorbedMeetingIDs = [] }
+            updateLinked(meetingID, { $0.absorbedMeetingIDs = [] })
         }
-        _ = try? target.primary.store.updateMetadata { metadata in
+        updateLinked(target.id) { metadata in
             for id in [meetingID] + carried where !metadata.absorbedMeetingIDs.contains(id) {
                 metadata.absorbedMeetingIDs.append(id)
             }
@@ -1984,9 +1993,24 @@ public final class PipitRuntime {
         if rewritingSummary { refreshConversationSummary(meetingID: target.id) }
     }
 
+    /// Updates one recording's metadata through a store resolved now, once more
+    /// if the first write finds the folder gone.
+    @discardableResult
+    private func updateLinked(
+        _ meetingID: String, _ body: @escaping (inout MeetingMetadata) -> Void
+    ) -> Bool {
+        for _ in 0..<2 {
+            guard let found = repository.findMeeting(id: meetingID, includingMerged: true)
+            else { continue }
+            if (try? found.store.updateMetadata(body)) != nil { return true }
+        }
+        Log.app.error("link between recordings not written")
+        return false
+    }
+
     /// Writes a finished conversation's summary again from all of its
-    /// recordings. Does nothing while one of them is still processing, which
-    /// asks again when it finishes.
+    /// recordings. While one of them is still processing the rewrite waits and
+    /// is asked again when that recording finishes.
     public func refreshConversationSummary(meetingID: String) {
         runProcessing { [weak self] in
             guard let self else { return }
