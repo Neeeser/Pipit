@@ -1016,41 +1016,4 @@ extension PipitRuntime {
             onProcessingUpdate?(meetingID)
         }
     }
-
-    /// Records who the user says was in the meeting.
-    ///
-    /// A soft prior for recognition and nothing more: the gallery is still
-    /// searched globally, and a name on this list is never forced onto a
-    /// speaker who did not match.
-    public func setExpectedParticipants(
-        _ names: [String], meetingID: String
-    ) async {
-        guard let found = repository.findMeeting(id: meetingID, includingMerged: true) else { return }
-        var linked: [Participant] = []
-        for name in names {
-            let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
-            guard !trimmed.isEmpty else { continue }
-            var identityID: IdentityID?
-            if let store = speakerStore {
-                let people = try? await store.identities(kind: .person)
-                identityID =
-                    people?.first {
-                        $0.resolvedName.compare(trimmed, options: .caseInsensitive) == .orderedSame
-                    }?.id
-            }
-            linked.append(
-                Participant(
-                    displayName: trimmed, origin: .human, identityID: identityID
-                ))
-        }
-        do {
-            _ = try found.store.updateMetadata { metadata in
-                metadata.participants.removeAll { $0.origin == .human }
-                metadata.participants.append(contentsOf: linked)
-            }
-        } catch {
-            Log.app.error("participants not saved: \(logSafeDescription(error), privacy: .public)")
-        }
-        refreshSpeakerIdentities(meetingID: meetingID)
-    }
 }

@@ -17,7 +17,7 @@ public enum Reprocessing {
             layout.rawTranscript, layout.canonicalTranscript, layout.rawDiarization,
             layout.speechEvidence, layout.speakerMap, layout.speakerSuggestions,
             layout.alignments, layout.apiResponses, layout.transcriptMarkdown,
-            layout.summary, layout.cleanedMicFile,
+            layout.summary, layout.structuredSummary, layout.cleanedMicFile,
         ]
     }
 

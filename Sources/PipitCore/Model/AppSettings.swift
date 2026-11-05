@@ -21,7 +21,7 @@ public struct AIModelSettings: Codable, Sendable, Equatable {
     /// The address typed for the custom endpoint.
     public var customEndpoint: String
 
-    public static let defaultMetadataModel = "gpt-5.6-luna"
+    public static let defaultMetadataModel = "gpt-6-luna"
 
     public init(
         transcription: String = "gpt-4o-transcribe-diarize",
@@ -89,7 +89,7 @@ public struct AIModelSettings: Codable, Sendable, Equatable {
         "gpt-4o-transcribe-diarize", "gpt-transcribe",
     ]
     public static let diarizationChoices = ["gpt-4o-transcribe-diarize"]
-    public static let metadataChoices = ["gpt-5.6-luna", "gpt-5.1", "gpt-5.1-mini", "gpt-4.1"]
+    public static let metadataChoices = ["gpt-6-luna", "gpt-5.6-luna", "gpt-5.1", "gpt-5.1-mini", "gpt-4.1"]
 
     /// What timing structure each cloud transcription model returns.
     ///
@@ -169,7 +169,7 @@ public struct AIModelSettings: Codable, Sendable, Equatable {
     /// Whether the responses endpoint accepts a `reasoning` parameter for this
     /// model. GPT-4-generation models reject the field with a 400.
     public static func acceptsReasoningEffort(_ model: String) -> Bool {
-        if model.hasPrefix("gpt-5") { return true }
+        if model.hasPrefix("gpt-5") || model.hasPrefix("gpt-6") { return true }
         // The o-series: o1, o3, o4-mini and their dated variants.
         return model.range(of: "^o[0-9]", options: .regularExpression) != nil
     }

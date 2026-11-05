@@ -1,0 +1,251 @@
+{
+  "meeting": "ES2004c",
+  "overview": "The product-design team held its conceptual design meeting for the new remote control to cover trend-watching, component and material options, and the user interface, then settle the concept. Marketing reported that people want a fancy look and feel first, technological innovation second and ease of use third, and that fruit-and-vegetable themes and spongy materials are in fashion. The group settled on kinetic charging with a small watch-type cell (so no docking port), a flip-open design with a black-and-white LCD touch screen on the top half and rubber anti-RSI buttons for the frequently used controls on the bottom half, a plastic case with interchangeable spongy rubber covers in fruit and vegetable colours, and a voice-recognition 'where are you / I'm here' locator if the company's new speech feature turns out to be affordable. The cost of voice recognition is the main open item, with a key-chain style whistle as the fallback; the team breaks and reconvenes in about forty minutes.",
+  "action_items": [
+    {
+      "task": "Check the cost and financial feasibility of adding the company's new speech-recognition feature as a remote locator; fall back to a whistle-style locator if it is too expensive",
+      "owner": "",
+      "due": "",
+      "at": "36:30",
+      "quote": "it's a good idea we just need to check on the cost",
+      "must_find": false
+    },
+    {
+      "task": "Incorporate the company logo into the remote's design",
+      "owner": "User Interface Designer",
+      "due": "",
+      "at": "37:02",
+      "quote": "we'll be incorporating in the design",
+      "must_find": false
+    }
+  ],
+  "decisions": [
+    {
+      "text": "Power the remote with kinetic charging",
+      "at": "30:09",
+      "quote": "The kinetic.",
+      "must_find": true
+    },
+    {
+      "text": "Use the small watch-type cell that comes with kinetic charging instead of AA or AAA batteries",
+      "at": "31:39",
+      "quote": "the kinetic ones come come with um a sort of w watch a battery that goes in a watch",
+      "must_find": false
+    },
+    {
+      "text": "Drop the docking port, since kinetic charging removes the need for it",
+      "at": "30:10",
+      "quote": "that means that there's no function for li the port",
+      "must_find": true
+    },
+    {
+      "text": "Use the company's new speech recognition as a 'where is the remote / I'm here' locator if it proves affordable, with a key-chain style whistle locator as the fallback",
+      "at": "36:41",
+      "quote": "So we can if financially voice recognition is not feasible we could go for a whistle.",
+      "must_find": true
+    },
+    {
+      "text": "Flip-open design with an LCD touch screen on the top half",
+      "at": "32:41",
+      "quote": "the top one is gonna be the L_C_D_",
+      "must_find": true
+    },
+    {
+      "text": "Rubberised anti-RSI buttons on the bottom half of the flip",
+      "at": "32:41",
+      "quote": "and the bottom one is gonna be the rubberised buttons",
+      "must_find": true
+    },
+    {
+      "text": "Start with a black-and-white LCD rather than full colour to keep cost down, with the option to upgrade later",
+      "at": "31:17",
+      "quote": "Maybe we could start with the black and white.",
+      "must_find": false
+    },
+    {
+      "text": "Put the frequently used controls such as volume and programme on the lower button half, used with the thumbs, and the other controls on the touch screen at the top",
+      "at": "27:15",
+      "quote": "have the um the volume and the programme, things like that, on the lower side",
+      "must_find": false
+    },
+    {
+      "text": "Make the case itself out of plastic",
+      "at": "32:57",
+      "quote": "For the body design I think plastic",
+      "must_find": false
+    },
+    {
+      "text": "Fit the plastic shell with a removable, spongy rubber cover available in a variety of designs, which people can replace to change the look",
+      "at": "33:08",
+      "quote": "so we decided on a rubber casing for the plastic shell, a variety of designs",
+      "must_find": true
+    },
+    {
+      "text": "Take only the colours from the fruit-and-vegetable trend for the rubber cover, not a fruit or vegetable shape",
+      "at": "33:15",
+      "quote": "we're just going to go for sort of vegetable and fruit colours, we're not gonna try and make it actually a vegetable or fruit design",
+      "must_find": true
+    },
+    {
+      "text": "The remote carries the company logo like any product, and the brand association is left to advertising rather than a more prominent logo",
+      "at": "37:15",
+      "quote": "Obviously it'll have a logo on it just like everything",
+      "must_find": false
+    },
+    {
+      "text": "Drop the idea of a compact mirror inside the flip-top",
+      "at": "24:41",
+      "quote": "Oh I think forget about the mirror",
+      "must_find": false
+    }
+  ],
+  "open_questions": [
+    {
+      "text": "Whether voice recognition for finding the remote is affordable; if it is very expensive the team would have to cut elsewhere or use a whistle locator instead",
+      "at": "37:57",
+      "quote": "if it turns out that it's hugely expensive we'd have to cut down somewhere else",
+      "must_find": false
+    },
+    {
+      "text": "Whether kinetic charging will hold enough charge for a remote that mostly sits on a table rather than being worn like a watch; the Industrial Designer was not sure how long the cell lasts",
+      "at": "10:39",
+      "quote": "Is it really gonna be enough?",
+      "must_find": false
+    },
+    {
+      "text": "Whether to provide a stylus or pointer for the touch screen; the Project Manager said they would come back to it and the meeting did not",
+      "at": "22:54",
+      "quote": "we'll talk about that so if you finish your and we'll come back to that",
+      "must_find": false
+    },
+    {
+      "text": "Whether to add a clip-on attachment so the remote can be worn and is lost less often; market research has not shown demand for it",
+      "at": "14:27",
+      "quote": "But it's something to put on the side to think about maybe.",
+      "must_find": false
+    }
+  ],
+  "topics": [
+    {
+      "title": "Opening and minutes of the previous meeting",
+      "start": "01:19",
+      "end": "03:08",
+      "points": [
+        "This is the conceptual design meeting, covering properties, materials, user interface and trend-watching; the Project Manager felt the team was slightly ahead of schedule.",
+        "Changes from management since last time: teletext cannot be used, the remote is not to be a control for everything, and the company image has to be incorporated.",
+        "Earlier decisions: leave out voice recognition, use a flip design, and use a shape different from normal (a shell was one idea).",
+        "The Industrial Designer was to look into rechargeable batteries; the team was also to think about a port and an alarm for finding a lost remote.",
+        "Target market: young, business people."
+      ]
+    },
+    {
+      "title": "Marketing trend-watching report",
+      "start": "03:37",
+      "end": "06:07",
+      "points": [
+        "Marketing ran its usual market research study with a hundred subjects and consulted fashion and design consultants in Paris and Milan.",
+        "The three most wanted qualities are a fancy look and feel, technological innovation, and ease of use; fancy look and feel is twice as important as innovation, which is twice as important as ease of use.",
+        "Fruit and vegetables are expected to be the theme for clothes, shoes and furniture, and Marketing asked whether the remote should use it too.",
+        "Materials are trending toward a spongy feel, in contrast to last year."
+      ]
+    },
+    {
+      "title": "Components and power options",
+      "start": "06:50",
+      "end": "14:32",
+      "points": [
+        "The Industrial Designer reported that some materials considered last time are not available from stock.",
+        "The TA11835 chip is used in nearly every TV remote because it sends standard signals.",
+        "No rechargeable battery option is available. Standard AA and AAA batteries were judged too bulky; dynamo (wind-up) charging was judged silly and would need a physical handle, taking more space.",
+        "Solar charging was questioned because the team believed artificial light does not count, which would exclude people in basement flats and some parts of the world; most TV is watched at night, though the cell could charge during the day.",
+        "Solar cells would have to sit on the case, are large and look identical (like on a calculator), are more expensive than standard batteries, and are not resistant to being dropped or thrown around.",
+        "A dual solar-plus-standard-battery setup is possible, but Marketing felt it would detract from the design and add nothing.",
+        "The Industrial Designer recommended kinetic charging, as used in wrist watches, charging a small watch-size cell; he has never seen one run out but is not sure how long it lasts.",
+        "The Project Manager worried that a remote sits on the side most of the time unlike a watch on a wrist; the Industrial Designer argued the remote draws power only very briefly to send a signal.",
+        "The User Interface Designer asked which option lasts longest, since customers should not have to charge a remote daily like a phone.",
+        "The Project Manager suggested an attachment so the remote could clip onto clothing and be lost less often; Marketing noted it has not come up in focus groups and suggested setting it aside."
+      ]
+    },
+    {
+      "title": "Circuit board, standby lighting and case materials",
+      "start": "14:34",
+      "end": "19:53",
+      "points": [
+        "Most remotes use a printed circuit board whose contacts close when a rubber button is pressed; the chip turns the button into a code fired out of an LED as on-off bursts.",
+        "Circuit boards can be made as large or small as needed, so they can fit the button layout.",
+        "To save battery the remote should go into standby when unused; if the buttons are backlit, the lights would switch off after about five to ten seconds of inactivity.",
+        "The factory offers plastic (the expected main housing), wood (impractical), titanium (very expensive to process, only a standard box shape) and rubber.",
+        "The factory's rubber button material is used in stress balls and is claimed to be anti-RSI, which the Industrial Designer doubted.",
+        "Plastic allows curved shapes; the flip design needs two separate hinged units.",
+        "The User Interface Designer asked about changeable colour covers; replacement covers would be too expensive in titanium, and Marketing noted titanium marks easily when dropped.",
+        "Marketing proposed a plastic base with a removable rubber cover that gives the spongy feel and allows different fascias; the group compared it to grip sleeves on pens and changeable mobile phone covers, and liked that it is cheap and comfortable to hold."
+      ]
+    },
+    {
+      "title": "Button and touch-screen options",
+      "start": "19:53",
+      "end": "23:32",
+      "points": [
+        "Options for the controls: a bare printed circuit board touched directly with a finger, the factory's rubber buttons, or a thin LCD showing an array of touch buttons.",
+        "An LCD is flat, so it cannot follow curved shapes, but it would sit flat inside the opened shell; it would be black and white, not full colour.",
+        "The Project Manager liked a contrast between a rubber outside and something fancy inside, and asked how users would know where to press on a bare board; the Industrial Designer had not thought about that.",
+        "Marketing suggested a small pointer or stylus to help with RSI; the Industrial Designer thought it could get lost, the Project Manager said it would have to be attached, and Marketing noted people could use a pen or pencil.",
+        "The User Interface Designer warned that frequent channel surfers would find a pointer irritating and could wear out a touch pad faster than buttons.",
+        "With a flip-top the circuit can be split into two boards joined by cabling through the hinge, with standard buttons on one half and more complex controls on the other."
+      ]
+    },
+    {
+      "title": "Compact-mirror idea",
+      "start": "23:32",
+      "end": "24:42",
+      "points": [
+        "Marketing suggested the opened shell could act as a compact mirror that switches to the remote display, like advertising mirrors in nightclubs.",
+        "The Project Manager objected that the product is marketed to men as much as women and nobody watching TV wants a mirror; the Industrial Designer was unsure an LCD could give a mirror effect.",
+        "Marketing withdrew the idea as a passing thought."
+      ]
+    },
+    {
+      "title": "User interface presentation",
+      "start": "24:45",
+      "end": "29:47",
+      "points": [
+        "Competitor remotes are monotonous rectangular black designs with too many cluttered, repeated and inconsistent buttons; only channel and volume controls are common across them.",
+        "Proposed a graphical user interface (icons on the LCD) in the middle of the flip-top, with rubber push buttons for repetitive actions like channel and volume so frequent surfers need no pointer.",
+        "The Project Manager asked to put the frequently used buttons on the bottom half, pressed with the thumbs like a mobile phone, with the touch screen above; the User Interface Designer agreed.",
+        "A company email says the division has developed a new speech-recognition feature; customers want to be able to find a lost remote, for example asking where it is and hearing it answer or beep. Its financial feasibility needs checking.",
+        "The User Interface Designer suggested taking inspiration from vibrant fruit colours such as chilli or tomato red rather than a fruit shape.",
+        "The User Interface Designer suggested keeping the standard central volume and channel button pattern that users already know."
+      ]
+    },
+    {
+      "title": "Concept decisions",
+      "start": "29:47",
+      "end": "36:20",
+      "points": [
+        "The team agreed on kinetic charging, which removes the need for a docking port, and favoured voice recognition for finding the remote as a gadget and selling point.",
+        "The Industrial Designer noted that if the speech parts are already in stock they will be cheap to manufacture.",
+        "The Project Manager said cost is the only pitfall and the LCD is not cheap; a black-and-white LCD like a calculator's is cheaper than full colour.",
+        "Marketing asked whether AA or AAA batteries were still needed; the kinetic system uses a smaller watch-type cell.",
+        "Agreed layout: LCD touch screen on the top half of the flip, rubber anti-RSI buttons on the bottom half; plastic case with a rubber cover for grip.",
+        "Covers will use fruit and vegetable colours, not a fruit shape; the Project Manager said the cheap covers allow almost any look (plain black, glittery pink, zebra stripes, rubber spikes) and the focus is the feel.",
+        "Marketing questioned whether the concept is fancy enough for the top market requirement; the Project Manager argued it stands out from beige-and-black remotes, and Marketing agreed it is different enough.",
+        "Marketing noted cheap covers let the company respond quickly to next year's design-fair trends.",
+        "The User Interface Designer added that the outer casing should be changeable; the Industrial Designer clarified that only the rubber cover changes, not the plastic case.",
+        "Marketing recapped the decisions: kinetic charging, watch-type battery, LCD on the top of the flip, rubber buttons on the bottom, fruit and vegetable colours for the rubber cover, plastic case."
+      ]
+    },
+    {
+      "title": "Locator feature, company logo and close",
+      "start": "36:20",
+      "end": "38:48",
+      "points": [
+        "Voice recognition for finding a lost remote is wanted but depends on cost; if it is not financially feasible, a whistle-activated locator like those on key chains is the fallback.",
+        "Marketing asked about incorporating the company logo, noting the earlier report said it should be obvious that it is the company's product; the User Interface Designer said it will be in the design.",
+        "The Project Manager said the logo will be on it like any product and that advertising will associate the name with the product; he was not worried because the product already stands out.",
+        "Marketing asked whether last meeting's beeper locator had been rejected in favour of voice recognition; the answer was that it depends on the expense, and more will be known about cost later.",
+        "The meeting ended after an end-of-meeting message; the team expects about forty minutes before reconvening and a questionnaire was mentioned."
+      ]
+    }
+  ],
+  "human_not_covered": []
+}

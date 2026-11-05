@@ -10,7 +10,7 @@ import PipitCore
 /// ignores it and answers in prose, gets one more request with the schema
 /// written into the instructions instead, and the object is read out of
 /// whatever comes back.
-public struct ChatCompletionsClient: LanguageModelBackend {
+public struct ChatCompletionsClient: LanguageModelBackend, StructuredLanguageModel {
     public struct Configuration: Sendable {
         public var provider: LanguageModelProvider
         public var baseURL: URL
@@ -111,7 +111,12 @@ public struct ChatCompletionsClient: LanguageModelBackend {
         let object = try await answer(to: prompt, model: model) {
             LanguageModelPrompts.acceptsEnrichment($0, for: request)
         }
-        return LanguageModelPrompts.enrichment(from: object)
+        return LanguageModelPrompts.enrichment(from: object, for: request)
+    }
+
+    public func structuredAnswer(_ prompt: LanguageModelPrompt, model: String) async throws -> Data {
+        let object = try await answer(to: prompt, model: model) { _ in true }
+        return try JSONSerialization.data(withJSONObject: object)
     }
 
     // MARK: - transport
@@ -171,10 +176,7 @@ public struct ChatCompletionsClient: LanguageModelBackend {
     }
 
     static func schemaText(_ schema: [String: Any]) -> String {
-        guard let data = try? JSONSerialization.data(withJSONObject: schema, options: [.sortedKeys]),
-            let text = String(data: data, encoding: .utf8)
-        else { return "{}" }
-        return text
+        RequestJSON.string(schema)
     }
 
     /// The text of the first choice. Some servers return the content as a list
@@ -197,7 +199,7 @@ public struct ChatCompletionsClient: LanguageModelBackend {
         request.httpMethod = "POST"
         request.timeoutInterval = timeout ?? configuration.requestTimeout
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.httpBody = try JSONSerialization.data(withJSONObject: body)
+        request.httpBody = try RequestJSON.data(body)
         try authorize(&request)
         return try await transport.send(request)
     }

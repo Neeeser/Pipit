@@ -76,6 +76,9 @@ public struct ChunkedLanguageModel: LanguageModelBackend {
 
         var notes: [String] = []
         var candidates: [ModelFolderCandidate] = []
+        // Each part's topics carry times from the transcript itself, so they
+        // are kept as they are rather than rewritten from a digest.
+        var topics: [GeneratedSummary.Topic] = []
         for (offset, part) in parts.enumerated() {
             var partRequest = request
             partRequest.transcript = part
@@ -89,6 +92,7 @@ public struct ChunkedLanguageModel: LanguageModelBackend {
             let result = try await base.enrich(partRequest, model: model)
             notes.append(Self.digest(of: result, part: offset + 1))
             candidates.append(contentsOf: result.folderCandidates)
+            topics.append(contentsOf: result.generatedSummary?.topics ?? [])
         }
 
         // The folder answers quote the transcript, so they come from the parts
@@ -97,6 +101,14 @@ public struct ChunkedLanguageModel: LanguageModelBackend {
             notes, like: request, model: model, limit: limit, depth: 0
         )
         combined.folderCandidates = Self.bestCandidates(candidates)
+        if !topics.isEmpty {
+            let summary = GeneratedSummary(
+                overview: combined.generatedSummary?.overview ?? "", topics: topics
+            )
+            combined.generatedSummary = summary
+            if request.wantsSummary, !summary.summaryMarkdown.isEmpty { combined.summary = summary.summaryMarkdown }
+            if request.wantsNotes, !summary.notesMarkdown.isEmpty { combined.notes = summary.notesMarkdown }
+        }
         return combined
     }
 
@@ -132,6 +144,13 @@ public struct ChunkedLanguageModel: LanguageModelBackend {
 
     private static func digest(of result: MeetingEnrichment, part: Int) -> String {
         var lines = ["Part \(part)"]
+        if let structured = result.generatedSummary {
+            // Both halves, whichever the person asked to see: the combining
+            // request needs the topics to write the overview either way.
+            if !structured.summaryMarkdown.isEmpty { lines.append(structured.summaryMarkdown) }
+            if !structured.notesMarkdown.isEmpty { lines.append(structured.notesMarkdown) }
+            return lines.joined(separator: "\n")
+        }
         if let summary = result.summary, !summary.isEmpty { lines.append(summary) }
         if let notes = result.notes, !notes.isEmpty { lines.append(notes) }
         return lines.joined(separator: "\n")

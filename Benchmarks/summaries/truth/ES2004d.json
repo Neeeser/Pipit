@@ -1,0 +1,243 @@
+{
+  "meeting": "ES2004d",
+  "overview": "This was the team's final meeting on the remote control. The Industrial Designer presented the prototype: a clam-shell remote with a plastic body under a changeable rubber casing, a black-and-white LCD touch screen in the top half and standard buttons in the bottom half. The Marketing Expert led an evaluation of the prototype against six criteria from the market research on a seven-point scale, and the team agreed it met them well enough to go ahead; the weakest score was for reducing repetitive strain injury. The Project Manager then entered the parts into the cost sheet. The design came in over the 12.50 Euro production budget until the voice-recognition locator was removed, which brought it to about 12.35 Euros. The team kept the kinetic power source and agreed to recommend to management that a larger budget would allow voice recognition, possibly as an upgraded version. They closed with a positive review of their teamwork and tools; the Project Manager has minutes to catch up on and the team has a final questionnaire to fill in.",
+  "action_items": [
+    {
+      "task": "Fill in the meeting survey and final questionnaire",
+      "owner": "",
+      "due": "",
+      "at": "35:42",
+      "quote": "we've got the meeting survey and questionnaire",
+      "must_find": true
+    },
+    {
+      "task": "Put the team's recommendations to head office in the final report: the product fits the budget, and with a larger budget it would include voice recognition",
+      "owner": "",
+      "due": "",
+      "at": "25:15",
+      "quote": "we can put in our recommendations for what we've we've found",
+      "must_find": true
+    }
+  ],
+  "decisions": [
+    {
+      "text": "The remote uses a clam-shell design that closes flat",
+      "at": "02:32",
+      "quote": "it's obviously an a sort of clam-shell design",
+      "must_find": false
+    },
+    {
+      "text": "The body is plastic in a neutral base colour, covered by a changeable rubber outer casing offered in a wide choice of strong fruit and vegetable colours and patterns",
+      "at": "02:32",
+      "quote": "This is underneath the rubberised the rubberised uh outer casing",
+      "must_find": true
+    },
+    {
+      "text": "The top half holds an inset black-and-white LCD touch screen with all of the remote's functions",
+      "at": "05:39",
+      "quote": "The top screen, as we said, is would be an inset um black and white L_C_D_ s touch screen",
+      "must_find": true
+    },
+    {
+      "text": "The bottom half holds only the standard buttons: volume, channel and power",
+      "at": "05:59",
+      "quote": "the bottom screen would just contain the standard buttons",
+      "must_find": false
+    },
+    {
+      "text": "The two halves each need their own circuit board, joined by cabling through the hinge",
+      "at": "04:23",
+      "quote": "it would need two separate P_C_B_s, so it would be joined at the hinge through some sort of cabling",
+      "must_find": false
+    },
+    {
+      "text": "The infrared sender goes on the front edge of the bottom half so it faces the TV when the remote is open",
+      "at": "05:34",
+      "quote": "Yeah, on the front on the front side of that, yeah.",
+      "must_find": false
+    },
+    {
+      "text": "The company logo goes on the inside of the remote, seen when it is opened, without changing the outside look",
+      "at": "05:59",
+      "quote": "And now we've we also decided on the inside",
+      "must_find": true
+    },
+    {
+      "text": "The voice recognition locator, which answers \"I'm here\" when called, was judged feasible on cost and included in the prototype",
+      "at": "15:42",
+      "quote": "Yeah, yeah, that yeah, that's feasible.",
+      "must_find": true
+    },
+    {
+      "text": "The prototype meets the criteria well enough to go ahead without further modifications",
+      "at": "17:04",
+      "quote": "I think we yeah. I think we're set.",
+      "must_find": true
+    },
+    {
+      "text": "The remote keeps the kinetic power source rather than standard batteries",
+      "at": "18:45",
+      "quote": "So are we still on for kinetic?",
+      "must_find": false
+    },
+    {
+      "text": "Voice recognition (the sample sensor and speaker) is removed to bring the cost under budget, at about 12.35 Euros against a 12.50 Euro limit",
+      "at": "26:05",
+      "quote": "So if we take voice recognition out",
+      "must_find": true
+    },
+    {
+      "text": "Voice recognition can be offered later as an upgraded or business-class version",
+      "at": "24:48",
+      "quote": "We could do the voice recognition for, you know, business class or something",
+      "must_find": false
+    },
+    {
+      "text": "The team will tell management that voice recognition would be in the design if the budget allowed it",
+      "at": "25:47",
+      "quote": "make the price fit, and then say if we'd had our budget, we would've had this",
+      "must_find": true
+    },
+    {
+      "text": "The team recommends to management that the budget be increased",
+      "at": "34:24",
+      "quote": "our costs are below budget with recommendations that they the budget be increased",
+      "must_find": false
+    }
+  ],
+  "open_questions": [
+    {
+      "text": "Whether the logo goes on as a bezelled or inset badge or as an engraving on the top was not settled",
+      "at": "06:32",
+      "quote": "uh logo on it, or something inset, or maybe an engraving of the logo on the top",
+      "must_find": false
+    },
+    {
+      "text": "The base colour of the plastic body was left as either white or light blue",
+      "at": "13:23",
+      "quote": "the base colour was um white or or like or l sort of a light blue",
+      "must_find": false
+    },
+    {
+      "text": "The design does little to reduce repetitive strain injury (rated about neutral at 4.25); the team doubts more can be done with current technology",
+      "at": "17:13",
+      "quote": "we could actually do much more to minimise that",
+      "must_find": false
+    },
+    {
+      "text": "The budget covers only production cost, so overheads still come out of the margin, and a larger budget would mean a higher selling price; this was left for another project team",
+      "at": "35:08",
+      "quote": "there'll have to be another project team or a new project for us to look at at those kind of things",
+      "must_find": false
+    },
+    {
+      "text": "Cost information came only after the prototype was built; the team said having it at the start might have changed their design choices",
+      "at": "18:45",
+      "quote": "See, it woulda been handy to have this at the beginning",
+      "must_find": true
+    }
+  ],
+  "topics": [
+    {
+      "title": "Recap of the previous meeting's decisions",
+      "start": "00:32",
+      "end": "01:28",
+      "points": [
+        "The Project Manager read back the previous minutes: a kinetic charger, a standard chip available in various sizes, a stand-by function, and a soft, rubbery, changeable case.",
+        "Buttons combine an LCD with rubber buttons; the rubber buttons are meant to be anti-RSI.",
+        "The look is bright and funky, inspired by fruit, to keep a hip feel.",
+        "Voice recognition was to be included until more was known about its cost."
+      ]
+    },
+    {
+      "title": "Prototype presentation",
+      "start": "01:28",
+      "end": "06:53",
+      "points": [
+        "The User Interface Designer and Industrial Designer built the prototype together; the Industrial Designer presented it.",
+        "Plastic body in a neutral colour such as white or light blue, under a rubberised outer casing with a wide choice of colours and patterns for customisation.",
+        "Clam-shell design: the LCD screen is inset in the top half and the buttons sit in the bottom half so it closes flat.",
+        "Kinetic batteries were already decided; the Industrial Designer suggested the opening and closing motion could also charge them.",
+        "Voice recognition locator: you call out and the remote answers \"I'm here\". The designers assumed it would be cheap because the email said such systems were becoming easy to get.",
+        "Standard infrared transmission and standard chips; two circuit boards joined at the hinge; the infrared sender at the front of the bottom half so it points at the TV when open.",
+        "Top screen: black-and-white LCD touch screen with all functions. Bottom: standard buttons for volume, channel and power.",
+        "A logo inside, either bezelled, inset or engraved, without interfering with the outside look. Company slogan: putting the fashion back into electronics."
+      ]
+    },
+    {
+      "title": "Evaluation criteria and method",
+      "start": "06:56",
+      "end": "10:15",
+      "points": [
+        "The Marketing Expert said the evaluation checks whether the specification and prototype meet the criteria drawn from the market research, user requirements and company strategy.",
+        "Six criteria: fancy look and feel; technologically innovative; easy to use; incorporates current fashion trends (spongy texture, strong fruit and vegetable colours); minimises RSI; easy to locate.",
+        "Easy to locate had been undecided between voice recognition (favoured) and a beeper.",
+        "Seven-point scale where one means true and seven means false; each member gives a rating and the ratings are averaged."
+      ]
+    },
+    {
+      "title": "Rating the prototype",
+      "start": "10:15",
+      "end": "17:34",
+      "points": [
+        "Fancy look and feel: about 2.5 after the User Interface Designer corrected a reversed rating from four to two.",
+        "Technologically innovative: 2 (ratings of three, one, two and two).",
+        "Easy to use: about 1.75, recorded as almost two.",
+        "Incorporates current fashion trends: 1 from everyone, after the Industrial Designer confirmed the changeable faces allow any strong colour and the spongy feel comes from the rubber casing.",
+        "Minimises RSI: 4.25, close to neutral. The Project Manager argued the rubber button material and large, well-spaced buttons help; the Marketing Expert doubted much more could be done on a small device.",
+        "Easy to locate: 1, based on the voice recognition locator, which the Industrial Designer said was feasible on cost and would be loud.",
+        "The Industrial Designer noted the team may be biased because it is their own product.",
+        "Highest ratings were for fashion trends and easy to locate; the team agreed to go ahead."
+      ]
+    },
+    {
+      "title": "Production cost",
+      "start": "17:43",
+      "end": "27:37",
+      "points": [
+        "The Project Manager entered parts into a cost spreadsheet and said having it at the start might have changed their choices.",
+        "Entries: one kinetic cell, one regular chip-on-print, one sample sensor and sample speaker for voice recognition, a double-curved case with a slightly flattened bottom so it does not roll.",
+        "The rubber casing was counted as case material alongside plastic; special colour was included for exotic colours such as aubergine; interface is push-button plus LCD display.",
+        "The first total was over the budget. The User Interface Designer suggested standard batteries instead of kinetic, arguing customers never look at the battery while shape and colour should not be compromised; the change saved little.",
+        "The Industrial Designer said removing voice recognition makes the biggest difference; without it the cost is about 12.35 Euros.",
+        "The budget was checked against the kick-off agenda as 12.50 Euros (half of the 25 Euro selling price), so the product is under budget.",
+        "The Industrial Designer argued the price need not be 25 Euros because users said they would pay more; the Marketing Expert said they must work to head office's specification and add recommendations.",
+        "The Marketing Expert said the distinctive look already makes the remote easier to find; the Project Manager said voice recognition sets the product apart and could be an upgrade."
+      ]
+    },
+    {
+      "title": "Project process evaluation",
+      "start": "27:42",
+      "end": "31:00",
+      "points": [
+        "Everyone felt they worked as a team with constructive feedback; ideas could be raised without anyone feeling shot down.",
+        "The User Interface Designer praised the Project Manager's coordination.",
+        "The Industrial Designer said voice recognition would probably have made it into the product if the marketing research had come before the initial specification.",
+        "On tools: the team would have used email more with more time or if they had been separated; the whiteboard and talking in person were useful."
+      ]
+    },
+    {
+      "title": "Innovation and the remote control market",
+      "start": "31:34",
+      "end": "34:17",
+      "points": [
+        "The flip-top idea borrows from mobile phones; the Marketing Expert called it applying existing ideas to a different area.",
+        "Manufacturers give little thought to remotes because they are selling the TV or DVD player, not the remote.",
+        "The Project Manager suggested individually designed printed covers that people would pay extra for.",
+        "The Marketing Expert valued the market-research basis and contrasted it with innovation for its own sake in mobile phones."
+      ]
+    },
+    {
+      "title": "Closing: budget and wrap-up",
+      "start": "34:22",
+      "end": "37:01",
+      "points": [
+        "Costs are below budget, with a recommendation that the budget be increased.",
+        "The Project Manager asked whether the budget covers overheads; the Industrial Designer and Marketing Expert said it is only the production cost, so overheads come out of the margin and a bigger budget would raise the selling price.",
+        "The Marketing Expert said the team met its remit and those questions belong to another project.",
+        "The team filled in the final questionnaire; the Project Manager has minutes from earlier meetings to finish."
+      ]
+    }
+  ],
+  "human_not_covered": []
+}

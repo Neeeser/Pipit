@@ -1,0 +1,229 @@
+{
+  "meeting": "IS1009d",
+  "overview": "In the final meeting of the remote-control project, the Project Manager read the minutes of the previous meeting, the Industrial Designer and User Interface Designer presented the prototype (a blue snail-shaped plastic remote with soft rubber buttons, a shell-shaped holder and a built-in voice recogniser), and the team agreed that the look and the voice recognition are the two selling points. The cost sheet came to 8.20 euros, well within the 12.50 euro budget, but the Project Manager noticed the voice recogniser was not in the cost calculation, so it is unclear whether the remaining money covers it. The Marketing Expert's evaluation rated the prototype well (shape, colour and size near the top of the seven-point scale, functionality lowest), the team evaluated the project process positively, and the meeting closed with the product judged feasible for production and marketing.",
+  "action_items": [],
+  "decisions": [
+    {
+      "text": "The remote is snail-shaped, bright blue with yellow and other coloured buttons, and compact enough to fit in the hand.",
+      "at": "05:56",
+      "quote": "this is us in a snail shape so uh it it is attractive",
+      "must_find": true
+    },
+    {
+      "text": "The case is made of strong plastic and the buttons of soft rubber",
+      "at": "06:38",
+      "quote": "the material which we are going to use for the case is uh plastic",
+      "must_find": true
+    },
+    {
+      "text": "The remote uses a fluorescent green infrared LED to send the signal.",
+      "at": "07:10",
+      "quote": "for the light emitting diode it is a fluorescent green",
+      "must_find": true
+    },
+    {
+      "text": "The buttons are a raised on/off button, mute buttons on both sides, numbers one to nine, volume up and down, channel up and down, a green menu button for picture settings, and a swap button back to the last channel",
+      "at": "07:28",
+      "quote": "we have included the switch on and off button",
+      "must_find": true
+    },
+    {
+      "text": "The remote has a built-in voice recogniser that responds to the user's voice.",
+      "at": "09:59",
+      "quote": "this remote has inbuilt voice recogniser",
+      "must_find": false
+    },
+    {
+      "text": "Buttons carry numbers and symbols rather than words, so the remote is not language dependent",
+      "at": "12:13",
+      "quote": "these buttons will have the numbers and all the rest of the buttons will have symbols",
+      "must_find": true
+    },
+    {
+      "text": "The remote comes with a shell-shaped holder that the snail goes back into.",
+      "at": "12:41",
+      "quote": "we have a holder for this remote which is an oyster shape",
+      "must_find": true
+    },
+    {
+      "text": "Marketing will lead with two selling points: the voice recognition and the snail look",
+      "at": "13:44",
+      "quote": "play with the snail image um play with the visual",
+      "must_find": false
+    },
+    {
+      "text": "The remote is powered by a battery.",
+      "at": "14:35",
+      "quote": "energy source we say that's battery, right?",
+      "must_find": false
+    },
+    {
+      "text": "The electronics use a simple chip on print.",
+      "at": "15:27",
+      "quote": "simple chip on print? Is that's what we're using?",
+      "must_find": false
+    },
+    {
+      "text": "The case is double curved.",
+      "at": "16:07",
+      "quote": "Double curved? One of those?",
+      "must_find": false
+    },
+    {
+      "text": "The interface uses push buttons, with no scroll wheel and no LCD display (the clock was dropped).",
+      "at": "16:47",
+      "quote": "No, 'cause we didn't put the clock in it after all, right?",
+      "must_find": false
+    },
+    {
+      "text": "The production cost comes to 8.20 euros, well within the budget.",
+      "at": "17:35",
+      "quote": "well within budget.",
+      "must_find": true
+    },
+    {
+      "text": "The team will settle for whatever quality of voice recogniser the remaining money (about 4.30 euros) can buy.",
+      "at": "22:51",
+      "quote": "we're just gonna have to settle for whatever quality that will buy us",
+      "must_find": true
+    },
+    {
+      "text": "No more features should be added because money must be left in the budget for the voice recogniser.",
+      "at": "28:38",
+      "quote": "we need to leave space money-wise for the voice recogniser",
+      "must_find": false
+    },
+    {
+      "text": "The team judged the product good, feasible to produce and to market, and ready to go",
+      "at": "26:37",
+      "quote": "otherwise I think we're we're ready to go to go with this product",
+      "must_find": false
+    }
+  ],
+  "open_questions": [
+    {
+      "text": "The voice recogniser was left out of the cost calculation; it is unknown whether the remaining 4.30 euros will cover it, and the team cannot present its cost to management.",
+      "at": "22:42",
+      "quote": "know whether the four thirty will really cover that",
+      "must_find": true
+    },
+    {
+      "text": "Functionality scored lowest and may need more thought, possibly another meeting.",
+      "at": "26:37",
+      "quote": "The functionality's the only place where maybe we have to think about",
+      "must_find": false
+    },
+    {
+      "text": "Speech recognition will need extra buttons for recording speech; how to fit them (drop one mute button, combine volume on one button, consolidate other functions) was suggested but not settled.",
+      "at": "27:54",
+      "quote": "there gonna be some buttons that are gonna have to be added for that",
+      "must_find": false
+    }
+  ],
+  "topics": [
+    {
+      "title": "Minutes of the previous meeting",
+      "start": "00:43",
+      "end": "05:33",
+      "points": [
+        "The User Interface Designer had asked for good looks, nine channel buttons, next, volume and subtitle buttons, controls for colour contrast and sharpness, a memory switch, a mute button, a child-friendly design with few colourful shaped buttons, an oversized remote that cannot be lost, and above all a speech recogniser.",
+        "The Industrial Designer had proposed a strong, recyclable, colourful plastic case with no harmful materials, a sophisticated temperature-resistant circuit board, a timer or alarm, a rechargeable battery if possible, and push buttons with a simple chip because a scroll wheel is more expensive.",
+        "The Marketing Expert had said the remote should be small, easy to use and eye-catching, get to market before the competition, build the campaign on one or two features, and have a fruit-and-vegetable design with a soft feel.",
+        "The previous meeting decided on a speech recogniser as the special feature, battery power, a chip, a trendy, compact and strong design, and buttons."
+      ]
+    },
+    {
+      "title": "Prototype presentation",
+      "start": "05:40",
+      "end": "12:39",
+      "points": [
+        "The Industrial Designer showed a snail-shaped model, bright blue with yellow and other coloured buttons, compact and easy to hold with all buttons reachable.",
+        "The case is strong plastic, the buttons are soft rubber because they are touched most, and the LED is a fluorescent green infrared bulb.",
+        "The User Interface Designer listed the buttons: on/off, mute on both sides, one to nine for channels, volume up and down, channel scroll up and down, a central fluorescent green menu button for colour, sharpness and brightness, and a flexible swapping button that returns to the previously watched channel.",
+        "The remote includes a built-in voice recogniser.",
+        "The Marketing Expert liked that it works with one thumb, even for small hands, that the buttons are raised, that the on/off button is prominent, and the colour; she said it looks like something she can sell.",
+        "The Project Manager asked how users learn what the buttons do; the buttons get numbers and symbols, with text and symbols printed on the case, which the Marketing Expert wanted anyway because the remote goes to an international market."
+      ]
+    },
+    {
+      "title": "Holder and marketing angle",
+      "start": "12:41",
+      "end": "14:02",
+      "points": [
+        "The remote comes with an oyster or snail-shell shaped holder.",
+        "The Marketing Expert suggested a comic marketing angle about a fast snail.",
+        "Voice recognition is the big selling point because no competitor in this price range seems to have it.",
+        "The Marketing Expert argued every remote claims to be practical, so the campaign should push the look (the cutest remote, the snail image) together with voice recognition."
+      ]
+    },
+    {
+      "title": "Cost calculation",
+      "start": "14:08",
+      "end": "18:31",
+      "points": [
+        "The Project Manager filled in the cost spreadsheet: battery, simple chip on print, a double-curved plastic case with special colours, push buttons, no scroll wheel and no LCD display because the clock was dropped, and buttons with special colour, form and rubber material.",
+        "The spreadsheet first showed 7.6, then 8.2; the cost is 8.20 euros, well within budget.",
+        "The Project Manager had trouble editing the protected spreadsheet and saving the file."
+      ]
+    },
+    {
+      "title": "Marketing Expert's production evaluation",
+      "start": "18:35",
+      "end": "21:54",
+      "points": [
+        "The Marketing Expert's method: ask whether it will sell, show the prototype to people of various age and socio-economic groups for fine tuning, show it to consumer research groups to catch problems such as a toxic or swallowable button, then go with the team's intuition.",
+        "Her wish list was met: a biomorphic, rounded shape, small size, bright and warm colour, and as soft a feel as possible with soft buttons despite the hard plastic case.",
+        "She put functionality last because people cannot try the remote in the store; look, feel and shape are what sell it there.",
+        "Her own ratings on a one (best) to seven scale: shape 1, size 4 (average against competitors), colour 1, feel 3, functionality 5."
+      ]
+    },
+    {
+      "title": "Voice recogniser missing from the cost",
+      "start": "21:54",
+      "end": "23:22",
+      "points": [
+        "The Project Manager realised the cost sheet had no entry for the voice recogniser or any other special feature.",
+        "At 8.20 euros the team has about 4.30 euros left of the budget.",
+        "The Project Manager worried they cannot present a finished cost to management that includes the voice recogniser.",
+        "The Marketing Expert said almost anything can be made at any price, but the quality will be whatever the money buys."
+      ]
+    },
+    {
+      "title": "Team evaluation on the whiteboard",
+      "start": "23:45",
+      "end": "27:00",
+      "points": [
+        "The team rated the prototype on a one (best) to seven scale.",
+        "Shape: everyone gave 1.",
+        "Size: Marketing Expert 4, Project Manager 2, User Interface Designer 1, Industrial Designer 1.",
+        "Colour: everyone gave 1.",
+        "Feel: Project Manager 2, Marketing Expert 3, User Interface Designer 3, Industrial Designer 2.",
+        "Functionality: Project Manager 3, User Interface Designer 2, Industrial Designer 3; the Project Manager noted functionality is hard to judge without trying it.",
+        "The Marketing Expert concluded the product is good and ready, with functionality the only area that might need another meeting."
+      ]
+    },
+    {
+      "title": "Room for creativity and further features",
+      "start": "27:17",
+      "end": "29:05",
+      "points": [
+        "The Industrial Designer suggested making the buttons smaller so more buttons and features fit.",
+        "The Marketing Expert said speech recognition will need buttons for recording speech and suggested dropping one of the two mute buttons, putting volume on one button, and consolidating other functions.",
+        "The Project Manager cautioned that money must be left for the voice recogniser, so many more features cannot be added."
+      ]
+    },
+    {
+      "title": "Project process evaluation and close",
+      "start": "29:09",
+      "end": "32:05",
+      "points": [
+        "Everyone said they were happy with the product and the creativity of the process.",
+        "The team praised the Project Manager's leadership and said the teamwork was good.",
+        "They used the slides more than the whiteboard, which was badly positioned in the room; they agreed they could have used the whiteboard more.",
+        "They found new ideas, stayed within budget and evaluated the project.",
+        "The Project Manager closed by calling the product feasible for production and marketing; the meeting ended early, which they were allowed to do."
+      ]
+    }
+  ],
+  "human_not_covered": []
+}

@@ -7,11 +7,40 @@ import PipitCore
 /// provider's: OpenAI's responses endpoint, a chat completions server and
 /// Ollama all receive the same words and the same schema, and differ only in
 /// the envelope they are wrapped in.
-struct LanguageModelPrompt {
-    var instructions: String
-    var userContent: String
-    var schemaName: String
-    var schema: [String: Any]
+public struct LanguageModelPrompt {
+    public var instructions: String
+    public var userContent: String
+    public var schemaName: String
+    /// A JSON schema. Objects may be `[String: Any]` or, where the order of
+    /// the fields matters, built with `LanguageModelPrompt.object(_:)`.
+    public var schema: [String: Any]
+
+    public init(instructions: String, userContent: String, schemaName: String, schema: [String: Any]) {
+        self.instructions = instructions
+        self.userContent = userContent
+        self.schemaName = schemaName
+        self.schema = schema
+    }
+
+    /// A strict object schema with its properties in the order given.
+    public static func object(_ properties: [(String, Any)]) -> [String: Any] {
+        [
+            "type": "object",
+            "additionalProperties": false,
+            "properties": OrderedJSONObject(properties),
+            "required": properties.map(\.0),
+        ]
+    }
+}
+
+/// A client that can be asked any question with a JSON schema for the answer.
+///
+/// The app's own requests go through `LanguageModelBackend`. This is for the
+/// developer tools, which ask questions of their own, such as the evaluation's
+/// judge, through the same transport and fallbacks the app uses.
+public protocol StructuredLanguageModel: Sendable {
+    /// The answer as JSON object bytes.
+    func structuredAnswer(_ prompt: LanguageModelPrompt, model: String) async throws -> Data
 }
 
 enum LanguageModelPrompts {
@@ -128,83 +157,132 @@ enum LanguageModelPrompts {
 
     // MARK: - enrichment
 
+    /// The instructions for the summary and notes, written for the smallest
+    /// model Pipit supports: a short statement of the goal, a reason with each
+    /// rule, and no sample values, because a small model copies a sample into
+    /// its answer.
+    static let writeupInstructions = """
+        You write notes on a meeting from its transcript, for a person who was there or \
+        who missed it and needs to know what happened and what they have to do. Use only \
+        what the transcript says, because the notes are kept as the record of the meeting. \
+        Fill the fields in the order they come.
+
+        Each transcript line starts with its time in brackets. Wherever a field is named \
+        `at`, give the time of the line where that thing was said, written as the \
+        transcript writes it but without the brackets, so the reader can jump to that \
+        moment.
+
+        topics: the subjects the meeting worked on, in the order they came up, each with \
+        the time it started. Keep talk about one subject together even when it is \
+        interrupted. points are the facts, figures, reasons, concerns and outcomes someone \
+        who missed it would need, one idea each, including what the group settled.
+
+        Under each topic, action_items are the tasks people took on there. Include a task \
+        only when a line in the transcript has someone saying they will do it, or being asked \
+        to do it and going along with it, and give the time of that line as at. Ideas, \
+        suggestions, open questions and plans mentioned in passing belong in the topic's \
+        points, not here, even when they sound like work someone could do, because this list \
+        is what people will be held to. Write each task as a complete instruction that a \
+        person could act on without reading the transcript. question is true only for a task \
+        whose purpose is to find something out and report back. owner is the person who will \
+        do it, named as the transcript names them, and is empty when nobody in particular took \
+        it; due is a deadline someone said for that task, and is empty when nobody said one. \
+        Tasks are often handed out or repeated in a round-up near the end of the meeting, so \
+        read the closing minutes for who agreed to do what, list each such task under the \
+        topic it is about, and give the time of the line where it was agreed. The person \
+        speaking is often not the owner: when one person asks another to do something, the \
+        owner is the one who was asked.
+
+        overview: a few sentences on why the group met, what it settled and what happens \
+        next, including who does what. Write it from the topics and action_items above and \
+        add nothing they do not say, because someone who reads only the overview will act on it.
+        """
+
     /// Nil when the request asks for nothing.
     static func enrichment(_ request: EnrichmentRequest) -> LanguageModelPrompt? {
-        var properties: [String: Any] = [:]
-        var required: [String] = []
-        if request.wantsTitle {
-            properties["title"] = ["type": "string"]
-            required.append("title")
-        }
-        if request.wantsDescription {
-            properties["description"] = ["type": "string"]
-            required.append("description")
-        }
-        if request.wantsSummary {
-            properties["summary"] = ["type": "string"]
-            required.append("summary")
-        }
-        if request.wantsNotes {
-            properties["notes"] = ["type": "string"]
-            required.append("notes")
-        }
+        var properties: [(String, Any)] = []
+        let wantsWriteup = request.wantsSummary || request.wantsNotes
+        // The parts of a long meeting already gave their topics, with the
+        // times they were said, so the request that combines them only writes
+        // what needs the whole meeting.
+        let wantsTopics = wantsWriteup && !isCombining(request)
+        if wantsTopics { properties.append(("topics", ["type": "array", "items": topicSchema])) }
+        if wantsWriteup { properties.append(("overview", ["type": "string"])) }
+        if request.wantsTitle { properties.append(("title", ["type": "string"])) }
+        if request.wantsDescription { properties.append(("description", ["type": "string"])) }
         let asksAboutFolders = !request.folders.isEmpty
         if asksAboutFolders {
-            properties["folder_candidates"] = [
-                "type": "array",
-                "items": [
-                    "type": "object",
-                    "additionalProperties": false,
-                    "properties": [
-                        "folder": ["type": "string"],
-                        "confidence": ["type": "number"],
-                        "why": ["type": "string"],
-                        "quote": ["type": "string"],
-                        "at_seconds": ["type": "number"],
-                    ],
-                    "required": ["folder", "confidence", "why", "quote", "at_seconds"],
-                ],
-            ]
-            required.append("folder_candidates")
+            properties.append(
+                (
+                    "folder_candidates",
+                    [
+                        "type": "array",
+                        "items": strictObject([
+                            ("folder", ["type": "string"]), ("confidence", ["type": "number"]),
+                            ("why", ["type": "string"]), ("quote", ["type": "string"]),
+                            ("at_seconds", ["type": "number"]),
+                        ]),
+                    ]
+                ))
         }
-        guard !required.isEmpty else { return nil }
+        guard !properties.isEmpty else { return nil }
 
-        let schema: [String: Any] = [
-            "type": "object",
-            "additionalProperties": false,
-            "properties": properties,
-            "required": required,
-        ]
-        var instructions = """
-            You summarise meeting transcripts. Write plainly and specifically: state \
-            what was decided, who owns what, and what happens next. The title is a \
-            short noun phrase naming the meeting, under eight words, with no trailing \
-            punctuation. The summary is a few short paragraphs. Notes are bullet points \
-            of decisions and action items. Never invent participants, dates or figures \
-            that are not in the transcript.
-            """
-        if asksAboutFolders {
-            instructions += """
-                \n\nYou also decide whether this meeting belongs in one of the user's \
-                existing folders. Return folder_candidates as at most two entries, best \
-                first, and only for folders in the list you are given. Never invent a \
-                folder name. Every entry needs a verbatim quote from the transcript and \
-                the time in seconds where it appears; an entry you cannot quote for is \
-                an entry to leave out. confidence runs from 0 to 1. why is one short \
-                clause naming the evidence, under twelve words, with no trailing \
-                punctuation.
+        let instructions = instructions(for: request, wantsTopics: wantsTopics)
+        let context = context(for: request)
+        let label = isCombining(request) ? "Notes by part" : "Transcript"
 
-                Return an empty array when no folder fits. That is the ordinary \
-                answer, not a failure. Two examples of it. A one to one whose only \
-                link to a client folder is that one person in the call also appears \
-                in that folder: a person is not a topic, so return nothing. A \
-                technical review of a model evaluation, where every folder is a \
-                client: the subject belongs to none of them, so return nothing.
-                """
+        return LanguageModelPrompt(
+            instructions: instructions,
+            userContent: "\(context)\n\n\(label):\n\(request.transcript)",
+            schemaName: "meeting_enrichment",
+            schema: strictObject(properties)
+        )
+    }
+
+    /// The instructions for whatever the request asks for, in the order the
+    /// fields come.
+    private static func instructions(for request: EnrichmentRequest, wantsTopics: Bool) -> String {
+        let wantsWriteup = request.wantsSummary || request.wantsNotes
+        var instructions: [String] = []
+        if wantsWriteup {
+            if let override = request.instructions {
+                instructions.append(override)
+            } else if wantsTopics {
+                instructions.append(writeupInstructions)
+            } else {
+                instructions.append(
+                    "You write the overview of a long meeting from the notes written on each of its "
+                        + "parts: a few sentences on why the group met, where it landed and what "
+                        + "happens next, for someone who will read nothing else."
+                )
+            }
+        } else {
+            instructions.append("You describe a meeting from its transcript, using only what it says.")
         }
+        if request.wantsTitle {
+            instructions.append(
+                "title: a short noun phrase naming the meeting, under eight words, with no trailing "
+                    + "punctuation."
+            )
+        }
+        if request.wantsDescription {
+            instructions.append("description: one sentence on what the meeting was for.")
+        }
+        if !request.folders.isEmpty { instructions.append(folderInstructions) }
+        return instructions.joined(separator: "\n\n")
+    }
+
+    /// What the model is told about the meeting, above the text itself.
+    private static func context(for request: EnrichmentRequest) -> String {
         var context =
             "Provider: \(request.provider.displayName). Duration: \(Int(request.durationSeconds / 60)) minutes."
-        if asksAboutFolders {
+        if let startedAt = request.startedAt {
+            let day = DateFormatter()
+            day.locale = Locale(identifier: "en_US_POSIX")
+            day.dateFormat = "EEEE, MMMM d, yyyy"
+            context += " Meeting date: \(day.string(from: startedAt))."
+        }
+        if !request.folders.isEmpty {
             let catalogue = request.folders.map { folder -> String in
                 var line = "- \(folder.name)"
                 if !folder.about.isEmpty { line += ": \(folder.about)" }
@@ -231,40 +309,131 @@ enum LanguageModelPrompts {
                 + "and do not guess at the rest."
         case .partNotes(let count):
             context +=
-                "\nThe text below is not a transcript. It is the summary and notes written for each of "
-                + "\(count) consecutive parts of one meeting, in order. Combine them into one result for "
-                + "the whole meeting, repeat nothing, and keep what mattered."
+                "\nThe text below is not a transcript. It is the notes written for each of "
+                + "\(count) consecutive parts of one meeting, in order."
         }
-        let label: String
-        if case .partNotes = request.source { label = "Notes by part" } else { label = "Transcript" }
+        return context
+    }
 
-        return LanguageModelPrompt(
-            instructions: instructions,
-            userContent: "\(context)\n\n\(label):\n\(request.transcript)",
-            schemaName: "meeting_enrichment",
-            schema: schema
-        )
+    private static let folderInstructions = """
+        You also decide whether this meeting belongs in one of the user's \
+        existing folders. Return folder_candidates as at most two entries, best \
+        first, and only for folders in the list you are given. Never invent a \
+        folder name. Every entry needs a verbatim quote from the transcript and \
+        the time in seconds where it appears; an entry you cannot quote for is \
+        an entry to leave out. confidence runs from 0 to 1. why is one short \
+        clause naming the evidence, under twelve words, with no trailing \
+        punctuation.
+
+        Return an empty array when no folder fits. That is the ordinary \
+        answer, not a failure. Two examples of it. A one to one whose only \
+        link to a client folder is that one person in the call also appears \
+        in that folder: a person is not a topic, so return nothing. A \
+        technical review of a model evaluation, where every folder is a \
+        client: the subject belongs to none of them, so return nothing.
+        """
+
+    private static var topicSchema: [String: Any] {
+        let task = strictObject([
+            ("task", ["type": "string"]), ("owner", ["type": "string"]), ("due", ["type": "string"]),
+            ("at", ["type": "string"]), ("question", ["type": "boolean"]),
+        ])
+        return strictObject([
+            ("title", ["type": "string"]), ("at", ["type": "string"]),
+            ("points", ["type": "array", "items": ["type": "string"]]),
+            ("action_items", ["type": "array", "items": task]),
+        ])
+    }
+
+    /// An object schema whose properties are all required and that allows
+    /// nothing else, which OpenAI's strict mode demands. The order is kept,
+    /// because a model held to a schema writes the fields in the order given
+    /// and the instructions rely on that.
+    private static func strictObject(_ properties: [(String, Any)]) -> [String: Any] {
+        LanguageModelPrompt.object(properties)
+    }
+
+    private static func isCombining(_ request: EnrichmentRequest) -> Bool {
+        if case .partNotes = request.source { return true }
+        return false
     }
 
     /// A valid JSON object can still omit the requested output. Retry that
     /// answer instead of marking an empty enrichment as successful.
+    ///
+    /// Lists inside a topic may be missing: a model answering in JSON mode
+    /// rather than held to the schema drops an empty one, and an empty list is
+    /// what it meant.
     static func acceptsEnrichment(_ object: [String: Any], for request: EnrichmentRequest) -> Bool {
+        let wantsWriteup = request.wantsSummary || request.wantsNotes
         let fields = [
             ("title", request.wantsTitle), ("description", request.wantsDescription),
-            ("summary", request.wantsSummary), ("notes", request.wantsNotes),
+            ("overview", wantsWriteup),
         ]
         guard fields.allSatisfy({ key, wanted in !wanted || object[key] is String }) else { return false }
+        if wantsWriteup, !isCombining(request), !(object["topics"] is [Any]) { return false }
         return request.folders.isEmpty || object["folder_candidates"] is [[String: Any]]
     }
 
-    static func enrichment(from object: [String: Any]) -> MeetingEnrichment {
-        MeetingEnrichment(
+    static func enrichment(from object: [String: Any], for request: EnrichmentRequest) -> MeetingEnrichment {
+        var result = MeetingEnrichment(
             title: object["title"] as? String,
-            summary: object["summary"] as? String,
             description: object["description"] as? String,
-            notes: object["notes"] as? String,
             folderCandidates: folderCandidates(from: object["folder_candidates"])
         )
+        guard request.wantsSummary || request.wantsNotes else { return result }
+        let summary = generatedSummary(from: object, durationSeconds: request.durationSeconds)
+        result.generatedSummary = summary
+        if request.wantsSummary, !summary.summaryMarkdown.isEmpty { result.summary = summary.summaryMarkdown }
+        if request.wantsNotes, !summary.notesMarkdown.isEmpty { result.notes = summary.notesMarkdown }
+        return result
+    }
+
+    /// Reads the structure leniently, keeping what is usable from an answer
+    /// that is partly wrong: a task with no text is dropped, a time that does
+    /// not land inside the meeting is dropped and the task kept, and a task
+    /// that is only its owner's name is dropped.
+    static func generatedSummary(from object: [String: Any], durationSeconds: Double) -> GeneratedSummary {
+        func text(_ value: Any?) -> String {
+            ((value as? String) ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+        func time(_ value: Any?) -> Double? {
+            let seconds: Double?
+            if let number = value as? Double {
+                seconds = number
+            } else if let string = value as? String {
+                seconds = GeneratedSummary.seconds(fromTimecode: string)
+            } else {
+                seconds = nil
+            }
+            guard let seconds, seconds >= 0 else { return nil }
+            // A little past the end, because the last line starts before the
+            // recording stops and a duration rounds down.
+            if durationSeconds > 0, seconds > durationSeconds + 60 { return nil }
+            return seconds
+        }
+        let topics = ((object["topics"] as? [[String: Any]]) ?? []).compactMap { entry -> GeneratedSummary.Topic? in
+            let title = text(entry["title"])
+            let points = ((entry["points"] as? [Any]) ?? []).map(text).filter { !$0.isEmpty }
+            var seenTasks = Set<String>()
+            let actions = ((entry["action_items"] as? [[String: Any]]) ?? []).compactMap {
+                task -> GeneratedSummary.ActionItem? in
+                let body = text(task["task"])
+                let owner = text(task["owner"])
+                guard !body.isEmpty, body.lowercased() != owner.lowercased(),
+                    seenTasks.insert(body.lowercased()).inserted
+                else { return nil }
+                // A small model answering in JSON mode sometimes writes the
+                // flag as a string.
+                let question = (task["question"] as? Bool) ?? ((task["question"] as? String) == "true")
+                return GeneratedSummary.ActionItem(
+                    task: body, owner: owner, due: text(task["due"]), at: time(task["at"]), isQuestion: question
+                )
+            }
+            guard !title.isEmpty || !points.isEmpty || !actions.isEmpty else { return nil }
+            return GeneratedSummary.Topic(title: title, at: time(entry["at"]), points: points, actionItems: actions)
+        }
+        return GeneratedSummary(overview: text(object["overview"]), topics: topics)
     }
 
     /// Reads the folder answers, keeping the two best and dropping anything

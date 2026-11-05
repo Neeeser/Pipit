@@ -8,6 +8,7 @@
 #   scripts/eval.sh diarize  --audio meeting.wav --fa 0.07 --fa 0.20
 #   scripts/eval.sh identity --audio marlow.wav --audio bryn.wav
 #   scripts/eval.sh voices
+#   scripts/eval.sh summaries --model ollama:qwen3.5:4b --repeats 3
 set -euo pipefail
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 # shellcheck source=spm-env.sh

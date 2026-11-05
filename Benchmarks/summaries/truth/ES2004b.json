@@ -1,0 +1,339 @@
+{
+  "meeting": "ES2004b",
+  "overview": "The second meeting covered the functional design of the remote control. After the Project Manager recapped the first meeting, the Industrial Designer presented how a remote works (infrared signal, battery power, a chip that encodes button presses) and raised making it smaller and harder to lose; the User Interface Designer proposed a simple, user-friendly flip-top with common functions outside and complex ones inside; and the Marketing Expert presented usability-lab research on 100 people showing that users find remotes ugly, would pay more for a good-looking one, use few buttons, often lose the remote and worry about repetitive strain injury. The Project Manager announced new requirements: no teletext, a TV-only remote, and the corporate image built into the design. The team settled on one product design, a mid-range trendy and business target market, Video Plus codes instead of date and time programming, a rechargeable remote with a docking station, a beeper to find a lost remote, a flip-top that moves away from the usual brown rectangle, and a user-friendly manual rather than an in-store help service. Repetitive strain injury and the choice between buttons and a touch panel stay open. Before the next meeting the User Interface Designer looks into building the company logo into the shape, and the Marketing Expert looks at instruction manuals.",
+  "action_items": [
+    {
+      "task": "Email the team extra market research details and tables if anyone needs more information",
+      "owner": "Marketing Expert",
+      "due": "",
+      "at": "17:07",
+      "quote": "if there's any more information I can email you extra details",
+      "must_find": false
+    },
+    {
+      "task": "Look into the company logo and things associated with the company so they can be built into the remote's design (for example a shell shape that opens up)",
+      "owner": "User Interface Designer",
+      "due": "",
+      "at": "33:46",
+      "quote": "Can you look into the company logo?",
+      "must_find": false
+    },
+    {
+      "task": "Come up with five or six casing designs and pick the one that appeals most",
+      "owner": "User Interface Designer",
+      "due": "",
+      "at": "35:54",
+      "quote": "maybe we could come at some say five, six des designs",
+      "must_find": false
+    },
+    {
+      "task": "Look at instruction manuals from the marketing side before the next meeting",
+      "owner": "Marketing Expert",
+      "due": "Next meeting",
+      "at": "38:25",
+      "quote": "I th Instruction manuals",
+      "must_find": true
+    }
+  ],
+  "decisions": [
+    {
+      "text": "The remote will not use teletext, since consumers consider it outdated now that there is the internet",
+      "at": "17:21",
+      "quote": "we're not going to be using teletext",
+      "must_find": false
+    },
+    {
+      "text": "The remote is for the TV only, not a combined universal control",
+      "at": "17:42",
+      "quote": "our control is only going to be for T_V_, it's not going to be a combined control",
+      "must_find": false
+    },
+    {
+      "text": "The team assumes the TV-only remote still has play, stop and programming functions for video",
+      "at": "18:42",
+      "quote": "I think we assume that it's still got play and stop functions and programming",
+      "must_find": false
+    },
+    {
+      "text": "The corporate image, including the logo and a fashionable, trendy look, must be built into the handset",
+      "at": "20:37",
+      "quote": "we have to make sure the corporate image is very much incorporated into the handset",
+      "must_find": false
+    },
+    {
+      "text": "To find a lost remote, use a cheaper option than speech recognition: a button on the TV (or its dock) that makes the remote beep",
+      "at": "20:18",
+      "quote": "you go and press the button on top of the T_V_ and it beeps",
+      "must_find": false
+    },
+    {
+      "text": "Design one product with the same internals; the company can later adapt its size or features for different markets",
+      "at": "24:12",
+      "quote": "I think we have to design one product",
+      "must_find": true
+    },
+    {
+      "text": "Target a mid-range market of trendy, business-class people rather than every age group",
+      "at": "25:51",
+      "quote": "I think we are focusing on a sort of mid-range",
+      "must_find": true
+    },
+    {
+      "text": "Use Video Plus codes for recording instead of buttons for entering dates, times and channels",
+      "at": "36:46",
+      "quote": "It's kinda takes the place of having a button to press for the date",
+      "must_find": true
+    },
+    {
+      "text": "Promote the Video Plus feature in advertising and explain it in the instruction manual",
+      "at": "36:56",
+      "quote": "it could be uh adv advertisement feature",
+      "must_find": false
+    },
+    {
+      "text": "No in-store help service; users get an instruction manual and a customer service phone line instead",
+      "at": "30:18",
+      "quote": "there will be a customer service number thing that you can phone up",
+      "must_find": false
+    },
+    {
+      "text": "The instruction manual should be as user-friendly as possible",
+      "at": "30:43",
+      "quote": "we should focus on making the manual as user-friendly as possible",
+      "must_find": true
+    },
+    {
+      "text": "The remote will be rechargeable with a docking station instead of using disposable batteries",
+      "at": "32:05",
+      "quote": "Rechargeable with a docking station.",
+      "must_find": true
+    },
+    {
+      "text": "The locator beeper can be built into the docking station",
+      "at": "31:58",
+      "quote": "Yeah it could be on that yeah, okay.",
+      "must_find": false
+    },
+    {
+      "text": "The remote should be medium-sized and trendy: neither a big box nor so small that it causes repetitive strain injury",
+      "at": "32:19",
+      "quote": "I don't wanna big box with lots of things, you don't want a tiny sort of little thing either",
+      "must_find": false
+    },
+    {
+      "text": "The design should move away from the usual long brown rectangle with crammed buttons",
+      "at": "32:42",
+      "quote": "a very simple thing is to get away from these brown rectangles",
+      "must_find": false
+    },
+    {
+      "text": "The remote will have a flip-top (flip-screen) design",
+      "at": "32:56",
+      "quote": "Okay so we've got a flip-screen.",
+      "must_find": true
+    },
+    {
+      "text": "Keep the number of functions small so the remote is as simple as possible to learn",
+      "at": "37:50",
+      "quote": "Learning how to use it should be as simple as possible.",
+      "must_find": false
+    }
+  ],
+  "open_questions": [
+    {
+      "text": "The fixed budget may not cover every feature the team wants, so some features may have to be simpler or cheaper (for example speech recognition)",
+      "at": "20:00",
+      "quote": "We do have a budget limitation that we can't control ourselves",
+      "must_find": true
+    },
+    {
+      "text": "Whether further market research is needed on what counts as fashionable for different ages and countries",
+      "at": "21:06",
+      "quote": "further market research will be needed",
+      "must_find": false
+    },
+    {
+      "text": "How to deal with repetitive strain injury; a touch panel probably does not solve it and speech recognition is too expensive",
+      "at": "24:56",
+      "quote": "this may have to be postponed to a future meeting",
+      "must_find": false
+    },
+    {
+      "text": "Whether to use buttons (such as big rubber buttons) or a touch panel; to be worked out with the design and possibly market research",
+      "at": "37:35",
+      "quote": "That's not at the moment a requirement, it's something we're looking at",
+      "must_find": false
+    },
+    {
+      "text": "Whether the instruction manual is part of the team's remit",
+      "at": "37:50",
+      "quote": "the instruction manual, I don't know if we deal with that",
+      "must_find": false
+    }
+  ],
+  "topics": [
+    {
+      "title": "Recap of the first meeting",
+      "start": "01:06",
+      "end": "02:41",
+      "points": [
+        "Last meeting settled on a universal control, one handset for TV, video and other equipment.",
+        "The product should be accessible to a wide age range and reflect the company's image of putting fashion into electronics.",
+        "The look should not betray the limited budget, and should be uncluttered and not daunting.",
+        "Ideas discussed: a flip-open design, a smaller remote, and an electronic panel for extra features such as programming."
+      ]
+    },
+    {
+      "title": "Industrial Designer: working design",
+      "start": "02:56",
+      "end": "08:47",
+      "points": [
+        "The Marketing Expert asked to present later to gather more information, so the Industrial Designer went first.",
+        "A remote is a device that sends a signal to change the TV's state: power, channel or volume.",
+        "The design should take ideas from existing products but still stand out.",
+        "Most remotes use infrared, which is cheap, and only need to send a little data; TVs already use infrared, so the remote must conform to it.",
+        "Most remotes run on AAA batteries, which make them chunky; he asked whether another power source could shrink the remote, considering power consumption.",
+        "Main components: power source, a chip that converts button presses into an infrared signal, and an infrared bulb with a range of about five metres, enough for home viewing.",
+        "He showed a rough circuit sketch (power to the infrared bulb, chip and interface) and left the external design to the User Interface Designer.",
+        "All the components he proposed are low cost.",
+        "Small remotes are easy to lose, so he suggested something to stop it going down the side of the sofa; the Marketing Expert said this also came up in market research."
+      ]
+    },
+    {
+      "title": "User Interface Designer: interface concept",
+      "start": "08:51",
+      "end": "13:02",
+      "points": [
+        "Purpose: simplify interaction with the TV and make it as easy to use as possible, with main features such as volume and channel rather than many complex buttons.",
+        "Concept: a flip-top model with frequently used functions on top and complex functions (for example programming favourite channels) inside, so it suits a wide audience.",
+        "Possible added features: a shock-proof body and a design that appeals to many people.",
+        "People often never use 30 to 40 percent of the buttons on a remote after a year.",
+        "At the volume implied by the 50 million profit aim, economies of scale could allow more features at lower cost.",
+        "The buttons should not become hard after continuous use; consider soft versus hard buttons.",
+        "The Project Manager deferred comments to the end of the meeting."
+      ]
+    },
+    {
+      "title": "Marketing Expert: market research findings",
+      "start": "14:05",
+      "end": "17:15",
+      "points": [
+        "Research in the company usability lab observed 100 people, male and female, aged 15 and up, using remote controls.",
+        "Overall, users dislike the look and feel of current remote controls.",
+        "75 percent find most remote controls ugly.",
+        "80 percent would spend more money on a remote that looks fancy, which surprised the team.",
+        "Current remotes do not match how people use them: 75 percent zap (channel-hop) a lot, which has power implications.",
+        "50 percent of users only use 10 percent of the buttons, so fewer functions could also cut cost.",
+        "50 percent were frustrated by losing the remote in the room.",
+        "34 percent said remotes take too much time to learn to use.",
+        "Slightly more than a quarter said remotes are bad for repetitive strain injury.",
+        "Most people aged 35 and under would like an LCD screen and speech recognition; interest evens out at 35 to 45 and reverses in older groups, with many don't-knows among older people.",
+        "The Marketing Expert suggested a lost remote could bleep or flash, and offered to email more detailed tables."
+      ]
+    },
+    {
+      "title": "New project requirements and finding a lost remote",
+      "start": "17:18",
+      "end": "21:04",
+      "points": [
+        "No teletext, because consumers consider it outdated now that there is the internet.",
+        "The remote is for the TV only, not a combined control, which limits cost and makes it easier to understand.",
+        "The team discussed whether TV-only still covers video; combined TV-video units and Sky Plus boxes that record to a hard drive mean they assume play, stop and programming stay.",
+        "The User Interface Designer asked whether research covered combined remotes; it did not, but people mostly use basic channel and video buttons and find programming videos a nightmare.",
+        "The Industrial Designer said full speech recognition would be expensive and not very good, and suggested a whistle-activated finder like key chains.",
+        "The Project Manager pointed to the fixed budget and suggested a button on the TV that makes the remote beep, which sounds cheaper; the Marketing Expert called it a super idea.",
+        "The corporate image must be built into the handset: logo, fashionable and trendy, since people pay more for good looks."
+      ]
+    },
+    {
+      "title": "Designs for different markets, touch panels and ergonomics",
+      "start": "21:06",
+      "end": "24:31",
+      "points": [
+        "The Marketing Expert said what is attractive differs by age and country (a trendy New Yorker versus a retired South African), so the fashionable exterior might change per market while the engineering stays the same.",
+        "The User Interface Designer asked whether that means one model or five or six; the Industrial Designer said the inside would be the same with different bodies.",
+        "The Project Manager noted new remotes have big rubber buttons and, to be original, suggested a touch panel like touch-screen computers that would wear out less, appealing to young office workers in Japan, while still clearly labelled for older people.",
+        "The Industrial Designer raised ergonomics: the Xbox needed a smaller controller for Japan because people there have smaller hands, so button size may vary by country.",
+        "The User Interface Designer suggested a touch screen could help with repetitive strain injury.",
+        "The Project Manager concluded they design one product and the company adapts it, so the team should not get bogged down in variants."
+      ]
+    },
+    {
+      "title": "Repetitive strain injury and target market",
+      "start": "24:35",
+      "end": "26:35",
+      "points": [
+        "The Marketing Expert doubted that moving a finger on a small screen addresses repetitive strain injury, which is caused by small repeated movements, and suggested postponing it to a future meeting.",
+        "The only other way round it would be speech recognition, which is extremely expensive.",
+        "The Marketing Expert asked whether to start with a younger age group and broaden later; the User Interface Designer suggested focusing on the biggest market, for example ages 20 to 35.",
+        "The Project Manager said the company wants a fashionable, trendy product, so the focus is mid-range business-class people even though older generations are a larger population.",
+        "The Marketing Expert wanted to avoid wasting marketing budget by focusing on where purchasing power is."
+      ]
+    },
+    {
+      "title": "Recording with Video Plus",
+      "start": "26:44",
+      "end": "28:41",
+      "points": [
+        "The Project Manager suggested Video Plus: TV guides print a five or six digit code after each programme, and entering it sets the recording without dates, times or channels.",
+        "It needs at most one extra button because the number buttons are already there.",
+        "The feature has existed for a long time but is poorly advertised; Sky boxes can already record a programme or a whole series with one or two presses."
+      ]
+    },
+    {
+      "title": "In-store help service versus manual and customer service",
+      "start": "28:43",
+      "end": "30:42",
+      "points": [
+        "The Marketing Expert suggested a free help service in the company's high street shops, like mobile phone retailers, to reassure older buyers.",
+        "The Industrial Designer said phone retailers help because of contracts and was unsure of the cost; the Project Manager said customers would have to bring in their TV to show the problem.",
+        "Instead, instruction manuals and a customer service phone line cover support; the User Interface Designer said nobody would walk to a shop for a remote."
+      ]
+    },
+    {
+      "title": "Instruction manual and batteries",
+      "start": "30:43",
+      "end": "32:16",
+      "points": [
+        "The Project Manager said manuals are often tiny writing over many pages and get left in a drawer, so the manual should be user-friendly.",
+        "She suggested a mobile-phone-style battery; the Industrial Designer said these are specially made and come with a charger.",
+        "Like a cordless house phone, the remote would sit in a charger when not in use, last a long time, and be smaller.",
+        "The locator beeper could be on the docking station.",
+        "Rechargeable means no buying batteries and is cheaper in the long run."
+      ]
+    },
+    {
+      "title": "Shape, casing and company logo",
+      "start": "32:19",
+      "end": "36:04",
+      "points": [
+        "The shape should be trendy: not a big box with lots of things, and not so tiny that it causes repetitive strain injury.",
+        "Most remotes look identical, long brown rectangles with crammed buttons; the team wants to get away from that.",
+        "The Project Manager confirmed a flip-screen.",
+        "The User Interface Designer described a curved, banana or boat-shaped design (like an older Nokia phone) moulded to the hand so the thumb bends less.",
+        "The Project Manager asked to look into the company logo, for example a C-shaped body that opens like a shell; the User Interface Designer preferred a logo in a corner but agreed to look into it.",
+        "The Marketing Expert liked a conch or scallop shell exterior in lightweight plastic opening into the flip-top, and thought holding it between the covers could reduce strain.",
+        "The Project Manager suggested interchangeable casings like phone fascias, for example psychedelic for young people and sleek for others.",
+        "An attractive remote people keep on the mantelpiece is less likely to be lost down the sofa.",
+        "The User Interface Designer suggested producing five or six designs and choosing the most appealing."
+      ]
+    },
+    {
+      "title": "Summary and next steps",
+      "start": "36:04",
+      "end": "38:59",
+      "points": [
+        "The Marketing Expert recapped the requirements: no teletext, TV (and by implication video) only, corporate image in the remote, and Video Plus.",
+        "Video Plus replaces separate buttons for date and channel; it is mainly an advertising feature and should be explained in the manual.",
+        "Rechargeable batteries are included; buttons are not yet a requirement and will be worked out with the design, possibly with market research.",
+        "A beeping alarm for a lost remote was discussed; learning to use it should be simple, with few functions, and it should differ from existing remotes.",
+        "The Marketing Expert will look at instruction manuals before the next meeting; further questions can be emailed to the Project Manager."
+      ]
+    }
+  ],
+  "human_not_covered": [
+    "The remote will have a seashell-like shape (part of the human decision on Video Plus and shape): the shell shape was only proposed and liked; the User Interface Designer agreed to look into it, which is an action item, not a decision.",
+    "The shape will accommodate the LCD display (same human decision): no LCD display was agreed in this meeting; it appears only in the research findings and a passing remark.",
+    "Multiple casings will be made available (part of the human decision on the docking station and manual): the Project Manager only suggested interchangeable fascias, and the group had just agreed to design one product."
+  ]
+}

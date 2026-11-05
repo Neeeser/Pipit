@@ -1,0 +1,185 @@
+{
+  "meeting": "IS1009b",
+  "overview": "The team met for the functional design of a new TV remote control. The Marketing Expert set out how features will be gathered and weeded by cost and usability, the 25 Euro impulse-purchase price, and the September launch needed for Christmas sales; research showed users complain that remotes are hard to learn and easily lost. The Project Manager passed on management instructions: the remote controls only the TV, teletext is dropped, and the corporate colour and design must be used. The Industrial Designer explained how a remote works and proposed glowing buttons, a beep and child lock, fun shapes and a clock; the User Interface Designer proposed a power button, timer, child lock, compact shape, safe materials and an alarm clock. The team agreed the target group is everybody with a TV, with extra features for subgroups such as elderly, nervous or young users only if the budget allows. Button design and the cost of variants are still to be worked out; the meeting broke for lunch.",
+  "action_items": [
+    {
+      "task": "Consult the Industrial Designer on how hard, costly and slow each suggested feature would be, to weed out the infeasible ones",
+      "owner": "Marketing Expert",
+      "due": "",
+      "at": "02:45",
+      "quote": "So I'll be coming to you um frequently as the Industrial Expert",
+      "must_find": false
+    },
+    {
+      "task": "Consult the User Interface Designer to prioritise the most user-friendly features, look and colour",
+      "owner": "Marketing Expert",
+      "due": "",
+      "at": "03:33",
+      "quote": "then I'll be coming to you as the User Interface person",
+      "must_find": false
+    },
+    {
+      "task": "Give specific feature suggestions for the list rather than broad ideas",
+      "owner": "",
+      "due": "",
+      "at": "04:54",
+      "quote": "I'd like the suggestions to be really specific",
+      "must_find": false
+    },
+    {
+      "task": "Discuss button design (one button per function versus multi-mode buttons, and differently shaped buttons) with the User Interface Designer",
+      "owner": "Marketing Expert",
+      "due": "",
+      "at": "15:38",
+      "quote": "that's something that we'll have to discuss um with the User Interface person",
+      "must_find": false
+    },
+    {
+      "task": "Check whether the budget allows several case shapes or variants for different user groups",
+      "owner": "",
+      "due": "",
+      "at": "14:45",
+      "quote": "I think we will have to look at the budget on that",
+      "must_find": false
+    }
+  ],
+  "decisions": [
+    {
+      "text": "The remote controls only the TV; whole-house or multi-device control is ruled out, because the Marketing Expert's research found it unaffordable and management judged it too complex for the time to market",
+      "at": "05:41",
+      "quote": "it should only control the T_V_",
+      "must_find": true
+    },
+    {
+      "text": "Teletext is dropped as outdated by the internet",
+      "at": "05:41",
+      "quote": "something to eliminate maybe that's the teletext",
+      "must_find": true
+    },
+    {
+      "text": "The product uses the corporate colour and design so it is identifiable as the company's",
+      "at": "06:21",
+      "quote": "the corporate colour and design are being used on the product",
+      "must_find": true
+    },
+    {
+      "text": "The target group is everybody who has a TV",
+      "at": "30:35",
+      "quote": "the target group as a whole is is basically everybody with a T_V_",
+      "must_find": true
+    },
+    {
+      "text": "Features for subgroups such as elderly, nervous or young users are added only if the budget allows",
+      "at": "33:08",
+      "quote": "If money permits we can address some features for some subgroups within that",
+      "must_find": false
+    },
+    {
+      "text": "There is one basic remote design; variants differ only in cosmetic features such as larger, lit or differently shaped buttons",
+      "at": "32:25",
+      "quote": "the idea here is to uh to to d design one remote",
+      "must_find": false
+    }
+  ],
+  "open_questions": [
+    {
+      "text": "Whether to use multi-mode buttons (fewer buttons, each with two or three functions) or one button per function, given that mode changes confuse users",
+      "at": "15:02",
+      "quote": "we need to make some buttons which are which are like um uh f in uh in intended for two or three operations",
+      "must_find": false
+    },
+    {
+      "text": "Whether the budget allows more than one design, for example large buttons on part of the production run",
+      "at": "29:57",
+      "quote": "The question is only whether our budget will allow to have more than one design in a sense",
+      "must_find": false
+    },
+    {
+      "text": "How much the remote should cater to children",
+      "at": "26:26",
+      "quote": "I don't know how much we want to cater to children's use",
+      "must_find": false
+    },
+    {
+      "text": "Whether to offer removable, changeable plastic covers (like mobile phone covers) so the look suits different age groups; to be revisited after more research",
+      "at": "31:08",
+      "quote": "They have like removable plastic cases",
+      "must_find": true
+    },
+    {
+      "text": "Which of the desired features (light-up locator, clock, alarm clock, child lock and others) fit the budget has not been worked out; suggestions are still to be weeded by design and budget feasibility",
+      "at": "02:00",
+      "quote": "accept and eliminate these suggestions according to um design and budget feasibility",
+      "must_find": true
+    }
+  ],
+  "topics": [
+    {
+      "title": "Marketing: method, price and timing",
+      "start": "01:15",
+      "end": "04:54",
+      "points": [
+        "The Marketing Expert will collect any suggestions first, then eliminate them by design and budget feasibility and prioritise what is most attractive to customers.",
+        "The Industrial Designer is consulted on cost and development time, the User Interface Designer on friendliness, look and colour.",
+        "The remote should be an attractive impulse purchase at 25 Euros, sold as a Christmas present, so it must reach the market by September.",
+        "The sales appeal (\"sizzle\") matters more than what works best from an engineering view."
+      ]
+    },
+    {
+      "title": "Research findings and management instructions",
+      "start": "04:54",
+      "end": "09:16",
+      "points": [
+        "The Marketing Expert's research found whole-house control is not possible within budget; TV, VCR, stereo and perhaps one more appliance seemed feasible.",
+        "The Project Manager relayed management instructions: control only the TV, drop teletext as outdated, keep the corporate image, colour and design.",
+        "User complaints: 34 percent say remotes take too long to learn, and remotes are often lost in the room.",
+        "The Marketing Expert wants a simple, intuitive remote with few buttons, a light-emitting locator and perhaps a beep.",
+        "Suggested marketing motto: \"we put fashion in electronics\"."
+      ]
+    },
+    {
+      "title": "Industrial design: how a remote works and extra features",
+      "start": "09:25",
+      "end": "19:40",
+      "points": [
+        "A chip (integrated circuit) takes power from a battery, reads button presses and sends infrared signals to the device; multiple devices would each need to recognise the frequency, which is hard.",
+        "Proposed features: fluorescent buttons that glow in the dark, a beep when many buttons are pressed at once, a child lock.",
+        "Fun shapes and colours, for example animal shapes; the Industrial Designer and Project Manager said a different mould would not add much cost.",
+        "The Marketing Expert asked about the same electronics in several shapes, such as a sexy one for adults and an animal for children; the Project Manager said it needs a budget check but is fun in principle.",
+        "Multi-mode buttons would reduce the button count but add complexity; the Marketing Expert and Project Manager worried about learning and elderly users with arthritic hands, and suggested differently shaped buttons for touch, and clear text.",
+        "A clock display, which the Industrial Designer said costs nothing extra; the Marketing Expert and Project Manager liked it.",
+        "Components: buttons over switches, a light that turns on when the TV is on to help find the remote, infrared bulbs, battery, chip, wires and a case or holder.",
+        "The Industrial Designer used the company website for ideas."
+      ]
+    },
+    {
+      "title": "User interface: requested features",
+      "start": "20:10",
+      "end": "25:01",
+      "points": [
+        "Main purpose is controlling the TV from a distance: power button, infrared or radio signal, channel and volume changes.",
+        "A timer to switch the TV on for a programme or off at a set time, for example a parental switch-off at ten o'clock.",
+        "Child lock on particular channels.",
+        "Compact, with many buttons; personal preference for a T shape.",
+        "Materials safe for skin and allergies, no sharp edges for children.",
+        "An alarm clock, which the Industrial Designer and Marketing Expert thought fine; fluorescent buttons that glow differently.",
+        "Remotes use infrared or radio waves."
+      ]
+    },
+    {
+      "title": "Target group and functions",
+      "start": "25:33",
+      "end": "33:31",
+      "points": [
+        "The Project Manager said the meeting must decide the target group and the working design.",
+        "Target group is everybody with a TV, with subgroups: elderly people with limited finger movement, nervous people, and possibly children.",
+        "The Marketing Expert noted children drive purchases; the Project Manager said children can be addressed through shape and colour.",
+        "The User Interface Designer proposed a core design for ages ten to forty with add-on buttons for others, and noted a family buys one remote, not three.",
+        "The Industrial Designer proposed separate remotes, such as a larger one with big buttons for the elderly; electronics cost would not change.",
+        "The Project Manager suggested removable cases like mobile phone covers, with a spare in the box and extra colour packs sold separately; others liked it.",
+        "Conclusion: one remote for everyone with a TV, with subgroup features only if money permits; the Industrial Designer suggested roughly seventy percent standard and thirty percent variants. Points may be revisited next meeting."
+      ]
+    }
+  ],
+  "human_not_covered": []
+}

@@ -1,0 +1,236 @@
+{
+  "meeting": "TS3003d",
+  "overview": "In the fourth and last meeting the team reviewed the industrial and user interface designers' prototype, checked it against the 12.50 Euro production cost limit, evaluated the product and the project, and closed the project. The prototype (on-off, mute, volume and channel rockers, help button, ten number buttons, teletext and subtitle buttons, LCD screen, rubber buttons) came out well over budget, mostly because of the button count. To get under 12.50 Euros the team cut the remote to five buttons and a scroll wheel: the number buttons and mute were replaced by a scroll wheel that shows channel numbers on the LCD, and volume and channel each became one button that switches the scroll wheel to that function. They used one rechargeable battery instead of two and kept the advanced chip, the LCD and the single-curved case. The Marketing Expert's criteria gave the design 41 out of 49 (about 84 percent), with low marks for ease of use (4) and fit with the elderly target group (3). In the project evaluation the team said the price information should have come earlier and the smart-board was awkward. Whether older users can manage the scroll wheel was left open, and the team leaned toward marketing the remote to everybody, testing front covers aimed at younger buyers. The Project Manager went to prepare the final presentation while the others filled in a questionnaire.",
+  "action_items": [
+    {
+      "task": "Prepare the final presentation summarising the project and show it to the team",
+      "owner": "Project Manager",
+      "due": "in about ten minutes",
+      "at": "42:32",
+      "quote": "And then I will be back in about ten minutes to show you the final presentation.",
+      "must_find": true
+    },
+    {
+      "task": "Fill in the questionnaire waiting in each person's own room before the final presentation",
+      "owner": "",
+      "due": "",
+      "at": "42:48",
+      "quote": "I think you all get a questionnaire in in your room.",
+      "must_find": true
+    }
+  ],
+  "decisions": [
+    {
+      "text": "Use one rechargeable battery instead of two, saving two Euros",
+      "at": "07:51",
+      "quote": "That's two Euros off.",
+      "must_find": true
+    },
+    {
+      "text": "Keep the advanced chip, because the LCD screen needs it",
+      "at": "16:48",
+      "quote": "It has to be advanced.",
+      "must_find": false
+    },
+    {
+      "text": "Keep the LCD screen, which can show extra information such as how to use the scroll wheel and the other buttons",
+      "at": "18:40",
+      "quote": "And we can keep our L_C_D_ screen, which can provide extra information.",
+      "must_find": true
+    },
+    {
+      "text": "Make the case out of plastic, the cheapest case material",
+      "at": "08:28",
+      "quote": "It's plastic. It's the cheapest one we need.",
+      "must_find": true
+    },
+    {
+      "text": "Drop the mute button; mute by a long press on volume down",
+      "at": "09:22",
+      "quote": "I think we can uh discard the help and the mute button",
+      "must_find": false
+    },
+    {
+      "text": "Replace the ten number buttons with a scroll wheel that shows channel numbers on the LCD",
+      "at": "19:50",
+      "quote": "We've got the scroll-wheel. One, two, three, four, five buttons",
+      "must_find": true
+    },
+    {
+      "text": "Have one volume button and one channel button; pressing either switches the scroll wheel to control that function",
+      "at": "20:59",
+      "quote": "So we make one for the volume, one for the channel.",
+      "must_find": true
+    },
+    {
+      "text": "Keep the teletext button",
+      "at": "21:11",
+      "quote": "Yeah, we can leave the teletext in if we want.",
+      "must_find": true
+    },
+    {
+      "text": "The remote ends up with five buttons and a scroll wheel",
+      "at": "21:24",
+      "quote": "So this is five buttons.",
+      "must_find": true
+    },
+    {
+      "text": "Keep the single-curved case rather than a flat one, to show off the LCD screen",
+      "at": "23:13",
+      "quote": "I think we can then keep the single curved one.",
+      "must_find": true
+    },
+    {
+      "text": "Make the scroll wheel stick out like the knobs on old radios so older users recognise it",
+      "at": "24:45",
+      "quote": "We can stick it out, a bit. Like a old old buttons.",
+      "must_find": false
+    },
+    {
+      "text": "Make the buttons from rubber in a different colour from the case, so they stand out",
+      "at": "06:54",
+      "quote": "for the materials we've just chosen for rubber buttons. With a a different colour than the case.",
+      "must_find": true
+    },
+    {
+      "text": "The redesigned remote fits within the 12.50 Euro production cost limit",
+      "at": "29:45",
+      "quote": "Are the production costs within the preset limits? Well they are now.",
+      "must_find": false
+    },
+    {
+      "text": "No separate teletext page buttons: the channel up and down buttons move between teletext pages and the number buttons enter page numbers",
+      "at": "03:56",
+      "quote": "But you can also uh use the um button th for uh changing the the channel.",
+      "must_find": true
+    },
+    {
+      "text": "Keep the 12.50 Euro production cost limit rather than asking for more budget or raising the price, since there is no more development budget",
+      "at": "13:58",
+      "quote": "Yeah but uh we have to stick to the twelve and a half Euros.",
+      "must_find": true
+    },
+    {
+      "text": "Market the remote to everybody rather than only older people, and test fancy front covers aimed at younger buyers",
+      "at": "39:45",
+      "quote": "Just put it on the market for everybody.",
+      "must_find": true
+    }
+  ],
+  "open_questions": [
+    {
+      "text": "Does the five-button scroll-wheel design suit the elderly target group, who expect familiar remotes with ten number buttons? The team rated its fit with the target group 3 out of 7 and expects it to need a lot of marketing",
+      "at": "24:12",
+      "quote": "This will really require a lot of marketing",
+      "must_find": true
+    },
+    {
+      "text": "Will older users know how to use a scroll wheel, even though it resembles a radio tuning knob?",
+      "at": "17:56",
+      "quote": "who don't even know what a scroll-wheel is",
+      "must_find": true
+    },
+    {
+      "text": "The docking station is not included in the cost calculation; whether it is made, and whether it justifies a higher remote price, was not settled",
+      "at": "38:45",
+      "quote": "Considering we are not going to make a docking station.",
+      "must_find": true
+    }
+  ],
+  "topics": [
+    {
+      "title": "Agenda for the final meeting",
+      "start": "00:55",
+      "end": "02:25",
+      "points": [
+        "This is the fourth and last meeting: the detailed design meeting, covering look and feel, usability and product evaluation, after which the project closes.",
+        "Agenda: prototype presentation, evaluation criteria, finance check against the 12.50 Euro per remote limit, project evaluation, closing.",
+        "The meeting has forty minutes and should finish at half past three."
+      ]
+    },
+    {
+      "title": "Prototype presentation",
+      "start": "02:25",
+      "end": "07:05",
+      "points": [
+        "The Industrial Designer and User Interface Designer presented the prototype: on-off button at the top, mute button below it, volume and channel plus-minus selectors, a help button, number buttons, teletext and subtitle buttons, and the company logo.",
+        "Holding the help button and pressing another button shows that button's help on the LCD screen; the designers consider help necessary because there is no other way to find out what a button does.",
+        "In teletext the channel up-down buttons move between pages, and the number buttons enter page numbers.",
+        "The Project Manager said earlier meetings aimed for few, large buttons and this prototype has quite a lot; the Industrial Designer replied that most remotes have more and that on-off, volume, channel, numbers, teletext and subtitles are all needed, though mute could be replaced by pressing volume down twice.",
+        "The Marketing Expert repeated that a remote for the TV alone leaves little room to stand out.",
+        "Buttons are meant to be equal-sized and round with small symbols for recognition; no LEDs are needed because the remote has a display.",
+        "Buttons are rubber in a different colour from the case."
+      ]
+    },
+    {
+      "title": "Fitting the design within the 12.50 Euro budget",
+      "start": "07:05",
+      "end": "25:40",
+      "points": [
+        "The Project Manager warned it would be hard to produce the remote for 12.50 Euros and went through the cost sheet.",
+        "Two batteries were counted; since the battery is rechargeable one is enough, saving two Euros.",
+        "The advanced chip is required for the LCD screen, so nothing can be saved there; the single-curved case costs one Euro more than uncurved; plastic is already the cheapest case material.",
+        "Buttons are the largest cost. The prototype has seventeen buttons including help, which put the cost around eighteen Euros.",
+        "The Project Manager proposed dropping help and mute (replaced by long presses on a number and on volume down), saving about one Euro; the transcript does not make clear whether help survived in the final five buttons.",
+        "The team disagreed on whether a volume or channel rocker counts as one or two buttons on the cost sheet; the Marketing Expert held that it is effectively two (or four for a combined cross).",
+        "The Marketing Expert suggested grouping three numbers per button, a different supplier, raising the price because older people spend more easily, or asking the board for more money (around eighteen per remote); the Project Manager said the 12.50 Euro limit is fixed because there is no more development budget.",
+        "Dropping the LCD would also allow a cheaper chip, but the Project Manager said the LCD is the main advantage of the remote apart from the docking station, which is not in the cost sheet at all.",
+        "The Industrial Designer and Marketing Expert questioned whether fewer combined buttons would be usable for elderly people.",
+        "The Project Manager proposed replacing the ten number buttons with a scroll wheel: scroll through numbers shown on the LCD and wait half a second to switch to that channel, so no extra push button is needed. The Marketing Expert called it the end of usability for older people who do not know what a scroll wheel is.",
+        "Merging teletext and subtitles into one button was discussed but not settled.",
+        "The Project Manager argued good advertising and LCD help can teach the scroll wheel, and it saves a lot of money.",
+        "The Industrial Designer proposed one volume button and one channel button that switch the scroll wheel to that function, which also makes the scroll wheel more obvious; the Project Manager agreed.",
+        "With fewer buttons a flat, smaller case would save one Euro; the team kept the single-curved case to give the LCD prominence. The Marketing Expert said he was not happy with all the changes but accepted them because costs had to be cut.",
+        "The team agreed the price list should have been available before the design work started.",
+        "The Marketing Expert warned that older people like familiar forms and this design will need a lot of marketing; the User Interface Designer pointed out older people know scroll knobs from old radios, and the Project Manager suggested making the wheel stick out like an old radio knob."
+      ]
+    },
+    {
+      "title": "Product evaluation",
+      "start": "25:57",
+      "end": "32:41",
+      "points": [
+        "The Marketing Expert turned the earlier requirements into criteria: fancy look and feel, innovation, ease of use and learnability, functionality, cost, fit with the target group, and company recognisability, each scored from one to seven.",
+        "The minutes of the previous meeting were missing because the Project Manager's digital pen failed to upload its data.",
+        "Scores: fancy 6; innovative 7 (LCD screen, docking station, scroll wheel); easy to use 4, because it would be harder for older people; functional 7, with no missing or surplus functions; production cost within limits; fit with the target group 3, with the Industrial Designer finding it too flashy and the Marketing Expert doubting older people expect a scroll wheel on a remote; recognisable as the company's product, thanks to the logo and removable fashion front covers.",
+        "Total 41 out of 49, about 84 percent, which the Project Manager called a good score."
+      ]
+    },
+    {
+      "title": "Project evaluation",
+      "start": "32:46",
+      "end": "38:14",
+      "points": [
+        "Process: the phases were right, but the finance information should have come much earlier, in the design phase.",
+        "Creativity: there was room, but the finance sheet restricted it; the Marketing Expert would have liked to target younger users too, with features such as internet access.",
+        "Leadership: everyone knew what their role required. Teamwork worked, and the structured tasks made the work easy to do step by step.",
+        "Means: drawing on the smart-board was irritating and a flip-over would be faster; the digital pen is nice when it uploads its data. Smart-board drawings are easy to share but could not be opened on a laptop; they should be exported as images.",
+        "New idea: have each person enter evaluation scores on a computer and average them, rather than agreeing scores aloud."
+      ]
+    },
+    {
+      "title": "Budget, docking station and target market",
+      "start": "38:34",
+      "end": "40:23",
+      "points": [
+        "Costs are within budget, though the Industrial Designer noted this assumes no docking station is made.",
+        "The Project Manager suggested the docking station could justify a slightly higher remote price and is cheap to make.",
+        "The Project Manager expects the product to reach its revenue target, especially through export to America.",
+        "The Marketing Expert thinks the scroll wheel makes the remote better suited to younger people and suggested re-focusing; the Project Manager suggested selling to everybody and testing fancy front covers aimed at younger buyers."
+      ]
+    },
+    {
+      "title": "Closing",
+      "start": "40:23",
+      "end": "43:10",
+      "points": [
+        "The drawings were exported as a picture; the shared project folder could not be found, so the Project Manager saved them in My Documents.",
+        "The Project Manager left to prepare the final presentation, to be shown in about ten minutes, while the others fill in a questionnaire in their rooms."
+      ]
+    }
+  ],
+  "human_not_covered": [
+    "Decision 'Five buttons: channel, volume, teletext, on-off and help': the transcript supports five buttons with volume, channel, teletext and on-off, but never says the help button stays; the Project Manager proposed discarding help at 09:22 and the final five are not listed.",
+    "Problem 'The final cost of the prototype was probably slightly over 12.50 Euros': the transcript says the costs are within the limit (29:45 'Well they are now', 38:44 'They are')."
+  ]
+}

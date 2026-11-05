@@ -1,0 +1,286 @@
+[00:37] Project Manager: Okay.
+[00:42] Project Manager: Hello everyone.
+[00:42] Industrial Designer: Hi.
+[00:43] Marketing Expert: Hi.
+[00:43] User Interface Designer: Hi.
+[00:44] Project Manager: Um how uh how we doing?
+[00:48] Industrial Designer: Yeah, good.
+[00:49] Project Manager: Uh first we going uh over the minutes of the last meeting, more or less. Um in the last meeting uh the marketing manager had presented uh her method of working, meaning gathering i suggestions
+[00:55] User Interface Designer: Mm-hmm.
+[01:09] Project Manager: from everyone to see how she best could market uh this this product at the within the budget uh that was given.
+[01:21] Project Manager: Uh in general the idea is that it should be something that is not difficult to use.
+[01:29] Project Manager: Um it's also an item that people lose a lot. So we should address that. And, of course, it should be something
+[01:41] Project Manager: s s that is very simple to use.
+[01:45] Project Manager: In addition to that to make it sell, of course, uh the marketing manager w wishes that it be very attractive, or like she says put some sizzle into it in one way or another
+[01:57] Project Manager: so that the people are buying it now because, in particular with smaller items, that's a very important fact, 'cause um if they say, well, I go home and think about it, that won't work.
+[02:10] Project Manager: Um also mentioned was it should be uh it should have a very short learning curve.
+[02:18] Project Manager: And maybe it could be sold by using a slogan.
+[02:24] Industrial Designer: Hmm.
+[02:24] Project Manager: Our technical manager has then said that she feels it should have a chip
+[02:33] Project Manager: that has infra-red bits and it has an interface controls w interface that controls the chip.
+[02:41] Project Manager: Therefore, messages uh will be controlled in the same manner. There should be extra features like lid buttons, maybe a beep. If too many buttons are pressed,
+[02:53] Project Manager: mm uh uh child lock um and uh maybe a display clock so that people could um
+[03:04] Project Manager: you could see the time, you know, what show they want to watch. Also mentioned was uh maybe different shapes.
+[03:13] Project Manager: So the components of the thing should be button, bulbs, infra infra-red bulbs, battery, chips, wires, and maybe some kind of a holder
+[03:24] Project Manager: uh for the for the uh item.
+[03:30] Project Manager: Francino who is our um interface designer um uh has mentioned that the that it, of course, should have an on-off button, and also has mentioned an interesting feature that it should have maybe a channel lock.
+[03:33] User Interface Designer: Interface designer.
+[03:50] Project Manager: Particularly with maybe small children that they couldn't uh watch a channel that is undesirable. It should be compact. Her personal favourite was it should be T-shaped. And maybe have an anar alarm-clock. And the material should possibly be not of non-allergic nature.
+[04:10] Project Manager: Uh the different systems uh that exist are infra-red or radio-waves.
+[04:18] Project Manager: Uh maybe it should have uh electri electrici electricity saving feature.
+[04:25] Project Manager: And even possibly a timer to so that people can program their favourite uh uh program on th right from the remote.
+[04:37] User Interface Designer: Yes.
+[04:39] Project Manager: Uh are we all in agreement that that's about what we discussed last time? Okay.
+[04:44] Industrial Designer: Yeah.
+[04:44] User Interface Designer: Yes.
+[04:44] Marketing Expert: Yeah, I think that pretty much is it. Yeah. Mm-hmm.
+[04:46] Project Manager: Okay, then we I'm looking for three presentations. And uh I don't know whether the order matters much uh, I don't I don't think so, so whoever w wants Yeah, okay.
+[04:57] User Interface Designer: Okay, I can start first.
+[04:59] User Interface Designer: Okay.
+[05:05] User Interface Designer: Now my slide, please.
+[05:06] Project Manager: Okay, your slides. Okay.
+[05:14] Project Manager: Oh, come on, close already.
+[05:21] Project Manager: And that's number two, right?
+[05:23] User Interface Designer: Three.
+[05:24] Project Manager: Three.
+[05:25] User Interface Designer: Participant three.
+[05:28] User Interface Designer: Yes.
+[05:35] User Interface Designer: Okay.
+[05:36] Project Manager: Okay.
+[05:37] User Interface Designer: Now as an interface designer, I would give more emphasis on the interface, how the remote looks like so that it is sellable, it is attractive to customers.
+[05:48] User Interface Designer: Next, please.
+[05:51] User Interface Designer: Okay. Now the function of a remote is to send messages to the television. This messages could be uh switch on-off message or switch to next channel message or swapping the channels or switching onto a particular channel, like you can have the numbers one, two, three, four, up to nine.
+[06:13] Project Manager: Nine what? Nine channel uh switches?
+[06:17] User Interface Designer: Pardon me?
+[06:17] Project Manager: Nine channel switches? Is Yeah. Mm-hmm. Mm-hmm.
+[06:19] User Interface Designer: Yes, nine numbers.
+[06:22] User Interface Designer: And then you have swapping of uh button by which using which you can swap the channels if you don't want to see the third channel you can swap it to the fourth channel or vice versa.
+[06:25] Project Manager: Mm-hmm.
+[06:35] User Interface Designer: Then it should have a next button, and next button channel by which you can keep on uh v uh mm eh scrolling the channels one by one. Next slide, please.
+[06:42] Industrial Designer: Going to the nex next.
+[06:42] Project Manager: Mm-hmm.
+[06:45] Project Manager: Mm-hmm.
+[06:48] Project Manager: Mm-hmm.
+[06:50] User Interface Designer: Then you should have a button which should which ca which can be used for increasing or decreasing the volume.
+[06:56] Project Manager: Mm-hmm.
+[06:58] User Interface Designer: Then, there should be a button which can give subtitles for a particular program which is going on a television. For example, if you are watching a French program and you would like to have a subtitles in English, then there should be a channel which can trigger this mechanism in the television so that the user can see uh the the subtitles on the screen.
+[07:10] Project Manager: Mm-hmm.
+[07:21] User Interface Designer: Then there should d uh there should be some buttons which can control features like the colour, colour of the picture, the contrast, sharpness, brightness of the picture.
+[07:36] User Interface Designer: Now there should be a memory switch.
+[07:42] User Interface Designer: There should be a mute button. Suddenly if if if uh uh viewer he gets a telephone call, and if he want he doesn't want to switch off the uh T_V_, but he he can reduce the sound, he can bring the volume down and he can watch he can uh while talking he can watch the T_V_. Now the most important feature I would like to have in my remote would be the speech recognition feature.
+[08:10] User Interface Designer: It's an integrated progra programmable sample sensor speaker unit.
+[08:18] User Interface Designer: So a remote can be th can be uh designed which can have the voice recognisers, you can record your own voice
+[08:29] Project Manager: Mm-hmm.
+[08:30] User Interface Designer: which can be recognised by as voice recogniser in the television, for example, if you want to see we if you want to see the ninth channel if you say just say ninth channel, uh th now the the uh yeah, the remote will automatically it will switch to the ninth channel. So the T_V_ will have some recogniser which will recognise the user's voice and accordingly it will change its functionalities. So this is one of the very important feature a remote control can have.
+[08:44] Project Manager: Mm-hmm.
+[08:47] Project Manager: Mm-hmm.
+[08:54] Project Manager: Mm-hmm. Mm-hmm.
+[09:01] User Interface Designer: So this is one one of the interface which can be created.
+[09:06] Project Manager: Mm-hmm.
+[09:07] User Interface Designer: A very simple interface which has all the t uh uh important features.
+[09:13] User Interface Designer: Then, please, next slide.
+[09:13] Project Manager: Mm-hmm. Mm-hmm.
+[09:15] User Interface Designer: Then, these are some of the remotes which are different in shape and colour, but they have many buttons. So uh sometimes the user finds it very difficult to recognise which button is for what function and all that. So you can you can design an interface which is very simple, and which is user-friendly. Even a kid can use that. So can you go on t t uh to the next slide.
+[09:22] Project Manager: Mm-hmm.
+[09:35] Project Manager: Mm-hmm.
+[09:38] User Interface Designer: Yeah, so this is one of the interface or one of the remote which has this vi voice recogniser. And this has multi-purpose use, it can be used for T_V_, it can be used for cable-satellite, it can be used for V_C_R_, D_V_D_s and audio.
+[09:44] Project Manager: Mm-hmm.
+[09:55] User Interface Designer: And this has in-built voice recogniser.
+[10:01] User Interface Designer: Can you go on to the next slide? Yeah, now this is an interface for a chil uh for a remote uh uh which a child can use. Uh this is user-friendly, it's very attractive and uh children can use it as well as they can play with it. And this comes with different colours, different shapes.
+[10:09] Project Manager: Mm-hmm.
+[10:20] Industrial Designer: Mm.
+[10:26] Project Manager: Mm-hmm.
+[10:26] User Interface Designer: And this this uh child uh interface has minimum buttons and all the important uh buttons are there in this small, compact,
+[10:38] User Interface Designer: attractive child interface.
+[10:46] User Interface Designer: Next slide, please. Now this is a big over-sized remote which cannot be misplaced or it's impossible to misplace. this.
+[10:56] Marketing Expert: You don't know me. I could lose that in a minute.
+[11:01] User Interface Designer: So this is No this is a very big, you cannot misplace it anywhere. So this is a jumbo universal remote control and it's impossible to im misplace or lose.
+[11:12] Project Manager: Mm-hmm.
+[11:13] User Interface Designer: This i this is one such interface which can be created.
+[11:18] User Interface Designer: And the personal preference uh would be a spe uh uh to incorporate speech recognisers uh which will respond to user's voice for a particular uh function.
+[11:28] Project Manager: Mm-hmm.
+[11:30] Project Manager: Right.
+[11:31] User Interface Designer: Thank you, that's
+[11:33] Project Manager: Mm-hmm.
+[11:51] Project Manager: Okay, thank you very much. Uh any comments on uh her presentation?
+[12:00] Marketing Expert: Well, um looks like we still have quite a choice of things out there. Um what uh I'm No suggestion's bad. But uh we're gonna have to narrow it down a little more. I don't think that we can get uh The T-shape is good, the child one is good, the too big to misplace, I think it's just funny. Um I don't think that's gonna be our impulse purchase at the checkout counter. It's it's gonna be a little bit too unwieldy.
+[12:04] Industrial Designer: Mm-hmm.
+[12:08] User Interface Designer: Mm yes.
+[12:20] User Interface Designer: Okay.
+[12:22] Project Manager: Yeah, I I th I think
+[12:27] User Interface Designer: Okay.
+[12:29] Project Manager: No, I think the these are her presentations, but uh as far as the decision making we getting to that after after but if I just wanted to know whether anybody had any any anything to add to her presentation.
+[12:31] Marketing Expert: Yeah mm. Mm-hmm.
+[12:34] Marketing Expert: Have to come back to that later. Okay.
+[12:35] User Interface Designer: We can.
+[12:42] Marketing Expert: No, I think her presentation was good, and she really explored all the options. Yeah.
+[12:44] Project Manager: Mm right.
+[12:46] Project Manager: Mm-hmm. Ho who wants to go next um?
+[12:50] Industrial Designer: Yeah, maybe.
+[12:50] Project Manager: Mm-hmm. Okay, and you
+[12:51] Industrial Designer: Participant two.
+[12:56] Project Manager: Uh okay.
+[12:58] Industrial Designer: Uh the next one, sorry. It's it was the old one.
+[12:59] Project Manager: Oops.
+[13:07] Industrial Designer: Components.
+[13:07] Project Manager: The components design. Mm-hmm. Okay.
+[13:16] Industrial Designer: Um this time I'm I'm going to um concentrate more on the components and the technical side of the remote controller design. Uh, can you go on to the next slide, please.
+[13:23] Marketing Expert: Mm-hmm.
+[13:28] Project Manager: Mm-hmm.
+[13:29] Industrial Designer: I have just brief uh down few uh components which we require for the remote control uh construction. Uh the first one is case to keep all the components like integrated circuit, battery, etcetera, etcetera, it's like
+[13:44] Industrial Designer: Uh it can be a plastic one, hard plastic, so that it can be strong, even if you just uh uh, you know, if you if it falls down, then it doesn't break. So it should be strong. And uh uh there are no harmful materials used in that. And it should be recyclable.
+[13:57] Project Manager: Mm-hmm.
+[14:04] Project Manager: Mm-hmm.
+[14:05] Industrial Designer: Uh and uh, yeah, and also uh using of colouring compon components like uh if we want to have different colours, blue, red, green, so uh uh we have to use uh some colouring compone compone components.
+[14:05] Marketing Expert: Mm-hmm. Good point.
+[14:18] Industrial Designer: And uh the second important thing is uh uh uh integrated circuit. Uh which uh we can use a highly sophisticated one because it's like the it's like the heart of the remote controller. If it is not efficient then everything wi is going to be uh like um the lef ess less efficient so it you should we should have a highly sophisticated one. And it should be resistant to high as well as uh low temperatures. Suppose if it is thirty-eight degrees outside forty degrees outside, it should it should uh be able to re uh resist the uh temperature uh uh highs and uh high temperatures and low temperatures. And uh it should be with uh um equipped with timer and alarm facility.
+[15:01] Industrial Designer: And the uh other component we should uh we have in the remote controller is a resistor uh which is like uh uh i it is very very much important for the electricity uh flow through through through the uh remote controller and uh also a capacitor which is a b which is a m I think it's it's like a battery, capacitor. Can you go on to the next slide, please?
+[15:22] Marketing Expert: Mm-hmm.
+[15:23] Project Manager: Mm-hmm.
+[15:26] Industrial Designer: Uh a diode, a transistor, a resonator, these are all this uh technical uh electri electronic compons uh components which are which we have to use in a remote controller. A battery uh, I would like to suggest one thing uh if we
+[15:41] Industrial Designer: uh if we will be able to make a res rechargeable battery then we sh we need not go for a high performance battery, even if it is a low performance battery it ca it can't l it can't charge much. It it it's not a high voltage battery. Then also we can If it is a rechargeable one, then uh people can use it for a long time, so in that way we can cut cut the cost, but w uh uh that we have to make the battery as rechargeable one.
+[15:50] Marketing Expert: Mm-hmm.
+[16:08] Industrial Designer: And we we have a circuit board uh in a remote controller. Can you go to the next slide, please. And how it works, how the remote controller works. When you press a button
+[16:24] Project Manager: Go away.
+[16:26] Industrial Designer: Thank you. Uh when you press a button, when you do that, you complete a specific connection that means when you when you press a button there will be a s a small circuit underneath the button, and it will send some signals through the wires, and then uh the chip will send start connection and knows that which button is pressed. Suppose you have pressed channel one button, number one you have pressed, then the uh chip will know that the number one button was pressed. It pros produces a mors morse code line signal specific to that button.
+[16:58] Industrial Designer: Every button, every individual button, has its own morse code. Suppose uh the uh user has pressed butto button one, then it will have a spe the circuit will generate a specific morse code to b that that button, and the transistor will amplify the signal and send then to the L_E_D_ which translates the signal into infrared light. Like you have got a signal by pressing a button. That's a d a morse code has been generated by the integrated circuit.
+[17:26] Industrial Designer: Now, that signal, that morse code, has to be amplified by the transistor. That is the use of transist transistor we which we use in the remote controller. It will amplify the signal and it will send it to the L_E_D_ and which translates the signal into an infra infrared bits. The sensor on the T_V_ can see the infrared light, and seeing the signal seeing the signal re it reacts appropriately, that when it sees the amplified mo morse code signal, then it will uh it will uh know which uh what what action it has to uh do. Then it will do the appropriate action. So uh this is how the remote controller works.
+[18:03] User Interface Designer: It works.
+[18:05] Industrial Designer: Can you go to the next slide, please.
+[18:08] Industrial Designer: Yeah, I have few pictures. When you look at the uh um remote controller uh it's it's it this is a normal remote controller. And to the next slide, please.
+[18:15] Marketing Expert: Mm-hmm.
+[18:19] Industrial Designer: And where we had a a few buttons and all. And uh if you open the remote controller you have this circui circuit board and few electronic components, like you can see a chip there which is having eighteen pins, and also a capac uh a capacitor, three resistors and also a resonator uh um mm yeah, and di and a diode transistor.
+[18:26] Marketing Expert: Mm-hmm.
+[18:29] Marketing Expert: Mm-hmm.
+[18:30] Project Manager: Mm-hmm.
+[18:43] Project Manager: Mm-hmm.
+[18:44] Industrial Designer: The electronic components uh all of the electronic components have all those uh things like a chip and d diode transistors an
+[18:54] Industrial Designer: Yeah, di um can y uh you can see the T_A_ double one eight three five labelled uh chip um.
+[18:58] Project Manager: Mm-hmm. Mm-hmm.
+[18:59] User Interface Designer: Mm yes.
+[19:00] Marketing Expert: Yes.
+[19:02] Industrial Designer: Uh you can also see the uh uh the green two green things are uh these are they are they are resistors, and uh just beside that you can see a transistor, and a uh uh cylinder shape, uh that one is a capacitor. Uh and also there are uh um resistors uh sorry, ther there is a diode. Can you go go on to the next slide.
+[19:09] User Interface Designer: Mm-hmm.
+[19:21] Project Manager: Mm-hmm. Mm-hmm.
+[19:24] Industrial Designer: So uh this is the circuit board. The green one is a circuit board. Actually, uh building a circuit bo board is pretty pretty uh easy and also it's a it's a l l inexpensive. Uh it's it costs less than what you print on a paper, because uh uh when you when you are building uh some circuits some um uh circuits and also wires, it's it's better to go for printing, because uh you can build these kind of k circuit boards on a on a bulk and it's just printing, nothing like uh, you know, you don't need to use wires and all. It's not exactly wires we are using. It's just printing something on a board. Tha tho those prints will acti act as wires and ci uh circuits.
+[19:53] User Interface Designer: Mm-hmm.
+[20:06] Industrial Designer: So th that green uh thing is a circuit board, and also you can see uh there are b s like uh um access for buttons, like when you press a button, the circuit under the button will be activated uh th it will it will he get some signals from it and it will uh it will ch its ch se send a signal signals to the, yeah, um integrated circuit. Can you go to the next slide, please.
+[20:24] User Interface Designer: Transmit.
+[20:31] Industrial Designer: Uh so this is these are the circuits un underneath the buttons. Uh can you see the black uh, round marks? They they are the circuits.
+[20:37] Project Manager: Mm-hmm.
+[20:37] Marketing Expert: Yes.
+[20:39] Industrial Designer: Next, please. And um like uh we have uh designed uh before we have seen some uh few things like instead off buttons we have some scrolls. Uh b but a b a push-button requires a simple chip underneath it, but whereas a scroll wheel requires normally a regular chip which is a higher price range. Like for s scrolls we have to go for a sophisticated and and k uh uh uh full a complete chip. Uh and a as energy source we offer a basic battery, a more ingenious uh hard dynamo, um a kinetic provision of energy, more than what is that you shake casually to provide energy. So that also we can have in a battery, uh or we can use solar sells. Uh.
+[20:59] Marketing Expert: Okay.
+[21:03] User Interface Designer: Okay.
+[21:25] Marketing Expert: Hmm, that's interesting.
+[21:27] Industrial Designer: Yeah.
+[21:29] Industrial Designer: Uh yeah uh the product can be de delivered into different cases. Uh usually, the cases and card flat that w we see usually uh d uh a normal remote controller. Um.
+[21:37] User Interface Designer: Okay.
+[21:42] Project Manager: Okay. And you have more pictures. Uh we have five minutes to the end of the meeting.
+[21:43] Industrial Designer: Yeah.
+[21:46] Industrial Designer: Yeah, maybe d uh I have just one more slide, I think. Um.
+[21:52] Industrial Designer: Like we can have a ma material such as plastic, rubber, wood, titanium, but titanium we can't use. Um and also for electronics we can use a simple and regular um re or an advanced chip on the print, um also infra it includes the infrared se sender. Um yeah the uh for the movie just to j develop uh samples and so spe sample speaker.
+[22:15] Industrial Designer: An Yeah, that's it.
+[22:19] Industrial Designer: It's all for me now, thank you.
+[22:20] Project Manager: Okay, well thank you.
+[22:22] Project Manager: Any particular comments by anybody?
+[22:26] Marketing Expert: Uh yeah, on the scroll and the push-button, um ca you can achieve scrolling by repeatedly pushing a button?
+[22:33] Industrial Designer: No, no, no, th the the the scrolling wheels are different, like you can go for a sw switches like buttons or scrolls, uh which which we used to do before ten ten years before, I think. Now, nobody uses that because you need you need a a k sophisticated chip and all. So I think it's better we go for uh um ordinary buttons. Yeah uh yeah, push-buttons. Yeah. Yeah.
+[22:39] Marketing Expert: Mm-hmm.
+[22:48] Marketing Expert: Um.
+[22:51] Marketing Expert: We'll just go for push buttons for in the interest of cost. Okay.
+[22:52] User Interface Designer: Push-buttons.
+[22:54] Project Manager: We don't have a lot of time left and we will still have to make a decision, and the marketing expert has to present her her thing.
+[23:01] Marketing Expert: Okay. Go right to my first my next slide.
+[23:03] Project Manager: Uh okay.
+[23:06] Marketing Expert: Um alright, my method is uh I'm interested in what the competition is doing, and wanna see how we can make ourselves different from the competition, so I've really been looking at the press and the ads that are out there for other remote controllers. I s I spend a lot of time on the internet um surfing around doing the same thing. And then when I'm out um in people's houses or at meetings or anything like that, I try to notice what kind of remote controls people have, and if it's convenient in the conversation I ask about it. And I would encourage you all to do the same. Um and my findings from this is that, you know, small is beautiful. Um people like something that really fits in their hand. Simple is beautiful. They don't want to have to squint at small print um, they want buttons whose functions are obvious, and they want um as few buttons as possible, and they don't care for the mode thing. They want each button to do something. And eye-catching is important. It's gotta look cute, it's gotta look appealing. Go ahead, I'm trying to finish fast for you. Um and our preference is, as far as I'm concerned, are we got to get to the market before the competition. Ours has to be look really great and it has to come out before the others, so that we have a leg up on time to sell it and push it before other people get out their Christmas item. And we should develop one or two features we can really dwell on in our ad campaign. If we try to tell people it has too many great features, um the consumer just gets confused and we don't get anywhere. So we've gotta narrow our selection down to li two things, I think, that we gonna say are really great about our our our new product. And I've been looking around um at what designs every year different things are popular. And in my research this year I found out that fruit and vegetable shapes are really popular. And people are tired of hard plastic and hard metal. They are more back into soft feel, spongy feeling things, things with maybe a little cloth on them. So those are things maybe we wanna look at as far as saleability of the item.
+[23:49] User Interface Designer: 'Kay.
+[25:14] User Interface Designer: Mm-hmm.
+[25:17] Project Manager: Okay. Uh that
+[25:21] Project Manager: concludes the presentation of everyone. And what we really have to decide in this meeting is um the concept of the remote.
+[25:32] Marketing Expert: Mm-hmm.
+[25:33] Project Manager: And uh so what do we think on the concept
+[25:41] Project Manager: of the remote?
+[25:45] Marketing Expert: You wanna try to come back to yours, and limit yours a bit?
+[25:47] User Interface Designer: Uh yes, I would like to include this feature which is called as voice recogniser.
+[25:47] Project Manager: Y
+[25:52] Marketing Expert: Okay.
+[25:52] Project Manager: Okay. Mm-hmm.
+[25:54] Industrial Designer: Mm-hmm.
+[25:56] Marketing Expert: So speech recognition is most important as far as you're concerned?
+[25:59] Industrial Designer: Yeah, but w
+[25:59] User Interface Designer: This could be uh one feature which could be sellable.
+[26:02] Marketing Expert: Yeah h that could that could that could be our star feature. That that be really good, yeah, I agree with that.
+[26:03] Industrial Designer: Yeah.
+[26:03] Project Manager: I think that's
+[26:06] Industrial Designer: Yeah, but but I what I'm uh very very much doubtful how how uh far it will work, because a speech recogniser like i it it has its own uh uh problems, issues.
+[26:06] Project Manager: Mm-hmm.
+[26:17] Marketing Expert: Distance problem?
+[26:18] Industrial Designer: Yeah, it's not distance problem it it's recognising a person's voice, like maybe different people will be having different voices, so it like it's uh everything so i
+[26:20] User Interface Designer: Mm-hmm.
+[26:24] Marketing Expert: Uh.
+[26:26] Project Manager: Well, you you teach You have to teach uh
+[26:28] Industrial Designer: So to get a good recogni recognising system, it's a costly thing, I think.
+[26:31] User Interface Designer: No, it's it's, uh yeah, it it's like your recording of uh all uh um a question already, and then you're expecting an answer from th For example, you have a T_V_ system, I'm the user and my family members are the user, I will already record uh a question like, uh good morning, like around eight o'clock I want to see the news in the television. So I'll say just good morning and the T_V_ will switch on. It will recognise my voice and will switch on.
+[26:43] Industrial Designer: Mm-hmm.
+[26:47] Industrial Designer: Yeah, but Yeah. Mm-hmm.
+[26:52] Industrial Designer: Mm-hmm.
+[26:57] Industrial Designer: Mm-hmm.
+[26:59] Industrial Designer: Yeah.
+[26:59] Project Manager: Okay, before we get too far off here um, the components of the concept is the energy. What kind of energy do we foresee?
+[27:10] Marketing Expert: I think I think battery, and I think we all agreed on that. That that's that's gonna be most cost-effective and the best thing.
+[27:10] Project Manager: Battery. Battery.
+[27:11] User Interface Designer: Battery. Yes.
+[27:13] Industrial Designer: Yeah. Yeah.
+[27:16] Project Manager: Okay then chip on print.
+[27:19] Industrial Designer: Yeah.
+[27:19] Marketing Expert: Yep.
+[27:19] User Interface Designer: Yes.
+[27:20] Project Manager: Okay. And the case. And I think we all agree on the case, we wanna have something uh maybe bright, colourful.
+[27:27] Industrial Designer: Yeah.
+[27:28] Marketing Expert: Bright, colourful, trendy trendy design, and strong.
+[27:28] User Interface Designer: And compact.
+[27:29] Industrial Designer: And also strong. Trendy, yeah.
+[27:31] User Interface Designer: Trendy design and compact.
+[27:32] Project Manager: Mm-hmm. Trendy design, compact and strong.
+[27:37] Marketing Expert: Mm-hmm.
+[27:37] User Interface Designer: Yes.
+[27:40] Project Manager: User interface concept, uh interface type, supplements.
+[27:49] Project Manager: That will be your area I think, right, Jana.
+[27:50] Industrial Designer: Uh.
+[27:54] Industrial Designer: Um like the switches, like we use buttons for user interface.
+[27:58] User Interface Designer: Push-buttons.
+[27:59] Project Manager: Put uh k I guess uh for yeah.
+[27:59] Industrial Designer: Push-buttons.
+[28:05] Project Manager: And
+[28:07] Project Manager: Not sure what they mean by supplements.
+[28:07] User Interface Designer: And
+[28:09] Industrial Designer: Yeah.
+[28:09] Marketing Expert: Well, I think that
+[28:09] User Interface Designer: Supplements like different types of features buttons, like can have a f mute button or a swapping button.
+[28:12] Marketing Expert: Yeah, or or like her speech recognition would also be a supplement. Her speech recognition feature would be a supplement.
+[28:13] Project Manager: Oh, like Oh.
+[28:16] Project Manager: A what? Right, right, right, mm-hmm.
+[28:18] User Interface Designer: Recogniser. Yes.
+[28:18] Industrial Designer: Mm yeah.
+[28:20] Marketing Expert: Okay, so why don't we put down speech recognition if possible pending some more research from our industrial engineer on how expensive that is.
+[28:22] Industrial Designer: Hmm.
+[28:26] Industrial Designer: Mm-hmm. Yeah.
+[28:27] Project Manager: Right.
+[28:27] User Interface Designer: Yes.
+[28:31] Project Manager: Okay. Uh our next meeting will be in thirty minutes, and the uh I_D_ is to this is the individual actions to be taken until then, to have the look and feel design,
+[28:48] Project Manager: and uh the U_I_D_ is supposed to uh come up with the user interface design,
+[28:57] Industrial Designer: Mm-hmm.
+[28:58] Project Manager: and the marketing expert with the product evaluation. In this phase, the two of you, Jana and Francine, have to work together on a prototype using modelling clay, it says here. You will receive specific instructions will be sent to you by your coaches.
+[29:02] Marketing Expert: Okay.
+[29:08] User Interface Designer: Okay.
+[29:13] Industrial Designer: Mm-hmm.
+[29:18] User Interface Designer: Okay.
+[29:19] Project Manager: Um if you have any questions, you know, you you can always uh contact me um or uh or your coach, I suppose.
+[29:29] Marketing Expert: Wherever they're hiding?
+[29:33] Project Manager: Um so um I think we conclude the meeting here and we come back in uh uh thirty minutes, according to our timetable here.
+[29:41] Industrial Designer: Yeah.
+[29:41] User Interface Designer: Okay.
+[29:47] Project Manager: Thank you very much.
+[29:48] Industrial Designer: Thank you.
+[29:48] User Interface Designer: Thank you.

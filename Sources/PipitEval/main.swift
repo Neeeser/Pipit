@@ -17,9 +17,13 @@ import PipitSpeakers
 //   pipit-eval echo      --meeting DIR [--json OUT] [--offset SECONDS] [--full-id]
 //   pipit-eval reprocess --meeting DIR [--recognize] [--support DIR] [--backups DIR]
 //   pipit-eval bench     [--suite ami-core] [--engine parakeet ...] [--diarizer local]
+//   pipit-eval summaries --model ollama:qwen3.5:4b [--model openai:gpt-6-luna ...]
+//   pipit-eval rewrite-summary --meeting DIR [--model openai:gpt-6-luna]
 //   pipit-eval live      --meeting DIR --engine parakeet|apple [--pace 1] [--seconds N] [--show-text] [--json OUT]
 //
 // The audio never leaves the machine and nothing here writes to a meeting.
+// `summaries` sends public corpus transcripts to the models it is told to score
+// and to its judge, which may be a cloud provider.
 
 struct Arguments {
     var command: String
@@ -45,6 +49,7 @@ struct Arguments {
     var backups: URL?
     var applicationSupport: URL
     var bench: BenchCommand.Options
+    var summaries = SummaryEvalCommand.Options()
     /// `live` only: 1 feeds audio at recorded speed, 0 replays as fast as it can.
     var pace = 0.0
     var limitSeconds: Double?
@@ -90,6 +95,10 @@ struct Arguments {
             }
             if flag == "--recognize" {
                 recognize = true
+                continue
+            }
+            if flag == "--no-judge" {
+                summaries.judge = nil
                 continue
             }
             if flag == "--show-text" {
@@ -144,8 +153,11 @@ struct Arguments {
             case "--audio-dir": benchOptions.audioDirectory = URL(fileURLWithPath: value)
             case "--out": benchOptions.out = URL(fileURLWithPath: value)
             case "--baseline": benchOptions.baseline = URL(fileURLWithPath: value)
-            case "--repeats": benchOptions.repeats = max(1, Int(value) ?? 1)
-            default: break
+            case "--repeats":
+                benchOptions.repeats = max(1, Int(value) ?? 1)
+                summaries.repeats = benchOptions.repeats
+            default:
+                guard summaries.read(flag, value) else { return nil }
             }
         }
         applicationSupport = support
@@ -155,6 +167,9 @@ struct Arguments {
         benchOptions.engines = engines
         benchOptions.applicationSupport = support
         bench = benchOptions
+        summaries.meetings = benchOptions.meetings
+        summaries.out = benchOptions.out
+        summaries.benchmarks = benchOptions.benchmarks.appendingPathComponent("summaries", isDirectory: true)
     }
 }
 
@@ -204,6 +219,16 @@ func usage() -> Never {
                                  [--diarizer local|lseend|cloud] [--out FILE] [--baseline FILE]
                                  [--allow-missing-baseline] [--audio-dir DIR]
                                  [--repeats N] [--keep-scratch] [--resume]
+          pipit-eval summaries --model PROVIDER:MODEL [--model ...] [--case MEETING ...]
+                                 [--repeats N] [--instructions FILE] [--context TOKENS]
+                                 [--judge PROVIDER:MODEL | --no-judge] [--out DIR]
+                                 [--embedder local:HF_MODEL | ollama:MODEL]
+                                 # providers: openai, openrouter, ollama, custom:<url>|<model>
+          pipit-eval rewrite-summary --meeting MEETING_FOLDER [--model PROVIDER:MODEL]
+                                 [--backups DIR]   # writes summary.md and raw/summary.json
+                                 # again, after copying both to the backups folder
+                continue
+            }
                                  [--live-phrases | --live-sliding | --live-unified | --live-engine]
           pipit-eval live     --meeting MEETING_FOLDER --engine parakeet|apple [--pace 1] [--seconds N]
                                  [--cleaned-mic] [--max-phrase SECONDS] [--show-text] [--json OUT]
@@ -519,6 +544,19 @@ case "live-session":
 
 case "bench":
     let code = await BenchCommand.run(arguments.bench)
+    if code != 0 { exit(code) }
+
+case "rewrite-summary":
+    guard let folder = arguments.meeting else { usage() }
+    let code = await RewriteSummaryCommand.run(
+        meeting: folder, model: arguments.summaries.models.first ?? "openai:gpt-6-luna",
+        backups: arguments.backups
+            ?? arguments.applicationSupport.appendingPathComponent("Backups", isDirectory: true)
+    )
+    if code != 0 { exit(code) }
+
+case "summaries":
+    let code = await SummaryEvalCommand.run(arguments.summaries)
     if code != 0 { exit(code) }
 
 default:

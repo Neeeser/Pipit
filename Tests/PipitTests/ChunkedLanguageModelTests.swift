@@ -51,6 +51,38 @@ struct ChunkedLanguageModelTests {
         )
     }
 
+    @Test("a long meeting keeps each part's topics and writes one overview")
+    func aLongMeetingKeepsEachPartsTopicsAndWritesOneOverview() async throws {
+        let base = Scripted()
+        base.enrichmentFor = { request in
+            switch request.source {
+            case .part(let index, _):
+                let topic = GeneratedSummary.Topic(
+                    title: "Part \(index) topic", at: Double(index * 600),
+                    actionItems: [GeneratedSummary.ActionItem(task: "Task from part \(index)", owner: "Ana")]
+                )
+                return MeetingEnrichment(generatedSummary: GeneratedSummary(overview: "Part \(index)", topics: [topic]))
+            case .partNotes:
+                return MeetingEnrichment(
+                    title: "Whole meeting", generatedSummary: GeneratedSummary(overview: "The whole meeting.")
+                )
+            case .transcript:
+                return MeetingEnrichment()
+            }
+        }
+        let model = ChunkedLanguageModel(base, contextTokens: smallWindow)
+        let result = try await model.enrich(request(transcript(lines: 200)), model: "m")
+
+        let summary = try #require(result.generatedSummary)
+        let parts = base.enrichments.filter { if case .part = $0.source { true } else { false } }.count
+        #expect(parts > 1)
+        #expect(summary.overview == "The whole meeting.")
+        #expect(summary.topics.map(\.title) == (1...parts).map { "Part \($0) topic" })
+        #expect(summary.actionItems.count == parts, "every part's tasks reach the meeting's list")
+        #expect(result.summary?.hasPrefix("The whole meeting.") == true)
+        #expect(result.notes?.contains("### Part 1 topic [10:00]") == true)
+    }
+
     @Test("a meeting that fits is sent as it is")
     func aMeetingThatFitsIsSentAsItIs() async throws {
         let base = Scripted()

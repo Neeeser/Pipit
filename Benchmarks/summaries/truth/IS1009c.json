@@ -1,0 +1,218 @@
+{
+  "meeting": "IS1009c",
+  "overview": "The product-design team met for the conceptual design phase of a new TV remote control: each member presented (user interface options, internal components, and market trends) and the group then chose the concept. They settled on battery power, a chip on a printed circuit board, ordinary push buttons instead of a scroll wheel to save cost, and a bright, colourful, trendy, compact and strong case, with speech recognition as the supplementary star feature if research shows it is affordable. The shape of the remote, the second feature to advertise, and how speech recognition would cope with different voices were left open. Before the next meeting in thirty minutes, the Industrial Designer works on look-and-feel design, the User Interface Designer on the user interface design, the two build a modelling-clay prototype together, and the Marketing Expert prepares the product evaluation.",
+  "action_items": [
+    {
+      "task": "Research how expensive speech recognition would be",
+      "owner": "Industrial Designer",
+      "due": "",
+      "at": "28:20",
+      "quote": "pending some more research from our industrial engineer on how expensive that is",
+      "must_find": true
+    },
+    {
+      "task": "Work on the look-and-feel design",
+      "owner": "Industrial Designer",
+      "due": "next meeting, in thirty minutes",
+      "at": "28:31",
+      "quote": "the uh I_D_ is to this is the individual actions to be taken until then, to have the look and feel design",
+      "must_find": false
+    },
+    {
+      "task": "Come up with the user interface design",
+      "owner": "User Interface Designer",
+      "due": "next meeting, in thirty minutes",
+      "at": "28:48",
+      "quote": "the U_I_D_ is supposed to uh come up with the user interface design",
+      "must_find": true
+    },
+    {
+      "task": "Prepare the product evaluation",
+      "owner": "Marketing Expert",
+      "due": "next meeting, in thirty minutes",
+      "at": "28:58",
+      "quote": "and the marketing expert with the product evaluation",
+      "must_find": true
+    },
+    {
+      "task": "Build a prototype together out of modelling clay, following instructions the coaches will send",
+      "owner": "Industrial Designer and User Interface Designer",
+      "due": "next meeting, in thirty minutes",
+      "at": "28:58",
+      "quote": "the two of you, Jana and Francine, have to work together on a prototype using modelling clay",
+      "must_find": true
+    }
+  ],
+  "decisions": [
+    {
+      "text": "Use ordinary push buttons rather than a scroll wheel, because a scroll wheel needs a more expensive chip",
+      "at": "22:51",
+      "quote": "We'll just go for push buttons for in the interest of cost.",
+      "must_find": true
+    },
+    {
+      "text": "Power the remote with a battery, as the most cost-effective option",
+      "at": "27:10",
+      "quote": "I think battery, and I think we all agreed on that.",
+      "must_find": true
+    },
+    {
+      "text": "Use a chip on a printed circuit board",
+      "at": "27:16",
+      "quote": "Okay then chip on print.",
+      "must_find": true
+    },
+    {
+      "text": "The case should be bright and colourful, with a trendy design, compact and strong",
+      "at": "27:32",
+      "quote": "Trendy design, compact and strong.",
+      "must_find": true
+    },
+    {
+      "text": "Include speech recognition as the supplementary feature, if research shows it is affordable",
+      "at": "28:20",
+      "quote": "why don't we put down speech recognition if possible pending some more research",
+      "must_find": true
+    }
+  ],
+  "open_questions": [
+    {
+      "text": "Whether speech recognition would work reliably across different people's voices, and whether a good recognition system is too costly",
+      "at": "26:28",
+      "quote": "So to get a good recogni recognising system, it's a costly thing, I think.",
+      "must_find": true
+    },
+    {
+      "text": "Which shape the remote should take; the T-shape, child-friendly and oversized designs were raised and the options still need narrowing down",
+      "at": "12:00",
+      "quote": "we're gonna have to narrow it down a little more",
+      "must_find": false
+    },
+    {
+      "text": "Which second feature, alongside speech recognition, the ad campaign should focus on; Marketing wants to narrow the message to two features",
+      "at": "23:06",
+      "quote": "we've gotta narrow our selection down to li two things",
+      "must_find": false
+    },
+    {
+      "text": "Whether to follow the trend toward fruit-and-vegetable shapes and soft, spongy materials",
+      "at": "23:06",
+      "quote": "fruit and vegetable shapes are really popular",
+      "must_find": false
+    },
+    {
+      "text": "Whether the battery should be rechargeable, as the Industrial Designer suggested to cut cost; the decision only said battery",
+      "at": "15:41",
+      "quote": "we have to make the battery as rechargeable one",
+      "must_find": false
+    },
+    {
+      "text": "How the design will deal with people losing the remote, raised in the previous meeting's minutes",
+      "at": "01:29",
+      "quote": "it's also an item that people lose a lot. So we should address that.",
+      "must_find": false
+    }
+  ],
+  "topics": [
+    {
+      "title": "Minutes of the previous meeting",
+      "start": "00:37",
+      "end": "04:46",
+      "points": [
+        "The remote should be easy to use with a short learning curve, and it is an item people lose a lot, which the design should address.",
+        "Marketing wants it to be very attractive ('sizzle') so people buy it on impulse, since with small items people who go home to think about it do not come back; it might be sold with a slogan.",
+        "The technical side proposed an infrared chip with an interface that controls it, plus extras such as lit buttons, a beep if too many buttons are pressed, a child lock and a display clock; different shapes were mentioned.",
+        "Components listed: buttons, infrared bulbs, battery, chips, wires and possibly a holder.",
+        "The interface designer proposed an on-off button, a channel lock to keep small children from unsuitable channels, a compact T-shape, an alarm clock and non-allergic materials.",
+        "Other points: infrared versus radio-wave systems, an electricity-saving feature, and a timer to program favourite programmes from the remote.",
+        "Everyone agreed this matched the previous meeting."
+      ]
+    },
+    {
+      "title": "User interface presentation",
+      "start": "04:57",
+      "end": "11:51",
+      "points": [
+        "The User Interface Designer focused on how the remote looks, so that it is attractive and sellable.",
+        "Proposed functions: on-off, number buttons one to nine, a swap button between channels, a next-channel button, volume up and down, a subtitle button (for example English subtitles on a French programme), picture controls for colour, contrast, sharpness and brightness, a memory switch, and a mute button for phone calls.",
+        "The most important feature for her is speech recognition: users record their own voice and the TV recognises commands such as asking for channel nine.",
+        "Examples shown: cluttered remotes where users cannot tell which button does what; a multi-purpose remote with a built-in voice recogniser for TV, cable-satellite, VCR, DVD and audio; a colourful child-friendly remote with minimal buttons; and a jumbo universal remote that is impossible to misplace.",
+        "Her personal preference is to incorporate speech recognition."
+      ]
+    },
+    {
+      "title": "Reactions to the user interface presentation",
+      "start": "11:51",
+      "end": "12:46",
+      "points": [
+        "Marketing said there are still too many choices and they need narrowing; the T-shape and child designs are good, but the oversized remote is too unwieldy to be an impulse purchase at the checkout.",
+        "The Project Manager deferred decisions to the end of the meeting."
+      ]
+    },
+    {
+      "title": "Components presentation",
+      "start": "12:46",
+      "end": "22:20",
+      "points": [
+        "The case could be hard plastic so it does not break when dropped, with no harmful materials, recyclable, and with colouring components for colours such as blue, red or green.",
+        "The integrated circuit is the heart of the remote and should be sophisticated, withstand high and low temperatures (for example thirty-eight to forty degrees outside), and include timer and alarm functions.",
+        "Other parts: resistor, capacitor, diode, transistor, resonator, battery and circuit board.",
+        "The Industrial Designer suggested a rechargeable battery so a lower-performance battery could be used for a long time and cost cut.",
+        "How it works: pressing a button closes a small circuit, the chip produces a Morse-code-like signal specific to that button, the transistor amplifies it, and an LED sends it as infrared light that the TV's sensor reads.",
+        "An opened remote shows an eighteen-pin TA11835 chip, a capacitor, three resistors, a resonator, a diode and a transistor on the board.",
+        "Printed circuit boards are easy and inexpensive to make in bulk because printed tracks replace wires.",
+        "A push button needs only a simple chip, while a scroll wheel needs a more sophisticated, higher-priced chip.",
+        "Energy options: basic battery, hand dynamo, kinetic energy from shaking, or solar cells.",
+        "Material options are plastic, rubber, wood and titanium, but titanium cannot be used; chips can be simple, regular or advanced, and the board includes the infrared sender and a sample speaker."
+      ]
+    },
+    {
+      "title": "Scroll wheel versus push buttons",
+      "start": "22:22",
+      "end": "22:54",
+      "points": [
+        "Marketing asked whether scrolling could be done by repeatedly pressing a button; the Industrial Designer said scroll wheels need a sophisticated chip and are no longer used, and recommended ordinary push buttons.",
+        "Marketing agreed to go with push buttons for cost."
+      ]
+    },
+    {
+      "title": "Marketing trend presentation",
+      "start": "22:54",
+      "end": "25:17",
+      "points": [
+        "Method: following competitors' press and ads, searching online, and noticing and asking about remotes in people's homes and at meetings; Marketing encouraged the others to do the same.",
+        "Findings: small is beautiful (fits in the hand), simple is beautiful (no small print, obvious functions, as few buttons as possible, no mode switching, each button does one thing), and eye-catching (cute, appealing) matters.",
+        "The product must reach the market before competitors' Christmas items.",
+        "The ad campaign should dwell on one or two features, since too many features confuse consumers.",
+        "This year fruit and vegetable shapes are popular, and people are tired of hard plastic and metal and prefer soft, spongy feel, possibly with cloth."
+      ]
+    },
+    {
+      "title": "Concept decisions",
+      "start": "25:17",
+      "end": "28:27",
+      "points": [
+        "The User Interface Designer wanted to keep speech recognition as a sellable feature, and Marketing called it a possible star feature.",
+        "The Industrial Designer doubted how well it would work, because recognising different people's voices is hard and a good system is costly.",
+        "The User Interface Designer explained users would pre-record commands, for example saying good morning to switch on the TV for the news at eight.",
+        "Agreed: battery power, chip on print, a bright, colourful, trendy, compact and strong case, and push buttons for the interface.",
+        "Supplements were clarified as extra feature buttons such as mute or swap, with speech recognition as a supplement pending cost research by the Industrial Designer."
+      ]
+    },
+    {
+      "title": "Next steps and close",
+      "start": "28:31",
+      "end": "29:48",
+      "points": [
+        "The next meeting is in thirty minutes.",
+        "Individual actions: Industrial Designer on look-and-feel design, User Interface Designer on user interface design, Marketing Expert on product evaluation.",
+        "The Industrial Designer and User Interface Designer will build a modelling-clay prototype together, with instructions coming from their coaches.",
+        "Questions can go to the Project Manager or the coaches."
+      ]
+    }
+  ],
+  "human_not_covered": [
+    "Decision part 'supplement features (possibly mute button, swapping button, ...)': the User Interface Designer gave mute and swapping buttons only as examples of what 'supplements' means (28:09); the only supplement put down was speech recognition, pending research.",
+    "Action 'The industrial designer will come up with a user interface design': the transcript gives the user interface design to the User Interface Designer (28:48) and the look-and-feel design to the Industrial Designer (28:31); the key keeps the transcript's owners."
+  ]
+}

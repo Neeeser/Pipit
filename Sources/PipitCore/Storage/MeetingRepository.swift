@@ -88,6 +88,24 @@ public struct MeetingStore: Sendable {
         try AtomicFile.writeText(text, to: layout.summary)
     }
 
+    /// Writes `summary.md` and, beside it, the structure it was written from.
+    public func writeSummary(_ text: String, structure: GeneratedSummary) throws {
+        try writeSummary(text)
+        let file = StructuredSummaryFile(markdown: text, summary: structure)
+        try AtomicFile.write(JSONEncoder().encode(file), to: layout.structuredSummary)
+    }
+
+    /// The structure `summary.md` was written from, or nil when there is none
+    /// or `summary.md` has changed since, which is a person editing it by hand.
+    /// The edited text is then what the tabs show.
+    public func readGeneratedSummary() -> GeneratedSummary? {
+        guard let data = try? Data(contentsOf: layout.structuredSummary),
+            let file = try? JSONDecoder().decode(StructuredSummaryFile.self, from: data),
+            file.markdown == readSummary()
+        else { return nil }
+        return file.summary
+    }
+
     // MARK: transcripts
 
     public func readRawTranscript() throws -> RawTranscript {

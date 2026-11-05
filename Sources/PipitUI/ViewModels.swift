@@ -492,6 +492,10 @@ public final class MeetingReviewModel {
     /// the Notes tab beside them rather than on the Summary tab under a second
     /// heading.
     public var generatedNotes: String?
+    /// The summary and notes as structure, when enrichment wrote them that
+    /// way and nobody has edited `summary.md` since. Older meetings and edited
+    /// files show `summary` and `generatedNotes` instead.
+    public var generatedSummary: GeneratedSummary?
     public var isEnriching = false
     public var isSuggestingNames = false
     public var errorMessage: String?
@@ -504,7 +508,6 @@ public final class MeetingReviewModel {
     /// Everyone Pipit could put on a line, for the pickers.
     public var knownPeople: [SpeakerDirectoryEntry] = []
     public var expectedParticipants: [String] = []
-    public var participantDraft = ""
     /// What the people picker is open on, if it is open.
     public var naming: SpeakerNamingTarget?
     /// Where the transcript is being walked: one speaker's turns, or a search.
@@ -674,6 +677,7 @@ public final class MeetingReviewModel {
         let document = found.store.readSummaryDocument()
         summary = document.summary
         generatedNotes = document.generatedNotes
+        generatedSummary = found.store.readGeneratedSummary()
         transcript = try? found.store.readCanonicalTranscript()
         expectedParticipants = found.metadata.participants
             .filter { $0.origin == .human }
@@ -875,28 +879,6 @@ public final class MeetingReviewModel {
     public func detach(_ recordingID: String) {
         runtime.detachContinuation(meetingID: recordingID)
         reload()
-    }
-
-    public func addParticipant() {
-        let trimmed = participantDraft.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else { return }
-        expectedParticipants.append(trimmed)
-        participantDraft = ""
-        saveParticipants()
-    }
-
-    public func removeParticipant(_ name: String) {
-        expectedParticipants.removeAll { $0 == name }
-        saveParticipants()
-    }
-
-    /// Records who the user says was present and re-runs identity resolution
-    /// alone. No audio is read and nothing is transcribed again.
-    public func saveParticipants() {
-        let names = expectedParticipants
-        Task { [runtime, meetingID] in
-            await runtime.setExpectedParticipants(names, meetingID: meetingID)
-        }
     }
 
     /// Re-runs clustering, optionally at a speaker count the user chose. The

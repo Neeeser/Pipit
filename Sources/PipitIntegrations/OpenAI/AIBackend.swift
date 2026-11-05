@@ -116,16 +116,21 @@ public struct MeetingEnrichment: Sendable, Equatable, Codable {
     /// the order it ranked them. Empty is the expected answer for a meeting
     /// that belongs in none of them, and the instructions say so.
     public var folderCandidates: [ModelFolderCandidate]
+    /// The summary and notes as structure. `summary` and `notes` are this,
+    /// written out as markdown for `summary.md`.
+    public var generatedSummary: GeneratedSummary?
 
     public init(
         title: String? = nil, summary: String? = nil, description: String? = nil,
-        notes: String? = nil, folderCandidates: [ModelFolderCandidate] = []
+        notes: String? = nil, folderCandidates: [ModelFolderCandidate] = [],
+        generatedSummary: GeneratedSummary? = nil
     ) {
         self.title = title
         self.summary = summary
         self.description = description
         self.notes = notes
         self.folderCandidates = folderCandidates
+        self.generatedSummary = generatedSummary
     }
 }
 
@@ -173,13 +178,21 @@ public struct EnrichmentRequest: Sendable {
     /// or when the reach is set to recurring meetings only.
     public var folders: [EnrichmentFolder]
     public var source: EnrichmentSource
+    /// When the meeting started, so a deadline said as a weekday can be read
+    /// against the day of the meeting.
+    public var startedAt: Date?
+    /// Replaces the built-in instructions. Set by the evaluation tool to score
+    /// a draft of the prompt without rebuilding; the app never sets it.
+    public var instructions: String?
 
     public init(
         transcript: String, humanNotes: String?, participants: [String], provider: MeetingProvider,
         durationSeconds: Double, wantsTitle: Bool, wantsDescription: Bool,
         wantsSummary: Bool, wantsNotes: Bool, folders: [EnrichmentFolder] = [],
-        source: EnrichmentSource = .transcript
+        source: EnrichmentSource = .transcript, startedAt: Date? = nil, instructions: String? = nil
     ) {
+        self.startedAt = startedAt
+        self.instructions = instructions
         self.transcript = transcript
         self.humanNotes = humanNotes
         self.participants = participants

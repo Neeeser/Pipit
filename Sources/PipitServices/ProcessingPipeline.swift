@@ -3002,6 +3002,33 @@ public actor ProcessingPipeline {
         metadata.processing.skippedForMissingKey = await !languageModels(settings).isConfigured()
     }
 
+    /// What enrichment asks about a meeting, or nil when it has no words yet.
+    ///
+    /// Shared with the developer tools, so a summary rewritten from the
+    /// command line is asked for exactly as the app asks for it.
+    public static func enrichmentRequest(
+        store: MeetingStore, metadata: MeetingMetadata, settings: AppSettings, folders: [EnrichmentFolder]
+    ) throws -> EnrichmentRequest? {
+        guard let transcript = try store.readCanonicalTranscript(), !transcript.utterances.isEmpty else {
+            return nil
+        }
+        let speakers = try store.readSpeakerMap()
+        let text = TranscriptRenderer().plainText(transcript: transcript, speakers: speakers)
+        return EnrichmentRequest(
+            transcript: String(text.prefix(transcriptLimit(settings, openAI: 120_000))),
+            humanNotes: store.readNotes(),
+            participants: speakers.entries.values.map(\.displayName),
+            provider: metadata.provider,
+            durationSeconds: metadata.durationSeconds,
+            wantsTitle: settings.enrichment.generateTitle,
+            wantsDescription: settings.enrichment.generateDescription,
+            wantsSummary: settings.enrichment.generateSummary,
+            wantsNotes: settings.enrichment.generateNotes,
+            folders: folders,
+            startedAt: metadata.startedAt
+        )
+    }
+
     private func runEnrichment(
         store: MeetingStore, metadata: inout MeetingMetadata, settings: AppSettings
     ) async throws {
@@ -3012,28 +3039,13 @@ public actor ProcessingPipeline {
         // default must not fail a meeting for someone who runs everything here.
         let reasoner = languageModels(settings)
         guard await reasoner.isConfigured() else { return }
-        guard let transcript = try store.readCanonicalTranscript(), !transcript.utterances.isEmpty else {
-            return
-        }
-        let speakers = try store.readSpeakerMap()
-        let renderer = TranscriptRenderer()
-        let text = renderer.plainText(transcript: transcript, speakers: speakers)
-
-        let enrichment = try await reasoner.enrich(
-            EnrichmentRequest(
-                transcript: String(text.prefix(Self.transcriptLimit(settings, openAI: 120_000))),
-                humanNotes: store.readNotes(),
-                participants: speakers.entries.values.map(\.displayName),
-                provider: metadata.provider,
-                durationSeconds: metadata.durationSeconds,
-                wantsTitle: settings.enrichment.generateTitle,
-                wantsDescription: settings.enrichment.generateDescription,
-                wantsSummary: settings.enrichment.generateSummary,
-                wantsNotes: settings.enrichment.generateNotes,
+        guard
+            let request = try Self.enrichmentRequest(
+                store: store, metadata: metadata, settings: settings,
                 folders: folderCatalogue(for: metadata, settings: settings)
-            ),
-            model: settings.models.metadata
-        )
+            )
+        else { return }
+        let enrichment = try await reasoner.enrich(request, model: settings.models.metadata)
         pendingFolderCandidates[metadata.id] = enrichment.folderCandidates
 
         // A human title always wins; the AI title only fills an empty slot.
@@ -3049,7 +3061,11 @@ public actor ProcessingPipeline {
         )
         if !document.isEmpty {
             // Written to summary.md, never to notes.md: the user's notes are theirs.
-            try store.writeSummary(document.markdown)
+            if let structure = enrichment.generatedSummary {
+                try store.writeSummary(document.markdown, structure: structure)
+            } else {
+                try store.writeSummary(document.markdown)
+            }
         }
     }
 

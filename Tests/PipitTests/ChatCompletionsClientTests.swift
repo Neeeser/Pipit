@@ -48,12 +48,18 @@ struct ChatCompletionsClientTests {
 
     @Test("the answer is asked for as a schema, with the key and the app's name")
     func theAnswerIsAskedForAsASchemaWithTheKeyAndTheAppsName() async throws {
-        let server = StubServer { [self] _ in reply(#"{"title":"Ship on Friday","summary":"Ana and Ben agreed."}"#) }
+        let answer = #"""
+            {"topics":[{"title":"Release","at":"[00:01]","points":["Friday is the date"],
+            "action_items":[{"task":"Ship on Friday","owner":"Ben","due":"","at":"00:09","question":false}]}],
+            "overview":"Ana and Ben agreed.","title":"Ship on Friday"}
+            """#
+        let server = StubServer { [self] _ in reply(answer) }
         let result = try await client(server, provider: .openRouter, key: RecordingKey("sk-or-test"))
             .enrich(enrichment(), model: "meta-llama/llama-3.3-70b-instruct")
 
         #expect(result.title == "Ship on Friday")
-        #expect(result.summary == "Ana and Ben agreed.")
+        #expect(result.summary == "Ana and Ben agreed.\n\n### Action items\n\n- Ship on Friday (Ben) [00:09]")
+        #expect(result.generatedSummary?.topics.first?.at == 1, "a time copied with its brackets still reads")
 
         let sent = try #require(server.requests.first)
         #expect(sent.method == "POST")
