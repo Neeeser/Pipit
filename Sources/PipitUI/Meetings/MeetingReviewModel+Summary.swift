@@ -13,6 +13,10 @@ extension MeetingReviewModel {
         return !(summary?.isEmpty ?? true) || !(generatedSummary?.isEmpty ?? true)
     }
 
+    /// Whether a rewrite of this meeting's summary is running, started by
+    /// anything, so the button does not ask for a second one.
+    public var isSummaryBeingWritten: Bool { runtime.summariesBeingWritten.contains(meetingID) }
+
     /// Writes summary, title and description again from every part.
     public func rewriteSummary() {
         guard !isEnriching else { return }

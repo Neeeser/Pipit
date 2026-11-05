@@ -108,7 +108,7 @@ struct MeetingSummaryTab: View {
     /// rewrite has not happened, for want of a key or because the app quit.
     private var outOfDateNotice: some View {
         HStack(spacing: 10) {
-            Text("This summary was written before this meeting's parts changed.")
+            Text("This summary covers only part of this meeting.")
                 .foregroundStyle(.secondary)
             Button {
                 detail.rewriteSummary()
@@ -119,7 +119,7 @@ struct MeetingSummaryTab: View {
                     Label("Write again", systemImage: "sparkles")
                 }
             }
-            .disabled(detail.isEnriching)
+            .disabled(detail.isEnriching || detail.isSummaryBeingWritten)
         }
     }
 

@@ -3,6 +3,7 @@ import PipitCore
 import PipitIntegrations
 import PipitServices
 import PipitUI
+import Synchronization
 import Testing
 
 /// What the summary tab reads from a conversation made of several recordings.
@@ -38,6 +39,19 @@ struct ConversationDetailTests {
         #expect(detail.notes.isEmpty, "the Notes tab still edits only the first recording's file")
     }
 
+    private final class Posted: @unchecked Sendable {
+        private let lock = NSLock()
+        private var categories: [NotificationService.Category] = []
+        func add(_ category: NotificationService.Category) { lock.withLock { categories.append(category) } }
+        var all: [NotificationService.Category] { lock.withLock { categories } }
+    }
+
+    @MainActor
+    private static func waitUntil(_ condition: @MainActor () -> Bool) async {
+        let deadline = Date().addingTimeInterval(10)
+        while !condition(), Date() < deadline { try? await Task.sleep(nanoseconds: 20_000_000) }
+    }
+
     @Test("a merge with no key leaves the summary marked, and Write again rewrites it with no notification")
     @MainActor
     func outdatedNoticeAndWriteAgain() async throws {
@@ -51,12 +65,13 @@ struct ConversationDetailTests {
         let backend = FakeAIBackend()
         backend.configured = false
         let runtime = RuntimeFixtures.makeRuntime(root: root, backend: backend)
+        let posted = Posted()
+        runtime.notifications = NotificationService(observer: { category, _ in posted.add(category) })
         let model = MeetingsWindowModel(runtime: runtime)
         await model.reload()
         model.show(meetingID: made[0].id)
         let detail = try #require(model.detail)
         detail.reload()
-        try await Task.sleep(nanoseconds: 1)
         #expect(!detail.summaryIsOutOfDate, "no mark yet")
 
         _ = try made[0].store.updateMetadata { $0.titles.ai = "Old title" }
@@ -64,8 +79,12 @@ struct ConversationDetailTests {
         model.merge(model.rows)
         await model.reload()
         let merged = try #require(model.detail)
-        merged.reload()
+        await Self.waitUntil {
+            merged.reload()
+            return merged.metadata?.processing.skippedForMissingKey == true
+        }
         #expect(merged.metadata?.summaryNeedsRewrite == true)
+        #expect(merged.metadata?.processing.skippedForMissingKey == true, "the pane says why")
         #expect(!merged.summaryIsOutOfDate, "a meeting with no summary shows no notice")
 
         try made[0].store.writeSummary("First part only.")
@@ -75,11 +94,47 @@ struct ConversationDetailTests {
         backend.configured = true
         backend.enrichment = MeetingEnrichment(title: "New title", summary: "Both parts.")
         merged.rewriteSummary()
-        let deadline = Date().addingTimeInterval(10)
-        while merged.isEnriching, Date() < deadline { try await Task.sleep(nanoseconds: 20_000_000) }
+        await Self.waitUntil { !merged.isEnriching }
 
         #expect(merged.summary == "Both parts.")
         #expect(merged.metadata?.titles.ai == "New title", "the title is written again too")
         #expect(!merged.summaryIsOutOfDate)
+        #expect(posted.all.isEmpty, "no ready notification and no problem notice")
+    }
+
+    @Test("the button waits while a rewrite runs, and a failed one is reported without Retry")
+    @MainActor
+    func buttonWaitsAndFailureHasNoRetry() async throws {
+        let root = try TestPaths.makeTemporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let made = try (0..<2).map { index in
+            try RuntimeFixtures.makeMeeting(
+                root: root, clusters: ["remote-001_speaker_00"], title: "Part \(index)",
+                startedAt: Self.base.addingTimeInterval(Double(index) * 3_600))
+        }
+        let backend = FakeAIBackend()
+        let runtime = RuntimeFixtures.makeRuntime(root: root, backend: backend)
+        let posted = Posted()
+        runtime.notifications = NotificationService(observer: { category, _ in posted.add(category) })
+        runtime.combine(
+            meetingID: made[1].id, into: made[0].id, reason: "a test", rewritingSummary: false)
+        let model = MeetingsWindowModel(runtime: runtime)
+        await model.reload()
+        model.show(meetingID: made[0].id)
+        let detail = try #require(model.detail)
+        let open = Mutex(false)
+        backend.enrichInterference = {
+            while !open.withLock({ $0 }) { try? await Task.sleep(nanoseconds: 2_000_000) }
+        }
+        backend.failEnrichment = .transport(reason: "offline")
+
+        runtime.refreshConversationSummary(meetingID: made[0].id)
+        await Self.waitUntil { detail.isSummaryBeingWritten }
+        #expect(detail.isSummaryBeingWritten, "a rewrite from anywhere holds the button")
+        open.withLock { $0 = true }
+        await Self.waitUntil { !detail.isSummaryBeingWritten }
+        await Self.waitUntil { !posted.all.isEmpty }
+
+        #expect(posted.all == [.summaryProblem], "reported, and not as a processing problem with Retry")
     }
 }

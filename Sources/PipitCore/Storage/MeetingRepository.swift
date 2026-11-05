@@ -437,12 +437,15 @@ public struct MeetingSummary: Sendable, Equatable, Identifiable {
     /// The folder this meeting is filed in, read from where it sits on disk.
     /// Nil for one still under `YYYY/MM`.
     public let folderName: String?
+    /// Whether the first recording's metadata says the summary is behind the
+    /// recordings. Carried so the launch pass needs no second read.
+    public let summaryNeedsRewrite: Bool
 
     public init(
         id: String, directory: URL, title: String, startedAt: Date, durationSeconds: Double,
         source: MeetingSource, provider: MeetingProvider, processingState: ProcessingState,
         wasInterrupted: Bool, hasTranscript: Bool, recordingCount: Int = 1,
-        isArchived: Bool = false, folderName: String? = nil
+        isArchived: Bool = false, folderName: String? = nil, summaryNeedsRewrite: Bool = false
     ) {
         self.id = id
         self.directory = directory
@@ -457,6 +460,7 @@ public struct MeetingSummary: Sendable, Equatable, Identifiable {
         self.recordingCount = recordingCount
         self.isArchived = isArchived
         self.folderName = folderName
+        self.summaryNeedsRewrite = summaryNeedsRewrite
     }
 }
 
@@ -1033,7 +1037,8 @@ public struct MeetingRepository: Sendable {
             isArchived: metadata.isArchived,
             // Where it sits, not what the metadata remembers. A folder renamed
             // in Finder moves every meeting in it without touching a file.
-            folderName: archive.folderName(ofDirectory: directory)
+            folderName: archive.folderName(ofDirectory: directory),
+            summaryNeedsRewrite: metadata.summaryNeedsRewrite == true
         )
     }
 

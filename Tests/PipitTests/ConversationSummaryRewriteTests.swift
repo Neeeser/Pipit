@@ -43,6 +43,7 @@ struct ConversationSummaryRewriteTests {
 
     private static func makePipeline(
         repository: MeetingRepository, backend: FakeAIBackend, failures: Failures = Failures(),
+        summaryFailures: Failures = Failures(), summaryBackups: URL? = nil,
         onProgress: @escaping @Sendable (ProcessingPipeline.Progress) -> Void = { _ in },
         onSummaryRewritten: @escaping @Sendable (String) -> Void = { _ in }
     ) -> ProcessingPipeline {
@@ -52,6 +53,8 @@ struct ConversationSummaryRewriteTests {
             onProgress: onProgress,
             onFailure: { id, _ in failures.add(id) },
             onSummaryRewritten: onSummaryRewritten,
+            onSummaryFailure: { id, _ in summaryFailures.add(id) },
+            summaryBackups: summaryBackups,
             wait: { _ in })
     }
 
@@ -171,14 +174,19 @@ struct ConversationSummaryRewriteTests {
             .refreshConversationSummary(meetingID: pair.ids[0])
         #expect(offline.enrichmentRequests.isEmpty)
         #expect(try pair.stores[0].readMetadata().summaryNeedsRewrite == true)
+        #expect(
+            try pair.stores[0].readMetadata().processing.skippedForMissingKey == true,
+            "the pane can say why nothing happened")
 
         // A new run of the app, with a key.
         let backend = FakeAIBackend()
-        await Self.makePipeline(repository: pair.repository, backend: backend).resumeInterrupted()
+        await Self.makePipeline(repository: pair.repository, backend: backend)
+            .payLaunchSummaryRewrites()
 
         #expect(backend.enrichmentRequests.count == 1)
         #expect(pair.stores[0].readSummaryDocument().summary == "Discussed retrieval.")
         #expect(try pair.stores[0].readMetadata().summaryNeedsRewrite == nil, "paid, so not owed again")
+        #expect(try pair.stores[0].readMetadata().processing.skippedForMissingKey == false)
     }
 
     @Test("the rewrite replaces the description and leaves a newer processing state alone")
@@ -318,30 +326,86 @@ struct ConversationSummaryRewriteTests {
         #expect(try store.readMetadata().summaryNeedsRewrite == nil, "paid in the end")
     }
 
-    @Test("the first launch marks a joined conversation whose summary predates its last part, once")
-    func launchMarksOldConversationsOnce() async throws {
+    @Test("the first launch marks every joined conversation that has a summary, once")
+    func launchMarksJoinedConversationsOnce() async throws {
         let root = try TestPaths.makeTemporaryDirectory()
         defer { try? FileManager.default.removeItem(at: root) }
         let pair = try Self.makeLinkedPair(root: root)
+        // Written after the last part finished, which a date comparison missed.
         try pair.stores[0].writeSummary("First part only.")
-        func ageTheSummary() throws {
-            try FileManager.default.setAttributes(
-                [.modificationDate: Self.base.addingTimeInterval(-1_000)],
-                ofItemAtPath: pair.stores[0].layout.summary.path)
-        }
-        try ageTheSummary()
         let backend = FakeAIBackend()
         let pipeline = Self.makePipeline(repository: pair.repository, backend: backend)
 
-        await pipeline.resumeInterrupted()
+        await pipeline.payLaunchSummaryRewrites()
 
         #expect(backend.enrichmentRequests.count == 1, "written again from both parts")
         #expect(try pair.stores[0].readMetadata().summaryNeedsRewrite == nil)
 
-        // Not a second time on a later launch, whatever the dates say.
-        try ageTheSummary()
-        await pipeline.resumeInterrupted()
+        // Not a second time on a later launch.
+        try pair.stores[0].writeSummary("Edited since.")
+        await pipeline.payLaunchSummaryRewrites()
         #expect(backend.enrichmentRequests.count == 1)
+    }
+
+    @Test("a rewrite that fails at launch posts nothing, and a manual one reports without Retry")
+    func failureAnnouncements() async throws {
+        let root = try TestPaths.makeTemporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let pair = try Self.makeLinkedPair(root: root)
+        try pair.stores[0].writeSummary("First part only.")
+        let backend = FakeAIBackend()
+        backend.failEnrichment = .transport(reason: "offline")
+        let retryable = Failures()
+        let reported = Failures()
+        let pipeline = Self.makePipeline(
+            repository: pair.repository, backend: backend, failures: retryable,
+            summaryFailures: reported)
+
+        await pipeline.payLaunchSummaryRewrites()
+        #expect(backend.enrichmentRequests.count == 1)
+        #expect(reported.all.isEmpty, "nobody asked for the launch rewrite")
+
+        await pipeline.refreshConversationSummary(meetingID: pair.ids[0])
+        #expect(reported.all == [pair.ids[0]])
+        #expect(retryable.all.isEmpty, "Retry would run no rewrite on a finished meeting")
+    }
+
+    @Test("a rewrite copies the summary it replaces, hand edits included")
+    func rewriteBacksUpTheOldSummary() async throws {
+        let root = try TestPaths.makeTemporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let pair = try Self.makeLinkedPair(root: root)
+        try pair.stores[0].writeSummary("Edited by hand.")
+        let backups = root.appendingPathComponent("Backups")
+        let pipeline = Self.makePipeline(
+            repository: pair.repository, backend: FakeAIBackend(), summaryBackups: backups)
+
+        await pipeline.refreshConversationSummary(meetingID: pair.ids[0])
+
+        let dated = try FileManager.default.contentsOfDirectory(
+            at: backups.appendingPathComponent(pair.ids[0]), includingPropertiesForKeys: nil)
+        let copy = try #require(dated.first).appendingPathComponent("summary.md")
+        #expect(try String(contentsOf: copy, encoding: .utf8).contains("Edited by hand."))
+        #expect(pair.stores[0].readSummaryDocument().summary == "Discussed retrieval.")
+    }
+
+    @Test("the button path keeps the debt when a newer one is pending")
+    func generateEnrichmentKeepsANewerDebt() async throws {
+        let root = try TestPaths.makeTemporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        // A part still processing, so the debt stays owed while the button runs.
+        let pair = try Self.makeLinkedPair(root: root, secondState: .transcribing)
+        _ = try pair.stores[0].updateMetadata { $0.summaryNeedsRewrite = true }
+        let backend = FakeAIBackend()
+        let pipeline = Self.makePipeline(repository: pair.repository, backend: backend)
+        let id = pair.ids[0]
+        backend.enrichInterference = {
+            await pipeline.refreshConversationSummary(meetingID: id)
+        }
+
+        try await pipeline.generateEnrichment(meetingID: id)
+
+        #expect(try pair.stores[0].readMetadata().summaryNeedsRewrite == true)
     }
 
     @Test("a part that failed does not stop the summary from being written from the rest")
@@ -369,14 +433,18 @@ struct ConversationSummaryRewriteTests {
         let backend = FakeAIBackend()
         backend.failEnrichment = .transport(reason: "offline")
         let failures = Failures()
-        let pipeline = Self.makePipeline(repository: pair.repository, backend: backend, failures: failures)
+        let summaryFailures = Failures()
+        let pipeline = Self.makePipeline(
+            repository: pair.repository, backend: backend, failures: failures,
+            summaryFailures: summaryFailures)
 
         await pipeline.refreshConversationSummary(meetingID: pair.ids[0])
 
         let metadata = try pair.stores[0].readMetadata()
         #expect(metadata.processing.state == .complete)
         #expect(metadata.titles.ai == "Earlier title")
-        #expect(failures.all == [pair.ids[0]], "the person is told")
+        #expect(summaryFailures.all == [pair.ids[0]], "the person is told")
+        #expect(failures.all.isEmpty, "without the Retry that runs no rewrite")
 
         // Not blocked afterwards: the next ask writes the summary.
         backend.failEnrichment = nil
@@ -391,7 +459,8 @@ struct ConversationSummaryRewriteTests {
         defer { try? FileManager.default.removeItem(at: root) }
         let pair = try Self.makeLinkedPair(root: root)
         var before = try pair.stores[0].readMetadata()
-        before.summaryNeedsRewrite = true  // the only change: what is owed is recorded
+        before.summaryNeedsRewrite = true  // what is owed is recorded
+        before.processing.skippedForMissingKey = true  // and why nothing happened
         let backend = FakeAIBackend()
         backend.configured = false
         let failures = Failures()

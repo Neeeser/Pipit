@@ -166,7 +166,9 @@ public final class PipitRuntime {
     @ObservationIgnored private var permissionWatch: Task<Void, Never>?
 
     @ObservationIgnored public let repository: MeetingRepository
-    @ObservationIgnored public let notifications = NotificationService()
+    @ObservationIgnored public var notifications = NotificationService()
+    /// Conversations whose summary is being written again right now.
+    public private(set) var summariesBeingWritten: Set<String> = []
     @ObservationIgnored public let permissions = PermissionsService()
     /// The OpenAI key, read from the keychain once and held for the process.
     /// Exposed so saving a rotated key updates it without a relaunch.
@@ -434,7 +436,25 @@ public final class PipitRuntime {
                     relay?.runtimeForCallbacks?.refreshRecentMeetings()
                     relay?.runtimeForCallbacks?.onProcessingUpdate?(meetingID)
                 }
-            }
+            },
+            onSummaryFailure: { [weak relay] meetingID, error in
+                Task { @MainActor in
+                    guard let runtime = relay?.runtimeForCallbacks, runtime.settings.showNotifications
+                    else { return }
+                    runtime.notifications.summaryProblem(error, meetingID: meetingID)
+                }
+            },
+            onSummaryRewriting: { [weak relay] meetingID, running in
+                Task { @MainActor in
+                    guard let runtime = relay?.runtimeForCallbacks else { return }
+                    if running {
+                        runtime.summariesBeingWritten.insert(meetingID)
+                    } else {
+                        runtime.summariesBeingWritten.remove(meetingID)
+                    }
+                }
+            },
+            summaryBackups: settingsDirectory.appendingPathComponent("Backups", isDirectory: true)
         )
         relay.connect(runtime: self)
         seedStatus(from: loaded)
@@ -537,6 +557,10 @@ public final class PipitRuntime {
             // app quit never re-enters `process`, so this is the only pass that
             // gives its folder the title enrichment produced.
             await pipeline.settleFolderNames()
+            refreshRecentMeetings()
+            // Last, because each rewrite is a request and the launch work above
+            // is what the person is waiting on.
+            await pipeline.payLaunchSummaryRewrites()
             refreshRecentMeetings()
         }
     }
@@ -1989,17 +2013,20 @@ public final class PipitRuntime {
         for childID in carried {
             updateLinked(childID, { $0.mergedIntoMeetingID = target.id })
         }
-        guard
-            updateLinked(
-                meetingID,
-                {
-                    $0.absorbedMeetingIDs = []
-                    $0.mergedIntoMeetingID = target.id
-                    $0.possibleContinuationOf = nil
-                    $0.possibleContinuationReason = nil
-                })
-        else { return false }
-        Log.app.info("combined a meeting into an earlier one: \(reason, privacy: .public)")
+        // From here the conversation lists the later recording, so its summary is
+        // behind whether or not the pointer below lands, and the caller is told
+        // so even when it does not.
+        let pointed = updateLinked(
+            meetingID,
+            {
+                $0.absorbedMeetingIDs = []
+                $0.mergedIntoMeetingID = target.id
+                $0.possibleContinuationOf = nil
+                $0.possibleContinuationReason = nil
+            })
+        if pointed {
+            Log.app.info("combined a meeting into an earlier one: \(reason, privacy: .public)")
+        }
         refreshRecentMeetings()
         onProcessingUpdate?(target.id)
         if rewritingSummary { refreshConversationSummary(meetingID: target.id) }
