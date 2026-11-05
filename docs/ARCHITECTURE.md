@@ -424,6 +424,15 @@ A cluster identifier is only meaningful inside one recording. A call that droppe
 and was rejoined is two recordings under one row, and both number their speakers
 from zero, so every correction names the recording it belongs to.
 
+The summary belongs to the conversation, not to a recording. Enrichment for the
+recording a conversation started with reads every recording in time order, with
+each line stamped on the conversation's timeline, which is the one the summary's
+moments are played against. A recording folded into an earlier one skips
+enrichment. Linking or separating recordings puts the first recording back at the
+enriching stage once every recording in the conversation has finished processing,
+and a continuation that finishes later asks for the same. `transcript.md` is
+still written per recording and does not include continuations.
+
 ## Reading the archive
 
 The meetings window lists every recording, grouped by when and searched by title,

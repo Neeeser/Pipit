@@ -1930,8 +1930,8 @@ public final class PipitRuntime {
 
     /// Links one recording to the conversation an earlier one started.
     ///
-    /// Both directories stay exactly as they are: two files gain a pointer at
-    /// each other and nothing else changes. The second recording is the only
+    /// The link changes two files, which gain a pointer at each other, and
+    /// moves nothing. The second recording is the only
     /// copy of the second half of the call, so it keeps its own segments,
     /// manifest, raw transcription, raw diarization and speaker map, and stays
     /// reachable under its own identifier.
@@ -1941,7 +1941,14 @@ public final class PipitRuntime {
     /// the link became a subtraction; a subtraction that goes wrong reports a
     /// duration no file on disk supports. The combined figure is derived when it
     /// is read.
-    public func combine(meetingID: String, into earlierID: String, reason: String) {
+    ///
+    /// The conversation's summary is written again afterwards, from every
+    /// recording, unless `rewritingSummary` is false. A caller that links
+    /// several recordings in a row passes false and asks once at the end with
+    /// `refreshConversationSummary`, so one merge is one request.
+    public func combine(
+        meetingID: String, into earlierID: String, reason: String, rewritingSummary: Bool = true
+    ) {
         guard let later = repository.findMeeting(id: meetingID),
             repository.findMeeting(id: earlierID) != nil
         else { return }
@@ -1974,6 +1981,19 @@ public final class PipitRuntime {
         Log.app.info("combined a meeting into an earlier one: \(reason, privacy: .public)")
         refreshRecentMeetings()
         onProcessingUpdate?(target.id)
+        if rewritingSummary { refreshConversationSummary(meetingID: target.id) }
+    }
+
+    /// Writes a finished conversation's summary again from all of its
+    /// recordings. Does nothing while one of them is still processing, which
+    /// asks again when it finishes.
+    public func refreshConversationSummary(meetingID: String) {
+        runProcessing { [weak self] in
+            guard let self else { return }
+            await pipeline.refreshConversationSummary(meetingID: meetingID)
+            onProcessingUpdate?(meetingID)
+            refreshRecentMeetings()
+        }
     }
 
     /// Separates a recording from the conversation it was linked to.
@@ -1997,6 +2017,10 @@ public final class PipitRuntime {
         Log.app.info("separated a continuation from the meeting it was linked to")
         refreshRecentMeetings()
         onProcessingUpdate?(parentID)
+        // Both halves, since each now stands on its own: the conversation lost
+        // a part, and the part never had a summary of its own while it was one.
+        refreshConversationSummary(meetingID: parentID)
+        refreshConversationSummary(meetingID: meetingID)
     }
 
     /// Declines a suggested continuation, so it is not offered again.

@@ -47,6 +47,14 @@ public actor ProcessingPipeline {
     /// and the tail of the run, which is the only point where the meeting's
     /// directory may safely be moved.
     private var pendingFolderCandidates: [String: [ModelFolderCandidate]] = [:]
+    /// Conversations whose summary is being written again, so the tail of the
+    /// run does not file them. The person merged or separated recordings; they
+    /// did not ask for the meeting to move.
+    private var rewritingSummary: Set<String> = []
+    /// For each continuation that finished processing in a run, the conversation
+    /// whose summary now has words it was missing. Taken once the run has let go
+    /// of the job slot, because writing that summary needs the slot itself.
+    private var summaryRewritesDue: [String: String] = [:]
     /// The cloud client. Still the only thing that writes titles, summaries and
     /// textual speaker suggestions, and still optional in every configuration.
     private let backend: any AIBackend
@@ -251,6 +259,46 @@ public actor ProcessingPipeline {
     /// Runs or resumes a meeting. Safe to call repeatedly; a meeting already in
     /// flight is left alone.
     public func process(meetingID: String) async {
+        await runStages(meetingID: meetingID)
+        if let primaryID = summaryRewritesDue.removeValue(forKey: meetingID) {
+            await refreshConversationSummary(meetingID: primaryID)
+        }
+    }
+
+    /// Writes the summary, title and timeline of a finished conversation again,
+    /// from every recording in it.
+    ///
+    /// Linking recordings changes the metadata and nothing else, so the summary
+    /// written for the first recording stopped where that recording ended. This
+    /// puts the conversation's first recording back at the enriching stage and
+    /// runs it, the way a microphone redo puts one at transcribing. Nothing is
+    /// done while any recording is still processing: the one that finishes last
+    /// asks again, and a summary written before it had words would only be
+    /// written a second time.
+    public func refreshConversationSummary(meetingID: String) async {
+        guard settingsProvider().enrichment.wantsAnything,
+            let conversation = repository.logicalMeeting(id: meetingID),
+            !running.contains(conversation.id), conversation.isFullyProcessed
+        else { return }
+        let now = clock.now
+        let primaryID = conversation.id
+        do {
+            try conversation.primary.store.updateMetadata {
+                $0.processing.advance(to: .enriching, at: now)
+                $0.processing.attempts[ProcessingState.enriching.rawValue] = nil
+            }
+        } catch {
+            Log.processing.error(
+                "summary rewrite not started: \(logSafeDescription(error), privacy: .public)"
+            )
+            return
+        }
+        rewritingSummary.insert(primaryID)
+        await runStages(meetingID: primaryID)
+        rewritingSummary.remove(primaryID)
+    }
+
+    private func runStages(meetingID: String) async {
         guard !running.contains(meetingID) else { return }
         // includingMerged, because a reconnected meeting is folded into the
         // earlier one and hidden from the archive listing while its own segments
@@ -273,6 +321,7 @@ public actor ProcessingPipeline {
         let store = found.store
         let settings = settingsProvider()
         let redoingMicrophone = metadata.microphoneRedoRequestedAt != nil
+        let rewritingOwnSummary = rewritingSummary.contains(meetingID)
         // The recording's own session, from its manifest, so a failure here can
         // be read beside the capture events of the same call. Nil for a
         // meeting recorded before diagnostics existed.
@@ -389,15 +438,23 @@ public actor ProcessingPipeline {
                     // through Rebuild Transcript for the first and not at all for
                     // the second. The words are already on disk; the archive gets
                     // written either way and the failure is still reported.
+                    // A recording folded into an earlier one does not write a
+                    // summary of its own: the conversation has one, written from
+                    // all of its recordings. Read again from disk because the
+                    // link can be made while this job runs.
+                    let continuationOf = (try? store.readMetadata())?.mergedIntoMeetingID
                     var enrichmentFailure: (any Error)?
-                    do {
-                        try await runEnrichment(store: store, metadata: &metadata, settings: settings)
-                    } catch {
-                        enrichmentFailure = error
+                    if continuationOf == nil {
+                        do {
+                            try await runEnrichment(store: store, metadata: &metadata, settings: settings)
+                        } catch {
+                            enrichmentFailure = error
+                        }
                     }
                     try await finish(store: store, metadata: &metadata, settings: settings)
                     if let enrichmentFailure { throw enrichmentFailure }
                     metadata.processing.advance(to: .complete, at: clock.now)
+                    if let continuationOf { summaryRewritesDue[metadata.id] = continuationOf }
                     // The decoded working copies are derived from audio that is
                     // never modified, so they are thrown away as soon as the
                     // meeting stops needing them.
@@ -513,8 +570,9 @@ public actor ProcessingPipeline {
         // Not after redoing the microphone, which is a request to change one
         // track of a meeting that has long had its title and its folder.
         // Filing it now would apply rules written since to a meeting the user
-        // never asked to move.
-        if !heldByOthers(meetingID, besidesSelf: true), !redoingMicrophone {
+        // never asked to move. The same goes for a summary written again after
+        // recordings were merged or separated.
+        if !heldByOthers(meetingID, besidesSelf: true), !redoingMicrophone, !rewritingOwnSummary {
             // Before the rename: filing changes which directory the meeting is
             // in, and renaming works inside whichever that turns out to be.
             await placeInFolder(metadata: metadata, settings: settings)
@@ -3029,6 +3087,55 @@ public actor ProcessingPipeline {
         )
     }
 
+    /// What enrichment asks about a conversation that was recorded more than
+    /// once: every recording's words in the order the conversation happened.
+    ///
+    /// Each line is stamped on the conversation's timeline, the one the summary
+    /// tab and the player seek on, so a moment the model returns lands on the
+    /// recording that holds it. The duration is the length of that timeline,
+    /// which includes the gaps between recordings, so a moment in a late
+    /// recording is not discarded as past the end. Notes are the first
+    /// recording's, the ones the summary tab shows.
+    public static func enrichmentRequest(
+        conversation: LogicalMeeting, metadata: MeetingMetadata, settings: AppSettings,
+        folders: [EnrichmentFolder]
+    ) throws -> EnrichmentRequest? {
+        guard conversation.isSplit else {
+            return try enrichmentRequest(
+                store: conversation.primary.store, metadata: metadata, settings: settings,
+                folders: folders)
+        }
+        let lines = conversation.combinedTranscript()
+        guard !lines.isEmpty else { return nil }
+        let renderer = TranscriptRenderer()
+        let text = lines.map {
+            "[\(renderer.timecode($0.timelineStart))] \($0.speakerName): \($0.utterance.text)"
+        }.joined(separator: "\n")
+        var participants: [String] = []
+        for recording in conversation.recordings {
+            let speakers = (try? recording.store.readSpeakerMap()) ?? SpeakerMap()
+            for name in speakers.entries.values.map(\.displayName) where !participants.contains(name) {
+                participants.append(name)
+            }
+        }
+        let timelineEnd = conversation.recordings.map {
+            $0.metadata.startedAt.timeIntervalSince(conversation.startedAt) + $0.metadata.durationSeconds
+        }.max()
+        return EnrichmentRequest(
+            transcript: String(text.prefix(transcriptLimit(settings, openAI: 120_000))),
+            humanNotes: conversation.primary.store.readNotes(),
+            participants: participants,
+            provider: metadata.provider,
+            durationSeconds: max(conversation.durationSeconds, timelineEnd ?? 0),
+            wantsTitle: settings.enrichment.generateTitle,
+            wantsDescription: settings.enrichment.generateDescription,
+            wantsSummary: settings.enrichment.generateSummary,
+            wantsNotes: settings.enrichment.generateNotes,
+            folders: folders,
+            startedAt: metadata.startedAt
+        )
+    }
+
     private func runEnrichment(
         store: MeetingStore, metadata: inout MeetingMetadata, settings: AppSettings
     ) async throws {
@@ -3039,12 +3146,18 @@ public actor ProcessingPipeline {
         // default must not fail a meeting for someone who runs everything here.
         let reasoner = languageModels(settings)
         guard await reasoner.isConfigured() else { return }
-        guard
-            let request = try Self.enrichmentRequest(
-                store: store, metadata: metadata, settings: settings,
-                folders: folderCatalogue(for: metadata, settings: settings)
-            )
-        else { return }
+        let folders = folderCatalogue(for: metadata, settings: settings)
+        // Read through the conversation, so a recording that has continuations
+        // is summarized as one meeting rather than up to where it ended.
+        let request: EnrichmentRequest?
+        if let conversation = repository.logicalMeeting(id: metadata.id), conversation.id == metadata.id {
+            request = try Self.enrichmentRequest(
+                conversation: conversation, metadata: metadata, settings: settings, folders: folders)
+        } else {
+            request = try Self.enrichmentRequest(
+                store: store, metadata: metadata, settings: settings, folders: folders)
+        }
+        guard let request else { return }
         let enrichment = try await reasoner.enrich(request, model: settings.models.metadata)
         pendingFolderCandidates[metadata.id] = enrichment.folderCandidates
 

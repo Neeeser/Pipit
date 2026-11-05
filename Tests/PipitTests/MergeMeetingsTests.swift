@@ -121,4 +121,118 @@ struct MergeMeetingsTests {
         #expect(logical.recordings.map(\.metadata.id) == [ids[0], ids[1]])
         #expect(runtime.repository.findMeeting(id: ids[2]) != nil)
     }
+
+    // MARK: - the summary reads the whole conversation
+
+    /// Two finished recordings an hour apart, each saying something only it
+    /// says, in a runtime whose model is a fake that keeps what it was asked.
+    @MainActor
+    private static func makeSummarizedPair(
+        root: URL, backend: FakeAIBackend
+    ) throws -> (runtime: PipitRuntime, ids: [String]) {
+        let words = ["opening budget question", "closing hiring answer"]
+        let ids = try words.enumerated().map { index, text in
+            try RuntimeFixtures.makeMeeting(
+                root: root, clusters: ["remote-001_speaker_00"], words: text,
+                title: "Part \(index)",
+                startedAt: base.addingTimeInterval(Double(index) * 3_600)
+            ).id
+        }
+        return (RuntimeFixtures.makeRuntime(root: root, backend: backend), ids)
+    }
+
+    /// Waits for the background job a link starts, which no call returns.
+    @MainActor
+    private static func waitForRequests(
+        _ count: Int, on backend: FakeAIBackend, atLeastFor seconds: Double = 0
+    ) async {
+        let deadline = Date().addingTimeInterval(10)
+        while backend.enrichmentRequests.count < count, Date() < deadline {
+            try? await Task.sleep(nanoseconds: 20_000_000)
+        }
+        // A request that should not happen has no event to wait for.
+        if seconds > 0 { try? await Task.sleep(nanoseconds: UInt64(seconds * 1_000_000_000)) }
+    }
+
+    /// The request is the first thing to happen; the write and the state that
+    /// follow it come a moment later.
+    @MainActor
+    private static func waitForComplete(_ id: String, in runtime: PipitRuntime) async {
+        let deadline = Date().addingTimeInterval(10)
+        while runtime.repository.findMeeting(id: id)?.metadata.processing.state != .complete,
+            Date() < deadline
+        {
+            try? await Task.sleep(nanoseconds: 20_000_000)
+        }
+    }
+
+    @Test("merging two processed meetings summarizes both, on the conversation's timeline")
+    @MainActor
+    func mergeWritesTheSummaryFromEveryRecording() async throws {
+        let root = try TestPaths.makeTemporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let backend = FakeAIBackend()
+        let (runtime, ids) = try Self.makeSummarizedPair(root: root, backend: backend)
+        _ = try runtime.repository.findMeeting(id: ids[0])?.store.updateMetadata {
+            $0.titles.human = "Named by a person"
+        }
+
+        runtime.combine(meetingID: ids[1], into: ids[0], reason: "a test")
+        await Self.waitForRequests(1, on: backend)
+
+        let request = try #require(backend.enrichmentRequests.last)
+        #expect(request.transcript.contains("opening budget question"))
+        #expect(request.transcript.contains("closing hiring answer"))
+        // The second recording started an hour in, so its first line sits there.
+        #expect(request.transcript.contains("[1:00:00]"))
+        #expect(request.durationSeconds >= 3_600 + 600, "the timeline reaches the end of the last part")
+
+        // The primary is written again and finished, and a person's title wins.
+        await Self.waitForComplete(ids[0], in: runtime)
+        let primary = try #require(runtime.repository.findMeeting(id: ids[0]))
+        #expect(primary.store.readSummaryDocument().summary == "Discussed retrieval.")
+        let metadata = try primary.store.readMetadata()
+        #expect(metadata.processing.state == .complete)
+        #expect(metadata.displayTitle == "Named by a person")
+        // The continuation does not write a summary of its own.
+        let later = try #require(runtime.repository.findMeeting(id: ids[1], includingMerged: true))
+        #expect((later.store.readSummaryDocument().summary ?? "").isEmpty)
+    }
+
+    @Test("merging several meetings at once writes the summary once")
+    @MainActor
+    func mergeOfThreeWritesOneSummary() async throws {
+        let root = try TestPaths.makeTemporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let backend = FakeAIBackend()
+        let runtime = RuntimeFixtures.makeRuntime(root: root, backend: backend)
+        let ids = try Self.makeThree(root: root)
+        let model = MeetingsWindowModel(runtime: runtime)
+        await model.reload()
+
+        model.merge(model.rows)
+        await Self.waitForRequests(1, on: backend, atLeastFor: 0.5)
+
+        #expect(backend.enrichmentRequests.count == 1)
+        #expect(runtime.repository.logicalMeeting(id: ids[0])?.recordings.count == 3)
+    }
+
+    @Test("separating a part writes the summary again for what is left")
+    @MainActor
+    func separatingAPartRewritesThePrimary() async throws {
+        let root = try TestPaths.makeTemporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let backend = FakeAIBackend()
+        let (runtime, ids) = try Self.makeSummarizedPair(root: root, backend: backend)
+        runtime.combine(meetingID: ids[1], into: ids[0], reason: "a test", rewritingSummary: false)
+
+        runtime.detachContinuation(meetingID: ids[1])
+        await Self.waitForRequests(2, on: backend)
+
+        // One for each half, now that each is a meeting of its own.
+        let texts = backend.enrichmentRequests.map(\.transcript)
+        let first = try #require(texts.first { $0.contains("opening budget question") })
+        #expect(!first.contains("closing hiring answer"), "the separated part is left out")
+        #expect(texts.contains { $0.contains("closing hiring answer") && !$0.contains("opening") })
+    }
 }
