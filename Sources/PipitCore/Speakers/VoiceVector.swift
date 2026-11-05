@@ -16,6 +16,11 @@ public struct EmbeddingModelIdentifier: Hashable, Codable, Sendable, CustomStrin
     }
 
     /// The offline diarizer's 256-dimension embedding head, as measured.
+    ///
+    /// Stored voice profiles carry this identifier, so it names the
+    /// embedding weights rather than the package. FluidAudio 0.18.2 ships
+    /// the same `Embedding.mlmodelc`, byte for byte, as 0.15.6, and keeping
+    /// the identifier keeps every enrolled voice matchable.
     public static let fluidAudioOffline = EmbeddingModelIdentifier(
         rawValue: "fluidaudio-offline-diarizer-0.15.6-256", dimension: 256
     )

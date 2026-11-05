@@ -91,10 +91,10 @@
 		B0093BF8EF2DEC410F19D424 /* pipit-cli */ = {isa = PBXFileReference; includeInIndex = 0; path = "pipit-cli"; sourceTree = BUILT_PRODUCTS_DIR; };
 		B51AD68CF4CC5EBBC835EFAD /* pipit-warning.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = "pipit-warning.png"; sourceTree = "<group>"; };
 		BE18F1D24E08FB3C8CFE1B45 /* pipit-warning@2x.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = "pipit-warning@2x.png"; sourceTree = "<group>"; };
-		C378220EE2A82342865F4CD0 /* release-0.1.10 */ = {isa = PBXFileReference; lastKnownFileType = folder; name = "release-0.1.10"; path = .; sourceTree = SOURCE_ROOT; };
 		CD6F58DFE74C9079257BC916 /* Pipit.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Pipit.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		CF162ACFBE7E6E8D288ED3AE /* main.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = main.swift; sourceTree = "<group>"; };
 		CF8423805ED90026CB9FE79F /* pipit-nativehost */ = {isa = PBXFileReference; includeInIndex = 0; path = "pipit-nativehost"; sourceTree = BUILT_PRODUCTS_DIR; };
+		E8E76A82057AB00AAE8FCFA0 /* pippit-audio-quality-audit-e8a392 */ = {isa = PBXFileReference; lastKnownFileType = folder; name = "pippit-audio-quality-audit-e8a392"; path = .; sourceTree = SOURCE_ROOT; };
 		EE665BD0FBCB237C161ED197 /* pipit-recording.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = "pipit-recording.png"; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
@@ -243,7 +243,7 @@
 		C3F5AEB0AE40EB2D5EE6807D /* Packages */ = {
 			isa = PBXGroup;
 			children = (
-				C378220EE2A82342865F4CD0 /* release-0.1.10 */,
+				E8E76A82057AB00AAE8FCFA0 /* pippit-audio-quality-audit-e8a392 */,
 			);
 			name = Packages;
 			sourceTree = "<group>";

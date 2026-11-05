@@ -52,7 +52,7 @@ let package = Package(
     // so it is a re-evaluation, not a bump.
     dependencies: [
         .package(url: "https://github.com/argmaxinc/argmax-oss-swift.git", exact: "1.1.0"),
-        .package(url: "https://github.com/FluidInference/FluidAudio.git", exact: "0.15.6"),
+        .package(url: "https://github.com/FluidInference/FluidAudio.git", exact: "0.18.2"),
         // Sparkle ships the updater as a framework with nested XPC services and
         // an Autoupdate helper. A version change moves that signing layout and
         // changes how the updater behaves, so the version is exact and a bump

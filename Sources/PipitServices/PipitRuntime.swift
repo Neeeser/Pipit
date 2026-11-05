@@ -134,6 +134,9 @@ public final class PipitRuntime {
     public private(set) var recentMeetings: [MeetingSummary] = []
     public private(set) var processing: [String: ProcessingPipeline.Progress] = [:]
     public private(set) var provisionalPrompt: ProvisionalPrompt?
+    /// The live transcript of the recording in progress, for the live window.
+    @ObservationIgnored public let live = LiveTranscriptModel()
+    @ObservationIgnored private var liveSession: LiveTranscriptSession?
     public private(set) var settings: AppSettings
     /// Whether the on-device speech models are installed, and how far a
     /// download has got. Recording never waits on this.
@@ -783,6 +786,41 @@ public final class PipitRuntime {
         enqueue { [weak self] in await self?.perform(actions) }
     }
 
+    /// Starts the live transcript for a recording that just reached disk, when
+    /// the setting is on.
+    private func startLiveTranscript(meetingID: String, title: String) {
+        live.begin(title: title, meetingID: meetingID)
+        live.localUserName = settings.localUserName
+        live.hiddenFromSharing = settings.live.hiddenFromScreenSharing
+        live.saveNote = { [weak self] text in self?.addNote(text) }
+        guard settings.live.isEnabled else {
+            live.setState(.off)
+            return
+        }
+        let session = LiveTranscriptSession(
+            meetingID: meetingID, engine: settings.live.engine, models: models,
+            speakers: speakers, speakerSettings: settings.processing.speakers,
+            scratch: ProcessingScratch.defaultRoot().appendingPathComponent(
+                "live-" + MeetingArchiveLayout.slugify(meetingID, maxLength: 96), isDirectory: true
+            ),
+            model: live
+        )
+        liveSession = session
+        captureEngine.setLiveAudioQueue(session.queue)
+        Task { await session.start() }
+        if settings.live.opensWithRecording { live.onOpenRequest?() }
+    }
+
+    /// Detaches the live transcript and lets it settle on its own. Not
+    /// awaited: a live engine waiting behind another meeting's processing for
+    /// the speech model must not hold up the end of this one.
+    private func stopLiveTranscript() {
+        captureEngine.setLiveAudioQueue(nil)
+        guard let session = liveSession else { return }
+        liveSession = nil
+        Task { await session.stop() }
+    }
+
     public func addNote(_ text: String) {
         captureEngine.addMarker(text)
         guard let meeting = currentMeeting else { return }
@@ -841,6 +879,8 @@ public final class PipitRuntime {
         let sharingChanged = newSettings.sharesDiagnosticsAutomatically != settings.sharesDiagnosticsAutomatically
         settings = newSettings
         settingsSnapshot.withLock { $0 = newSettings }
+        live.localUserName = newSettings.localUserName
+        live.hiddenFromSharing = newSettings.live.hiddenFromScreenSharing
         if sharingChanged { automaticSharingDidChange(to: newSettings.sharesDiagnosticsAutomatically) }
         do {
             try settingsStore.save(newSettings)
@@ -1591,6 +1631,7 @@ public final class PipitRuntime {
             )
             currentMeeting = (metadata, created.store)
             sensorRecorder = SensorRecorder(anchorMonotonic: clock.monotonicSeconds)
+            startLiveTranscript(meetingID: metadata.id, title: metadata.displayTitle)
             diagnostics.record(
                 .sessionStarted(
                     source: request.source, trigger: Self.startTrigger(for: request.source),
@@ -1712,6 +1753,7 @@ public final class PipitRuntime {
 
     private func discard(reason: String) async {
         sessionWarnings = []
+        stopLiveTranscript()
         await captureEngine.discardArmed()
         if let meeting = currentMeeting {
             let snapshot = await captureEngine.stop(reason: reason)
@@ -1733,6 +1775,7 @@ public final class PipitRuntime {
 
     private func finish(reason: String) async {
         let snapshot = await captureEngine.stop(reason: reason)
+        stopLiveTranscript()
         provisionalPrompt = nil
         guard let meeting = currentMeeting else {
             sensorRecorder = nil

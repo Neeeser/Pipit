@@ -426,7 +426,12 @@ struct SpeakerLanesPlot: View {
 struct LaneRuler: View {
     let timeline: PlaybackTimeline
 
-    static let height: CGFloat = 16
+    /// Tall enough for a label's full line above its mark; the canvas clips
+    /// anything drawn outside it.
+    nonisolated static let height: CGFloat = 20
+    nonisolated static let labelSize: CGFloat = 10
+    /// How far a label's bottom edge sits above the rule.
+    nonisolated static let labelGap: CGFloat = 6
     /// Room a label needs beside the next one.
     nonisolated static let minimumSpacing: CGFloat = 64
 
@@ -450,12 +455,12 @@ struct LaneRuler: View {
                 tick.addLine(to: CGPoint(x: x + 0.5, y: baseline - 5))
                 context.stroke(tick, with: .color(.primary.opacity(0.25)), lineWidth: 1)
                 let label = Text(renderer.timecode(timeline.timelineSeconds(at: seconds)))
-                    .font(.system(size: 10).monospacedDigit())
+                    .font(.system(size: Self.labelSize).monospacedDigit())
                     .foregroundStyle(Color.secondary)
                 // The first label starts at its mark, so it does not hang
                 // off the left end; the rest are centred on theirs.
                 context.draw(
-                    label, at: CGPoint(x: x, y: baseline - 6),
+                    label, at: CGPoint(x: x, y: baseline - Self.labelGap),
                     anchor: seconds == 0 ? .bottomLeading : .bottom
                 )
             }

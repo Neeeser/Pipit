@@ -19,6 +19,7 @@ import PipitSpeakers
 //   pipit-eval bench     [--suite ami-core] [--engine parakeet ...] [--diarizer local]
 //   pipit-eval summaries --model ollama:qwen3.5:4b [--model openai:gpt-6-luna ...]
 //   pipit-eval rewrite-summary --meeting DIR [--model openai:gpt-6-luna]
+//   pipit-eval live      --meeting DIR --engine parakeet|apple [--pace 1] [--seconds N] [--show-text] [--json OUT]
 //
 // The audio never leaves the machine and nothing here writes to a meeting.
 // `summaries` sends public corpus transcripts to the models it is told to score
@@ -49,6 +50,25 @@ struct Arguments {
     var applicationSupport: URL
     var bench: BenchCommand.Options
     var summaries = SummaryEvalCommand.Options()
+    /// `live` only: 1 feeds audio at recorded speed, 0 replays as fast as it can.
+    var pace = 0.0
+    var limitSeconds: Double?
+    var showText = false
+    var cleanedMic = false
+    var maximumPhraseSeconds: Double?
+
+    /// Bench flags that take no value.
+    static var benchSwitches: [String: WritableKeyPath<BenchCommand.Options, Bool>] {
+        [
+            "--keep-scratch": \.keepScratch,
+            "--resume": \.resume,
+            "--allow-missing-baseline": \.allowMissingBaseline,
+            "--live-phrases": \.livePhrases,
+            "--live-sliding": \.liveSliding,
+            "--live-unified": \.liveUnified,
+            "--live-engine": \.liveEngine,
+        ]
+    }
 
     init?(_ raw: [String]) {
         guard let command = raw.first else { return nil }
@@ -65,16 +85,8 @@ struct Arguments {
             // Flags that take no value, read before the value is demanded: a
             // trailing --keep-scratch would otherwise fall off the end and be
             // dropped without a word.
-            if flag == "--keep-scratch" {
-                benchOptions.keepScratch = true
-                continue
-            }
-            if flag == "--resume" {
-                benchOptions.resume = true
-                continue
-            }
-            if flag == "--allow-missing-baseline" {
-                benchOptions.allowMissingBaseline = true
+            if let option = Self.benchSwitches[flag] {
+                benchOptions[keyPath: option] = true
                 continue
             }
             if flag == "--full-id" {
@@ -87,6 +99,14 @@ struct Arguments {
             }
             if flag == "--no-judge" {
                 summaries.judge = nil
+                continue
+            }
+            if flag == "--show-text" {
+                showText = true
+                continue
+            }
+            if flag == "--cleaned-mic" {
+                cleanedMic = true
                 continue
             }
             // Every flag left takes a value. A trailing one used to fall off
@@ -116,6 +136,15 @@ struct Arguments {
                 guard let seconds = Double(value) else { return nil }
                 referenceOffset = seconds
             case "--support": support = URL(fileURLWithPath: value)
+            case "--pace":
+                guard let speed = Double(value), speed >= 0 else { return nil }
+                pace = speed
+            case "--max-phrase":
+                guard let seconds = Double(value), seconds > 0 else { return nil }
+                maximumPhraseSeconds = seconds
+            case "--seconds":
+                guard let seconds = Double(value), seconds > 0 else { return nil }
+                limitSeconds = seconds
             case "--suite": benchOptions.suite = value
             case "--case": benchOptions.meetings.append(value)
             case "--truth": benchOptions.truthFiles.append(URL(fileURLWithPath: value))
@@ -204,6 +233,17 @@ func usage() -> Never {
           pipit-eval rewrite-summary --meeting MEETING_FOLDER [--model PROVIDER:MODEL]
                                  [--backups DIR]   # writes summary.md and raw/summary.json
                                  # again, after copying both to the backups folder
+                continue
+            }
+                                 [--live-phrases | --live-sliding | --live-unified | --live-engine]
+          pipit-eval live     --meeting MEETING_FOLDER --engine parakeet|apple [--pace 1] [--seconds N]
+                                 [--cleaned-mic] [--max-phrase SECONDS] [--show-text] [--json OUT]
+                                 # replays a meeting through the live transcript;
+                                 # --show-text and --json carry meeting text
+          pipit-eval live-session --meeting MEETING_FOLDER --engine apple|parakeet [--pace 1]
+                                 [--seconds N] [--support DIR]
+                                 # replays a meeting through the app's live session
+                                 # and reports whether it kept up
         """)
     exit(2)
 }
@@ -484,6 +524,28 @@ case "reanalyze":
         meeting: folder, applicationSupport: arguments.applicationSupport,
         speakerCount: arguments.speakerCount
     )
+    if code != 0 { exit(code) }
+
+case "live":
+    guard let folder = arguments.meeting else { usage() }
+    let code = await LiveCommand.run(
+        LiveCommand.Options(
+            meeting: folder, applicationSupport: arguments.applicationSupport,
+            pace: arguments.pace, limitSeconds: arguments.limitSeconds,
+            showText: arguments.showText, json: arguments.json, cleanedMic: arguments.cleanedMic,
+            engine: LocalTranscriptionModel(rawValue: arguments.engine) ?? .whisper,
+            maximumPhraseSeconds: arguments.maximumPhraseSeconds
+        ))
+    if code != 0 { exit(code) }
+
+case "live-session":
+    guard let folder = arguments.meeting else { usage() }
+    let code = await LiveSessionCommand.run(
+        LiveSessionCommand.Options(
+            meeting: folder, applicationSupport: arguments.applicationSupport,
+            engine: LocalTranscriptionModel(rawValue: arguments.engine) ?? .apple,
+            pace: arguments.pace, limitSeconds: arguments.limitSeconds
+        ))
     if code != 0 { exit(code) }
 
 case "bench":
