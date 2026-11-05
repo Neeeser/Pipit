@@ -410,13 +410,16 @@ public final class MeetingsWindowModel {
     private var selectionAnchor: String?
 
     /// `extending` toggles one row (Command-click). `throughRange` selects
-    /// every visible row from the anchor to this one (Shift-click).
+    /// every visible row from the anchor to this one (Shift-click), and adds
+    /// that range to the selection when `extending` is also set
+    /// (Command-Shift-click).
     public func select(_ id: String, extending: Bool, throughRange: Bool = false) {
         let visible = sections.flatMap(\.rows).map(\.id)
         if throughRange, let anchor = selectionAnchor,
             let from = visible.firstIndex(of: anchor), let to = visible.firstIndex(of: id)
         {
-            selection = Set(visible[min(from, to)...max(from, to)])
+            let range = Set(visible[min(from, to)...max(from, to)])
+            selection = extending ? selection.union(range) : range
         } else if extending {
             if selection.contains(id) { selection.remove(id) } else { selection.insert(id) }
             selectionAnchor = id
@@ -441,6 +444,7 @@ public final class MeetingsWindowModel {
     public func show(meetingID: String) {
         let resolved = runtime.repository.logicalMeeting(id: meetingID)?.id ?? meetingID
         selection = [resolved]
+        selectionAnchor = resolved
         openDetail(resolved)
     }
 

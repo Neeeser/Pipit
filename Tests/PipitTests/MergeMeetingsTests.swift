@@ -91,6 +91,29 @@ struct MergeMeetingsTests {
         #expect(logical.recordings.map(\.metadata.id) == ids)
     }
 
+    @Test("Shift-click measures from the meeting that was shown, and Command-Shift adds a range")
+    @MainActor
+    func shiftClickAnchor() async throws {
+        let root = try TestPaths.makeTemporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let ids = try Self.makeThree(root: root)
+        let runtime = RuntimeFixtures.makeRuntime(root: root)
+        let model = MeetingsWindowModel(runtime: runtime)
+        await model.reload()
+        let visible = model.sections.flatMap(\.rows).map(\.id)
+
+        // Opened from a notification, not clicked.
+        model.show(meetingID: visible[0])
+        model.select(visible[2], extending: false, throughRange: true)
+        #expect(model.selection == Set(ids))
+
+        model.select(visible[0], extending: false)
+        model.select(visible[2], extending: true)
+        #expect(model.selection == [visible[0], visible[2]])
+        model.select(visible[1], extending: true, throughRange: true)
+        #expect(model.selection == Set(ids), "the range joins what was already selected")
+    }
+
     @Test("a merged conversation merges whole and never forms a chain")
     @MainActor
     func existingConversationJoinsWhole() async throws {
