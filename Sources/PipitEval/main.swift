@@ -156,14 +156,8 @@ struct Arguments {
             case "--repeats":
                 benchOptions.repeats = max(1, Int(value) ?? 1)
                 summaries.repeats = benchOptions.repeats
-            case "--model": summaries.models.append(value)
-            case "--judge": summaries.judge = value
-            case "--embedder": summaries.embedder = value
-            case "--instructions": summaries.instructions = URL(fileURLWithPath: value)
-            case "--context":
-                guard let tokens = Int(value), tokens > 0 else { return nil }
-                summaries.contextTokens = tokens
-            default: break
+            default:
+                guard summaries.read(flag, value) else { return nil }
             }
         }
         applicationSupport = support

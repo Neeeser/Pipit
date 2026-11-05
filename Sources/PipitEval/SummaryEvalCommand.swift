@@ -22,6 +22,23 @@ enum SummaryEvalCommand {
         var contextTokens = ContextWindow.defaultTokens
         var benchmarks = URL(fileURLWithPath: "Benchmarks/summaries", isDirectory: true)
         var out: URL?
+
+        /// Reads one of this command's own value flags. False when the value
+        /// is unusable, so the command line is refused rather than run with a
+        /// default the person did not ask for. Other flags are left alone.
+        mutating func read(_ flag: String, _ value: String) -> Bool {
+            switch flag {
+            case "--model": models.append(value)
+            case "--judge": judge = value
+            case "--embedder": embedder = value
+            case "--instructions": instructions = URL(fileURLWithPath: value)
+            case "--context":
+                guard let tokens = Int(value), tokens > 0 else { return false }
+                contextTokens = tokens
+            default: break
+            }
+            return true
+        }
     }
 
     /// A key item and a model item proposed as the same, by index into each
