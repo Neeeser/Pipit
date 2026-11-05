@@ -121,12 +121,18 @@ public enum BrowserWindowTitle {
                 .replacingOccurrences(of: " - Zoom", with: "")
                 .trimmingCharacters(in: .whitespaces)
             // The web client's titles in this repo's tests end in "Zoom" or
-            // "Zoom Meeting". The parse stays broad so a call is not missed, but
-            // a title that mentions Zoom some other way is not a meeting page.
+            // "Zoom Meeting", optionally followed by what the browser adds (a
+            // private-browsing label, a profile name). The parse stays broad so a
+            // call is not missed, but a title that mentions Zoom some other way
+            // is not a meeting page.
             let isLanding = name.isEmpty || name == "Zoom"
+            let endsLikeMeetingPage =
+                title.range(
+                    of: #"( - Zoom| Zoom Meeting)( [-\u{2013}\u{2014}] .*)?$"#, options: .regularExpression
+                ) != nil
             return Parsed(
                 provider: .zoom, meetingID: nil, title: isLanding ? nil : name, isLanding: isLanding,
-                isMeetingPage: !isLanding && (title.hasSuffix(" - Zoom") || title.hasSuffix("Zoom Meeting"))
+                isMeetingPage: !isLanding && endsLikeMeetingPage
             )
         }
         return nil
@@ -290,7 +296,10 @@ public struct BrowserMeetingDetector: Sendable {
         if signals.browserHoldsMicrophone {
             if titleIsCurrent, lastNativeParse?.isMeetingPage == true { titleHeldByMicrophone = true }
         } else if let releasedAt = micReleasedSince, now - releasedAt >= configuration.nativeEndGraceSeconds {
+            // The call the add-on reported is over. Zoom titles carry no
+            // meeting ID, so a later call would otherwise look like the same one.
             titleHeldByMicrophone = false
+            addOnReportedMeeting = false
         }
         if parsed == nil, let seenAt = lastNativeParseAt, now - seenAt > configuration.titleMemorySeconds,
             !titleHeldByMicrophone || addOnReportedMeeting

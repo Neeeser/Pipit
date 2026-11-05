@@ -93,7 +93,10 @@ public struct BrowserMeetingEvent: Codable, Sendable, Equatable {
 /// The extension improves precision; it is never the reason a meeting is or is
 /// not recorded. When it goes quiet, detection falls back to native signals and
 /// an in-progress recording keeps running. A DOM regression should produce extra
-/// recording, never a missed meeting.
+/// recording, never a missed meeting. The one case where its word ends a
+/// recording is a call it reported in a background tab and then lost: see
+/// `BrowserMeetingDetector`, which otherwise keeps that call alive by the open
+/// microphone.
 ///
 /// State is kept per tab. One `lastEvent` per browser would let a second tab
 /// opened during a call overwrite the live meeting with `browsing`.

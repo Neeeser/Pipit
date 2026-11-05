@@ -14,6 +14,9 @@ import os
 // and the browser side is told so, which is exactly the behaviour that lets
 // Pipit fall back to native detection.
 
+/// Read before anything else runs, so a file swapped during start-up is noticed.
+let startedFrom = FileIdentity(path: Bundle.main.executablePath ?? CommandLine.arguments[0])
+
 let hostVersion = "1.3.0"
 
 /// Reads the browser's length-prefixed messages from standard input.
@@ -110,10 +113,10 @@ let relayedCount = OSAllocatedUnfairLock(initialState: 0)
 // Built in a nonisolated function: a closure formed in top-level code belongs
 // to the main actor, and this one runs on its own queue.
 nonisolated func exitWhenReplaced(
-    executablePath: String, connection: SensorAppConnection, browser: BrowserKind,
+    startedFrom: FileIdentity?, executablePath: String, connection: SensorAppConnection, browser: BrowserKind,
     diagnostics: DiagnosticLog, relayedCount: OSAllocatedUnfairLock<Int>
 ) -> DispatchSourceTimer? {
-    guard let startedFrom = FileIdentity(path: executablePath) else { return nil }
+    guard let startedFrom else { return nil }
     let timer = DispatchSource.makeTimerSource(queue: DispatchQueue(label: "com.pipit.sensor-host.replaced"))
     timer.schedule(deadline: .now() + .seconds(2), repeating: .seconds(2))
     timer.setEventHandler {
@@ -129,6 +132,7 @@ nonisolated func exitWhenReplaced(
 }
 
 let replacementCheck = exitWhenReplaced(
+    startedFrom: startedFrom,
     executablePath: Bundle.main.executablePath ?? CommandLine.arguments[0],
     connection: connection, browser: browser, diagnostics: diagnostics, relayedCount: relayedCount
 )

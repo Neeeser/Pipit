@@ -246,8 +246,8 @@ struct BrowserBackgroundCallTests {
         #expect(evidence.provider == .zoom)
     }
 
-    @Test("another app opening the microphone after a call ended is not that call")
-    func aMicrophoneReopenedAfterTheCallEndedIsNotTheOldCall() async throws {
+    @Test("another app opening the microphone after a call ended is not that call once the title memory runs out")
+    func aMicrophoneReopenedAfterTheCallEndedIsNotTheOldCallOnceTheMemoryRunsOut() async throws {
         var detector = BrowserMeetingDetector()
         var now = 100.0
         let call = BrowserMeetingDetector.NativeSignals(
@@ -281,8 +281,8 @@ struct BrowserBackgroundCallTests {
         #expect(detector.update(native: elsewhere, at: now).confidence == .none)
     }
 
-    @Test("a meeting title only glanced at is not a call when the microphone opens much later")
-    func aGlancedTitleIsNotACallWhenTheMicrophoneOpensLater() async throws {
+    @Test("a meeting title only glanced at is not a call once the title memory runs out")
+    func aGlancedTitleIsNotACallOnceTheMemoryRunsOut() async throws {
         var detector = BrowserMeetingDetector()
         _ = detector.update(
             native: .init(
@@ -333,6 +333,118 @@ struct BrowserBackgroundCallTests {
             )
             _ = detector.update(native: otherTab, at: now)
         }
+        #expect(detector.update(native: otherTab, at: now).confidence == .confirmed)
+    }
+
+    @Test("a second Zoom call the extension cannot see is not dropped because the first one was reported")
+    func aSecondZoomCallDoesNotInheritTheFirstOnesReport() async throws {
+        var detector = BrowserMeetingDetector()
+        var now = 100.0
+        detector.sensorConnected(at: now)
+        let first = BrowserMeetingDetector.NativeSignals(
+            browserHoldsMicrophone: true, browserProducesOutput: true,
+            windowTitles: ["Standup - Zoom"]
+        )
+        for _ in 0...5 {
+            detector.receive(
+                BrowserMeetingEvent(
+                    browser: .firefox, provider: .zoom, state: .inCall, timestamp: now, tabID: 1
+                ),
+                at: now
+            )
+            _ = detector.update(native: first, at: now)
+            now += 5
+        }
+        // The first call ends and the microphone is released.
+        let idle = BrowserMeetingDetector.NativeSignals(
+            browserHoldsMicrophone: false, browserProducesOutput: false,
+            windowTitles: ["Quarterly plan - Docs"]
+        )
+        detector.closeTab(1, at: now)
+        _ = detector.update(native: idle, at: now)
+        now += 15
+        _ = detector.update(native: idle, at: now)
+
+        // A second call, in a place the extension does not run, within the memory.
+        now += 15
+        _ = detector.update(
+            native: .init(
+                browserHoldsMicrophone: true, browserProducesOutput: true,
+                windowTitles: ["Design review - Zoom"]
+            ),
+            at: now
+        )
+        let otherTab = BrowserMeetingDetector.NativeSignals(
+            browserHoldsMicrophone: true, browserProducesOutput: true,
+            windowTitles: ["Quarterly plan - Docs"]
+        )
+        for _ in 0..<30 {
+            now += 10
+            let evidence = detector.update(native: otherTab, at: now)
+            #expect(evidence.provider == .zoom)
+            if now > 190 { #expect(evidence.confidence == .confirmed) }
+        }
+    }
+
+    @Test("a different meeting's title clears the first meeting's report")
+    func aDifferentMeetingsTitleClearsTheFirstMeetingsReport() async throws {
+        var detector = BrowserMeetingDetector()
+        var now = 100.0
+        detector.sensorConnected(at: now)
+        let first = BrowserMeetingDetector.NativeSignals(
+            browserHoldsMicrophone: true, browserProducesOutput: true,
+            windowTitles: ["Meet - hzc-josd-epv"]
+        )
+        for _ in 0...5 {
+            detector.receive(
+                BrowserMeetingEvent(
+                    browser: .firefox, provider: .googleMeet, state: .inCall, timestamp: now,
+                    meetingID: "hzc-josd-epv", tabID: 1
+                ),
+                at: now
+            )
+            _ = detector.update(native: first, at: now)
+            now += 5
+        }
+        // The microphone stays open while the browser moves to another call
+        // the extension never reports.
+        _ = detector.update(
+            native: .init(
+                browserHoldsMicrophone: true, browserProducesOutput: true,
+                windowTitles: ["Meet - abc-defg-hij"]
+            ),
+            at: now
+        )
+        let otherTab = BrowserMeetingDetector.NativeSignals(
+            browserHoldsMicrophone: true, browserProducesOutput: true,
+            windowTitles: ["Quarterly plan - Docs"]
+        )
+        for _ in 0..<30 {
+            now += 10
+            let evidence = detector.update(native: otherTab, at: now)
+            if now > 190 {
+                #expect(evidence.confidence == .confirmed)
+                #expect(evidence.meetingID == "abc-defg-hij")
+            }
+        }
+    }
+
+    @Test("a browser's own suffix after the Zoom title does not hide the meeting page")
+    func aBrowserSuffixAfterTheZoomTitleStillArmsTheMemory() async throws {
+        var detector = BrowserMeetingDetector()
+        var now = 100.0
+        _ = detector.update(
+            native: .init(
+                browserHoldsMicrophone: true, browserProducesOutput: true,
+                windowTitles: ["Design review - Zoom \u{2014} Private Browsing"]
+            ),
+            at: now
+        )
+        let otherTab = BrowserMeetingDetector.NativeSignals(
+            browserHoldsMicrophone: true, browserProducesOutput: true,
+            windowTitles: ["Quarterly plan - Docs"]
+        )
+        now += 300
         #expect(detector.update(native: otherTab, at: now).confidence == .confirmed)
     }
 
