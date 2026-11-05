@@ -397,9 +397,11 @@ public struct MeetingTrimmer: Sendable {
         let location = TrackAudioLocation.archived(
             track: .mic, record: record, directory: layout.trackArchiveDirectory, compactedAt: Date()
         )
+        // Listed before it is written, so a failed export's partial is
+        // discarded with the rest.
+        staging.swaps.append((partial, source))
         let frames = try exporter.export(location: location, from: cut.from, to: cut.to, destination: partial)
         try verify(partial, seconds: cut.seconds, name: name)
-        staging.swaps.append((partial, source))
         return frames
     }
 
@@ -425,6 +427,7 @@ public struct MeetingTrimmer: Sendable {
     /// the removed stretch, so it must not stay.
     private func stageMixdown(layout: MeetingLayout, range: TrimRange, staging: inout Staging) {
         guard FileManager.default.fileExists(atPath: layout.recordingAudio.path) else { return }
+        var partial = layout.root.appendingPathComponent("recording.trimming.m4a")
         do {
             let info = try inspector.inspect(url: layout.recordingAudio)
             let whole = Double(info.frameCount) / info.sampleRate
@@ -444,12 +447,15 @@ public struct MeetingTrimmer: Sendable {
             let mixdown = TrackArchiveExporter(
                 settings: .init(sampleRate: info.sampleRate, channelCount: info.channelCount, bitRate: 64_000)
             )
-            let partial = layout.root.appendingPathComponent("recording.trimming.m4a")
+            partial = layout.root.appendingPathComponent("recording.trimming.m4a")
+            staging.swaps.append((partial, layout.recordingAudio))
             try mixdown.export(location: location, from: range.start, to: to, destination: partial)
             try verify(partial, seconds: to - range.start, name: "mixdown")
-            staging.swaps.append((partial, layout.recordingAudio))
         } catch {
             Log.processing.notice("mixdown not trimmed: \(logSafeDescription(error), privacy: .public)")
+            // Not cut, so it is deleted; what a failed export wrote goes too.
+            staging.swaps.removeAll { $0.from == partial }
+            try? FileManager.default.removeItem(at: partial)
             staging.remove(layout.recordingAudio)
         }
     }

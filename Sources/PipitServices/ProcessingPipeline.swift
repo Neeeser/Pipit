@@ -3268,18 +3268,20 @@ public actor ProcessingPipeline {
         }
     }
 
-    /// Refuses an edit to a meeting's speakers while a trim is working on its
-    /// files, or while the voice memory still owes it an adjustment: evidence
-    /// recorded now would be recorded against times the adjustment is yet to
-    /// move.
-    private func requireNoTrimPending(_ meetingID: String) throws {
+    /// Refuses an edit to a meeting's speakers while a trim is still changing
+    /// its files or moving the voice memory, and while the memory owes it an
+    /// adjustment that cannot be made. After that the files are where they
+    /// will stay, and an edit is safe even though processing is not finished.
+    ///
+    /// Parked adjustments are tried first, so they do not refuse an edit
+    /// that the memory, now reachable, can already take. With no voice memory
+    /// at all there is no evidence to record against moved times, and nothing
+    /// to wait for.
+    private func requireNoTrimPending(_ meetingID: String) async throws {
         guard let found = repository.findMeeting(id: meetingID, includingMerged: true) else { return }
-        if FileManager.default.fileExists(atPath: found.store.layout.trimJournal.path) {
-            throw TrimError.inProgress
-        }
-        if FileManager.default.fileExists(atPath: found.store.layout.trimVoicePending.path),
-            !found.store.readPendingVoiceAdjustments().isEmpty
-        {
+        if found.store.trimIsChangingFiles { throw TrimError.inProgress }
+        guard backends.speakers != nil else { return }
+        if await !applyPendingVoiceAdjustments(found.store, meetingID: meetingID) {
             throw TrimError.voicePending
         }
     }
@@ -3458,7 +3460,7 @@ public actor ProcessingPipeline {
     public func applySpeakerName(
         _ name: String, to key: String, meetingID: String, identityID: IdentityID? = nil
     ) async throws -> IdentityID? {
-        try requireNoTrimPending(meetingID)
+        try await requireNoTrimPending(meetingID)
         guard let found = repository.findMeeting(id: meetingID, includingMerged: true) else {
             throw StorageError.meetingNotFound(id: meetingID)
         }
@@ -3667,7 +3669,7 @@ public actor ProcessingPipeline {
         _ name: String, meetingID: String, track: CaptureTrack, parts: [SpeakerRangePart],
         identityID: IdentityID? = nil
     ) async throws -> IdentityID? {
-        try requireNoTrimPending(meetingID)
+        try await requireNoTrimPending(meetingID)
         guard let found = repository.findMeeting(id: meetingID, includingMerged: true) else {
             throw StorageError.meetingNotFound(id: meetingID)
         }
@@ -3799,7 +3801,7 @@ public actor ProcessingPipeline {
     private func correctUtterances(
         _ name: String, utteranceIDs: [String], meetingID: String, identityID: IdentityID?
     ) async throws -> IdentityID? {
-        try requireNoTrimPending(meetingID)
+        try await requireNoTrimPending(meetingID)
         guard let found = repository.findMeeting(id: meetingID, includingMerged: true) else {
             throw StorageError.meetingNotFound(id: meetingID)
         }
@@ -4509,7 +4511,7 @@ public actor ProcessingPipeline {
                 )
             else { continue }
             // Left for later while a trim is working on the files.
-            if FileManager.default.fileExists(atPath: found.store.layout.trimJournal.path) { continue }
+            if found.store.trimIsChangingFiles { continue }
             var speakers = try found.store.readSpeakerMap()
             // Only the cached name is rewritten. The identity link stays as it
             // was written, because reads resolve through the merge tombstone

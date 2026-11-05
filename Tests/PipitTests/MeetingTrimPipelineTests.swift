@@ -467,9 +467,11 @@ struct MeetingTrimPipelineTests {
         #expect(parked.count == 2)
         #expect(parked.map(\.start) == [2, 3], "in the order the trims were made")
 
-        // Who said what cannot be corrected until the memory has caught up.
-        await #expect(throws: TrimError.voicePending) {
-            try await made.pipeline.applySpeakerName("Speaker A", to: "remote-001:S1", meetingID: made.id)
+        // With no voice memory there is nothing for an edit to wait for.
+        do {
+            _ = try await made.pipeline.applySpeakerName("Speaker A", to: "remote-001:S1", meetingID: made.id)
+        } catch {
+            #expect((error as? TrimError) == nil, "not held up by the parked adjustments: \(error)")
         }
 
         let later = PipelineFixtures.makePipeline(
@@ -484,5 +486,60 @@ struct MeetingTrimPipelineTests {
         #expect(
             try await voices.storedEmbeddings(of: person.id).first?.evidence.first?.spans
                 == [AudioSpan(start: 0, end: 295)], "moved by 2 s and then by 3 s")
+    }
+
+    @Test("a rename right after the swap and the voice step is saved")
+    func aRenameAfterTheSwapIsSaved() async throws {
+        let root = try TestPaths.makeTemporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let made = try await Self.makeProcessed(root: root)
+        let key = try #require(
+            try made.store.readCanonicalTranscript()?.utterances.first { $0.track == .remote }?.speakerKey)
+        let failure = ErrorBox()
+        await made.pipeline.setTrimCheckpoint { [pipeline = made.pipeline, id = made.id] stage in
+            // The files are where they will stay; the rebuild and processing
+            // are still to come.
+            guard stage == "swapped" else { return }
+            do { _ = try await pipeline.applySpeakerName("Speaker Alpha", to: key, meetingID: id) } catch {
+                failure.error = error
+            }
+        }
+
+        _ = await made.pipeline.trim(
+            meetingID: made.id, to: try #require(TrimRange(start: 10, end: 20, duration: 30)))
+
+        #expect(failure.error == nil, "not refused: \(String(describing: failure.error))")
+        let store = try #require(made.repository.findMeeting(id: made.id)).store
+        #expect(try store.readSpeakerMap().entries[key]?.displayName == "Speaker Alpha", "the name was saved")
+    }
+
+    private final class ErrorBox: @unchecked Sendable {
+        var error: (any Error)?
+    }
+
+    @Test("a parked adjustment is made before an edit is refused")
+    func aParkedAdjustmentIsMadeBeforeAnEditIsRefused() async throws {
+        let root = try TestPaths.makeTemporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let made = try await Self.makeProcessed(root: root)
+        let (voices, voiceRoot) = try SpeakerFixtures.makeStore()
+        defer { try? FileManager.default.removeItem(at: voiceRoot) }
+        _ = await made.pipeline.trim(
+            meetingID: made.id, to: try #require(TrimRange(start: 2, end: 30, duration: 30)))
+        let store = try #require(made.repository.findMeeting(id: made.id)).store
+        #expect(store.readPendingVoiceAdjustments().count == 1)
+
+        let later = PipelineFixtures.makePipeline(
+            repository: made.repository, backend: FakeAIBackend(),
+            transcriber: StubLocalTranscriber(segments: []),
+            diarizer: StubLocalDiarizer(intervals: [], chunkEmbeddings: []),
+            speakers: SpeakerRecognitionService(store: voices), settings: Self.settings,
+            scratchRoot: root.appendingPathComponent("scratch2"))
+        do {
+            _ = try await later.applySpeakerName("Speaker A", to: "remote-001:S1", meetingID: made.id)
+        } catch {
+            #expect((error as? TrimError) == nil, "the memory is reachable, so nothing is owed: \(error)")
+        }
+        #expect(store.readPendingVoiceAdjustments().isEmpty, "it was made first")
     }
 }

@@ -611,4 +611,81 @@ struct MeetingTrimDiskTests {
         #expect(try store.readSpeakerMap().entries.count == 2, "the edit stays")
         #expect(abs(try store.readMetadata().durationSeconds - 10) < 0.1)
     }
+
+    @Test("a failed export leaves no partial file behind")
+    func aFailedExportLeavesNoPartialBehind() throws {
+        let root = try TestPaths.makeTemporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let store = try TrimFixtures.makeCompacted(root: root)
+        // The listening copy opens, and cannot be read through.
+        let url = store.layout.recordingAudio
+        var bytes = try Data(contentsOf: url)
+        let middle = bytes.count / 4..<bytes.count * 3 / 4
+        bytes.replaceSubrange(middle, with: Data(repeating: 0xFF, count: middle.count))
+        try bytes.write(to: url)
+
+        try? Self.trimmer().trim(
+            store: store, to: try #require(TrimRange(start: 2, end: 12, duration: 20)), at: Self.at)
+
+        #expect(Self.stagedFiles(in: root).isEmpty, "got \(Self.stagedFiles(in: root))")
+        #expect(!FileManager.default.fileExists(atPath: store.layout.trimStaging.path))
+        #expect(
+            !FileManager.default.fileExists(atPath: url.path)
+                || abs((try? TrimFixtures.seconds(of: url)) ?? 0 - 10) < 0.5,
+            "the copy that holds the removed stretch is not left")
+    }
+
+    @Test("a replacement and its target both gone is an error")
+    func aReplacementAndItsTargetBothGoneIsAnError() throws {
+        let root = try TestPaths.makeTemporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let store = try TrimFixtures.makeCompacted(root: root)
+        #expect(throws: TrimError.filesNotWritten) {
+            try Self.trimmer(stopAtSwap: 1).trim(
+                store: store, to: try #require(TrimRange(start: 2, end: 12, duration: 20)), at: Self.at)
+        }
+        let journal = try #require(try store.readTrimJournal())
+        let last = try #require(journal.swaps.last)
+        try FileManager.default.removeItem(at: store.layout.root.appendingPathComponent(last.staged))
+        try? FileManager.default.removeItem(at: store.layout.root.appendingPathComponent(last.target))
+
+        #expect(throws: TrimError.filesNotWritten) { try MeetingTrimmer().finishInterrupted(store: store) }
+    }
+
+    @Test("a journal from an earlier build, with no identifier, still finishes")
+    func aJournalWithNoIdentifierStillFinishes() throws {
+        let root = try TestPaths.makeTemporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let store = try TrimFixtures.makeCompacted(root: root)
+        #expect(throws: TrimError.filesNotWritten) {
+            try Self.trimmer(stopAtSwap: 1).trim(
+                store: store, to: try #require(TrimRange(start: 2, end: 12, duration: 20)), at: Self.at)
+        }
+        let data = try Data(contentsOf: store.layout.trimJournal)
+        var object = try #require(try JSONSerialization.jsonObject(with: data) as? [String: Any])
+        object.removeValue(forKey: "id")
+        try JSONSerialization.data(withJSONObject: object).write(to: store.layout.trimJournal)
+
+        let finished = try #require(try MeetingTrimmer().finishInterrupted(store: store))
+        #expect(finished.swapped && !finished.id.isEmpty)
+    }
+
+    @Test("a trim is not changing a meeting's files once the swap and the voice step are done")
+    func theWindowOfARefusalIsNarrow() throws {
+        let root = try TestPaths.makeTemporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let store = try TrimFixtures.makeCompacted(root: root)
+        #expect(!store.trimIsChangingFiles)
+        #expect(throws: TrimError.filesNotWritten) {
+            try Self.trimmer(stopAtSwap: 1).trim(
+                store: store, to: try #require(TrimRange(start: 2, end: 12, duration: 20)), at: Self.at)
+        }
+        var journal = try #require(try store.readTrimJournal())
+        #expect(store.trimIsChangingFiles, "part way through the swap")
+        journal = try #require(try MeetingTrimmer().finishInterrupted(store: store))
+        #expect(store.trimIsChangingFiles, "swapped, the voice memory still to move")
+        journal.voiceMemoryAdjusted = true
+        try store.writeTrimJournal(journal)
+        #expect(!store.trimIsChangingFiles, "edits are safe from here")
+    }
 }

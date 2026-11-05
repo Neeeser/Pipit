@@ -163,7 +163,8 @@ alignment is cut with the chunk, and the chunk's text is rebuilt from the words
 that remain. A chunk with no alignment keeps the words that fall wholly inside
 the range when they are spread evenly through the chunk, so deleted speech is
 not kept at the cost of dropping a word at each edge. The stored responses in
-`raw/api/`, the summary, `transcript.md`, the AI description and a cleaned
+`raw/api/`, the summary, `transcript.md`, the folder suggestion (which quotes
+the speech it was made from), the AI title and description and a cleaned
 microphone with nothing left in range are deleted.
 
 Speaker clusters keep their identifiers, so names given to them stay.
@@ -178,15 +179,28 @@ failure or quit in the swap leaves it; the pipeline finishes the swap straight
 away, or at launch if that fails too. Each file is moved with `rename(2)`,
 which replaces the target in one step; `replaceItemAt` parks the old file at
 the staged path for a moment, and a stop there left the removed stretch in a
-`.trimming` file. Finishing checks each replacement against its recorded size.
-A replacement already in place is recognised by its size, and an old file left
-at the staged path is deleted. Anything else missing is an error. Redoing the microphone, re-analysing speakers and rebuilding the
-transcript refuse while the journal exists, and a second trim is refused. At
-launch, `*.trimming` files left by a trim that stopped before its journal was
-written are removed; a trim leaves `raw/trim.staging` while it stages, so the
-sweep looks for that one file. Changes to who said what, and the suggestions
-file, wait while the journal exists or while parked voice adjustments do, and
-say why.
+`.trimming` file. With `rename(2)` a staged file stops being there only by
+being swapped in, so finishing treats a missing staged file as swapped when
+the target exists, whatever has been written to the target since (a speaker
+edit, for instance). A staged file that is present with a size other than the
+one recorded is an error, unless the target already has that size, in which
+case it is an old file left by an exchange and is deleted. A staged file and
+its target both missing is an error.
+
+Redoing the microphone, re-analysing speakers, regenerating the summary and
+rebuilding the transcript refuse while the journal exists, and a second trim is
+refused. Changes to who said what, and to speaker suggestions, are refused only
+while the trim is still changing the files: from the first staged file until
+the swap and the voice step are done. After that the files are where they will
+stay, and edits are saved even though the journal remains until the transcript
+is rebuilt and the meeting processed. Parked voice adjustments are made first;
+an edit is refused with a reason only if one cannot be, and not at all when
+there is no voice memory. A suggestion change that is skipped is logged, and
+the suggestion shows again. At launch, `*.trimming` files left by a trim that
+stopped before its journal was written are removed; a trim leaves
+`raw/trim.staging` while it stages, so the sweep looks for that one file. A
+journal written by an earlier build without an `id` reads with one made from
+its creation time.
 
 The pipeline keeps the job slot and the meeting's folder from the first swap
 to the end of the voice step, and every other job that takes the slot checks
@@ -224,8 +238,8 @@ derived from as spans of a meeting's seconds. A trim retracts the spans in the
 removed stretch through the same path a correction uses, which drops a vector
 that no longer stands on enough audio, then moves the rest by the start of the
 cut (`SpeakerStore.trimEvidence`). The shift is recorded in the voice database in
-the transaction that makes it, under the journal's creation time, so a repeat of
-the same trim does nothing. The same transaction removes the meeting's
+the transaction that makes it, under the journal's `id` (a UUID, so two trims
+never share one), so a repeat of the same trim does nothing. The same transaction removes the meeting's
 speaker occurrence rows for clusters heard only in the removed stretch and
 lowers the speech seconds of the others. When the voice database cannot be
 reached, the adjustment is parked in `raw/trim.voice.json` and made at the next

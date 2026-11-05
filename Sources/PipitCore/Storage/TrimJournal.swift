@@ -102,6 +102,28 @@ public struct TrimJournal: Codable, Sendable, Equatable {
 
     public static let currentVersion = 1
 
+    private enum CodingKeys: String, CodingKey {
+        case version, id, createdAt, start, end, swaps, removals, metadata, swapped, clusterSeconds
+        case voiceMemoryAdjusted
+    }
+
+    /// Hand-written so a journal from an earlier build of this branch, which
+    /// had no `id`, still reads and finishes instead of locking its meeting.
+    public init(from decoder: any Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        version = try container.decode(Int.self, forKey: .version)
+        createdAt = try container.decode(Date.self, forKey: .createdAt)
+        id = try container.decodeIfPresent(String.self, forKey: .id) ?? ManifestCoding.string(from: createdAt)
+        start = try container.decode(Double.self, forKey: .start)
+        end = try container.decodeIfPresent(Double.self, forKey: .end)
+        swaps = try container.decode([Swap].self, forKey: .swaps)
+        removals = try container.decode([String].self, forKey: .removals)
+        metadata = try container.decode(TrimMetadataChange.self, forKey: .metadata)
+        swapped = try container.decode(Bool.self, forKey: .swapped)
+        clusterSeconds = try container.decodeIfPresent([String: Double].self, forKey: .clusterSeconds)
+        voiceMemoryAdjusted = try container.decodeIfPresent(Bool.self, forKey: .voiceMemoryAdjusted) ?? false
+    }
+
     public var version: Int
     /// Names this trim in the voice database and in parked adjustments. Not
     /// the creation time, which two trims in quick succession can share.
@@ -154,6 +176,18 @@ extension MeetingStore {
 
     public func writeTrimJournal(_ journal: TrimJournal) throws {
         try AtomicFile.write(try ArchiveCoding.encode(journal), to: layout.trimJournal)
+    }
+
+    /// Whether a trim is changing this meeting's files, or its speaker data,
+    /// right now: staging replacements, swapping them in, or adjusting the
+    /// voice memory. Once the swap and the voice step are done the files are
+    /// in their final place and edits are safe, even though the journal stays
+    /// until the transcript is rebuilt and the meeting processed.
+    public var trimIsChangingFiles: Bool {
+        if FileManager.default.fileExists(atPath: layout.trimStaging.path) { return true }
+        guard FileManager.default.fileExists(atPath: layout.trimJournal.path) else { return false }
+        guard let journal = try? readTrimJournal() else { return true }
+        return !(journal.swapped && journal.voiceMemoryAdjusted)
     }
 
     public func removeTrimJournal() {
