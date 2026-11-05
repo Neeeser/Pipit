@@ -148,14 +148,16 @@ finalizing -> audio_safe -> transcribing -> diarizing
 only after this state. Each later stage records its state and can resume after a
 failure.
 
-A stage that fails with a cause that waiting can clear (a network or service
-problem) is tried up to three times in one run; other failures are tried once.
-The launch sweep then starts a failed meeting again only when another attempt could change the
-result: a missing key or model (fixed in Settings) and a network or service
-outage (clears by waiting) are retried at every launch. A failure that repeats
-the same result, such as a transcript that loops, is left for the Retry button
-once three attempts have failed. A quit during a stage is not counted as an
-attempt.
+A stage that fails is tried again in the same run, up to three attempts, when
+its error is marked retryable: network and service problems, an empty or looping
+transcript, and an unrecognised failure on this Mac. A cancellation, a missing
+key and a failed model install are tried once. The failure also records what
+another attempt would change. A failure that repeats the same result (a
+transcript that loops, a reply that cannot be read, a request the service
+refuses) is left for the Retry button once three attempts have failed. A failure
+fixed in Settings (a missing key or model) or cleared by waiting (a network
+outage, a download) is started again at every launch, since nothing else
+notices when it has cleared. A quit during a stage is not counted as an attempt.
 
 `transcribing` begins by subtracting the far end from the microphone. A call
 taken on speakers puts the far end back into the microphone through the air.

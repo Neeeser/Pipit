@@ -119,13 +119,19 @@ public enum FailureCause: String, Codable, Sendable, Equatable {
         "processing.rate_limited", "processing.server_error", "processing.transport",
         "processing.cancelled", "language_model.unreachable", "language_model.rate_limited",
         "language_model.server_error",
+        // A URL loading error from any layer, which is how older builds filed
+        // a model download that lost its connection.
+        "net",
+        // Everything on this Mac that is not a model refusing audio: free to
+        // run again, and how older builds filed the timing-model download.
+        "processing.local_failed",
     ]
     /// Listed rather than read from `isRetryable`, since several of these were
     /// stored as not retryable and would otherwise read as a Settings fix.
     private static let legacySameResult = [
         "processing.empty_transcript", "processing.degenerate_transcript",
         "processing.malformed_response", "processing.request_too_large",
-        "processing.duration_too_long", "processing.audio_unreadable", "processing.local_failed",
+        "processing.duration_too_long", "processing.audio_unreadable",
         "model.audio_unreadable", "language_model.unexpected_response", "language_model.rejected",
     ]
 }

@@ -99,13 +99,14 @@ public enum MicrophoneRedoError: LogSafeError, Equatable {
 public protocol LocalProcessingFailure: Error {
     var userMessage: String { get }
     var isRetryable: Bool { get }
-    /// What a later attempt would change. Defaults to nothing, which is right
-    /// for a failure the pipeline has no special knowledge of.
+    /// What a later attempt would change. Defaults to waiting: work on this
+    /// Mac costs nothing to run again, so a failure the pipeline has no special
+    /// knowledge of is tried at the next launch rather than left for Retry.
     var cause: FailureCause { get }
 }
 
 extension LocalProcessingFailure {
-    public var cause: FailureCause { .sameResultEachTime }
+    public var cause: FailureCause { .clearsByWaiting }
 }
 
 public enum ProcessingError: LogSafeError, Equatable {
@@ -134,7 +135,7 @@ public enum ProcessingError: LogSafeError, Equatable {
     /// A stage that runs on this Mac failed. Carries its own message because
     /// the cloud wording is wrong for it and often wrong about the cause.
     case localProcessingFailed(
-        reason: String, retryable: Bool, cause: FailureCause = .sameResultEachTime)
+        reason: String, retryable: Bool, cause: FailureCause = .clearsByWaiting)
     /// A model that writes about the meeting failed. Carries the provider's
     /// name because it is the wording that differs: the cases above speak of
     /// OpenAI, which is wrong for Ollama or an endpoint the person typed.

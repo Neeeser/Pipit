@@ -82,7 +82,6 @@
 		2D7A38581127B6E94CAC574A /* pipit-idle.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = "pipit-idle.png"; sourceTree = "<group>"; };
 		37155903C8D9E58F149C8AEE /* Pipit.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = Pipit.entitlements; sourceTree = "<group>"; };
 		47809F16D1A04B353EA7AD4F /* pipit-paused.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = "pipit-paused.png"; sourceTree = "<group>"; };
-		7F6A4DCF1D11ACBB0010384B /* agent-ab59409ffdeab674b */ = {isa = PBXFileReference; lastKnownFileType = folder; name = "agent-ab59409ffdeab674b"; path = .; sourceTree = SOURCE_ROOT; };
 		7FA445934522AB5AC18F6DB8 /* main.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = main.swift; sourceTree = "<group>"; };
 		80CADB95C82DE44384D66658 /* pipit-recording@2x.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = "pipit-recording@2x.png"; sourceTree = "<group>"; };
 		957D0D58BA4B90F5ED74BA3D /* main.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = main.swift; sourceTree = "<group>"; };
@@ -95,6 +94,7 @@
 		CD6F58DFE74C9079257BC916 /* Pipit.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Pipit.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		CF162ACFBE7E6E8D288ED3AE /* main.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = main.swift; sourceTree = "<group>"; };
 		CF8423805ED90026CB9FE79F /* pipit-nativehost */ = {isa = PBXFileReference; includeInIndex = 0; path = "pipit-nativehost"; sourceTree = BUILT_PRODUCTS_DIR; };
+		E8E76A82057AB00AAE8FCFA0 /* pippit-audio-quality-audit-e8a392 */ = {isa = PBXFileReference; lastKnownFileType = folder; name = "pippit-audio-quality-audit-e8a392"; path = .; sourceTree = SOURCE_ROOT; };
 		EE665BD0FBCB237C161ED197 /* pipit-recording.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = "pipit-recording.png"; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
@@ -243,7 +243,7 @@
 		C3F5AEB0AE40EB2D5EE6807D /* Packages */ = {
 			isa = PBXGroup;
 			children = (
-				7F6A4DCF1D11ACBB0010384B /* agent-ab59409ffdeab674b */,
+				E8E76A82057AB00AAE8FCFA0 /* pippit-audio-quality-audit-e8a392 */,
 			);
 			name = Packages;
 			sourceTree = "<group>";

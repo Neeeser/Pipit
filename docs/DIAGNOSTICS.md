@@ -310,8 +310,11 @@ do not fit, the newest that fit are sent and `summary.diagnostics.eventsOmitted`
 says how many were left out; the preview shows the same.
 
 The fixture `Tests/Fixtures/Diagnostics/report-v1.json` is a
-synthetic valid report. The website's tests validate the same file, so a change
-to the format breaks one side's tests until both agree.
+synthetic valid report. The website keeps its own copy of the format and its own
+fixture, so a change here is not checked against it until the two are compared
+by hand. The schema version stays 1: the website rejects any other, and a new
+field that passes its validation (as `recentFailures[].cause` does) does not
+need a new version.
 
 ### Sections
 
@@ -363,9 +366,11 @@ Built by `DiagnosticSnapshot` (PipitCore) from values `DiagnosticReportCollector
   (whether that run tried the stage again), `cause` (`same_result`, `settings`
   or `waiting`: what another attempt would change), `attempts` (failed attempts
   at that stage, not counting a run a quit interrupted), and `at`. Only a
-  `same_result` failure with 3 attempts has used them all and waits for Retry;
-  `settings` and `waiting` failures are started again at every launch. The failure's message is never read; it is prose for the
-  person and can name a file.
+  `same_result` failure with 3 or more attempts has used them all and waits for
+  Retry; `settings` and `waiting` failures are started again at every launch.
+  `cause` is absent from reports by older builds, and for a failure stored
+  before causes were recorded it is inferred from the code. The failure's
+  message is never read; it is prose for the person and can name a file.
 - `summary.diagnostics`: `eventsDropped`, the sum of every
   `diagnostics.dropped` count in the log; `oldestEvent`, the oldest event on
   this Mac, left out when there is none; `eventsIncluded`; and

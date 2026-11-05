@@ -4358,6 +4358,11 @@ public actor ProcessingPipeline {
         // reaches the user cannot name a cause, so the one thing that can is
         // written to the log: without it a failed meeting says only that it
         // failed, and there is nothing to work from.
+        //
+        // Every cloud failure is a ProcessingError by now, so what reaches
+        // here ran on this Mac (a storage write, a model) and costs nothing to
+        // run again. The default cause for local work is waiting, which keeps
+        // the next launch trying it.
         Log.processing.error(
             "unrecognised processing failure: \(logSafeDescription(error), privacy: .public)"
         )
