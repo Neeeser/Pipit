@@ -33,7 +33,10 @@ struct MeetingTrimPipelineTests {
 
     /// A 30 s call, processed and compacted, with one word at 2 s, 12 s and
     /// 24 s on the far end.
-    private static func makeProcessed(root: URL, speakers: SpeakerRecognitionService? = nil) async throws -> Processed {
+    private static func makeProcessed(
+        root: URL, speakers: SpeakerRecognitionService? = nil, backend: FakeAIBackend = FakeAIBackend(),
+        settings: AppSettings = MeetingTrimPipelineTests.settings
+    ) async throws -> Processed {
         let meeting = try PipelineFixtures.makeRecordedMeeting(
             root: root.appendingPathComponent("Meetings"), source: .googleMeet, seconds: 30)
         let transcriber = StubLocalTranscriber(segments: [
@@ -47,7 +50,7 @@ struct MeetingTrimPipelineTests {
                 DiarizationChunkEmbedding(clusterID: "S1", start: 0, end: 30, vector: SpeakerFixtures.vector(seed: 61))
             ])
         let pipeline = PipelineFixtures.makePipeline(
-            repository: meeting.repository, backend: FakeAIBackend(), transcriber: transcriber, diarizer: diarizer,
+            repository: meeting.repository, backend: backend, transcriber: transcriber, diarizer: diarizer,
             speakers: speakers, settings: settings, scratchRoot: root.appendingPathComponent("scratch"))
         await pipeline.process(meetingID: meeting.metadata.id)
         let status = try meeting.store.readMetadata().processing
@@ -256,5 +259,148 @@ struct MeetingTrimPipelineTests {
         let finished = await made.pipeline.trim(meetingID: made.id, to: range)
         #expect(finished.failure == .interrupted)
         try Self.expectTrimmedAndFinished(made)
+    }
+
+    /// Holds a trim at a stage until `release` is called.
+    private final class Gate: @unchecked Sendable {
+        private let lock = NSLock()
+        private var continuation: CheckedContinuation<Void, Never>?
+        private var released = false
+        func wait() async {
+            await withCheckedContinuation { (next: CheckedContinuation<Void, Never>) in
+                lock.lock()
+                if released {
+                    lock.unlock()
+                    next.resume()
+                } else {
+                    continuation = next
+                    lock.unlock()
+                }
+            }
+        }
+        func release() {
+            lock.lock()
+            released = true
+            let waiting = continuation
+            continuation = nil
+            lock.unlock()
+            waiting?.resume()
+        }
+    }
+
+    @Test("a job queued behind the trim does not run on the half-finished meeting")
+    func aJobQueuedBehindTheTrimDoesNotRunOnIt() async throws {
+        let root = try TestPaths.makeTemporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let made = try await Self.makeProcessed(root: root)
+        let gate = Gate()
+        let atSwapped = Gate()
+        await made.pipeline.setTrimCheckpoint { stage in
+            if stage == "swapped" {
+                atSwapped.release()
+                await gate.wait()
+            }
+        }
+        let range = try #require(TrimRange(start: 10, end: 20, duration: 30))
+        let trimming = Task { await made.pipeline.trim(meetingID: made.id, to: range) }
+        await atSwapped.wait()
+        // The trim holds the slot. Regenerating the summary queues behind it.
+        let queued = Task { () -> (any Error)? in
+            do {
+                try await made.pipeline.generateEnrichment(meetingID: made.id)
+                return nil
+            } catch { return error }
+        }
+        try await Task.sleep(for: .milliseconds(300))
+        gate.release()
+
+        let outcome = await trimming.value
+        #expect(outcome.failure == nil)
+        let refused = await queued.value
+        #expect(
+            refused as? TrimError == .interrupted,
+            "it was refused, not run on trimmed audio: \(String(describing: refused))")
+        try Self.expectTrimmedAndFinished(made)
+    }
+
+    @Test("the folder is not renamed under a job that is in it")
+    func theFolderIsNotRenamedUnderAJobInIt() async throws {
+        let root = try TestPaths.makeTemporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let backend = FakeAIBackend()
+        var enriching = Self.settings
+        enriching.enrichment.generateSummary = true
+        let made = try await Self.makeProcessed(root: root, backend: backend, settings: enriching)
+        let name = made.store.layout.root.lastPathComponent
+        _ = try made.store.updateMetadata {
+            $0.directoryName = name
+            $0.titles.human = "A title that gives the folder a new name"
+        }
+        // Regenerating the summary holds the folder while its request is out.
+        let finishRequest = Gate()
+        await made.pipeline.setTrimCheckpoint { [pipeline = made.pipeline, id = made.id] stage in
+            guard stage == "settling" else { return }
+            backend.enrichInterference = { await finishRequest.wait() }
+            Task { try? await pipeline.generateEnrichment(meetingID: id) }
+            try? await Task.sleep(for: .milliseconds(300))
+        }
+
+        _ = await made.pipeline.trim(
+            meetingID: made.id, to: try #require(TrimRange(start: 10, end: 20, duration: 30)))
+
+        let during = try #require(made.repository.findMeeting(id: made.id))
+        #expect(during.store.layout.root.lastPathComponent == name, "not renamed with a job in the folder")
+        finishRequest.release()
+        try await Task.sleep(for: .milliseconds(300))
+        made.repository.settleFolderNames()
+        let after = try #require(made.repository.findMeeting(id: made.id))
+        #expect(after.store.layout.root.lastPathComponent != name, "the launch sweep does it")
+        #expect(
+            made.repository.meetingDirectories().filter { $0.path.contains(made.id) }.count <= 1,
+            "one folder for the meeting")
+    }
+
+    @Test("a trim made while the voice memory is out of reach is parked, and made at the next launch")
+    func aTrimIsParkedWhileTheVoiceMemoryIsOutOfReach() async throws {
+        let root = try TestPaths.makeTemporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let made = try await Self.makeProcessed(root: root)
+        let (voices, voiceRoot) = try SpeakerFixtures.makeStore()
+        defer { try? FileManager.default.removeItem(at: voiceRoot) }
+        let person = try await voices.createPerson(name: "Speaker A")
+        _ = try await voices.enrol(
+            VoiceEnrollmentCandidate(
+                identityID: person.id, vector: SpeakerFixtures.vector(seed: 92), model: .fluidAudioOffline,
+                speechSeconds: 300, qualityScore: 1, source: .humanConfirmedCluster,
+                evidence: [
+                    VoiceEvidence(
+                        meetingID: made.id, track: .remote, spans: [AudioSpan(start: 5, end: 300)],
+                        confirmation: .humanConfirmedCluster)
+                ]))
+
+        // No voice memory behind this pipeline.
+        _ = await made.pipeline.trim(
+            meetingID: made.id, to: try #require(TrimRange(start: 2, end: 30, duration: 30)))
+
+        let store = try #require(made.repository.findMeeting(id: made.id)).store
+        #expect(!FileManager.default.fileExists(atPath: store.layout.trimJournal.path), "the meeting is not locked")
+        #expect(store.readPendingVoiceAdjustments().count == 1, "the adjustment waits in the folder")
+        #expect(
+            try await voices.storedEmbeddings(of: person.id).first?.evidence.first?.spans
+                == [AudioSpan(start: 5, end: 300)])
+
+        // The next launch, with the memory open.
+        let later = PipelineFixtures.makePipeline(
+            repository: made.repository, backend: FakeAIBackend(),
+            transcriber: StubLocalTranscriber(segments: []),
+            diarizer: StubLocalDiarizer(intervals: [], chunkEmbeddings: []),
+            speakers: SpeakerRecognitionService(store: voices), settings: Self.settings,
+            scratchRoot: root.appendingPathComponent("scratch2"))
+        await later.finishInterruptedTrims()
+
+        #expect(store.readPendingVoiceAdjustments().isEmpty)
+        #expect(
+            try await voices.storedEmbeddings(of: person.id).first?.evidence.first?.spans
+                == [AudioSpan(start: 3, end: 298)])
     }
 }

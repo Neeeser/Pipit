@@ -34,7 +34,9 @@ public enum TrimFixtures {
     /// clock between the first two, and the last one never closed, the way a
     /// crash leaves it and recovery adopts it. The joined audio is 4 s, 4 s
     /// and 2 s; the second segment starts 6 s after the first one ended.
-    public static func makeWithGapAndCrashTail(root: URL, withFarEnd: Bool = false) throws -> MeetingStore {
+    public static func makeWithGapAndCrashTail(
+        root: URL, withFarEnd: Bool = false, farEndOffset: Double = 0
+    ) throws -> MeetingStore {
         let repository = MeetingRepository(root: root)
         let made = try repository.createMeeting(
             source: .manual, provider: .unknown, startedAt: started,
@@ -85,7 +87,7 @@ public enum TrimFixtures {
         }
         try write(.mic, [(4, 100, true), (4, 110, true), (2, nil, false)])
         // A far end with no gap, starting with the microphone.
-        if withFarEnd { try write(.remote, [(10, 100, true)]) }
+        if withFarEnd { try write(.remote, [(10, 100 + farEndOffset, true)]) }
         manifest.append(.sessionEnd(.init(reason: "test", micSeconds: 10, remoteSeconds: withFarEnd ? 10 : 0)))
         manifest.close()
         _ = try store.updateMetadata {

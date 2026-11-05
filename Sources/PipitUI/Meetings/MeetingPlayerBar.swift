@@ -98,7 +98,7 @@ struct MeetingPlayerBar: View {
         } message: {
             Text(
                 "The audio and transcript outside this range are deleted, and the summary is written again. "
-                    + "You can't undo this.")
+                    + "Your notes are kept. You can't undo this.")
         }
         .onChange(of: detail.canTrim) { _, canTrim in
             if !canTrim { trim = nil }

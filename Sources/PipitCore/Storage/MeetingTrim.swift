@@ -27,6 +27,17 @@ public struct TrimRange: Sendable, Equatable {
 
     public var seconds: Double { end - start }
 
+    /// The same range starting later.
+    func starting(at start: Double) -> TrimRange {
+        TrimRange(start: start, end: end, keepsEnd: keepsEnd)
+    }
+
+    private init(start: Double, end: Double, keepsEnd: Bool) {
+        self.start = start
+        self.end = end
+        self.keepsEnd = keepsEnd
+    }
+
     /// Where the kept stretch stops, which is no limit at all when it runs to
     /// the end of the recording.
     public var effectiveEnd: Double { keepsEnd ? .infinity : end }
@@ -245,9 +256,50 @@ public enum MeetingTrim {
                 clipped.end = kept.end
                 return clipped
             }
+            // A cluster heard only in the removed stretch is gone, and one
+            // heard partly in it has less speech than it did.
+            moved.clusters = run.clusters.compactMap { cluster in
+                let seconds = moved.intervals.filter { $0.clusterID == cluster.id }.reduce(0) { $0 + $1.duration }
+                guard seconds > 0 else { return nil }
+                var shortened = cluster
+                shortened.speechSeconds = seconds
+                return shortened
+            }
             return moved
         }
         return trimmed
+    }
+
+    /// Seconds of speech each diarization cluster has left after the cut, zero
+    /// for one that has none. Keyed by cluster identifier.
+    public static func clusterSeconds(
+        after trimmed: RawDiarization, before original: RawDiarization
+    ) -> [String: Double] {
+        var seconds: [String: Double] = [:]
+        for run in original.runs {
+            for id in run.clusters.map(\.id) + run.intervals.map(\.clusterID) { seconds[id] = 0 }
+        }
+        for run in trimmed.runs {
+            for interval in run.intervals { seconds[interval.clusterID, default: 0] += interval.duration }
+        }
+        return seconds
+    }
+
+    /// The range as it will really apply. The timeline starts at the earliest
+    /// first frame of the tracks that are kept, so when the cut removes the
+    /// earliest track whole, the kept audio starts later than the person
+    /// chose, and everything is moved to that start. Nil when no track has
+    /// anything in range.
+    public static func effective(_ range: TrimRange, archive: AudioArchive) -> TrimRange? {
+        let origin = origin(archive)
+        var begins: [Double] = []
+        for name in CaptureTrack.allCases {
+            guard let track = archive.track(name), let cut = cut(track, origin: origin, range: range) else { continue }
+            let lead = origin.flatMap { origin in track.firstFrameHostTime.map { $0 - origin } } ?? 0
+            begins.append(lead + cut.from)
+        }
+        guard let first = begins.min() else { return nil }
+        return first > range.start + tolerance ? range.starting(at: first) : range
     }
 
     public static func trim(_ sensors: RawSensors, to range: TrimRange) -> RawSensors {

@@ -116,14 +116,18 @@ public struct TrimJournal: Codable, Sendable, Equatable {
     /// Set once every file and the metadata are in place. What is left is
     /// adjusting the voice memory, which lives outside the meeting folder.
     public var swapped: Bool
+    /// Speech seconds each diarization cluster has left, for the voice memory.
+    public var clusterSeconds: [String: Double]?
     /// Set once the voice memory has been moved with the audio. Its times are
     /// shifted, which is not safe to repeat, so this is written straight after.
     public var voiceMemoryAdjusted: Bool
 
     public init(
         createdAt: Date, start: Double, end: Double?, swaps: [Swap], removals: [String],
-        metadata: TrimMetadataChange, swapped: Bool = false, voiceMemoryAdjusted: Bool = false
+        metadata: TrimMetadataChange, swapped: Bool = false, voiceMemoryAdjusted: Bool = false,
+        clusterSeconds: [String: Double]? = nil
     ) {
+        self.clusterSeconds = clusterSeconds
         self.version = Self.currentVersion
         self.createdAt = createdAt
         self.start = start
@@ -150,5 +154,42 @@ extension MeetingStore {
 
     public func removeTrimJournal() {
         try? FileManager.default.removeItem(at: layout.trimJournal)
+    }
+}
+
+/// What a trim still owes the voice memory, for when the memory could not be
+/// reached while the trim was finished.
+///
+/// A file of its own rather than the journal, so that waiting for the voice
+/// database does not keep the meeting locked against every other change. The
+/// adjustments are applied in order when the database is next open, each at
+/// most once.
+public struct TrimVoiceAdjustment: Codable, Sendable, Equatable {
+    public var trimID: String
+    public var start: Double
+    public var end: Double?
+    public var clusterSeconds: [String: Double]?
+
+    public init(trimID: String, start: Double, end: Double?, clusterSeconds: [String: Double]?) {
+        self.trimID = trimID
+        self.start = start
+        self.end = end
+        self.clusterSeconds = clusterSeconds
+    }
+}
+
+extension MeetingStore {
+    public func readPendingVoiceAdjustments() -> [TrimVoiceAdjustment] {
+        guard let data = try? Data(contentsOf: layout.trimVoicePending) else { return [] }
+        return (try? ArchiveCoding.decode([TrimVoiceAdjustment].self, from: data, path: layout.trimVoicePending.path))
+            ?? []
+    }
+
+    public func writePendingVoiceAdjustments(_ adjustments: [TrimVoiceAdjustment]) throws {
+        if adjustments.isEmpty {
+            try? FileManager.default.removeItem(at: layout.trimVoicePending)
+        } else {
+            try AtomicFile.write(try ArchiveCoding.encode(adjustments), to: layout.trimVoicePending)
+        }
     }
 }

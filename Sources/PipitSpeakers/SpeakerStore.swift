@@ -761,7 +761,8 @@ public actor SpeakerStore {
     /// A second call with the same `trimID` does nothing: the shift is recorded
     /// with the change, and moving the spans again would be wrong.
     public func trimEvidence(
-        meetingID: String, trimID: String, keepingFrom start: Double, to end: Double?, now: Date = Date()
+        meetingID: String, trimID: String, keepingFrom start: Double, to end: Double?,
+        clusterSeconds: [String: Double]? = nil, now: Date = Date()
     ) throws {
         try database.run(
             "CREATE TABLE IF NOT EXISTS trim_applied(meeting_id TEXT NOT NULL, trim_id TEXT NOT NULL,"
@@ -791,6 +792,21 @@ public actor SpeakerStore {
             try database.run(
                 "INSERT INTO trim_applied(meeting_id, trim_id) VALUES(?, ?)", [.text(meetingID), .text(trimID)]
             )
+            // A speaker heard only in the removed stretch has no occurrence in
+            // this meeting any more, and one heard partly in it has less speech.
+            for (cluster, seconds) in (clusterSeconds ?? [:]).sorted(by: { $0.key < $1.key }) {
+                if seconds > 0 {
+                    try database.run(
+                        "UPDATE speaker_occurrence SET speech_seconds = ? WHERE meeting_id = ? AND cluster_id = ?",
+                        [.double(seconds), .text(meetingID), .text(cluster)]
+                    )
+                } else {
+                    try database.run(
+                        "DELETE FROM speaker_occurrence WHERE meeting_id = ? AND cluster_id = ?",
+                        [.text(meetingID), .text(cluster)]
+                    )
+                }
+            }
             try database.run(
                 "DELETE FROM voice_evidence_span WHERE evidence_id IN \(rows)"
                     + " AND (end_time <= ? OR start_time >= ?)",

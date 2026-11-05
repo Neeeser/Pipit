@@ -56,14 +56,23 @@ public struct MeetingTrimmer: Sendable {
     /// throws from it to stop the swap part way, as a crash or a full disk
     /// would.
     public var beforeSwap: (@Sendable (Int) throws -> Void)?
+    /// Called just after the journal is written, and just before the journal
+    /// records that the metadata is. A test throws from them to stop where a
+    /// failed directory sync or a crash would.
+    public var afterJournalWritten: (@Sendable () throws -> Void)?
+    public var beforeJournalUpdate: (@Sendable () throws -> Void)?
 
     public init(
         exporter: TrackArchiveExporter = TrackArchiveExporter(), inspector: AudioFileInspector = .init(),
-        beforeSwap: (@Sendable (Int) throws -> Void)? = nil
+        beforeSwap: (@Sendable (Int) throws -> Void)? = nil,
+        afterJournalWritten: (@Sendable () throws -> Void)? = nil,
+        beforeJournalUpdate: (@Sendable () throws -> Void)? = nil
     ) {
         self.exporter = exporter
         self.inspector = inspector
         self.beforeSwap = beforeSwap
+        self.afterJournalWritten = afterJournalWritten
+        self.beforeJournalUpdate = beforeJournalUpdate
     }
 
     /// Whether the recording is in a state Trim can work on.
@@ -77,8 +86,11 @@ public struct MeetingTrimmer: Sendable {
         guard metadata.processing.state == .complete, metadata.microphoneRedoRequestedAt == nil else {
             throw TrimError.notFinished
         }
+        // A mixdown from before the raw/ layout would be left whole beside the
+        // cut recording.
         guard metadata.audioArchive != nil,
-            !FileManager.default.fileExists(atPath: layout.segments.path)
+            !FileManager.default.fileExists(atPath: layout.segments.path),
+            !FileManager.default.fileExists(atPath: layout.legacyMixedAudio.path)
         else { throw TrimError.notArchived }
         guard metadata.runs.count <= 1 else { throw TrimError.severalRuns }
     }
@@ -96,6 +108,10 @@ public struct MeetingTrimmer: Sendable {
         guard range.start < length, range.keepsEnd || range.end <= length + MeetingTrim.tolerance else {
             throw TrimError.invalidRange
         }
+        // Where the kept audio really begins. The timeline's zero is the
+        // earliest first frame of the tracks that are left, so a cut that
+        // takes the earliest track whole starts the meeting later than asked.
+        guard let range = MeetingTrim.effective(range, archive: archive) else { throw TrimError.invalidRange }
 
         var staging = Staging(root: layout.root)
         var committed = false
@@ -104,7 +120,7 @@ public struct MeetingTrimmer: Sendable {
         defer { if !committed { staging.discard() } }
 
         let audio = try stageAudio(store: store, metadata: metadata, archive: archive, range: range, staging: &staging)
-        try stageTimelineFiles(store: store, range: range, staging: &staging)
+        let clusterSeconds = try stageTimelineFiles(store: store, range: range, staging: &staging)
         staging.remove(layout.apiResponses)
         for url in [layout.summary, layout.structuredSummary, layout.transcriptMarkdown] { staging.remove(url) }
 
@@ -115,11 +131,19 @@ public struct MeetingTrimmer: Sendable {
             createdAt: now, start: range.start, end: range.keepsEnd ? nil : range.end,
             swaps: swaps, removals: staging.removals.map(staging.relative),
             metadata: MeetingTrim.change(
-                metadata, to: range, archive: audio.archive, cleanedMic: audio.cleaned, at: now)
+                metadata, to: range, archive: audio.archive, cleanedMic: audio.cleaned, at: now),
+            clusterSeconds: clusterSeconds
         )
         do {
             try store.writeTrimJournal(journal)
+            try afterJournalWritten?()
         } catch {
+            // The write can fail after the journal was renamed into place, in
+            // the directory sync. The replacements are about to be deleted, so
+            // the journal that names them goes first. If it cannot be removed
+            // they are kept, and it finishes the trim.
+            try? FileManager.default.removeItem(at: layout.trimJournal)
+            if FileManager.default.fileExists(atPath: layout.trimJournal.path) { committed = true }
             throw TrimError.filesNotWritten
         }
         committed = true
@@ -157,19 +181,22 @@ public struct MeetingTrimmer: Sendable {
             try beforeSwap?(position)
             let staged = root.appendingPathComponent(swap.staged)
             let target = root.appendingPathComponent(swap.target)
-            guard manager.fileExists(atPath: staged.path) else {
-                // Already swapped by an earlier run, which is the only reason
-                // a replacement may be missing: the file in its place is it.
+            let stagedSize = Self.size(of: staged)
+            if stagedSize != swap.size {
+                // Not there, or not the replacement. The file at the target is
+                // the replacement when an earlier run already swapped it, and
+                // whatever is left at the staged path is then the old file,
+                // which holds the removed stretch.
                 guard Self.size(of: target) == swap.size else { throw TrimError.filesNotWritten }
+                if stagedSize != nil { try manager.removeItem(at: staged) }
                 continue
             }
-            guard Self.size(of: staged) == swap.size else { throw TrimError.filesNotWritten }
-            if manager.fileExists(atPath: target.path) {
-                _ = try manager.replaceItemAt(target, withItemAt: staged)
-            } else {
-                try manager.createDirectory(at: target.deletingLastPathComponent(), withIntermediateDirectories: true)
-                try manager.moveItem(at: staged, to: target)
-            }
+            try manager.createDirectory(at: target.deletingLastPathComponent(), withIntermediateDirectories: true)
+            // rename(2) replaces the target in one step and never parks the
+            // old file anywhere. `replaceItemAt` exchanges and then deletes,
+            // and a stop between the two leaves the old file at the staged
+            // path with the new one in place.
+            guard rename(staged.path, target.path) == 0 else { throw TrimError.filesNotWritten }
             try AtomicFile.flush(target)
             try AtomicFile.flush(target.deletingLastPathComponent())
         }
@@ -180,6 +207,7 @@ public struct MeetingTrimmer: Sendable {
             if manager.fileExists(atPath: url.path) { try manager.removeItem(at: url) }
         }
         try store.updateMetadata { journal.metadata.apply(to: &$0) }
+        try beforeJournalUpdate?()
         var done = journal
         done.swapped = true
         try store.writeTrimJournal(done)
@@ -400,9 +428,12 @@ public struct MeetingTrimmer: Sendable {
 
     /// Writes a replacement beside every file measured on the meeting's
     /// timeline.
-    private func stageTimelineFiles(store: MeetingStore, range: TrimRange, staging: inout Staging) throws {
+    private func stageTimelineFiles(
+        store: MeetingStore, range: TrimRange, staging: inout Staging
+    ) throws -> [String: Double]? {
         let layout = store.layout
         let manager = FileManager.default
+        var clusterSeconds: [String: Double]?
         if manager.fileExists(atPath: layout.rawTranscript.path) {
             try stageRawTranscript(store: store, range: range, staging: &staging)
         }
@@ -440,6 +471,7 @@ public struct MeetingTrimmer: Sendable {
                 ArchiveCoding.encode(MeetingTrim.trim(transcript, to: range)), for: layout.canonicalTranscript
             )
         }
+        return clusterSeconds
     }
 
     /// The model's words with the timings derived from them. A chunk of text

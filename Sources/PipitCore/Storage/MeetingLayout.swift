@@ -22,6 +22,8 @@ public struct MeetingLayout: Sendable, Equatable {
     /// manifest is the durable record of the recording timeline.
     public var manifest: URL { raw.appendingPathComponent("manifest.jsonl") }
     public var metadata: URL { raw.appendingPathComponent("metadata.json") }
+    /// Voice-memory adjustments a trim could not make yet. See `TrimVoiceAdjustment`.
+    public var trimVoicePending: URL { raw.appendingPathComponent("trim.voice.json") }
     /// Present only while a trim is being swapped in. See `TrimJournal`.
     public var trimJournal: URL { raw.appendingPathComponent("trim.journal.json") }
     public var rawTranscript: URL { raw.appendingPathComponent("transcript.raw.json") }
