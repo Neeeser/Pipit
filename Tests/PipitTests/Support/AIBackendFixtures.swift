@@ -28,6 +28,9 @@ public final class FakeAIBackend: AIBackend, @unchecked Sendable {
     public var failNextTranscription: ProcessingError?
     /// Fails every enrichment request, for the lost-connection path.
     public var failEnrichment: ProcessingError?
+    /// Fails every enrichment request with an error the pipeline has no mapping
+    /// for, as a write that fails after the paid request was sent does.
+    public var failEnrichmentUnrecognised: (any Error)?
     /// Fails every speaker suggestion request, for a model server that is not
     /// running.
     public var failSuggestions: ProcessingError?
@@ -108,6 +111,7 @@ public final class FakeAIBackend: AIBackend, @unchecked Sendable {
         if !configured { throw ProcessingError.missingAPIKey }
         if let enrichInterference { await enrichInterference() }
         if let failEnrichment { throw failEnrichment }
+        if let failEnrichmentUnrecognised { throw failEnrichmentUnrecognised }
         return enrichment
     }
 }

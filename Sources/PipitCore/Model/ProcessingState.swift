@@ -192,9 +192,11 @@ public struct ProcessingFailure: Codable, Sendable, Equatable {
 public struct ProcessingStatus: Codable, Sendable, Equatable {
     public var state: ProcessingState
     public var updatedAt: Date
-    /// Stage name to the number of attempts that ended in a failure, so a retry
-    /// loop is visible and boundable. An attempt that was interrupted by a quit
-    /// is not counted, and a stage that succeeds starts again from zero.
+    /// Stage name to the number of failures whose cause repeats the same result,
+    /// so a retry loop across launches is visible and boundable. A failure that
+    /// waiting or Settings clears is not counted, an attempt that a quit
+    /// interrupted is not counted, and a stage that succeeds starts again from
+    /// zero.
     public var attempts: [String: Int]
     public var lastFailure: ProcessingFailure?
     /// Stages that finished successfully. A resumed run skips these.

@@ -612,8 +612,8 @@ struct PipelineTests {
         // The category a diagnostic report carries in place of the message.
         #expect(failed.processing.lastFailure?.code?.rawValue == "processing.server_error.503")
         #expect(
-            failed.processing.attemptCount(for: .transcribing) == 3,
-            "three attempts, then the meeting waits for the user"
+            failed.processing.attemptCount(for: .transcribing) == 0,
+            "an outage is not counted, so it neither uses up the cap nor resets it"
         )
         let segmentsAfter = try FileManager.default.contentsOfDirectory(
             atPath: meeting.store.layout.segments.path
@@ -986,7 +986,7 @@ struct PipelineTests {
 
         let failed = try meeting.store.readMetadata().processing
         #expect(failed.state == .failed)
-        #expect(failed.attemptCount(for: .transcribing) == Self.attemptsPerStageForLaunchSweep)
+        #expect(failed.attemptCount(for: .transcribing) == 0, "being offline is not counted")
         #expect(failed.lastFailure?.effectiveCause == .clearsByWaiting)
         #expect(!failed.isOutOfAttempts, "being offline is not a fault that repeats")
 
@@ -1075,25 +1075,78 @@ struct PipelineTests {
                 == .clearsByWaiting)
     }
 
-    @Test("each cause gets its own attempts, so offline launches do not use up a repeating failure's")
-    func eachCauseGetsItsOwnAttempts() async throws {
+    @Test("offline launches do not use up the attempts of a transcript that loops")
+    func offlineLaunchesDoNotUseUpTheAttemptsOfATranscriptThatLoops() async throws {
         let root = try TestPaths.makeTemporaryDirectory()
         defer { try? FileManager.default.removeItem(at: root) }
         let meeting = try PipelineFixtures.makeRecordedMeeting(root: root)
-        try Self.markFailed(
-            meeting.store, attempts: Self.attemptsPerStageForLaunchSweep, cause: .clearsByWaiting)
-
         let backend = FakeAIBackend()
-        backend.alwaysFailTranscription = .degenerateTranscript(chunk: "c")
         let pipeline = PipelineFixtures.makePipeline(repository: meeting.repository, backend: backend)
+
+        backend.alwaysFailTranscription = .transport(reason: "offline")
+        for _ in 1...Self.attemptsPerStageForLaunchSweep {
+            await pipeline.resumeInterrupted()
+        }
+        backend.alwaysFailTranscription = .degenerateTranscript(chunk: "c")
         await pipeline.resumeInterrupted()
 
         let status = try meeting.store.readMetadata().processing
         #expect(
             status.attemptCount(for: .transcribing) == Self.attemptsPerStageForLaunchSweep,
-            "three attempts at the looping transcript, not one after three offline ones"
+            "three attempts at the looping transcript, not one after three offline launches"
         )
         #expect(status.lastFailure?.message.contains("stopped retrying") == true)
+    }
+
+    @Test("alternating outages and a repeating failure still reach the cap")
+    func alternatingOutagesAndARepeatingFailureStillReachTheCap() async throws {
+        let root = try TestPaths.makeTemporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let meeting = try PipelineFixtures.makeRecordedMeeting(root: root)
+        let backend = FakeAIBackend()
+        let pipeline = PipelineFixtures.makePipeline(repository: meeting.repository, backend: backend)
+
+        // Offline at the start of a launch, then online and refused: a paid
+        // request every other launch for as long as the cause kept changing.
+        for launch in 1...6 {
+            backend.alwaysFailTranscription =
+                launch.isMultiple(of: 2)
+                ? .malformedResponse(reason: "not JSON") : .transport(reason: "offline")
+            await pipeline.resumeInterrupted()
+        }
+        let afterSix = backend.calls.count
+        for _ in 1...2 {
+            backend.alwaysFailTranscription = .malformedResponse(reason: "not JSON")
+            await pipeline.resumeInterrupted()
+        }
+
+        let status = try meeting.store.readMetadata().processing
+        #expect(status.attemptCount(for: .transcribing) == Self.attemptsPerStageForLaunchSweep)
+        #expect(status.isOutOfAttempts)
+        #expect(backend.calls.count == afterSix, "no request is sent once three repeats are counted")
+    }
+
+    @Test("an unrecognised failure while enriching is capped, since its paid request was sent")
+    func anUnrecognisedFailureWhileEnrichingIsCapped() async throws {
+        let root = try TestPaths.makeTemporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let meeting = try PipelineFixtures.makeRecordedMeeting(root: root)
+        let backend = FakeAIBackend()
+        backend.transcriptionSegments = Self.sweepRecording
+        backend.diarizationSegments = Self.sweepDiarization
+        backend.failEnrichmentUnrecognised = ProcessingPipelineTestsUnknownError()
+        let pipeline = PipelineFixtures.makePipeline(repository: meeting.repository, backend: backend)
+        await pipeline.process(meetingID: meeting.metadata.id)
+
+        let status = try meeting.store.readMetadata().processing
+        #expect(status.state == .failed)
+        #expect(status.resumeStage == .enriching)
+        #expect(status.lastFailure?.effectiveCause == .sameResultEachTime)
+        #expect(status.isOutOfAttempts)
+
+        let sent = backend.calls.filter { $0.kind == "enrich" }.count
+        await pipeline.resumeInterrupted()
+        #expect(backend.calls.filter { $0.kind == "enrich" }.count == sent, "and not sent again at launch")
     }
 
     @Test("Try again anyway gives the stage its attempts again")

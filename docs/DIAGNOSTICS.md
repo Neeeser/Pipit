@@ -365,8 +365,9 @@ Built by `DiagnosticSnapshot` (PipitCore) from values `DiagnosticReportCollector
   `unknown` for one recorded before codes were kept), `retryable`
   (whether this kind of failure is retried within a run; the failure
   shown stopped that run, so it is the kind's property, not a promise), `cause` (`same_result`, `settings`
-  or `waiting`: what another attempt would change), `attempts` (failed attempts
-  at that stage, not counting a run a quit interrupted), and `at`. Only a
+  or `waiting`: what another attempt would change), `attempts` (failures at that
+  stage that repeat the same result, counted across launches; waiting and
+  Settings failures and a run a quit interrupted are not counted), and `at`. Only a
   `same_result` failure with 3 or more attempts has used them all and waits for
   Retry; `settings` and `waiting` failures are started again at every launch.
   `cause` is absent from reports by older builds, and for a failure stored

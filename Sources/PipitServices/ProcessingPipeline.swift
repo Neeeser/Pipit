@@ -280,6 +280,12 @@ public actor ProcessingPipeline {
         // meeting recorded before diagnostics existed.
         let session = (try? store.readTimeline())?.diagnosticSession
 
+        // Failed attempts at each stage in this run, which bound the retries
+        // below. Kept apart from the stored count, which is the launch sweep's
+        // cap and only grows for a failure that repeats: an outage must
+        // neither use up that cap nor, by ending, reset it.
+        var runAttempts: [ProcessingState: Int] = [:]
+
         while let stage = metadata.processing.resumeStage, stage != .complete {
             // A job identifier per attempt, so a retry's events are told from
             // the attempt that failed before it.
@@ -338,17 +344,11 @@ public actor ProcessingPipeline {
                 // leaves no failure behind, and counting it would let a few
                 // quits during one long transcription use up the attempts that
                 // are meant for failures.
-                let attempt = metadata.processing.attemptCount(for: stage) + 1
+                let attempt = (runAttempts[stage] ?? 0) + 1
                 // A failed meeting the launch sweep starts again stops reading
                 // as failed while it runs, so the pane shows progress and not
                 // last time's "will try again next time it opens".
                 if metadata.processing.state == .failed {
-                    // Each cause gets its own attempts. Three offline failures
-                    // say nothing about a transcript that loops, and carrying
-                    // them over stopped a meeting after one repeat.
-                    if metadata.processing.lastFailure?.effectiveCause.isCappedAtLaunch != true {
-                        metadata.processing.clearAttempts(for: stage)
-                    }
                     metadata.processing.advance(to: stage, at: clock.now)
                 }
                 try persist(metadata, to: store)
@@ -426,6 +426,7 @@ public actor ProcessingPipeline {
                 // The stage worked, so the failures before it no longer count
                 // against a later run of the same stage.
                 metadata.processing.clearAttempts(for: stage)
+                runAttempts[stage] = nil
                 try persist(metadata, to: store)
                 report(metadata, chunks: nil)
                 diagnostics.record(
@@ -437,14 +438,20 @@ public actor ProcessingPipeline {
                 )
             } catch {
                 let failure = Self.processingError(from: error, stage: stage)
-                metadata.processing.recordAttempt(for: stage)
-                let attempts = metadata.processing.attemptCount(for: stage)
+                let attempts = (runAttempts[stage] ?? 0) + 1
+                runAttempts[stage] = attempts
+                // Only a failure that repeats counts toward the cap. Waiting
+                // and Settings fixes are tried again whatever came before.
+                let repeats = failure.cause.isCappedAtLaunch
+                if repeats { metadata.processing.recordAttempt(for: stage) }
+                let usedAllLaunches =
+                    repeats && metadata.processing.attemptCount(for: stage) >= Self.maxAttemptsPerStage
                 // Coded from the error as thrown. Categorising it first would
                 // file every unrecognised failure under one local case.
                 let code = DiagnosticCode(describing: error)
                 diagnostics.record(
                     .processingStageFailed(
-                        stage: stage, attempt: metadata.processing.attemptCount(for: stage),
+                        stage: stage, attempt: attempts,
                         code: code, retryable: failure.isRetryable
                     ),
                     session: session, job: job
@@ -458,12 +465,10 @@ public actor ProcessingPipeline {
                 // are used the message says Pipit stopped, because nothing
                 // starts the stage again until the person presses Retry. Any
                 // other cause is tried again at the next launch.
-                let retriesNow = failure.isRetryable && attempts < Self.maxAttemptsPerStage
+                let retriesNow =
+                    failure.isRetryable && attempts < Self.maxAttemptsPerStage && !usedAllLaunches
                 let outcome: FailureOutcome =
-                    retriesNow
-                    ? .retryingNow
-                    : (failure.cause.isCappedAtLaunch && attempts >= Self.maxAttemptsPerStage
-                        ? .stopped : .retryAtLaunch)
+                    retriesNow ? .retryingNow : (usedAllLaunches ? .stopped : .retryAtLaunch)
                 let recorded = ProcessingFailure(
                     stage: stage,
                     message: failure.message(outcome: outcome),
@@ -482,7 +487,7 @@ public actor ProcessingPipeline {
                 // A rate limit or a server error usually clears on its own, so the
                 // stage is tried again here while attempts remain. Attempts are
                 // bounded so a persistent outage stops asking.
-                if failure.isRetryable, attempts < Self.maxAttemptsPerStage {
+                if retriesNow {
                     // The slot goes back first. A rate limit can ask for five
                     // minutes, and holding the one heavy-job slot through it
                     // kept a meeting that had just finished recording waiting
