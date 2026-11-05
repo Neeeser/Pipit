@@ -151,6 +151,13 @@ struct AudioTests {
         #expect(!segments.contains { $0.closeReason == "buffer_format_mismatch" })
     }
 
+    @Test("an empty file is lost audio only when the manifest recorded frames in it")
+    func anEmptyFileIsLostAudioOnlyWhenTheManifestRecordedFrames() {
+        #expect(!TrackAudioReader.emptyFileLosesAudio(manifestFrameCount: 0))
+        #expect(!TrackAudioReader.emptyFileLosesAudio(manifestFrameCount: nil))
+        #expect(TrackAudioReader.emptyFileLosesAudio(manifestFrameCount: 4_800))
+    }
+
     @Test("segments rotate, close cleanly and report per-segment duration")
     func segmentsRotateCloseCleanlyAndReportPerSegmentDuration() async throws {
         let root = try TestPaths.makeTemporaryDirectory()

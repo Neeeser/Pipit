@@ -334,8 +334,12 @@ public final class CaptureEngine: Sendable {
         // The writer holds this closure and the engine holds the writer, so
         // the reference back has to be weak or the pair never deallocates.
         let engine = WeakEngine(self)
+        // The first packet written comes from the oldest audio in the ring, which
+        // can predate a rebuild that changed the format, so the writer opens at
+        // that packet's format and only falls back to the newest build's.
         let micFormat =
-            format(from: micCoordinator.activeFormat)
+            micPreRoll.earliestFormat
+            ?? format(from: micCoordinator.activeFormat)
             ?? CaptureFormat.make(sampleRate: 48_000, channelCount: 1)!
         let (micBase, remoteBase) = state.withLock { ($0.micLastSegmentIndex, $0.remoteLastSegmentIndex) }
         let micWriter = SegmentWriter(

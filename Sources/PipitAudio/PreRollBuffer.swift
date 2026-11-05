@@ -30,6 +30,10 @@ public final class PreRollBuffer: Sendable {
     public var bufferedSeconds: Double { state.withLock { $0.bufferedSeconds } }
     public var packetCount: Int { state.withLock { $0.packets.count } }
     public var earliestHostTime: Double? { state.withLock { $0.packets.first?.hostTime } }
+    /// The format of the oldest buffered packet. A writer that opens for the ring
+    /// takes this one, because the ring can hold audio from before a rebuild that
+    /// changed the device's format.
+    public var earliestFormat: AVAudioFormat? { state.withLock { $0.packets.first?.buffer.format } }
 
     /// Appends a packet, evicting from the front to stay inside the window.
     public func append(_ packet: AudioBufferPacket) {
