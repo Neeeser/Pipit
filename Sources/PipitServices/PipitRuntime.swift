@@ -1155,6 +1155,32 @@ public final class PipitRuntime {
         }
     }
 
+    /// Cuts a finished meeting to the range the person kept and deletes the
+    /// rest. The person has confirmed it; nothing here can be undone.
+    public func trimMeeting(
+        meetingID: String, to range: TrimRange,
+        completion: @escaping @Sendable @MainActor (TrimError?) -> Void = { _ in }
+    ) {
+        runProcessing { [weak self] in
+            guard let self else { return }
+            var failure: TrimError?
+            do {
+                try await pipeline.trim(meetingID: meetingID, to: range)
+            } catch let error as TrimError {
+                failure = error
+            } catch {
+                Log.app.error("trim failed: \(logSafeDescription(error), privacy: .public)")
+                failure = .filesNotWritten
+            }
+            if let failure {
+                Log.app.error("trim refused: \(failure.logSafeDescription, privacy: .public)")
+            }
+            refreshRecentMeetings()
+            onProcessingUpdate?(meetingID)
+            completion(failure)
+        }
+    }
+
     /// Re-assembles the transcript from the raw chunks already on disk.
     public func rebuildTranscript(meetingID: String, completion: @escaping @Sendable @MainActor () -> Void = {}) {
         runProcessing { [weak self] in

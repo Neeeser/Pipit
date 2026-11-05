@@ -3185,6 +3185,30 @@ public actor ProcessingPipeline {
         try await rerenderMarkdown(store: found.store, metadata: found.metadata)
     }
 
+    /// Cuts a finished meeting down to the range the person kept, then writes
+    /// its transcript, summary and mixdown again from what is left.
+    ///
+    /// Holds the job slot while files are rewritten, so no stage reads a
+    /// meeting halfway through being cut.
+    public func trim(meetingID: String, to range: TrimRange) async throws {
+        guard !running.contains(meetingID),
+            let found = repository.findMeeting(id: meetingID, includingMerged: true)
+        else { throw TrimError.notFinished }
+        running.insert(meetingID)
+        holdFolder(meetingID)
+        await jobLock.acquire()
+        let outcome = Result { try MeetingTrimmer().trim(store: found.store, to: range, at: clock.now) }
+        running.remove(meetingID)
+        releaseFolder(meetingID)
+        jobLock.release()
+        try outcome.get()
+        Log.processing.info(
+            "trimmed meeting=\(found.metadata.logIdentifier, privacy: .public) kept=\(range.seconds, privacy: .public)s"
+        )
+        try await rebuildTranscript(meetingID: meetingID)
+        await process(meetingID: meetingID)
+    }
+
     /// Re-renders the transcript after a human speaker correction.
     ///
     /// Changing a name is a side-file edit: raw diarization is untouched and no

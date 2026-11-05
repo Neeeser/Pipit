@@ -78,6 +78,7 @@
 		064FAC8B1390A57B8638A0FB /* pipit */ = {isa = PBXFileReference; lastKnownFileType = folder; name = pipit; path = skills/pipit; sourceTree = SOURCE_ROOT; };
 		0DB674F2B77DF780C7E40B1F /* pipit-bird.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = "pipit-bird.png"; sourceTree = "<group>"; };
 		1285D5E7B50171265DD11DF8 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
+		1A9FA47A63F5FFB29A6E7F9C /* Pipit */ = {isa = PBXFileReference; lastKnownFileType = folder; name = Pipit; path = .; sourceTree = SOURCE_ROOT; };
 		22EFBC85987D961C7C8CAA85 /* Pipit.icns */ = {isa = PBXFileReference; lastKnownFileType = image.icns; path = Pipit.icns; sourceTree = "<group>"; };
 		2D7A38581127B6E94CAC574A /* pipit-idle.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = "pipit-idle.png"; sourceTree = "<group>"; };
 		37155903C8D9E58F149C8AEE /* Pipit.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = Pipit.entitlements; sourceTree = "<group>"; };
@@ -94,7 +95,6 @@
 		CD6F58DFE74C9079257BC916 /* Pipit.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Pipit.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		CF162ACFBE7E6E8D288ED3AE /* main.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = main.swift; sourceTree = "<group>"; };
 		CF8423805ED90026CB9FE79F /* pipit-nativehost */ = {isa = PBXFileReference; includeInIndex = 0; path = "pipit-nativehost"; sourceTree = BUILT_PRODUCTS_DIR; };
-		E8E76A82057AB00AAE8FCFA0 /* pippit-audio-quality-audit-e8a392 */ = {isa = PBXFileReference; lastKnownFileType = folder; name = "pippit-audio-quality-audit-e8a392"; path = .; sourceTree = SOURCE_ROOT; };
 		EE665BD0FBCB237C161ED197 /* pipit-recording.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = "pipit-recording.png"; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
@@ -243,7 +243,7 @@
 		C3F5AEB0AE40EB2D5EE6807D /* Packages */ = {
 			isa = PBXGroup;
 			children = (
-				E8E76A82057AB00AAE8FCFA0 /* pippit-audio-quality-audit-e8a392 */,
+				1A9FA47A63F5FFB29A6E7F9C /* Pipit */,
 			);
 			name = Packages;
 			sourceTree = "<group>";

@@ -117,7 +117,8 @@ meeting/
 ```
 
 Source audio, manifest entries, raw model output, and imported originals are
-immutable. Titles, notes, speaker mappings, and meeting metadata are mutable.
+immutable, except that Trim cuts them to the range the person keeps after they
+confirm (see Trimming below). Titles, notes, speaker mappings, and meeting metadata are mutable.
 Markdown, summaries, and the mixed recording are derived files and can be
 regenerated.
 
@@ -129,6 +130,23 @@ maps a playback position to a recording, a turn, and a word.
 Completed source tracks are compacted from CAF segments into AAC after Pipit
 verifies their decoded duration. Segment deletion starts only after the archive
 and metadata are durable. An interrupted compaction resumes during startup.
+
+### Trimming
+
+Trim cuts a finished meeting to a range the person picks in the player bar and
+deletes the rest after they confirm. It works on a recording whose audio is
+compacted, recorded in one run, and done processing; in a meeting recorded in
+parts it moves only the start of the first part and the end of the last.
+`MeetingTrim` rewrites each file as a function of the old file and the range:
+the track archives and the cleaned microphone are re-exported, and every time on
+the meeting timeline (raw and assembled transcripts, diarization, sensor turns,
+speech evidence, the speaker map's line corrections and cuts, speaker
+suggestions, and the manifest's segments) is clipped and moved so the kept
+stretch starts at zero. Speaker clusters keep their identifiers, so names given
+to them stay. `MeetingTrimmer` writes every replacement beside the original,
+decodes the new audio to check its length, and then swaps the files in with the
+metadata last. Processing goes back to enrichment, which writes the summary,
+`transcript.md`, and `recording.m4a` again.
 
 Voice profiles are stored separately at
 `~/Library/Application Support/Pipit/Speakers/voices.sqlite`. Meeting folders
