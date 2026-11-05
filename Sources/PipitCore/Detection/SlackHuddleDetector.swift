@@ -105,14 +105,51 @@ public struct SlackHuddleDetector: Sendable {
 
     public private(set) var state: State = .idle
     public private(set) var isMuted: Bool?
-    public private(set) var conversationTitle: String?
     public private(set) var consecutiveMisses = 0
+
+    /// The name to file the huddle under.
+    ///
+    /// Slack's window shows whichever conversation is open, which is not the
+    /// huddle's when someone calls you and you answer. The people in the huddle
+    /// are the better evidence, so:
+    /// - a direct message's own name is used as it is;
+    /// - a channel, a preview or no title gives way to the other person when
+    ///   there is exactly one;
+    /// - a channel with several others keeps its name, and with no title at all
+    ///   the others' names are joined, the way Slack titles a group message.
+    ///
+    /// A channel or preview name is withheld until the roster has been read
+    /// once, so the saved meeting is not filed under a channel the call was never
+    /// in. Without accessibility there is no roster to wait for.
+    public var conversationTitle: String? {
+        let others = participants
+        if conversationKind == .directMessage { return conversation }
+        if others.count == 1 { return others[0] }
+        if let conversation, !conversationIsPreview {
+            if others.count >= 2 || rosterWasRead || joinedWithoutAccessibility
+                || state == .idle
+            {
+                return conversation
+            }
+            return nil
+        }
+        if others.count >= 2 { return others.joined(separator: ", ") }
+        if conversationIsPreview, state == .idle || joinedWithoutAccessibility { return conversation }
+        return nil
+    }
+
+    /// The other people in the huddle, in the order Slack first listed them.
+    public private(set) var participants: [String] = []
 
     private let configuration: Configuration
     private var missingSince: Double?
     private var candidateSince: Double?
     private var joinedWithoutAccessibility = false
     private var conversationIsPreview = false
+    private var conversation: String?
+    private var conversationKind: SlackWindowTitle.Parsed.Kind = .unknown
+    private var participantIDs: Set<String> = []
+    private var rosterWasRead = false
 
     public init(configuration: Configuration = Configuration()) {
         self.configuration = configuration
@@ -139,7 +176,11 @@ public struct SlackHuddleDetector: Sendable {
         // The name is kept for the length of a huddle, so a finished one's
         // would otherwise stand for the next until a real title arrived, and
         // by then the next one would be keeping it.
-        if before != .idle, state == .idle { forgetConversation() }
+        if before != .idle, state == .idle {
+            forgetConversation()
+        } else if state != .idle {
+            notePeople(observation.tiles)
+        }
         return event
     }
 
@@ -272,15 +313,30 @@ public struct SlackHuddleDetector: Sendable {
     /// names no conversation, so the first real name replaces it at any point
     /// in the huddle, and a preview never replaces a real name.
     private mutating func noteConversation(_ parsed: SlackWindowTitle.Parsed) {
-        guard state == .idle || conversationTitle == nil || conversationIsPreview else { return }
-        if parsed.isHuddlePreview, conversationTitle != nil, !conversationIsPreview { return }
-        conversationTitle = parsed.conversation
+        guard state == .idle || conversation == nil || conversationIsPreview else { return }
+        if parsed.isHuddlePreview, conversation != nil, !conversationIsPreview { return }
+        conversation = parsed.conversation
+        conversationKind = parsed.kind
         conversationIsPreview = parsed.isHuddlePreview
     }
 
+    private mutating func notePeople(_ tiles: [SlackHuddleTile]) {
+        guard !tiles.isEmpty else { return }
+        rosterWasRead = true
+        for tile in tiles where !tile.isSelf && !participantIDs.contains(tile.userID) {
+            guard let name = tile.displayName, !name.isEmpty else { continue }
+            participantIDs.insert(tile.userID)
+            participants.append(name)
+        }
+    }
+
     private mutating func forgetConversation() {
-        conversationTitle = nil
+        conversation = nil
+        conversationKind = .unknown
         conversationIsPreview = false
+        participants = []
+        participantIDs = []
+        rosterWasRead = false
     }
 
     public mutating func reset() {
@@ -329,7 +385,8 @@ public enum SlackWindowTitle {
         let parts = body.components(separatedBy: " - ").map { $0.trimmingCharacters(in: .whitespaces) }
         guard parts.count >= 2, parts.last == "Slack" else { return nil }
 
-        let conversationPart = parts[0]
+        // Slack marks the title with "!" or "*" while mentions are unread.
+        let conversationPart = String(parts[0].drop(while: { "!*".contains($0) || $0.isWhitespace }))
         let workspace = parts.count >= 3 ? parts[parts.count - 2] : nil
         var conversation = conversationPart
         var kind = Parsed.Kind.unknown

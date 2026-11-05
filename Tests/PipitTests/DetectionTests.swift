@@ -109,6 +109,16 @@ struct SlackHuddleDetectorTests {
         #expect(detector.state == .joined)
     }
 
+    @Test("unread-mention marks in front of the name are dropped")
+    func unreadMentionMarksInFrontOfTheNameAreDropped() async throws {
+        let mention = try #require(SlackWindowTitle.parse("! Rowan Ashby (DM) - Larkfield - Slack"))
+        #expect(mention.conversation == "Rowan Ashby")
+        #expect(mention.kind == .directMessage)
+        let star = try #require(SlackWindowTitle.parse("* launch-room (Channel) - Larkfield - Slack"))
+        #expect(star.conversation == "launch-room")
+        #expect(SlackWindowTitle.parse("! - Larkfield - Slack") == nil)
+    }
+
     @Test("window titles yield conversation, kind and workspace")
     func windowTitlesYieldConversationKindAndWorkspace() async throws {
         let dm = try #require(SlackWindowTitle.parse("Rowan Ashby (DM) - Larkfield - Slack"))
@@ -192,6 +202,127 @@ struct SlackHuddleDetectorTests {
         )
         #expect(detector.state == .joined)
         #expect(detector.conversationTitle == "Rowan Ashby")
+    }
+
+    @Test("an incoming call answered while a channel is open is named after the caller")
+    func anIncomingCallAnsweredWhileAChannelIsOpenIsNamedAfterTheCaller() async throws {
+        // Slack does not switch its window to the caller's conversation when
+        // a call is answered, so the title still names the channel.
+        var detector = SlackHuddleDetector()
+        let title = "launch-room (Channel) - Larkfield - Slack"
+        _ = detector.update(
+            observation: Self.idle(title: title),
+            helperHoldsMicrophone: false, helperProducingOutput: false, at: 100
+        )
+        _ = detector.update(
+            observation: Self.idle(title: title),
+            helperHoldsMicrophone: true, helperProducingOutput: false, at: 101
+        )
+        _ = detector.update(
+            observation: DetectionFixtures.joined(title: title, tiles: Self.tiles("Rowan Ashby")),
+            helperHoldsMicrophone: true, helperProducingOutput: true, at: 105
+        )
+        #expect(detector.state == .joined)
+        #expect(detector.conversationTitle == "Rowan Ashby")
+    }
+
+    @Test("the channel's name is held back until the roster has been read")
+    func theChannelsNameIsHeldBackUntilTheRosterHasBeenRead() async throws {
+        var detector = SlackHuddleDetector()
+        let title = "launch-room (Channel) - Larkfield - Slack"
+        _ = detector.update(
+            observation: DetectionFixtures.joined(title: title),
+            helperHoldsMicrophone: true, helperProducingOutput: true, at: 100
+        )
+        #expect(detector.conversationTitle == nil)
+        _ = detector.update(
+            observation: DetectionFixtures.joined(title: title, tiles: Self.tiles("Rowan Ashby", "Ines Calloway")),
+            helperHoldsMicrophone: true, helperProducingOutput: true, at: 101
+        )
+        #expect(detector.conversationTitle == "launch-room")
+    }
+
+    @Test("a channel huddle with several people keeps the channel's name")
+    func aChannelHuddleWithSeveralPeopleKeepsTheChannelsName() async throws {
+        var detector = SlackHuddleDetector()
+        let title = "launch-room (Channel) - Larkfield - Slack"
+        _ = detector.update(
+            observation: Self.idle(title: title),
+            helperHoldsMicrophone: true, helperProducingOutput: false, at: 100
+        )
+        _ = detector.update(
+            observation: DetectionFixtures.joined(
+                title: title, tiles: Self.tiles("Rowan Ashby", "Ines Calloway")),
+            helperHoldsMicrophone: true, helperProducingOutput: true, at: 105
+        )
+        #expect(detector.conversationTitle == "launch-room")
+    }
+
+    @Test("a huddle with no conversation open is named after the people in it")
+    func aHuddleWithNoConversationOpenIsNamedAfterThePeopleInIt() async throws {
+        var detector = SlackHuddleDetector()
+        _ = detector.update(
+            observation: DetectionFixtures.joined(
+                title: "- Larkfield - Slack", tiles: Self.tiles("Rowan Ashby", "Ines Calloway")),
+            helperHoldsMicrophone: true, helperProducingOutput: true, at: 100
+        )
+        #expect(detector.conversationTitle == "Rowan Ashby, Ines Calloway")
+    }
+
+    @Test("a direct message's name wins over the people listed")
+    func aDirectMessagesNameWinsOverThePeopleListed() async throws {
+        var detector = SlackHuddleDetector()
+        _ = detector.update(
+            observation: DetectionFixtures.joined(
+                title: "Rowan Ashby (DM) - Larkfield - Slack", tiles: Self.tiles("Ines Calloway")),
+            helperHoldsMicrophone: true, helperProducingOutput: true, at: 100
+        )
+        #expect(detector.conversationTitle == "Rowan Ashby")
+    }
+
+    @Test("an incoming call is saved under the caller's name")
+    func anIncomingCallIsSavedUnderTheCallersName() async throws {
+        var detector = SlackHuddleDetector()
+        var controller = SessionController()
+        let wall = Date(timeIntervalSince1970: 1_787_070_000)
+        let title = "launch-room (Channel) - Larkfield - Slack"
+        var commit: CommitRequest?
+        let polls: [(SlackAccessibilityObservation, Bool, Double)] = [
+            (Self.idle(title: title), false, 100),
+            (Self.idle(title: title), true, 101),
+            (DetectionFixtures.joined(title: title, tiles: Self.tiles("Rowan Ashby")), true, 105),
+        ]
+        for (observation, holdsMicrophone, now) in polls {
+            _ = detector.update(
+                observation: observation, helperHoldsMicrophone: holdsMicrophone,
+                helperProducingOutput: holdsMicrophone, at: now
+            )
+            let confidence: MeetingConfidence =
+                switch detector.state {
+                case .joined, .leaving: .confirmed
+                case .candidate: .candidate
+                case .idle: .none
+                }
+            guard confidence > .none else { continue }
+            let evidence = ProviderEvidence(
+                provider: .slack, confidence: confidence, source: .accessibility,
+                title: detector.conversationTitle,
+                applicationBundleID: "com.tinyspeck.slackmacgap",
+                audioBundlePrefixes: ["com.tinyspeck.slackmacgap"]
+            )
+            for action in controller.update(evidence: [evidence], now: now, wallClock: wall) {
+                if case .commitRecording(let request) = action { commit = request }
+            }
+        }
+        let saved = try #require(commit)
+        #expect(saved.titles.provider == "Rowan Ashby")
+    }
+
+    private static func tiles(_ others: String...) -> [SlackHuddleTile] {
+        [SlackHuddleTile(userID: "U0SELF", displayName: "Me Myself", isSelf: true)]
+            + others.enumerated().map { index, name in
+                SlackHuddleTile(userID: "U0OTHER\(index)", displayName: name)
+            }
     }
 
     @Test("a huddle preview gives way to the conversation's name")
