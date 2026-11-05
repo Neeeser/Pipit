@@ -90,6 +90,10 @@ public enum BrowserWindowTitle {
         public let title: String?
         /// The page is a landing or interstitial screen rather than a meeting.
         public let isLanding: Bool
+        /// The title has the shape of a page for one meeting, as opposed to any
+        /// page that mentions the provider. Only such a title lets the open
+        /// microphone keep the meeting after the title has left the screen.
+        public var isMeetingPage = false
     }
 
     public static func parse(_ rawTitle: String) -> Parsed? {
@@ -104,7 +108,7 @@ public enum BrowserWindowTitle {
             let isCode = code.range(of: "^[a-z]{3}-[a-z]{4}-[a-z]{3}$", options: [.regularExpression]) != nil
             return Parsed(
                 provider: .googleMeet, meetingID: isCode ? code : nil,
-                title: isCode ? nil : code, isLanding: false
+                title: isCode ? nil : code, isLanding: false, isMeetingPage: true
             )
         }
         if title.localizedCaseInsensitiveContains("zoom") {
@@ -116,10 +120,13 @@ public enum BrowserWindowTitle {
                 title
                 .replacingOccurrences(of: " - Zoom", with: "")
                 .trimmingCharacters(in: .whitespaces)
+            // The web client's titles in this repo's tests end in "Zoom" or
+            // "Zoom Meeting". The parse stays broad so a call is not missed, but
+            // a title that mentions Zoom some other way is not a meeting page.
+            let isLanding = name.isEmpty || name == "Zoom"
             return Parsed(
-                provider: .zoom, meetingID: nil,
-                title: name.isEmpty || name == "Zoom" ? nil : name,
-                isLanding: name.isEmpty || name == "Zoom"
+                provider: .zoom, meetingID: nil, title: isLanding ? nil : name, isLanding: isLanding,
+                isMeetingPage: !isLanding && (title.hasSuffix(" - Zoom") || title.hasSuffix("Zoom Meeting"))
             )
         }
         return nil
@@ -274,9 +281,14 @@ public struct BrowserMeetingDetector: Sendable {
         if let remembered = lastNativeParse, sensor.liveEvents.contains(where: { Self.reports($0, remembered) }) {
             addOnReportedMeeting = true
         }
-        let withinMemory = lastNativeParseAt.map { now - $0 <= configuration.titleMemorySeconds } ?? false
+        // The microphone ties the call to the browser when it is open while the
+        // title is visible or within the refresh grace of it (Zoom's page shows
+        // its title a moment before the microphone opens). A microphone that
+        // opens later was not opened for this title, even if the title is still
+        // remembered.
+        let titleIsCurrent = lastNativeParseAt.map { now - $0 <= configuration.nativeEndGraceSeconds } ?? false
         if signals.browserHoldsMicrophone {
-            if parsed != nil || withinMemory { titleHeldByMicrophone = true }
+            if titleIsCurrent, lastNativeParse?.isMeetingPage == true { titleHeldByMicrophone = true }
         } else if let releasedAt = micReleasedSince, now - releasedAt >= configuration.nativeEndGraceSeconds {
             titleHeldByMicrophone = false
         }
@@ -323,9 +335,13 @@ public struct BrowserMeetingDetector: Sendable {
     }
 
     /// Whether the add-on's event is a tab on the remembered meeting that is
-    /// still prejoin, waiting or in a call.
+    /// in a call.
     private static func reports(_ event: BrowserMeetingEvent, _ remembered: BrowserWindowTitle.Parsed) -> Bool {
-        guard event.provider == remembered.provider, event.state.detectionWeight > 0 else { return false }
+        // A prejoin or waiting report is not enough: if the add-on's in-call
+        // detection breaks it reports those and then browsing, and that must
+        // cost extra recording, never the meeting.
+        guard event.provider == remembered.provider, event.state == .inCall || event.state == .reconnecting
+        else { return false }
         return remembered.meetingID == nil || event.meetingID == nil || event.meetingID == remembered.meetingID
     }
 

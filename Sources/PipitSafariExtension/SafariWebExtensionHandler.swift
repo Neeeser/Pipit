@@ -42,6 +42,14 @@ final class SafariWebExtensionHandler: NSObject, NSExtensionRequestHandling {
     private static let executablePath = Bundle.main.executablePath
     private static let startedFrom = executablePath.flatMap(FileIdentity.init(path:))
 
+    /// Reads the file's identity when the handler is first created, which is
+    /// when the process starts, so a reinstall before the first message is
+    /// still noticed.
+    override init() {
+        _ = Self.startedFrom
+        super.init()
+    }
+
     func beginRequest(with context: NSExtensionContext) {
         // Pipit refuses a relay whose running code no longer matches the file
         // on disk, which is the case for this process once Pipit is reinstalled.
