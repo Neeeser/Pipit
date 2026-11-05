@@ -30,6 +30,7 @@ public final class PreRollBuffer: Sendable {
     public var bufferedSeconds: Double { state.withLock { $0.bufferedSeconds } }
     public var packetCount: Int { state.withLock { $0.packets.count } }
     public var earliestHostTime: Double? { state.withLock { $0.packets.first?.hostTime } }
+
     /// Appends a packet, evicting from the front to stay inside the window.
     public func append(_ packet: AudioBufferPacket) {
         state.withLock { state in

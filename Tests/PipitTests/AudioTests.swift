@@ -151,6 +151,35 @@ struct AudioTests {
         #expect(!segments.contains { $0.closeReason == "buffer_format_mismatch" })
     }
 
+    @Test("a format change to the format the writer is already at opens no segment")
+    func aFormatChangeToTheFormatTheWriterIsAlreadyAtOpensNoSegment() throws {
+        // A buffer at a new rate rotates the segment itself. The coordinator
+        // then reports the same change, and closing again left a short or
+        // empty segment between two at one format.
+        let root = try TestPaths.makeTemporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let layout = MeetingLayout(root: root)
+        try FileManager.default.createDirectory(
+            at: layout.segments, withIntermediateDirectories: true
+        )
+        let manifest = try ManifestWriter(url: layout.manifest)
+        let first = try #require(AVAudioFormat(standardFormatWithSampleRate: 48_000, channels: 1))
+        let second = try #require(AVAudioFormat(standardFormatWithSampleRate: 44_100, channels: 1))
+        let writer = SegmentWriter(
+            track: .mic, layout: layout, manifest: manifest, format: first, segmentSeconds: 60
+        )
+        let buffer = try #require(AVAudioPCMBuffer(pcmFormat: second, frameCapacity: 4_410))
+        buffer.frameLength = 4_410
+        writer.enqueueSynchronously(AudioBufferPacket(buffer: buffer, hostTime: 100))
+        writer.changeFormat(second, reason: "config_change")
+        writer.finish(reason: "test")
+        manifest.close()
+
+        let segments = try ManifestReader.timeline(contentsOf: layout.manifest).segments(track: .mic)
+        #expect(segments.count == 2, "the empty first segment and the 44.1 kHz one, got \(segments.count)")
+        #expect(segments.last?.frameCount == 4_410)
+    }
+
     @Test("an empty file is lost audio only when the manifest recorded frames in it")
     func anEmptyFileIsLostAudioOnlyWhenTheManifestRecordedFrames() {
         #expect(!TrackAudioReader.emptyFileLosesAudio(manifestFrameCount: 0))

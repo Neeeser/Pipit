@@ -54,7 +54,12 @@ private final class EmittingTap: ProcessTapController, @unchecked Sendable {
     private var targets: [RemoteAudioTarget] = []
     private var reading: TapCallbackReading?
     var format = AudioFormatDescriptor(sampleRate: 48_000, channelCount: 1)
-    private(set) var bindCount = 0
+    private var bindCount = 0
+    var bindsSoFar: Int {
+        lock.lock()
+        defer { lock.unlock() }
+        return bindCount
+    }
 
     init(sink: @escaping AudioBufferSink) { self.sinkHandler = sink }
 
@@ -899,15 +904,17 @@ struct FirstSegmentFormatTests {
             },
             delegate: SilentDelegate()
         )
-        await engine.arm(scope: .bundlePrefixes(["com.example.app"]), capturesRemote: true)
+        // Set before arming, so the bind arm makes is a real one at 48 kHz and
+        // not a bind to no process.
         tap.withLock {
             $0?.setTargets([makeTarget(pid: 42, bundle: "com.example.app", producing: true)])
         }
+        await engine.arm(scope: .bundlePrefixes(["com.example.app"]), capturesRemote: true)
         let deadline = Date().addingTimeInterval(10)
-        while engine.health.remoteRebinds < 1, Date() < deadline {
+        while (tap.withLock { $0?.bindsSoFar ?? 0 }) < 1, Date() < deadline {
             try await Task.sleep(nanoseconds: 20_000_000)
         }
-        try #require(engine.health.remoteRebinds >= 1, "the tap bound while armed")
+        try #require((tap.withLock { $0?.bindsSoFar ?? 0 }) >= 1, "the tap bound while armed")
         tap.withLock { $0?.emit(seconds: 1, hostTime: HostTime.now) }
 
         tap.withLock {
@@ -917,10 +924,10 @@ struct FirstSegmentFormatTests {
                 makeTarget(pid: 43, bundle: "com.example.app", producing: true),
             ])
         }
-        while engine.health.remoteRebinds < 2, Date() < deadline {
+        while (tap.withLock { $0?.bindsSoFar ?? 0 }) < 2, Date() < deadline {
             try await Task.sleep(nanoseconds: 20_000_000)
         }
-        try #require(engine.health.remoteRebinds >= 2, "the tap rebound while armed")
+        try #require((tap.withLock { $0?.bindsSoFar ?? 0 }) >= 2, "the tap rebound while armed")
         tap.withLock { $0?.emit(seconds: 1, hostTime: HostTime.now) }
 
         try await engine.commit(layout: layout, meetingID: "m", source: .googleMeet)

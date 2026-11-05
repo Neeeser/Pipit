@@ -360,7 +360,7 @@ public final class CaptureEngine: Sendable {
             let micPackets = self.micPreRoll.drain()
             let micWriter = SegmentWriter(
                 track: .mic, layout: layout, manifest: manifest,
-                format: micPackets.first?.buffer.format ?? micFallback,
+                format: Self.openingFormat(of: micPackets) ?? micFallback,
                 segmentSeconds: self.segmentSeconds, clock: self.clock,
                 firstSegmentIndex: micBase + 1,
                 onFailure: { error in engine.value?.handleWriteFailure(error, track: .mic) }
@@ -370,7 +370,7 @@ public final class CaptureEngine: Sendable {
             if let remoteFallback {
                 remoteWriter = SegmentWriter(
                     track: .remote, layout: layout, manifest: manifest,
-                    format: remotePackets.first?.buffer.format ?? remoteFallback,
+                    format: Self.openingFormat(of: remotePackets) ?? remoteFallback,
                     segmentSeconds: self.segmentSeconds, clock: self.clock,
                     firstSegmentIndex: remoteBase + 1,
                     onFailure: { error in engine.value?.handleWriteFailure(error, track: .remote) }
@@ -663,6 +663,14 @@ public final class CaptureEngine: Sendable {
             highest = max(highest, runPeak)
         }
         return highest
+    }
+
+    /// The format of the first packet, when it names a sample rate and channels.
+    private static func openingFormat(of packets: [AudioBufferPacket]) -> AVAudioFormat? {
+        guard let format = packets.first?.buffer.format,
+            format.sampleRate > 0, format.channelCount > 0
+        else { return nil }
+        return format
     }
 
     private func format(from descriptor: AudioFormatDescriptor?) -> AVAudioFormat? {
