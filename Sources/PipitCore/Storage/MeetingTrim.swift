@@ -270,17 +270,20 @@ public enum MeetingTrim {
         return trimmed
     }
 
-    /// Seconds of speech each diarization cluster has left after the cut, zero
-    /// for one that has none. Keyed by cluster identifier.
-    public static func clusterSeconds(
+    /// Speech seconds for each speaker occurrence row after the cut, zero for
+    /// a speaker with none left. Keyed the way the rows are: the run's
+    /// identifier stamped into the cluster label, for the runs that show.
+    public static func occurrenceSeconds(
         after trimmed: RawDiarization, before original: RawDiarization
     ) -> [String: Double] {
         var seconds: [String: Double] = [:]
-        for run in original.runs {
-            for id in run.clusters.map(\.id) + run.intervals.map(\.clusterID) { seconds[id] = 0 }
-        }
-        for run in trimmed.runs {
-            for interval in run.intervals { seconds[interval.clusterID, default: 0] += interval.duration }
+        for run in original.activeRuns {
+            let kept = trimmed.runs.first { $0.id == run.id }
+            for cluster in run.clusters {
+                let key = SpeakerLabel.namespaced(chunkID: run.id, rawLabel: cluster.id)
+                seconds[key] =
+                    kept?.intervals.filter { $0.clusterID == cluster.id }.reduce(0) { $0 + $1.duration } ?? 0
+            }
         }
         return seconds
     }

@@ -932,6 +932,8 @@ extension PipitRuntime {
     ) {
         guard let recording = repository.findMeeting(id: recordingID, includingMerged: true)
         else { return }
+        // Left alone while a trim is replacing the file.
+        guard !FileManager.default.fileExists(atPath: recording.store.layout.trimJournal.path) else { return }
         var set = recording.store.readSpeakerSuggestions()
         body(&set)
         do {

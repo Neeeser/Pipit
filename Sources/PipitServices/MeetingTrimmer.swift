@@ -25,6 +25,12 @@ public enum TrimError: LogSafeError, Equatable {
     case interrupted
     /// The recording was imported from a file whose original is kept whole.
     case imported
+    /// A trim of this meeting is running or being finished, and what was asked
+    /// would change the files it is working on.
+    case inProgress
+    /// A trim could not reach the voice memory, and changes to who said what
+    /// wait until it has.
+    case voicePending
 
     public var logSafeDescription: String {
         switch self {
@@ -36,6 +42,8 @@ public enum TrimError: LogSafeError, Equatable {
         case .filesNotWritten: "trim.files_not_written"
         case .interrupted: "trim.interrupted"
         case .imported: "trim.imported"
+        case .inProgress: "trim.in_progress"
+        case .voicePending: "trim.voice_pending"
         }
     }
 }
@@ -115,14 +123,23 @@ public struct MeetingTrimmer: Sendable {
 
         var staging = Staging(root: layout.root)
         var committed = false
+        // Says that replacements may be on disk without a journal, for the
+        // launch sweep. Gone once the journal is, or the replacements are.
+        try AtomicFile.write(Data(), to: layout.trimStaging)
         // Replacements written before a later one failed are not left behind.
         // Once the journal is written they are the only copy of what is kept.
-        defer { if !committed { staging.discard() } }
+        defer {
+            if !committed { staging.discard() }
+            try? FileManager.default.removeItem(at: layout.trimStaging)
+        }
 
         let audio = try stageAudio(store: store, metadata: metadata, archive: archive, range: range, staging: &staging)
         let clusterSeconds = try stageTimelineFiles(store: store, range: range, staging: &staging)
         staging.remove(layout.apiResponses)
-        for url in [layout.summary, layout.structuredSummary, layout.transcriptMarkdown] { staging.remove(url) }
+        // The folder suggestion quotes the speech it was made from.
+        for url in [layout.summary, layout.structuredSummary, layout.transcriptMarkdown, layout.folderSuggestion] {
+            staging.remove(url)
+        }
 
         // On disk before the journal says they are: a power loss after the
         // journal must not find a replacement that was only in the cache.
@@ -181,14 +198,20 @@ public struct MeetingTrimmer: Sendable {
             try beforeSwap?(position)
             let staged = root.appendingPathComponent(swap.staged)
             let target = root.appendingPathComponent(swap.target)
-            let stagedSize = Self.size(of: staged)
+            // `rename(2)` is how a staged file stops being there, so one that is
+            // gone has been swapped in, and the file at the target is it: an
+            // edit made since, to a speaker map for instance, does not undo
+            // that. One that is there with the wrong size is not the
+            // replacement that was checked. If the target already has the
+            // recorded size, it is an old file left by a swap that exchanged
+            // instead of renaming, and holds the removed stretch.
+            guard let stagedSize = Self.size(of: staged) else {
+                guard manager.fileExists(atPath: target.path) else { throw TrimError.filesNotWritten }
+                continue
+            }
             if stagedSize != swap.size {
-                // Not there, or not the replacement. The file at the target is
-                // the replacement when an earlier run already swapped it, and
-                // whatever is left at the staged path is then the old file,
-                // which holds the removed stretch.
                 guard Self.size(of: target) == swap.size else { throw TrimError.filesNotWritten }
-                if stagedSize != nil { try manager.removeItem(at: staged) }
+                try manager.removeItem(at: staged)
                 continue
             }
             try manager.createDirectory(at: target.deletingLastPathComponent(), withIntermediateDirectories: true)
@@ -220,10 +243,15 @@ public struct MeetingTrimmer: Sendable {
 
     /// Removes what a trim that stopped before its journal was written left
     /// beside the files it meant to replace. With no journal nothing refers to
-    /// them, and they hold the very content the person was about to delete.
+    /// them. They hold only the part that was to be kept, so they are clutter
+    /// and a second copy of audio, not removed content.
+    ///
+    /// A trim leaves `raw/trim.staging` while it stages, so the launch sweep
+    /// looks for that one file and not in every folder of every meeting.
     public static func removeLeftovers(layout: MeetingLayout) {
         guard !FileManager.default.fileExists(atPath: layout.trimJournal.path) else { return }
         let manager = FileManager.default
+        defer { try? manager.removeItem(at: layout.trimStaging) }
         for folder in [layout.root, layout.raw, layout.trackArchiveDirectory, layout.alignments] {
             for name in (try? manager.contentsOfDirectory(atPath: folder.path)) ?? []
             where name.contains(".trimming") {
@@ -438,10 +466,10 @@ public struct MeetingTrimmer: Sendable {
             try stageRawTranscript(store: store, range: range, staging: &staging)
         }
         if manager.fileExists(atPath: layout.rawDiarization.path) {
-            try staging.stage(
-                ArchiveCoding.encode(MeetingTrim.trim(store.readRawDiarization(), to: range)),
-                for: layout.rawDiarization
-            )
+            let original = try store.readRawDiarization()
+            let trimmed = MeetingTrim.trim(original, to: range)
+            clusterSeconds = MeetingTrim.occurrenceSeconds(after: trimmed, before: original)
+            try staging.stage(ArchiveCoding.encode(trimmed), for: layout.rawDiarization)
         }
         if let evidence = store.readSpeechEvidence() {
             try staging.stage(ArchiveCoding.encode(MeetingTrim.trim(evidence, to: range)), for: layout.speechEvidence)
@@ -467,9 +495,16 @@ public struct MeetingTrimmer: Sendable {
             let transcript = try ArchiveCoding.decode(
                 CanonicalTranscript.self, from: data, path: layout.canonicalTranscript.path
             )
-            try staging.stage(
-                ArchiveCoding.encode(MeetingTrim.trim(transcript, to: range)), for: layout.canonicalTranscript
-            )
+            let trimmed = MeetingTrim.trim(transcript, to: range)
+            try staging.stage(ArchiveCoding.encode(trimmed), for: layout.canonicalTranscript)
+            // The microphone has no diarization cluster; its occurrence row
+            // holds the seconds the local user speaks in the transcript.
+            func localSeconds(_ transcript: CanonicalTranscript) -> Double {
+                transcript.speakers.first { $0.key == SpeakerLabel.localUser }?.speechSeconds ?? 0
+            }
+            if localSeconds(transcript) > 0 {
+                clusterSeconds = (clusterSeconds ?? [:]).merging([SpeakerLabel.localUser: localSeconds(trimmed)]) { $1 }
+            }
         }
         return clusterSeconds
     }

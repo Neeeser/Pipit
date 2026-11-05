@@ -107,6 +107,8 @@ extension MeetingReviewModel {
         case .notArchived, .severalRuns: "This meeting can't be trimmed."
         case .imported: "A meeting imported from a file can't be trimmed."
         case .invalidRange: "Choose a stretch of at least a second that leaves out some of the meeting."
+        case .inProgress: "This meeting is being trimmed. Try again in a moment."
+        case .voicePending: "Restart Pipit to finish trimming this meeting, then try again."
         case .interrupted: "An earlier trim was finished. Check the meeting, then trim again."
         case .verificationFailed, .filesNotWritten: "Couldn't trim this meeting. Try again."
         }

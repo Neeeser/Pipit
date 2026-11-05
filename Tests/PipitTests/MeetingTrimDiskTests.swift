@@ -231,6 +231,8 @@ struct MeetingTrimDiskTests {
         try store.writeSpeechEvidence(
             SpeechEvidence(
                 levelWindowSeconds: 1, speechWindowSeconds: 1, micLevels: Array(0..<20), remoteLevels: Array(0..<20)))
+        // The folder suggestion quotes what it was made from.
+        try Data(#"{"quote": "removedone said so"}"#.utf8).write(to: layout.folderSuggestion)
         let person = SpeakerAssignment(displayName: "Speaker A", origin: .human)
         try store.writeSpeakerMap(
             SpeakerMap(
@@ -257,6 +259,7 @@ struct MeetingTrimDiskTests {
         #expect(map.utteranceOverrides.first?.anchorSeconds == 2.5)
         #expect(map.lineCuts.first?.atSeconds == 2.5)
         #expect(TrimFixtures.textFiles(in: root, containing: ["removedone", "removedtwo"]).isEmpty)
+        #expect(!FileManager.default.fileExists(atPath: layout.trimStaging.path), "the staging marker is gone")
     }
 
     @Test("a cloud chunk is cut by its alignment, and nothing from the removed words is left")
@@ -398,9 +401,9 @@ struct MeetingTrimDiskTests {
         }
     }
 
-    @Test("a replacement that is missing or changed is an error, not a step to skip")
+    @Test("a replacement that is not the one that was checked is an error, not a step to skip")
     func aMissingOrChangedReplacementIsAnError() throws {
-        for damage in ["missing", "changed"] {
+        for damage in ["changed"] {
             let root = try TestPaths.makeTemporaryDirectory()
             defer { try? FileManager.default.removeItem(at: root) }
             let store = try TrimFixtures.makeCompacted(root: root)
@@ -581,5 +584,31 @@ struct MeetingTrimDiskTests {
         try Data("audio".utf8).write(to: store.layout.legacyMixedAudio)
         let range = try #require(TrimRange(start: 2, end: 12, duration: 20))
         #expect(throws: TrimError.notArchived) { try Self.trimmer().trim(store: store, to: range, at: Self.at) }
+    }
+
+    @Test("a speaker edit made after a failed finish does not block the trim")
+    func anEditAfterAFailedFinishDoesNotBlockTheTrim() throws {
+        let root = try TestPaths.makeTemporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let store = try TrimFixtures.makeCompacted(root: root, remoteStartOffset: 0)
+        let person = SpeakerAssignment(displayName: "Speaker A", origin: .human)
+        try store.writeSpeakerMap(SpeakerMap(entries: ["remote-001:S1": person]))
+        try store.writeCanonicalTranscript(CanonicalTranscript(generatedAt: TrimFixtures.started, utterances: []))
+        // Stops at the last swap, after the speaker map's.
+        let trimmer = MeetingTrimmer(beforeSwap: { position in
+            if position == (try store.readTrimJournal()?.swaps.count ?? 1) - 1 { throw TrimError.filesNotWritten }
+        })
+        #expect(throws: TrimError.filesNotWritten) {
+            try trimmer.trim(store: store, to: try #require(TrimRange(start: 2, end: 12, duration: 20)), at: Self.at)
+        }
+        var map = try store.readSpeakerMap()
+        map.entries["remote-001:S2"] = SpeakerAssignment(displayName: "Speaker B", origin: .human)
+        try store.writeSpeakerMap(map)
+
+        let finished = try #require(try MeetingTrimmer().finishInterrupted(store: store))
+
+        #expect(finished.swapped)
+        #expect(try store.readSpeakerMap().entries.count == 2, "the edit stays")
+        #expect(abs(try store.readMetadata().durationSeconds - 10) < 0.1)
     }
 }

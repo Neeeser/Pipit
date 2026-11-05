@@ -103,6 +103,9 @@ public struct TrimJournal: Codable, Sendable, Equatable {
     public static let currentVersion = 1
 
     public var version: Int
+    /// Names this trim in the voice database and in parked adjustments. Not
+    /// the creation time, which two trims in quick succession can share.
+    public var id: String
     public var createdAt: Date
     /// The kept stretch on the old timeline. `end` is nil when everything to
     /// the end of the recording is kept.
@@ -125,8 +128,9 @@ public struct TrimJournal: Codable, Sendable, Equatable {
     public init(
         createdAt: Date, start: Double, end: Double?, swaps: [Swap], removals: [String],
         metadata: TrimMetadataChange, swapped: Bool = false, voiceMemoryAdjusted: Bool = false,
-        clusterSeconds: [String: Double]? = nil
+        clusterSeconds: [String: Double]? = nil, id: String = UUID().uuidString
     ) {
+        self.id = id
         self.clusterSeconds = clusterSeconds
         self.version = Self.currentVersion
         self.createdAt = createdAt

@@ -183,7 +183,10 @@ A replacement already in place is recognised by its size, and an old file left
 at the staged path is deleted. Anything else missing is an error. Redoing the microphone, re-analysing speakers and rebuilding the
 transcript refuse while the journal exists, and a second trim is refused. At
 launch, `*.trimming` files left by a trim that stopped before its journal was
-written are removed.
+written are removed; a trim leaves `raw/trim.staging` while it stages, so the
+sweep looks for that one file. Changes to who said what, and the suggestions
+file, wait while the journal exists or while parked voice adjustments do, and
+say why.
 
 The pipeline keeps the job slot and the meeting's folder from the first swap
 to the end of the voice step, and every other job that takes the slot checks
@@ -227,6 +230,13 @@ speaker occurrence rows for clusters heard only in the removed stretch and
 lowers the speech seconds of the others. When the voice database cannot be
 reached, the adjustment is parked in `raw/trim.voice.json` and made at the next
 launch; it does not keep the meeting locked.
+
+Known limits of the voice memory: a cluster that is partly cut keeps the
+embedding its occurrence row was made from, which was computed over the whole
+meeting, and a vector that survives the retraction keeps a centroid that
+includes the removed audio. The spans and the seconds are corrected; the
+vectors cannot be recomputed without the audio. Occurrence rows for sensor
+keys are not adjusted.
 
 Events other than segments (markers, restarts, device descriptions) are kept
 or dropped by capture time. After a gap in the capture clock they can be off

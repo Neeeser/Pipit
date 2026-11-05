@@ -35,7 +35,8 @@ struct MeetingTrimPipelineTests {
     /// 24 s on the far end.
     private static func makeProcessed(
         root: URL, speakers: SpeakerRecognitionService? = nil, backend: FakeAIBackend = FakeAIBackend(),
-        settings: AppSettings = MeetingTrimPipelineTests.settings
+        settings: AppSettings = MeetingTrimPipelineTests.settings,
+        intervals: [DiarizationInterval] = [DiarizationInterval(start: 0, end: 30, clusterID: "S1")]
     ) async throws -> Processed {
         let meeting = try PipelineFixtures.makeRecordedMeeting(
             root: root.appendingPathComponent("Meetings"), source: .googleMeet, seconds: 30)
@@ -45,10 +46,12 @@ struct MeetingTrimPipelineTests {
         transcriber.reportedSeconds = 30
         transcriber.micSegments = [line("deltaword", at: 6)]
         let diarizer = StubLocalDiarizer(
-            intervals: [DiarizationInterval(start: 0, end: 30, clusterID: "S1")],
-            chunkEmbeddings: [
-                DiarizationChunkEmbedding(clusterID: "S1", start: 0, end: 30, vector: SpeakerFixtures.vector(seed: 61))
-            ])
+            intervals: intervals,
+            chunkEmbeddings: intervals.map {
+                DiarizationChunkEmbedding(
+                    clusterID: $0.clusterID, start: $0.start, end: $0.end,
+                    vector: SpeakerFixtures.vector(seed: 61 + ($0.clusterID == "S1" ? 0 : 1)))
+            })
         let pipeline = PipelineFixtures.makePipeline(
             repository: meeting.repository, backend: backend, transcriber: transcriber, diarizer: diarizer,
             speakers: speakers, settings: settings, scratchRoot: root.appendingPathComponent("scratch"))
@@ -233,8 +236,11 @@ struct MeetingTrimPipelineTests {
         await #expect(throws: MicrophoneRedoError.busy) {
             try await made.pipeline.redoMicrophone(meetingID: made.id, backups: root.appendingPathComponent("Backups"))
         }
-        await #expect(throws: TrimError.interrupted) { try await made.pipeline.rebuildTranscript(meetingID: made.id) }
-        await #expect(throws: TrimError.interrupted) {
+        await #expect(throws: TrimError.inProgress) { try await made.pipeline.rebuildTranscript(meetingID: made.id) }
+        await #expect(throws: TrimError.inProgress) {
+            try await made.pipeline.applySpeakerName("Speaker A", to: "remote-001:S1", meetingID: made.id)
+        }
+        await #expect(throws: TrimError.inProgress) {
             try await made.pipeline.reanalyzeSpeakers(meetingID: made.id, speakerCount: nil)
         }
     }
@@ -318,7 +324,7 @@ struct MeetingTrimPipelineTests {
         #expect(outcome.failure == nil)
         let refused = await queued.value
         #expect(
-            refused as? TrimError == .interrupted,
+            refused as? TrimError == .inProgress,
             "it was refused, not run on trimmed audio: \(String(describing: refused))")
         try Self.expectTrimmedAndFinished(made)
     }
@@ -402,5 +408,81 @@ struct MeetingTrimPipelineTests {
         #expect(
             try await voices.storedEmbeddings(of: person.id).first?.evidence.first?.spans
                 == [AudioSpan(start: 3, end: 298)])
+    }
+
+    @Test("speaker occurrence rows follow a real trim")
+    func occurrenceRowsFollowARealTrim() async throws {
+        let root = try TestPaths.makeTemporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let (voices, voiceRoot) = try SpeakerFixtures.makeStore()
+        defer { try? FileManager.default.removeItem(at: voiceRoot) }
+        // One speaker for the first 18 s, another from 18 s to the end.
+        let made = try await Self.makeProcessed(
+            root: root, speakers: SpeakerRecognitionService(store: voices),
+            intervals: [
+                DiarizationInterval(start: 0, end: 18, clusterID: "S1"),
+                DiarizationInterval(start: 18, end: 30, clusterID: "S2"),
+            ])
+        let before = try await voices.occurrences(meetingID: made.id).filter { $0.clusterID != SpeakerLabel.localUser }
+        #expect(before.count == 2, "the fixture records both speakers, got \(before.map(\.clusterID))")
+
+        // Keeps 20 s on: the first speaker is not in what is left, the second
+        // has 10 s.
+        _ = await made.pipeline.trim(
+            meetingID: made.id, to: try #require(TrimRange(start: 20, end: 30, duration: 30)))
+
+        let after = try await voices.occurrences(meetingID: made.id).filter { $0.clusterID != SpeakerLabel.localUser }
+        #expect(after.count == 1, "the first speaker's row is gone, got \(after.map(\.clusterID))")
+        #expect(
+            after.first.map { abs($0.speechSeconds - 10) < 0.01 } == true,
+            "got \(String(describing: after.first?.speechSeconds))")
+    }
+
+    @Test("a second trim made while one is parked waits behind it, and speaker edits wait")
+    func aSecondTrimWaitsBehindAParkedOne() async throws {
+        let root = try TestPaths.makeTemporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let made = try await Self.makeProcessed(root: root)
+        let (voices, voiceRoot) = try SpeakerFixtures.makeStore()
+        defer { try? FileManager.default.removeItem(at: voiceRoot) }
+        let person = try await voices.createPerson(name: "Speaker A")
+        _ = try await voices.enrol(
+            VoiceEnrollmentCandidate(
+                identityID: person.id, vector: SpeakerFixtures.vector(seed: 93), model: .fluidAudioOffline,
+                speechSeconds: 300, qualityScore: 1, source: .humanConfirmedCluster,
+                evidence: [
+                    VoiceEvidence(
+                        meetingID: made.id, track: .remote, spans: [AudioSpan(start: 5, end: 300)],
+                        confirmation: .humanConfirmedCluster)
+                ]))
+
+        // No voice memory behind this pipeline: both trims park.
+        let first = await made.pipeline.trim(
+            meetingID: made.id, to: try #require(TrimRange(start: 2, end: 30, duration: 30)))
+        let second = await made.pipeline.trim(
+            meetingID: made.id, to: try #require(TrimRange(start: 3, end: 28, duration: 28)))
+        #expect(first.failure == nil && second.failure == nil, "\(first) \(second)")
+        let store = try #require(made.repository.findMeeting(id: made.id)).store
+        let parked = store.readPendingVoiceAdjustments()
+        #expect(parked.count == 2)
+        #expect(parked.map(\.start) == [2, 3], "in the order the trims were made")
+
+        // Who said what cannot be corrected until the memory has caught up.
+        await #expect(throws: TrimError.voicePending) {
+            try await made.pipeline.applySpeakerName("Speaker A", to: "remote-001:S1", meetingID: made.id)
+        }
+
+        let later = PipelineFixtures.makePipeline(
+            repository: made.repository, backend: FakeAIBackend(),
+            transcriber: StubLocalTranscriber(segments: []),
+            diarizer: StubLocalDiarizer(intervals: [], chunkEmbeddings: []),
+            speakers: SpeakerRecognitionService(store: voices), settings: Self.settings,
+            scratchRoot: root.appendingPathComponent("scratch2"))
+        await later.finishInterruptedTrims()
+
+        #expect(store.readPendingVoiceAdjustments().isEmpty)
+        #expect(
+            try await voices.storedEmbeddings(of: person.id).first?.evidence.first?.spans
+                == [AudioSpan(start: 0, end: 295)], "moved by 2 s and then by 3 s")
     }
 }
