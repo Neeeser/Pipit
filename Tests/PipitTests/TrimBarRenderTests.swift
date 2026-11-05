@@ -11,13 +11,14 @@ import Testing
 @MainActor
 struct TrimBarRenderTests {
     /// A finished, archived two-track meeting open in the detail pane.
-    private func detail(root: URL) throws -> MeetingReviewModel {
+    private func detail(root: URL, source: MeetingSource? = nil) throws -> MeetingReviewModel {
         let archive = root.appendingPathComponent("Meetings")
         let made = try PipelineFixtures.makeRecordedMeeting(root: archive, seconds: 60)
         _ = try made.store.updateMetadata {
             $0.processing = ProcessingStatus(state: .complete, updatedAt: $0.startedAt)
         }
         _ = try AudioCompactor().compact(store: made.store)
+        if let source { _ = try made.store.updateMetadata { $0.source = source } }
         let runtime = PipitRuntime(settingsDirectory: root)
         var settings = runtime.settings
         settings.storageRootPath = archive.path
@@ -53,5 +54,59 @@ struct TrimBarRenderTests {
                     .write(to: output.appendingPathComponent("trim-\(name)-\(look).png"))
             }
         }
+    }
+
+    @Test("a meeting imported from a file is not offered Trim")
+    func anImportedMeetingIsNotOfferedTrim() throws {
+        let root = try TestPaths.makeTemporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        #expect(try detail(root: root.appendingPathComponent("recorded")).canTrim)
+        #expect(!(try detail(root: root.appendingPathComponent("imported"), source: .imported).canTrim))
+    }
+
+    private func parts(_ lengths: [(id: String, seconds: Double)]) -> [PlaybackTimeline.Part] {
+        PlaybackTimeline(
+            lengths.map {
+                PlaybackTimeline.Source(
+                    recordingID: $0.id, audio: URL(fileURLWithPath: "/\($0.id).m4a"), duration: $0.seconds,
+                    timelineOffset: 0)
+            }
+        ).parts
+    }
+
+    @Test("a handle at the end of the timeline keeps each track to its end")
+    func aHandleAtTheEndKeepsEachTrackToItsEnd() throws {
+        // The mixdown is 65 s because the far end began 5 s late, and the
+        // meeting's recorded length is 60 s.
+        let one = parts([("a", 65)])
+        let toEnd = MeetingReviewModel.cuts(parts: one, durations: ["a": 60], keepFrom: 5, to: 65)
+        #expect(toEnd.count == 1)
+        #expect(toEnd.first?.range.keepsEnd == true)
+        #expect(toEnd.first?.range.start == 5)
+        let before = MeetingReviewModel.cuts(parts: one, durations: ["a": 60], keepFrom: 5, to: 40)
+        #expect(before.first?.range.keepsEnd == false)
+        #expect(before.first?.range.end == 40)
+    }
+
+    @Test("across recordings only the start of the first and the end of the last move")
+    func acrossRecordingsOnlyTheOuterEndsMove() throws {
+        let two = parts([("a", 60), ("b", 40)])
+        let durations = ["a": 60.0, "b": 40.0]
+
+        let both = MeetingReviewModel.cuts(parts: two, durations: durations, keepFrom: 10, to: 90)
+        #expect(both.map(\.id) == ["a", "b"])
+        #expect(both[0].range.start == 10)
+        #expect(both[0].range.keepsEnd, "the first recording is kept to its end")
+        #expect(both[1].range.start == 0)
+        #expect(both[1].range.end == 30, "90 on the playback bar is 30 s into the second recording")
+        #expect(!both[1].range.keepsEnd)
+
+        let startOnly = MeetingReviewModel.cuts(parts: two, durations: durations, keepFrom: 10, to: 100)
+        #expect(startOnly.map(\.id) == ["a"], "the second is kept whole, so it is not touched")
+        let endOnly = MeetingReviewModel.cuts(parts: two, durations: durations, keepFrom: 0, to: 90)
+        #expect(endOnly.map(\.id) == ["b"])
+        // A handle cannot take a whole recording with it.
+        let clamped = MeetingReviewModel.cuts(parts: two, durations: durations, keepFrom: 75, to: 100)
+        #expect(clamped.isEmpty, "the start cannot leave the first recording, and there is nothing else to cut")
     }
 }

@@ -65,7 +65,8 @@ struct MeetingPlayerBar: View {
                             start: Binding(get: { trim.lowerBound }, set: { self.trim = $0...trim.upperBound }),
                             end: Binding(get: { trim.upperBound }, set: { self.trim = trim.lowerBound...$0 }),
                             duration: playback.timeline.duration,
-                            startLimits: limits.start, endLimits: limits.end
+                            startLimits: limits.start, endLimits: limits.end,
+                            scrub: { playback.seek(to: $0) }
                         )
                     }
                 } else if lanesShown {

@@ -12,6 +12,9 @@ struct TrimBracket: View {
     let duration: Double
     let startLimits: ClosedRange<Double>
     let endLimits: ClosedRange<Double>
+    /// Called with the position of a handle as it is dragged, so the playhead
+    /// can follow it and the person hears where they are cutting.
+    var scrub: (Double) -> Void = { _ in }
 
     static let handleWidth: CGFloat = 9
     private static let frameColor = Color.yellow
@@ -25,9 +28,11 @@ struct TrimBracket: View {
             let right = x(end, width)
             ZStack(alignment: .topLeading) {
                 // Outside the frame: what will be deleted, dimmed over the
-                // speaker turns and greyed where there are none.
-                removed.frame(width: max(0, left))
-                removed.frame(width: max(0, width - right)).offset(x: right)
+                // speaker turns and greyed where there are none. Clicks pass
+                // through to the strip beneath, so the person can still seek
+                // there; only the handles take drags.
+                removed.frame(width: max(0, left)).allowsHitTesting(false)
+                removed.frame(width: max(0, width - right)).offset(x: right).allowsHitTesting(false)
 
                 RoundedRectangle(cornerRadius: 4, style: .continuous)
                     .strokeBorder(Self.frameColor, lineWidth: 2.5)
@@ -37,7 +42,12 @@ struct TrimBracket: View {
 
                 handle(edge: .leading)
                     .offset(x: left)
-                    .gesture(drag(width: width) { start = clampStart($0) })
+                    .gesture(
+                        drag(width: width) {
+                            start = clampStart($0)
+                            return start
+                        }
+                    )
                     .accessibilityLabel("Start of the kept part")
                     .accessibilityValue(TranscriptRenderer().timecode(start))
                     .accessibilityAdjustableAction { direction in
@@ -46,7 +56,12 @@ struct TrimBracket: View {
 
                 handle(edge: .trailing)
                     .offset(x: right - Self.handleWidth)
-                    .gesture(drag(width: width) { end = clampEnd($0) })
+                    .gesture(
+                        drag(width: width) {
+                            end = clampEnd($0)
+                            return end
+                        }
+                    )
                     .accessibilityLabel("End of the kept part")
                     .accessibilityValue(TranscriptRenderer().timecode(end))
                     .accessibilityAdjustableAction { direction in
@@ -83,11 +98,14 @@ struct TrimBracket: View {
         .accessibilityElement()
     }
 
-    private func drag(width: CGFloat, _ update: @escaping (Double) -> Void) -> some Gesture {
+    /// Moves a handle to where the pointer is and the playhead with it.
+    /// `update` sets the handle and the value it settled on, which the limits
+    /// may have moved from where the pointer is.
+    private func drag(width: CGFloat, _ update: @escaping (Double) -> Double) -> some Gesture {
         DragGesture(minimumDistance: 0, coordinateSpace: .named(Self.space))
             .onChanged { value in
                 guard width > 0, duration > 0 else { return }
-                update(Double(min(max(value.location.x / width, 0), 1)) * duration)
+                scrub(update(Double(min(max(value.location.x / width, 0), 1)) * duration))
             }
     }
 
