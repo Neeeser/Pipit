@@ -2,8 +2,8 @@ import AppKit
 import PipitCore
 import SwiftUI
 
-/// The moment an item was said, as a button that plays the recording from
-/// there.
+/// The moment an item was said, on the conversation's clock, as a button that
+/// plays the conversation from there.
 struct SummaryTimeChip: View {
     let seconds: Double
     let detail: MeetingReviewModel
@@ -11,8 +11,7 @@ struct SummaryTimeChip: View {
 
     var body: some View {
         Button {
-            guard let recording = detail.metadata?.id else { return }
-            detail.playback.play(recordingID: recording, seconds: seconds)
+            detail.playback.play(timelineSeconds: seconds)
         } label: {
             HStack(spacing: 3) {
                 Image(systemName: "play.fill").font(.system(size: 7))
@@ -27,7 +26,7 @@ struct SummaryTimeChip: View {
         }
         .buttonStyle(.plain)
         .onHover { hovering = $0 }
-        .disabled(detail.metadata.map { !detail.playback.canPlay(recordingID: $0.id) } ?? true)
+        .disabled(!detail.playback.hasAudio)
         .help("Play from here")
         .fixedSize()
     }
