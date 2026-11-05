@@ -186,4 +186,48 @@ struct ConversationDetailTests {
 
         #expect(model.receipt?.text == "These meetings could not be merged.")
     }
+
+    @Test("a different failure and the person's own click still post after a repeat was left out")
+    @MainActor
+    func throttleLeavesOutOnlyARepeat() async throws {
+        let root = try TestPaths.makeTemporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let made = try (0..<2).map { index in
+            try RuntimeFixtures.makeMeeting(
+                root: root, clusters: ["remote-001_speaker_00"], title: "Part \(index)",
+                startedAt: Self.base.addingTimeInterval(Double(index) * 3_600))
+        }
+        let backend = FakeAIBackend()
+        let runtime = RuntimeFixtures.makeRuntime(root: root, backend: backend)
+        let posted = Posted()
+        runtime.notifications = NotificationService(observer: { category, _ in posted.add(category) })
+        runtime.combine(
+            meetingID: made[1].id, into: made[0].id, reason: "a test", rewritingSummary: false)
+        let model = MeetingsWindowModel(runtime: runtime)
+        await model.reload()
+        model.show(meetingID: made[0].id)
+        let detail = try #require(model.detail)
+
+        func ask(_ requests: Int, click: Bool = false) async {
+            if click {
+                detail.rewriteSummary()
+            } else {
+                runtime.refreshConversationSummary(meetingID: made[0].id)
+            }
+            await Self.waitUntil { backend.enrichmentRequests.count >= requests }
+            await Self.waitUntil { runtime.summariesBeingWritten.isEmpty && !detail.isEnriching }
+        }
+
+        backend.failEnrichment = .transport(reason: "offline")
+        await ask(1)
+        #expect(posted.all.count == 1)
+        await ask(2)
+        #expect(posted.all.count == 1, "the same failure again is left out")
+        backend.failEnrichment = .authenticationFailed
+        await ask(3)
+        #expect(posted.all.count == 2, "a different failure posts")
+        backend.failEnrichment = .authenticationFailed
+        await ask(4, click: true)
+        #expect(posted.all.count == 3, "the person's own click posts even for a repeat")
+    }
 }

@@ -95,7 +95,7 @@ extension ConversationSummaryRewriteTests {
         let pair = try Self.makeLinkedPair(root: root)
         try pair.stores[0].writeSummary("First part only.")
         let backend = FakeAIBackend()
-        backend.failEnrichment = .malformedResponse(reason: "refused")
+        backend.failEnrichment = .languageModel(provider: "Ollama", failure: .rejected(status: 400))
 
         await Self.makePipeline(repository: pair.repository, backend: backend)
             .payLaunchSummaryRewrites()
@@ -115,6 +115,24 @@ extension ConversationSummaryRewriteTests {
             .refreshConversationSummary(meetingID: pair.ids[0])
         #expect(backend.enrichmentRequests.count == 2)
         #expect(try pair.stores[0].readMetadata().summaryRewriteGivenUp == nil)
+    }
+
+    @Test("a garbled answer is not a refusal, so launches try again")
+    func garbledAnswerIsRetriedAtLaunch() async throws {
+        let root = try TestPaths.makeTemporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let pair = try Self.makeLinkedPair(root: root)
+        try pair.stores[0].writeSummary("First part only.")
+        let backend = FakeAIBackend()
+        backend.failEnrichment = .malformedResponse(reason: "garbled")
+
+        await Self.makePipeline(repository: pair.repository, backend: backend)
+            .payLaunchSummaryRewrites()
+        #expect(try pair.stores[0].readMetadata().summaryRewriteGivenUp == nil)
+        await Self.makePipeline(repository: pair.repository, backend: backend)
+            .payLaunchSummaryRewrites()
+
+        #expect(backend.enrichmentRequests.count == 2)
     }
 
     @Test("a launch debt paid later after a wait is still not announced")
@@ -196,7 +214,7 @@ extension ConversationSummaryRewriteTests {
         ]
         for error in errors {
             let text = error.summaryProblemMessage
-            #expect(text.hasSuffix("Choose Write again in the meeting to try again."), "\(text)")
+            #expect(text.hasSuffix("Open the meeting to write the summary again."), "\(text)")
             #expect(!text.contains("retry"))
             #expect(!text.contains("safe"))
         }
@@ -217,10 +235,114 @@ extension ConversationSummaryRewriteTests {
         #expect(backend.enrichmentRequests.count == 1, "written again from both parts")
         #expect(try pair.stores[0].readMetadata().summaryNeedsRewrite == nil)
 
-        // Not a second time on a later launch.
+        // Not a second time on a later launch: the conversation says its summary
+        // covers its parts, and no file in the archive root is needed to know.
+        #expect(try pair.stores[0].readMetadata().summaryCoversParts == true)
         try pair.stores[0].writeSummary("Edited since.")
         await pipeline.payLaunchSummaryRewrites()
         #expect(backend.enrichmentRequests.count == 1)
+        let hidden = try FileManager.default.contentsOfDirectory(
+            at: pair.repository.archive.root, includingPropertiesForKeys: nil, options: [])
+        #expect(!hidden.contains { $0.lastPathComponent.hasPrefix(".summaries") })
+    }
+
+    @Test("a conversation rewritten before is not marked again when nothing else records it")
+    func rewrittenConversationIsLeftAlone() async throws {
+        let root = try TestPaths.makeTemporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let pair = try Self.makeLinkedPair(root: root)
+        try pair.stores[0].writeSummary("Both parts.")
+        _ = try pair.stores[0].updateMetadata { $0.summaryCoversParts = true }
+        let backend = FakeAIBackend()
+
+        await Self.makePipeline(repository: pair.repository, backend: backend)
+            .payLaunchSummaryRewrites()
+
+        #expect(backend.enrichmentRequests.isEmpty)
+    }
+
+    @Test("a link made during the button's request keeps the debt after the request is answered")
+    func linkDuringWriteASummaryKeepsTheDebt() async throws {
+        let root = try TestPaths.makeTemporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let pair = try Self.makeLinkedPair(root: root)
+        _ = try pair.stores[0].updateMetadata { $0.summaryNeedsRewrite = true }
+        let backend = FakeAIBackend()
+        let started = Mutex(false)
+        let open = Mutex(false)
+        let pipeline = Self.makePipeline(
+            repository: pair.repository, backend: backend,
+            onSummaryRewriting: { _, running in if running { started.withLock { $0 = true } } })
+        let id = pair.ids[0]
+        let calls = Mutex(0)
+        backend.enrichInterference = {
+            let call = calls.withLock {
+                $0 += 1
+                return $0
+            }
+            if call == 1 {
+                // A link arrives; its payer takes the debt off the list and waits
+                // for the job slot this request holds.
+                Task { await pipeline.refreshConversationSummary(meetingID: id) }
+                while !started.withLock({ $0 }) { try? await Task.sleep(nanoseconds: 2_000_000) }
+            } else {
+                while !open.withLock({ $0 }) { try? await Task.sleep(nanoseconds: 2_000_000) }
+            }
+        }
+
+        try await pipeline.generateEnrichment(meetingID: id)
+
+        // The payer's request has not been answered, so the debt is still on disk.
+        #expect(try pair.stores[0].readMetadata().summaryNeedsRewrite == true)
+        open.withLock { $0 = true }
+        var flag = try pair.stores[0].readMetadata().summaryNeedsRewrite
+        while backend.enrichmentRequests.count < 2 || flag == true {
+            try await Task.sleep(nanoseconds: 5_000_000)
+            flag = try pair.stores[0].readMetadata().summaryNeedsRewrite
+        }
+        #expect(try pair.stores[0].readMetadata().summaryNeedsRewrite == nil)
+    }
+
+    @Test("a recording linked and rewritten for while its own request is in flight is asked about twice")
+    func linkDuringOwnEnrichmentIsPaidAfterwards() async throws {
+        let root = try TestPaths.makeTemporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let earlier = try PipelineFixtures.makeRecordedMeeting(root: root, seconds: 6)
+        let later = try PipelineFixtures.makeRecordedMeeting(root: root, seconds: 6)
+        let backend = FakeAIBackend()
+        let pipeline = Self.makeLocalPipeline(repository: earlier.repository, backend: backend, root: root)
+        await pipeline.process(meetingID: later.metadata.id)
+        #expect(backend.enrichmentRequests.count == 1)
+
+        let calls = Mutex(0)
+        let flagAtRewrite = Mutex<Bool?>(nil)
+        let earlierStore = earlier.store
+        let earlierID = earlier.metadata.id
+        let laterStore = later.store
+        let laterID = later.metadata.id
+        backend.enrichInterference = {
+            let call = calls.withLock {
+                $0 += 1
+                return $0
+            }
+            if call == 1 {
+                // The finished second recording is linked under the first while
+                // the first is being summarized, and a rewrite is asked for.
+                _ = try? earlierStore.updateMetadata { $0.absorbedMeetingIDs = [laterID] }
+                _ = try? laterStore.updateMetadata { $0.mergedIntoMeetingID = earlierID }
+                await pipeline.refreshConversationSummary(meetingID: earlierID)
+            } else {
+                flagAtRewrite.withLock { $0 = (try? earlierStore.readMetadata())?.summaryNeedsRewrite }
+            }
+        }
+
+        await pipeline.process(meetingID: earlier.metadata.id)
+
+        #expect(backend.enrichmentRequests.count == 3, "its own, then the rewrite")
+        let last = try #require(backend.enrichmentRequests.last)
+        #expect(Self.occurrences(of: "we ship friday", in: last.transcript) == 4, "both recordings")
+        #expect(flagAtRewrite.withLock { $0 } == true, "owed until the rewrite is answered")
+        #expect(try earlier.store.readMetadata().summaryNeedsRewrite == nil)
     }
 
     @Test("a rewrite that fails at launch posts nothing, and a manual one reports without Retry")

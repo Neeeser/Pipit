@@ -575,7 +575,7 @@ struct MeetingRowView: View {
         }
         if many {
             let plan = model.mergePlan(for: targets)
-            Button("Merge \(plan.canMerge ? plan.combineIDs.count + 1 : targets.count) Meetings") {
+            Button("Merge \(plan.canMerge ? plan.combineIDs.count + 1 : targets.count) meetings") {
                 model.merge(targets)
             }
             .disabled(!plan.canMerge)

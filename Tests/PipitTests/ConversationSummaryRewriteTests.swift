@@ -45,7 +45,8 @@ struct ConversationSummaryRewriteTests {
         repository: MeetingRepository, backend: FakeAIBackend, failures: Failures = Failures(),
         summaryFailures: Failures = Failures(), summaryBackups: URL? = nil,
         onProgress: @escaping @Sendable (ProcessingPipeline.Progress) -> Void = { _ in },
-        onSummaryRewritten: @escaping @Sendable (String) -> Void = { _ in }
+        onSummaryRewritten: @escaping @Sendable (String) -> Void = { _ in },
+        onSummaryRewriting: @escaping @Sendable (String, Bool) -> Void = { _, _ in }
     ) -> ProcessingPipeline {
         ProcessingPipeline(
             repository: repository, backend: backend, clock: ManualClock(),
@@ -54,6 +55,7 @@ struct ConversationSummaryRewriteTests {
             onFailure: { id, _ in failures.add(id) },
             onSummaryRewritten: onSummaryRewritten,
             onSummaryFailure: { id, _ in summaryFailures.add(id) },
+            onSummaryRewriting: onSummaryRewriting,
             summaryBackups: summaryBackups,
             wait: { _ in })
     }
@@ -395,7 +397,7 @@ struct ConversationSummaryRewriteTests {
             speakers: nil, settings: settings, scratchRoot: root.appendingPathComponent("scratch"))
     }
 
-    private static func occurrences(of word: String, in text: String) -> Int {
+    static func occurrences(of word: String, in text: String) -> Int {
         text.components(separatedBy: word).count - 1
     }
 

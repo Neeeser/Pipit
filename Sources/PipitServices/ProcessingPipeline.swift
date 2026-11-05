@@ -308,20 +308,19 @@ public actor ProcessingPipeline {
     }
 
     /// Pays the rewrites the last run left owing, once the rest of the launch
-    /// work is done, and the first time, marks every conversation of several
-    /// recordings that has a summary: before summaries were rewritten, each was
-    /// built from the first recording only. A marker file says the marking ran;
-    /// a conversation joined later is marked when it is joined.
+    /// work is done, and marks every conversation of several recordings that has
+    /// a summary and no record that the summary covers its parts: before
+    /// summaries were rewritten, each was built from the first recording only.
+    /// A rewrite, or an enrichment of the whole conversation, records that it
+    /// covers them on the first recording, so a conversation is marked once.
     ///
     /// Reads the one listing the launch already makes. A failure here is only
     /// logged: nobody asked for these.
     public func payLaunchSummaryRewrites() async {
-        let marker = repository.archive.root.appendingPathComponent(".summaries-checked-for-parts")
-        let firstRun = !FileManager.default.fileExists(atPath: marker.path)
         var owing: [String] = []
         for summary in repository.listMeetings() {
             var owed = summary.summaryNeedsRewrite
-            if firstRun, !owed, summary.recordingCount > 1,
+            if !owed, summary.recordingCount > 1, !summary.summaryCoversParts,
                 FileManager.default.fileExists(
                     atPath: MeetingLayout(root: summary.directory).summary.path)
             {
@@ -331,7 +330,6 @@ public actor ProcessingPipeline {
             // A rewrite that failed for good is left to the person.
             if owed, !summary.summaryRewriteGivenUp { owing.append(summary.id) }
         }
-        if firstRun { try? Data().write(to: marker) }
         for id in owing { await refreshConversationSummary(meetingID: id, announcingFailure: false) }
     }
 
@@ -343,6 +341,7 @@ public actor ProcessingPipeline {
         if let found = repository.findMeeting(id: conversationID, includingMerged: true) {
             _ = try? found.store.updateMetadata {
                 $0.summaryNeedsRewrite = true
+                $0.summaryCoversParts = nil
                 if clearingGivenUp { $0.summaryRewriteGivenUp = nil }
             }
         }
@@ -497,6 +496,7 @@ public actor ProcessingPipeline {
                 if !stillOwed {
                     current.summaryNeedsRewrite = nil
                     current.summaryRewriteGivenUp = nil
+                    if wrote { current.summaryCoversParts = true }
                 }
                 if wrote { current.processing.skippedForMissingKey = false }
             }
@@ -516,7 +516,7 @@ public actor ProcessingPipeline {
     /// for, and given up on for later launches when asking again cannot help.
     private func failRewrite(_ id: String, store: MeetingStore, error: any Error) {
         let failure = Self.processingError(from: error)
-        if !failure.isRetryable {
+        if failure.isRefusal {
             _ = try? store.updateMetadata { $0.summaryRewriteGivenUp = true }
             onSummaryRewritten(id)
         }
@@ -682,6 +682,7 @@ public actor ProcessingPipeline {
                                 _ = try? store.updateMetadata {
                                     $0.summaryNeedsRewrite = nil
                                     $0.summaryRewriteGivenUp = nil
+                                    $0.summaryCoversParts = true
                                 }
                             }
                         } catch {
@@ -4170,6 +4171,7 @@ public actor ProcessingPipeline {
         // title is the one field enrichment overwrites rather than fills.
         // Where the slot is empty this run fills it, which is the point.
         let existingTitle = metadata.titles.ai?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let debts = summaryDebtGeneration[meetingID, default: 0]
         let wrote = try await runEnrichment(store: store, metadata: &metadata, settings: settings) == .wrote
         if let existingTitle, !existingTitle.isEmpty { metadata.titles.ai = existingTitle }
         // The notice is why the user pressed the button. Leaving it up after
@@ -4185,8 +4187,15 @@ public actor ProcessingPipeline {
         try persist(metadata, to: store)
         // A summary written from every recording is what a rewrite owed.
         // Unless a newer debt is pending, as in `rewriteSummary`.
-        if wrote, !summaryRewritesOwed.contains(meetingID) {
-            _ = try? store.updateMetadata { $0.summaryNeedsRewrite = nil }
+        // A debt taken off the list by a payer waiting for the slot is still a
+        // debt, so the count is compared as well as the list.
+        if wrote, !summaryRewritesOwed.contains(meetingID),
+            summaryDebtGeneration[meetingID, default: 0] == debts
+        {
+            _ = try? store.updateMetadata {
+                $0.summaryNeedsRewrite = nil
+                $0.summaryCoversParts = true
+            }
         }
         report(metadata, chunks: nil)
         // Before the rename, not only in the defer below. The writes above

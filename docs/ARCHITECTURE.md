@@ -443,10 +443,12 @@ any recording is still being processed, and every job that ends pays what its
 conversation owes, then tells the window to reload. The debt is also written to
 the first recording's metadata (`summaryNeedsRewrite`) and cleared when a rewrite
 is written with no newer debt pending, so a rewrite that could not run, for want
-of a key or because the app quit, is paid at the next launch. The first launch
-that knows about this marks every conversation of several recordings that has a
-`summary.md`, once, because each of those summaries was built from the first
-recording only. Launch rewrites run after the other launch work, are not
+of a key or because the app quit, is paid at the next launch. Each launch
+marks every conversation of several recordings that has a `summary.md` and no
+`summaryCoversParts` on its first recording, because summaries written before
+rewrites existed were built from the first recording only. A rewrite, or an
+enrichment that read the whole conversation, sets the mark; a link or a
+separation clears it. Launch rewrites run after the other launch work, are not
 announced when they fail, and stop for a conversation whose failure asking again
 cannot fix (`summaryRewriteGivenUp`). The summary tab offers "Write again" for a
 meeting that carries the mark and already has a summary. A rewrite that replaces

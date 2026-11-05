@@ -21,7 +21,7 @@ extension MeetingReviewModel {
     public func rewriteSummary() {
         guard !isEnriching else { return }
         isEnriching = true
-        runtime.refreshConversationSummary(meetingID: meetingID) { [weak self] in
+        runtime.refreshConversationSummary(meetingID: meetingID, askedByPerson: true) { [weak self] in
             self?.isEnriching = false
             self?.reload()
         }

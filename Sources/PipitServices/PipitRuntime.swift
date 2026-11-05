@@ -169,7 +169,9 @@ public final class PipitRuntime {
     @ObservationIgnored public var notifications = NotificationService()
     /// Conversations whose summary is being written again right now.
     public private(set) var summariesBeingWritten: Set<String> = []
-    @ObservationIgnored private var lastSummaryProblemAt: Date?
+    @ObservationIgnored private var recentSummaryProblems: [(error: ProcessingError, at: Date)] = []
+    /// Conversations whose rewrite the person asked for with the button.
+    @ObservationIgnored private var summariesAskedByPerson: Set<String> = []
     @ObservationIgnored public let permissions = PermissionsService()
     /// The OpenAI key, read from the keychain once and held for the process.
     /// Exposed so saving a rotated key updates it without a relaunch.
@@ -2036,10 +2038,19 @@ public final class PipitRuntime {
 
     /// One notification for a burst of failed rewrites. Separating a part asks for
     /// two rewrites, and both fail the same way when the model is out of reach.
+    ///
+    /// A repeat of the same failure inside a minute is left out, whichever meeting
+    /// it was for, and a different failure still posts. A failure of the rewrite
+    /// the person just asked for always posts.
     func postSummaryProblem(_ error: ProcessingError, meetingID: String) {
         let now = clock.now
-        if let last = lastSummaryProblemAt, now.timeIntervalSince(last) < 60 { return }
-        lastSummaryProblemAt = now
+        recentSummaryProblems.removeAll { now.timeIntervalSince($0.at) >= 60 }
+        if !summariesAskedByPerson.contains(meetingID),
+            recentSummaryProblems.contains(where: { $0.error == error })
+        {
+            return
+        }
+        recentSummaryProblems.append((error, now))
         notifications.summaryProblem(error, meetingID: meetingID)
     }
 
@@ -2062,11 +2073,16 @@ public final class PipitRuntime {
     /// recordings. While one of them is still processing the rewrite waits and
     /// is asked again when that recording finishes.
     public func refreshConversationSummary(
-        meetingID: String, completion: @escaping @Sendable @MainActor () -> Void = {}
+        meetingID: String, askedByPerson: Bool = false,
+        completion: @escaping @Sendable @MainActor () -> Void = {}
     ) {
+        if askedByPerson { summariesAskedByPerson.insert(meetingID) }
         runProcessing { [weak self] in
             guard let self else { return completion() }
             await pipeline.refreshConversationSummary(meetingID: meetingID)
+            // After the failure callback, which was queued first.
+            await Task.yield()
+            summariesAskedByPerson.remove(meetingID)
             onProcessingUpdate?(meetingID)
             refreshRecentMeetings()
             completion()

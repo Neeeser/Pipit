@@ -317,6 +317,10 @@ public struct MeetingMetadata: Codable, Sendable, Equatable, Identifiable {
     /// as a rejected key or a refused request, so launches stop trying. The
     /// notice and its button stay; a new ask or a change of recordings clears it.
     public var summaryRewriteGivenUp: Bool?
+    /// Set on the first recording when its summary was written from every
+    /// recording of the conversation, and cleared when the recordings change.
+    /// The launch pass marks joined conversations that lack it.
+    public var summaryCoversParts: Bool?
     /// Original filename for an imported recording, preserved verbatim.
     public var importedOriginalFilename: String?
     /// Where an imported recording's `startedAt` came from. Absent on captured

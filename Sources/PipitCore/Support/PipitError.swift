@@ -202,6 +202,21 @@ public enum ProcessingError: LogSafeError, Equatable {
 }
 
 extension ProcessingError {
+    /// A refusal asking again will not change: the key, the model name or the
+    /// request itself is wrong. A garbled answer is not one, and a later ask can
+    /// get a good one.
+    public var isRefusal: Bool {
+        switch self {
+        case .authenticationFailed, .requestTooLarge: true
+        case .languageModel(_, let failure):
+            switch failure {
+            case .authenticationFailed, .modelNotFound, .rejected: true
+            default: false
+            }
+        default: false
+        }
+    }
+
     /// What a summary that could not be written says: the problem, stated
     /// plainly, and where to try again. No promise that Pipit will retry, since
     /// a rewrite that failed is tried again by the person, from the meeting.
@@ -217,7 +232,7 @@ extension ProcessingError {
         case .languageModel(let provider, let failure): problem = failure.statement(provider: provider) + "."
         default: problem = "The summary could not be written."
         }
-        return problem + " Choose Write again in the meeting to try again."
+        return problem + " Open the meeting to write the summary again."
     }
 }
 

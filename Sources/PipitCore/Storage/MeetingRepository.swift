@@ -442,13 +442,15 @@ public struct MeetingSummary: Sendable, Equatable, Identifiable {
     public let summaryNeedsRewrite: Bool
     /// Whether launches have stopped retrying that rewrite.
     public let summaryRewriteGivenUp: Bool
+    /// Whether the summary is recorded as written from every recording.
+    public let summaryCoversParts: Bool
 
     public init(
         id: String, directory: URL, title: String, startedAt: Date, durationSeconds: Double,
         source: MeetingSource, provider: MeetingProvider, processingState: ProcessingState,
         wasInterrupted: Bool, hasTranscript: Bool, recordingCount: Int = 1,
         isArchived: Bool = false, folderName: String? = nil, summaryNeedsRewrite: Bool = false,
-        summaryRewriteGivenUp: Bool = false
+        summaryRewriteGivenUp: Bool = false, summaryCoversParts: Bool = false
     ) {
         self.id = id
         self.directory = directory
@@ -465,6 +467,7 @@ public struct MeetingSummary: Sendable, Equatable, Identifiable {
         self.folderName = folderName
         self.summaryNeedsRewrite = summaryNeedsRewrite
         self.summaryRewriteGivenUp = summaryRewriteGivenUp
+        self.summaryCoversParts = summaryCoversParts
     }
 }
 
@@ -1043,7 +1046,8 @@ public struct MeetingRepository: Sendable {
             // in Finder moves every meeting in it without touching a file.
             folderName: archive.folderName(ofDirectory: directory),
             summaryNeedsRewrite: metadata.summaryNeedsRewrite == true,
-            summaryRewriteGivenUp: metadata.summaryRewriteGivenUp == true
+            summaryRewriteGivenUp: metadata.summaryRewriteGivenUp == true,
+            summaryCoversParts: metadata.summaryCoversParts == true
         )
     }
 
