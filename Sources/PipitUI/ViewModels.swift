@@ -486,9 +486,8 @@ public final class MeetingReviewModel {
     public var metadata: MeetingMetadata?
     public var transcript: CanonicalTranscript?
     public var notes = ""
-    /// Notes typed during the later recordings of a conversation, on the
-    /// conversation's clock. Shown on the summary timeline beside the first
-    /// recording's notes; the Notes tab edits only the first recording's file.
+    /// Notes from the later recordings, on the conversation's clock. Read-only:
+    /// the Notes tab edits the first recording's file.
     public private(set) var continuationNotes: [MeetingNoteEntry] = []
     public var title = ""
     public var summary: String?
@@ -978,12 +977,6 @@ public final class MeetingReviewModel {
             // would otherwise offer a button that throws its notes away.
             && (generatedNotes?.isEmpty ?? true)
             && metadata?.processing.state == .complete
-    }
-
-    /// Whether the summary was written before recordings were linked or
-    /// separated, so it does not describe the conversation as it is now.
-    public var summaryIsOutOfDate: Bool {
-        metadata?.summaryNeedsRewrite == true && metadata?.processing.state == .complete
     }
 
     /// Writes the summary, notes, description and title this meeting never got.

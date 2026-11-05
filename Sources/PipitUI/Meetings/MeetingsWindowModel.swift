@@ -535,12 +535,14 @@ public final class MeetingsWindowModel {
         let plan = mergePlan(for: rows)
         guard let primaryID = plan.primaryID else { return }
         detail?.saveEdits()
-        for id in plan.combineIDs {
-            runtime.combine(
-                meetingID: id, into: primaryID, reason: "merged by the user",
-                rewritingSummary: false)
+        var linked = false
+        for id in plan.combineIDs
+        where runtime.combine(
+            meetingID: id, into: primaryID, reason: "merged by the user", rewritingSummary: false)
+        {
+            linked = true
         }
-        runtime.refreshConversationSummary(meetingID: primaryID)
+        if linked { runtime.refreshConversationSummary(meetingID: primaryID) }
         archiveChanges += 1
         detail = nil
         show(meetingID: primaryID)

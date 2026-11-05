@@ -429,8 +429,9 @@ recording a conversation started with reads every recording in time order, with
 each line stamped on the conversation's timeline, which is the one the summary's
 moments are played against (`PlaybackTimeline.position(timelineSeconds:)` maps a
 moment to the recording that holds it). A conversation too long for one OpenAI
-request is cut in proportion across its recordings, so the later ones are not
-dropped. A recording folded into an earlier one skips enrichment, and so does one
+request keeps the start and end of each recording in proportion to its length and
+marks where the middle is left out, so the later ones are not dropped. Every
+recording's notes go in too, on the same timeline. A recording folded into an earlier one skips enrichment, and so does one
 that is linked while its own request is in flight.
 
 Linking or separating recordings, or a continuation finishing, leaves the
@@ -439,8 +440,13 @@ every recording that has words, writes only the summary, title and description,
 and never changes the processing state, the folder or the calendar link, so a
 failed request is reported and leaves a finished meeting finished. It waits while
 any recording is still being processed, and every job that ends pays what its
-conversation owes. The debt is in memory: a rewrite interrupted by quitting is
-not resumed, and the summary stays as it was last written. Separating after
+conversation owes, then tells the window to reload. The debt is also written to
+the first recording's metadata (`summaryNeedsRewrite`) and cleared when a rewrite
+is written with no newer debt pending, so a rewrite that could not run, for want
+of a key or because the app quit, is paid at the next launch. The first launch
+that knows about this marks conversations whose summary file is older than the
+last part's completion, once, and the summary tab offers "Write again" for a
+meeting that carries the mark and already has a summary. Separating after
 merging a row that was already a conversation does not restore the earlier
 grouping. `transcript.md` is still written per recording and does not include
 continuations.

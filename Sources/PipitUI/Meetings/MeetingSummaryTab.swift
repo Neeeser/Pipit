@@ -108,10 +108,10 @@ struct MeetingSummaryTab: View {
     /// rewrite has not happened, for want of a key or because the app quit.
     private var outOfDateNotice: some View {
         HStack(spacing: 10) {
-            Text("This summary does not cover every recording.")
+            Text("This summary was written before this meeting's parts changed.")
                 .foregroundStyle(.secondary)
             Button {
-                detail.generateEnrichment()
+                detail.rewriteSummary()
             } label: {
                 if detail.isEnriching {
                     ProgressView().controlSize(.small)

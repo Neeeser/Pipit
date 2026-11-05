@@ -269,10 +269,16 @@ struct MergeMeetingsTests {
         await Self.waitForRequests(1, on: backend)
         gate.release()
         await Self.waitForComplete(ids[0], in: runtime)
-        await Self.waitUntil { updates.count >= 3 }
+        // The rewrite has finished once its summary is on disk and the job's
+        // own update has arrived.
+        await Self.waitUntil {
+            runtime.repository.findMeeting(id: ids[0])?.store.readSummaryDocument().summary != nil
+                && updates.count >= 4
+        }
 
-        // Two links, then one ask for the whole merge. Nothing else reports.
-        #expect(updates.count == 3)
+        // Two links, the one rewrite telling the window it wrote, and the one ask
+        // for the whole merge returning. Nothing else reports.
+        #expect(updates.count == 4)
         #expect(backend.enrichmentRequests.count == 1)
         #expect(runtime.repository.logicalMeeting(id: ids[0])?.recordings.count == 3)
     }

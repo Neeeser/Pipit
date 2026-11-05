@@ -428,6 +428,12 @@ public final class PipitRuntime {
                 Task { @MainActor in
                     relay?.runtimeForCallbacks?.handleProcessingFailure(meetingID, error)
                 }
+            },
+            onSummaryRewritten: { [weak relay] meetingID in
+                Task { @MainActor in
+                    relay?.runtimeForCallbacks?.refreshRecentMeetings()
+                    relay?.runtimeForCallbacks?.onProcessingUpdate?(meetingID)
+                }
             }
         )
         relay.connect(runtime: self)
@@ -1946,17 +1952,18 @@ public final class PipitRuntime {
     /// recording, unless `rewritingSummary` is false. A caller that links
     /// several recordings in a row passes false and asks once at the end with
     /// `refreshConversationSummary`, so one merge is one request.
+    @discardableResult
     public func combine(
         meetingID: String, into earlierID: String, reason: String, rewritingSummary: Bool = true
-    ) {
+    ) -> Bool {
         guard let later = repository.findMeeting(id: meetingID),
             repository.findMeeting(id: earlierID) != nil
-        else { return }
+        else { return false }
         // A chain would make the earlier recording both a continuation and the
         // start of one, and `logicalMeeting` would resolve past it.
         guard let target = repository.logicalMeeting(id: earlierID),
             target.id != meetingID
-        else { return }
+        else { return false }
         // The later recording may still be processing, and its run ends by
         // moving its folder to a name that carries the title. A store resolved
         // before that move reads a folder that is no longer there, so each write
@@ -1978,7 +1985,7 @@ public final class PipitRuntime {
                         metadata.absorbedMeetingIDs.append(id)
                     }
                 })
-        else { return }
+        else { return false }
         for childID in carried {
             updateLinked(childID, { $0.mergedIntoMeetingID = target.id })
         }
@@ -1991,11 +1998,12 @@ public final class PipitRuntime {
                     $0.possibleContinuationOf = nil
                     $0.possibleContinuationReason = nil
                 })
-        else { return }
+        else { return false }
         Log.app.info("combined a meeting into an earlier one: \(reason, privacy: .public)")
         refreshRecentMeetings()
         onProcessingUpdate?(target.id)
         if rewritingSummary { refreshConversationSummary(meetingID: target.id) }
+        return true
     }
 
     /// Updates one recording's metadata through a store resolved now, once more
@@ -2016,12 +2024,15 @@ public final class PipitRuntime {
     /// Writes a finished conversation's summary again from all of its
     /// recordings. While one of them is still processing the rewrite waits and
     /// is asked again when that recording finishes.
-    public func refreshConversationSummary(meetingID: String) {
+    public func refreshConversationSummary(
+        meetingID: String, completion: @escaping @Sendable @MainActor () -> Void = {}
+    ) {
         runProcessing { [weak self] in
-            guard let self else { return }
+            guard let self else { return completion() }
             await pipeline.refreshConversationSummary(meetingID: meetingID)
             onProcessingUpdate?(meetingID)
             refreshRecentMeetings()
+            completion()
         }
     }
 
