@@ -5,24 +5,36 @@ import Foundation
 public struct TrimRange: Sendable, Equatable {
     public let start: Double
     public let end: Double
+    /// The person kept everything through the end of the recording. Each
+    /// track then keeps its own last frame, which can be later than `end`
+    /// because the meeting's length is the longest single track and leaves
+    /// out how late the other one began.
+    public let keepsEnd: Bool
 
     /// Nil when the range keeps nothing or keeps everything: a trim has to
-    /// remove something and leave something.
-    public init?(start: Double, end: Double, duration: Double) {
+    /// remove something and leave something. `toEnd` says the end handle sat
+    /// at the end of the timeline, which can be past `duration`.
+    public init?(start: Double, end: Double, duration: Double, toEnd: Bool = false) {
         let start = max(0, start)
-        let end = min(duration, end)
+        let keepsEnd = toEnd || end >= duration - MeetingTrim.tolerance
+        let end = toEnd ? max(duration, end) : min(duration, end)
         guard end - start >= MeetingTrim.shortestKept else { return nil }
-        guard start > MeetingTrim.tolerance || duration - end > MeetingTrim.tolerance else { return nil }
+        guard start > MeetingTrim.tolerance || !keepsEnd else { return nil }
         self.start = start
         self.end = end
+        self.keepsEnd = keepsEnd
     }
 
     public var seconds: Double { end - start }
 
+    /// Where the kept stretch stops, which is no limit at all when it runs to
+    /// the end of the recording.
+    public var effectiveEnd: Double { keepsEnd ? .infinity : end }
+
     /// Where a time on the old timeline lands on the trimmed one, or nil when
     /// it was cut.
     public func moved(_ time: Double) -> Double? {
-        guard time >= start, time < end else { return nil }
+        guard time >= start, time < effectiveEnd else { return nil }
         return time - start
     }
 }
@@ -47,39 +59,117 @@ public enum MeetingTrim {
     /// one. Nil when none of it is kept.
     static func clip(start: Double, end: Double, to range: TrimRange) -> (start: Double, end: Double)? {
         let clippedStart = max(start, range.start)
-        let clippedEnd = min(end, range.end)
+        let clippedEnd = min(end, range.effectiveEnd)
         guard clippedEnd > clippedStart else { return nil }
         return (clippedStart - range.start, clippedEnd - range.start)
     }
 
+    /// The raw transcript cut to the range, with the timings of its text-only
+    /// chunks cut the same way.
+    public struct TrimmedTranscript: Sendable, Equatable {
+        public var transcript: RawTranscript
+        /// The alignment of every kept chunk that had one, by chunk id.
+        public var alignments: [String: ChunkAlignment]
+    }
+
     public static func trim(_ transcript: RawTranscript, to range: TrimRange) -> RawTranscript {
+        trim(transcript, alignments: [:], to: range).transcript
+    }
+
+    /// A cloud chunk is text alone, and its word timings live in a separate
+    /// alignment file. Both have to be cut together: a chunk that straddles
+    /// the cut keeps only the words inside the range, and the alignment moves
+    /// with them. Chunks wholly outside the range, and their alignments, go.
+    public static func trim(
+        _ transcript: RawTranscript, alignments: [String: ChunkAlignment], to range: TrimRange
+    ) -> TrimmedTranscript {
         var trimmed = transcript
-        trimmed.chunks = transcript.chunks.compactMap { trim($0, to: range) }
-        return trimmed
+        var kept: [String: ChunkAlignment] = [:]
+        trimmed.chunks = transcript.chunks.compactMap { chunk in
+            guard let result = trim(chunk, alignment: alignments[chunk.id], to: range) else { return nil }
+            if let alignment = result.alignment { kept[chunk.id] = alignment }
+            return result.chunk
+        }
+        return TrimmedTranscript(transcript: trimmed, alignments: kept)
     }
 
     static func trim(_ chunk: RawTranscriptChunk, to range: TrimRange) -> RawTranscriptChunk? {
+        trim(chunk, alignment: nil, to: range)?.chunk
+    }
+
+    /// Where a chunk's own seconds land after the cut.
+    private struct ChunkShift {
+        /// Where the chunk began on the old timeline.
+        var offset: Double
+        /// The kept part of the chunk on the new timeline.
+        var span: (start: Double, end: Double)
+        /// Added to a time measured from the old chunk start to measure it from
+        /// the new one.
+        var shift: Double
+        /// A position inside the chunk, in the chunk's old seconds, that the
+        /// range starts at, and the one it stops at.
+        var keptFrom: Double
+        var keptTo: Double
+        var isClipped: Bool
+    }
+
+    static func trim(
+        _ chunk: RawTranscriptChunk, alignment: ChunkAlignment?, to range: TrimRange
+    ) -> (chunk: RawTranscriptChunk, alignment: ChunkAlignment?)? {
         let offset = chunk.timelineOffset
         guard let span = clip(start: offset, end: offset + chunk.durationSeconds, to: range) else { return nil }
+        let moved = ChunkShift(
+            offset: offset, span: span, shift: offset - range.start - span.start,
+            keptFrom: max(0, range.start - offset),
+            keptTo: min(chunk.durationSeconds, range.effectiveEnd - offset),
+            isClipped: offset < range.start || offset + chunk.durationSeconds > range.effectiveEnd
+        )
         var trimmed = chunk
         trimmed.timelineOffset = span.start
         trimmed.durationSeconds = span.end - span.start
-        // A position inside the chunk, measured from its old start, measured
-        // again from its new one.
-        let shift = offset - range.start - span.start
-        trimmed.segments = chunk.segments.compactMap { segment in
+        // The raw response holds every word the model heard, and is deleted
+        // with the rest of the removed stretch.
+        trimmed.rawResponseFile = nil
+        trimmed.segments = trim(chunk.segments, moved: moved, range: range)
+        guard let text = chunk.text, chunk.segments.isEmpty else { return (trimmed, nil) }
+
+        // A text-only chunk: its words are timed by the alignment, or not at
+        // all.
+        var trimmedAlignment = alignment
+        if let alignment, !alignment.segments.isEmpty {
+            let segments = trim(alignment.segments, moved: moved, range: range)
+            trimmedAlignment?.segments = segments
+            if moved.isClipped {
+                trimmed.text = segments.map { $0.text.trimmingCharacters(in: .whitespaces) }.joined(separator: " ")
+            }
+        } else if moved.isClipped {
+            trimmed.text = evenlySpaced(text, over: 0...chunk.durationSeconds, keeping: moved.keptFrom...moved.keptTo)
+        }
+        if trimmed.text?.trimmingCharacters(in: .whitespaces).isEmpty == true { return nil }
+        return (trimmed, trimmedAlignment)
+    }
+
+    /// The segments of one chunk that the range keeps, with their times moved
+    /// to measure from the chunk's new start.
+    private static func trim(
+        _ segments: [RawTranscriptSegment], moved chunk: ChunkShift, range: TrimRange
+    ) -> [RawTranscriptSegment] {
+        let origin = chunk.offset
+        return segments.compactMap { segment in
             guard
-                let kept = clip(start: offset + segment.start, end: offset + segment.end, to: range)
+                let kept = clip(start: origin + segment.start, end: origin + segment.end, to: range)
             else { return nil }
             var moved = segment
-            moved.start = kept.start - span.start
-            moved.end = kept.end - span.start
+            moved.start = kept.start - chunk.span.start
+            moved.end = kept.end - chunk.span.start
+            let isClipped =
+                origin + segment.start < range.start - 1e-9 || origin + segment.end > range.effectiveEnd + 1e-9
             if let words = segment.words {
                 let keptWords = words.compactMap { word -> RawTranscriptWord? in
-                    guard range.moved(offset + word.start) != nil else { return nil }
+                    guard range.moved(origin + word.start) != nil else { return nil }
                     var movedWord = word
-                    movedWord.start = word.start + shift
-                    movedWord.end = min(word.end + shift, moved.end)
+                    movedWord.start = word.start + chunk.shift
+                    movedWord.end = min(word.end + chunk.shift, moved.end)
                     return movedWord
                 }
                 if keptWords.isEmpty { return nil }
@@ -87,10 +177,34 @@ public enum MeetingTrim {
                     moved.text = keptWords.map(\.text).joined()
                 }
                 moved.words = keptWords
+            } else if isClipped {
+                // No word timings: the words that fall inside are the ones
+                // that would, spaced evenly through the segment.
+                moved.text = evenlySpaced(
+                    segment.text, over: segment.start...segment.end,
+                    keeping: chunk.keptFrom...chunk.keptTo
+                )
+                if moved.text.trimmingCharacters(in: .whitespaces).isEmpty { return nil }
             }
             return moved
         }
-        return trimmed
+    }
+
+    /// The words of `text` that lie wholly inside `kept`, taking them to be
+    /// spread evenly over `span`. Used where nothing says when each word was
+    /// said. A word straddling an edge goes, because the alternative is
+    /// keeping speech the person asked to delete.
+    static func evenlySpaced(_ text: String, over span: ClosedRange<Double>, keeping kept: ClosedRange<Double>)
+        -> String
+    {
+        let words = text.split(whereSeparator: \.isWhitespace)
+        guard !words.isEmpty, span.upperBound > span.lowerBound else { return "" }
+        let width = (span.upperBound - span.lowerBound) / Double(words.count)
+        let keptWords = words.enumerated().filter { index, _ in
+            let start = span.lowerBound + Double(index) * width
+            return start >= kept.lowerBound - 1e-9 && start + width <= kept.upperBound + 1e-9
+        }
+        return keptWords.map { String($0.element) }.joined(separator: " ")
     }
 
     public static func trim(_ transcript: CanonicalTranscript, to range: TrimRange) -> CanonicalTranscript {
@@ -154,11 +268,21 @@ public enum MeetingTrim {
     public static func trim(_ map: SpeakerMap, to range: TrimRange) -> SpeakerMap {
         var trimmed = map
         trimmed.utteranceOverrides = map.utteranceOverrides.compactMap { override in
-            guard let anchor = range.moved(override.anchorSeconds) else { return nil }
+            // A correction covers a span, and a line the cut only shortens is
+            // still there, so the correction stays on what is left of it. One
+            // with no span, from before spans were recorded, rests on its
+            // anchor alone.
+            guard let first = override.startSeconds, let last = override.endSeconds else {
+                guard let anchor = range.moved(override.anchorSeconds) else { return nil }
+                var moved = override
+                moved.anchorSeconds = anchor
+                return moved
+            }
+            guard let kept = clip(start: first, end: last, to: range) else { return nil }
             var moved = override
-            moved.anchorSeconds = anchor
-            moved.startSeconds = override.startSeconds.map { max(0, $0 - range.start) }
-            moved.endSeconds = override.endSeconds.map { min(range.seconds, $0 - range.start) }
+            moved.startSeconds = kept.start
+            moved.endSeconds = kept.end
+            moved.anchorSeconds = range.moved(override.anchorSeconds) ?? (kept.start + kept.end) / 2
             return moved
         }
         trimmed.lineCuts = map.lineCuts.compactMap { cut in
@@ -196,7 +320,7 @@ public enum MeetingTrim {
     static func windows(_ values: [Int8], width: Double, range: TrimRange) -> [Int8] {
         guard width > 0, !values.isEmpty else { return values }
         let first = min(values.count, Int((range.start / width).rounded(.down)))
-        let last = min(values.count, Int((range.end / width).rounded(.up)))
+        let last = range.keepsEnd ? values.count : min(values.count, Int((range.end / width).rounded(.up)))
         guard last > first else { return [] }
         return Array(values[first..<last])
     }
@@ -216,228 +340,58 @@ public enum MeetingTrim {
         [archive.mic?.firstFrameHostTime, archive.remote?.firstFrameHostTime].compactMap { $0 }.min()
     }
 
-    /// The part of one archived track that the range keeps.
+    /// How long the meeting runs on its timeline: the end of whichever track
+    /// finishes last, counting how late each began.
+    public static func timelineLength(_ archive: AudioArchive) -> Double {
+        let origin = origin(archive)
+        return CaptureTrack.allCases.compactMap { name -> Double? in
+            guard let track = archive.track(name) else { return nil }
+            let lead = origin.flatMap { origin in track.firstFrameHostTime.map { $0 - origin } } ?? 0
+            return lead + track.seconds
+        }.max() ?? 0
+    }
+
+    /// The part of one archived track that the range keeps. A range that keeps
+    /// the end keeps the track to its own last frame.
     public static func cut(
         _ track: AudioArchive.Track, origin: Double?, range: TrimRange
     ) -> TrackCut? {
         let lead = origin.flatMap { origin in track.firstFrameHostTime.map { $0 - origin } } ?? 0
         let from = max(0, range.start - lead)
-        let to = min(track.seconds, range.end - lead)
+        let to = min(track.seconds, range.effectiveEnd - lead)
         guard to > from else { return nil }
         return TrackCut(from: from, to: to)
     }
 
     /// The archive record for a track whose file now holds only `cut`.
+    /// `firstFrameHostTime` is the capture time of the first kept frame where
+    /// the manifest knows it; a track whose audio had a gap before the cut is
+    /// not placed right by adding the cut's length to its old start.
     public static func trimmed(
-        _ track: AudioArchive.Track, cut: TrackCut, frameCount: Int64
+        _ track: AudioArchive.Track, cut: TrackCut, frameCount: Int64, firstFrameHostTime: Double? = nil
     ) -> AudioArchive.Track {
         var moved = track
         moved.frameCount = frameCount
         moved.seconds = Double(frameCount) / track.sampleRate
-        moved.firstFrameHostTime = track.firstFrameHostTime.map { $0 + cut.from }
+        moved.firstFrameHostTime = firstFrameHostTime ?? track.firstFrameHostTime.map { $0 + cut.from }
         return moved
     }
 
     // MARK: metadata
 
-    /// The meeting's own record after the trim, given the archive records the
-    /// rewritten audio files produced. Processing goes back to enrichment, so
-    /// the summary and title are written again from what is left.
-    public static func trim(
+    /// The change to the meeting's own record, given the archive records the
+    /// rewritten audio files produced. The duration is the longest kept track,
+    /// which is what processing reads from the manifest.
+    public static func change(
         _ metadata: MeetingMetadata, to range: TrimRange, archive: AudioArchive,
         cleanedMic: AudioArchive.Track?, at now: Date
-    ) -> MeetingMetadata {
-        var trimmed = metadata
+    ) -> TrimMetadataChange {
+        let kept = CaptureTrack.allCases.compactMap { archive.track($0)?.seconds }.max() ?? range.seconds
         let startedAt = metadata.startedAt.addingTimeInterval(range.start)
-        let endedAt = metadata.startedAt.addingTimeInterval(range.end)
-        trimmed.startedAt = startedAt
-        trimmed.endedAt = endedAt
-        trimmed.durationSeconds = range.seconds
-        trimmed.runs = metadata.runs.map { run in
-            var moved = run
-            moved.startedAt = startedAt
-            moved.endedAt = endedAt
-            moved.durationSeconds = range.seconds
-            return moved
-        }
-        trimmed.audioArchive = archive
-        if let cleanedMic, var cleaned = metadata.cleanedMic {
-            cleaned.track = cleanedMic
-            trimmed.cleanedMic = cleaned
-        }
-        trimmed.processing.state = .enriching
-        trimmed.processing.updatedAt = now
-        trimmed.processing.completedStages.removeAll { $0 == .enriching || $0 == .complete }
-        trimmed.processing.lastFailure = nil
-        trimmed.processing.failedStage = nil
-        return trimmed
-    }
-
-    // MARK: manifest
-
-    /// The capture record cut to the range. Segments are clipped to the audio
-    /// that is left, their frame positions restart at zero, and every other
-    /// event outside the range is dropped, except the device and stream
-    /// descriptions from before the cut, which are moved to its start because
-    /// they still describe the audio that remains.
-    public static func trim(
-        _ lines: [ManifestLine], to range: TrimRange, origin: Double, keptSeconds: [CaptureTrack: Double]
-    ) -> [ManifestLine] {
-        let startHost = origin + range.start
-        let endHost = origin + range.end
-        let (openings, closings) = segmentEvents(lines)
-        var output: [ManifestLine] = []
-        var keptSegments: Set<SegmentKey> = []
-        var sessionStartWall: Date?
-        for line in lines {
-            switch line.event {
-            case .sessionStart:
-                sessionStartWall = line.wallClock.addingTimeInterval(range.start)
-                output.append(
-                    ManifestLine(
-                        hostTime: max(line.hostTime, startHost), wallClock: sessionStartWall ?? line.wallClock,
-                        event: line.event
-                    ))
-            case .segmentOpen(let open):
-                let key = SegmentKey(track: open.track, index: open.index)
-                guard let moved = clip(open, close: closings[key], startHost: startHost, endHost: endHost, line: line)
-                else { continue }
-                keptSegments.insert(key)
-                output.append(moved)
-            case .segmentClose(let close):
-                let key = SegmentKey(track: close.track, index: close.index)
-                guard keptSegments.contains(key), let open = openings[key] else { continue }
-                output.append(clip(close, open: open, startHost: startHost, endHost: endHost, line: line))
-            case .crashTailAdopted(let adopted):
-                guard keptSegments.contains(SegmentKey(track: adopted.track, index: adopted.index)) else { continue }
-                output.append(line)
-            case .sessionEnd(let end):
-                let wall = (sessionStartWall ?? line.wallClock).addingTimeInterval(range.seconds)
-                output.append(
-                    ManifestLine(
-                        hostTime: min(line.hostTime, endHost), wallClock: wall,
-                        event: .sessionEnd(
-                            ManifestEvent.SessionEnd(
-                                reason: end.reason,
-                                micSeconds: keptSeconds[.mic] ?? 0,
-                                remoteSeconds: keptSeconds[.remote] ?? 0
-                            ))
-                    ))
-            case .micBind, .remoteBind, .remoteStream, .sourceHealth, .formatChange:
-                if let moved = moveDescription(line, startHost: startHost, endHost: endHost) { output.append(moved) }
-            default:
-                guard line.hostTime >= startHost, line.hostTime <= endHost else { continue }
-                output.append(line)
-            }
-        }
-        // Each track's frames restart at zero after the cut.
-        return renumberStartFrames(output, startHost: startHost)
-    }
-
-    struct SegmentKey: Hashable {
-        let track: CaptureTrack
-        let index: Int
-    }
-
-    /// Every segment's opening and closing, by track and index.
-    private static func segmentEvents(
-        _ lines: [ManifestLine]
-    ) -> ([SegmentKey: ManifestEvent.SegmentOpen], [SegmentKey: ManifestEvent.SegmentClose]) {
-        var openings: [SegmentKey: ManifestEvent.SegmentOpen] = [:]
-        var closings: [SegmentKey: ManifestEvent.SegmentClose] = [:]
-        for line in lines {
-            switch line.event {
-            case .segmentOpen(let open): openings[SegmentKey(track: open.track, index: open.index)] = open
-            case .segmentClose(let close): closings[SegmentKey(track: close.track, index: close.index)] = close
-            default: break
-            }
-        }
-        return (openings, closings)
-    }
-
-    /// A segment that overlaps the range, starting where its kept audio
-    /// starts. Nil for one wholly outside it.
-    private static func clip(
-        _ open: ManifestEvent.SegmentOpen, close: ManifestEvent.SegmentClose?,
-        startHost: Double, endHost: Double, line: ManifestLine
-    ) -> ManifestLine? {
-        let span = hostSpan(open: open, close: close)
-        if let span, span.end <= startHost || span.start >= endHost { return nil }
-        let moved = ManifestEvent.SegmentOpen(
-            track: open.track, index: open.index, file: open.file,
-            firstFrameHostTime: span.map { max($0.start, startHost) } ?? open.firstFrameHostTime,
-            startFrame: open.startFrame, sampleRate: open.sampleRate, channelCount: open.channelCount,
-            reason: open.reason
+        return TrimMetadataChange(
+            startedAt: startedAt, endedAt: startedAt.addingTimeInterval(kept), durationSeconds: kept,
+            audioArchive: archive, cleanedMicrophone: cleanedMic,
+            dropsCleanedMicrophone: metadata.cleanedMic != nil && cleanedMic == nil, at: now
         )
-        return ManifestLine(
-            hostTime: max(line.hostTime, startHost), wallClock: line.wallClock, event: .segmentOpen(moved))
-    }
-
-    /// A device or stream description. One from before the cut still
-    /// describes the audio that remains, so it moves to the cut; one from
-    /// after the range describes nothing kept.
-    private static func moveDescription(_ line: ManifestLine, startHost: Double, endHost: Double) -> ManifestLine? {
-        if line.hostTime > endHost { return nil }
-        guard line.hostTime < startHost else { return line }
-        return ManifestLine(
-            hostTime: startHost, wallClock: line.wallClock.addingTimeInterval(startHost - line.hostTime),
-            event: line.event
-        )
-    }
-
-    /// The segment's span in host time. The first frame's host time is often
-    /// known only when the segment closes, so either event may carry it.
-    private static func hostSpan(
-        open: ManifestEvent.SegmentOpen, close: ManifestEvent.SegmentClose?
-    ) -> (start: Double, end: Double)? {
-        guard let first = open.firstFrameHostTime ?? close?.firstFrameHostTime else { return nil }
-        return (first, first + (close?.seconds ?? .infinity))
-    }
-
-    private static func clip(
-        _ close: ManifestEvent.SegmentClose, open: ManifestEvent.SegmentOpen,
-        startHost: Double, endHost: Double, line: ManifestLine
-    ) -> ManifestLine {
-        guard let span = hostSpan(open: open, close: close) else { return line }
-        let keptStart = max(span.start, startHost)
-        let keptEnd = min(span.end, endHost)
-        if keptStart <= span.start, keptEnd >= span.end { return line }
-        let seconds = max(0, keptEnd - keptStart)
-        let rate = open.sampleRate > 0 ? open.sampleRate : 16_000
-        let frames = Int64((seconds * rate).rounded())
-        let bytes = close.seconds > 0 ? Int64(Double(close.byteCount) * seconds / close.seconds) : 0
-        return ManifestLine(
-            hostTime: min(line.hostTime, endHost), wallClock: line.wallClock,
-            event: .segmentClose(
-                ManifestEvent.SegmentClose(
-                    track: close.track, index: close.index, frameCount: frames, byteCount: bytes,
-                    seconds: seconds, firstFrameHostTime: keptStart, reason: "trimmed"
-                ))
-        )
-    }
-
-    /// Restarts each track's segment frame positions at zero, in order, from
-    /// the clipped lengths.
-    private static func renumberStartFrames(_ lines: [ManifestLine], startHost: Double) -> [ManifestLine] {
-        var closes: [SegmentKey: ManifestEvent.SegmentClose] = [:]
-        for line in lines {
-            if case .segmentClose(let close) = line.event {
-                closes[SegmentKey(track: close.track, index: close.index)] = close
-            }
-        }
-        var position: [CaptureTrack: Int64] = [:]
-        return lines.map { line in
-            guard case .segmentOpen(let open) = line.event else { return line }
-            let start = position[open.track] ?? 0
-            if let close = closes[SegmentKey(track: open.track, index: open.index)] {
-                position[open.track] = start + close.frameCount
-            }
-            let moved = ManifestEvent.SegmentOpen(
-                track: open.track, index: open.index, file: open.file,
-                firstFrameHostTime: open.firstFrameHostTime, startFrame: start,
-                sampleRate: open.sampleRate, channelCount: open.channelCount, reason: open.reason
-            )
-            return ManifestLine(hostTime: line.hostTime, wallClock: line.wallClock, event: .segmentOpen(moved))
-        }
     }
 }

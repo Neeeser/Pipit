@@ -521,6 +521,9 @@ public final class PipitRuntime {
             await refreshLocalModelState()
             await consolidateVoiceTwins()
             await pruneVoiceMemory()
+            // Before the rest is resumed: a trim that stopped part way has cut
+            // audio under the old record until this finishes it.
+            await pipeline.finishInterruptedTrims()
             await pipeline.resumeInterrupted()
             refreshRecentMeetings()
             // After resume, so a meeting that was mid-pipeline is finished
@@ -1159,25 +1162,14 @@ public final class PipitRuntime {
     /// rest. The person has confirmed it; nothing here can be undone.
     public func trimMeeting(
         meetingID: String, to range: TrimRange,
-        completion: @escaping @Sendable @MainActor (TrimError?) -> Void = { _ in }
+        completion: @escaping @Sendable @MainActor (ProcessingPipeline.TrimOutcome) -> Void = { _ in }
     ) {
         runProcessing { [weak self] in
             guard let self else { return }
-            var failure: TrimError?
-            do {
-                try await pipeline.trim(meetingID: meetingID, to: range)
-            } catch let error as TrimError {
-                failure = error
-            } catch {
-                Log.app.error("trim failed: \(logSafeDescription(error), privacy: .public)")
-                failure = .filesNotWritten
-            }
-            if let failure {
-                Log.app.error("trim refused: \(failure.logSafeDescription, privacy: .public)")
-            }
+            let outcome = await pipeline.trim(meetingID: meetingID, to: range)
             refreshRecentMeetings()
             onProcessingUpdate?(meetingID)
-            completion(failure)
+            completion(outcome)
         }
     }
 

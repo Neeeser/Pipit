@@ -249,8 +249,9 @@ public actor ProcessingPipeline {
     }
 
     /// Runs or resumes a meeting. Safe to call repeatedly; a meeting already in
-    /// flight is left alone.
-    public func process(meetingID: String) async {
+    /// flight is left alone. `refiling` is false for work on a meeting that has
+    /// long had its title and its folder, which must not move because of it.
+    public func process(meetingID: String, refiling: Bool = true) async {
         guard !running.contains(meetingID) else { return }
         // includingMerged, because a reconnected meeting is folded into the
         // earlier one and hidden from the archive listing while its own segments
@@ -272,7 +273,7 @@ public actor ProcessingPipeline {
         var metadata = found.metadata
         let store = found.store
         let settings = settingsProvider()
-        let redoingMicrophone = metadata.microphoneRedoRequestedAt != nil
+        let refilesFolder = refiling && metadata.microphoneRedoRequestedAt == nil
         // The recording's own session, from its manifest, so a failure here can
         // be read beside the capture events of the same call. Nil for a
         // meeting recorded before diagnostics existed.
@@ -510,11 +511,11 @@ public actor ProcessingPipeline {
         // something else is in the folder too: a re-analysis queued on the job
         // slot captured this folder's paths before it started waiting.
         //
-        // Not after redoing the microphone, which is a request to change one
-        // track of a meeting that has long had its title and its folder.
+        // Not after redoing the microphone or after a trim, which are requests
+        // to change a meeting that has long had its title and its folder.
         // Filing it now would apply rules written since to a meeting the user
         // never asked to move.
-        if !heldByOthers(meetingID, besidesSelf: true), !redoingMicrophone {
+        if !heldByOthers(meetingID, besidesSelf: true), refilesFolder {
             // Before the rename: filing changes which directory the meeting is
             // in, and renaming works inside whichever that turns out to be.
             await placeInFolder(metadata: metadata, settings: settings)
@@ -3185,15 +3186,38 @@ public actor ProcessingPipeline {
         try await rerenderMarkdown(store: found.store, metadata: found.metadata)
     }
 
+    /// What came of a trim. The cut itself and what follows it are reported
+    /// apart: once the files are swapped the meeting is trimmed, and a failure
+    /// to rebuild its transcript does not undo that.
+    public struct TrimOutcome: Sendable, Equatable {
+        /// Why the meeting was not trimmed, or not fully: nil when the files
+        /// are cut and the record is written.
+        public var failure: TrimError?
+        /// The meeting is trimmed, and the transcript could not be rebuilt
+        /// from what is left.
+        public var transcriptNotRebuilt: Bool
+
+        public init(failure: TrimError? = nil, transcriptNotRebuilt: Bool = false) {
+            self.failure = failure
+            self.transcriptNotRebuilt = transcriptNotRebuilt
+        }
+    }
+
     /// Cuts a finished meeting down to the range the person kept, then writes
     /// its transcript, summary and mixdown again from what is left.
     ///
     /// Holds the job slot while files are rewritten, so no stage reads a
     /// meeting halfway through being cut.
-    public func trim(meetingID: String, to range: TrimRange) async throws {
+    public func trim(meetingID: String, to range: TrimRange) async -> TrimOutcome {
         guard !running.contains(meetingID),
             let found = repository.findMeeting(id: meetingID, includingMerged: true)
-        else { throw TrimError.notFinished }
+        else { return TrimOutcome(failure: .notFinished) }
+        if FileManager.default.fileExists(atPath: found.store.layout.trimJournal.path) {
+            // An earlier trim stopped part way. It is finished here, and the
+            // range chosen against the meeting as it was is not applied.
+            _ = await finishInterruptedTrim(found)
+            return TrimOutcome(failure: .interrupted)
+        }
         running.insert(meetingID)
         holdFolder(meetingID)
         await jobLock.acquire()
@@ -3201,12 +3225,78 @@ public actor ProcessingPipeline {
         running.remove(meetingID)
         releaseFolder(meetingID)
         jobLock.release()
-        try outcome.get()
-        Log.processing.info(
-            "trimmed meeting=\(found.metadata.logIdentifier, privacy: .public) kept=\(range.seconds, privacy: .public)s"
-        )
-        try await rebuildTranscript(meetingID: meetingID)
-        await process(meetingID: meetingID)
+        switch outcome {
+        case .failure(let error):
+            let failure = (error as? TrimError) ?? .filesNotWritten
+            Log.processing.error("trim failed: \(failure.logSafeDescription, privacy: .public)")
+            return TrimOutcome(failure: failure)
+        case .success:
+            Log.processing.info(
+                "trimmed meeting=\(found.metadata.logIdentifier, privacy: .public) kept=\(range.seconds, privacy: .public)s"
+            )
+            return TrimOutcome(transcriptNotRebuilt: await finishInterruptedTrim(found) == false)
+        }
+    }
+
+    /// Finishes every trim that was interrupted, at launch. A meeting is
+    /// either trimmed completely or not at all.
+    public func finishInterruptedTrims() async {
+        let ids = repository.listMeetings().map(\.id) + repository.mergedMeetingIDs()
+        for id in ids {
+            guard let found = repository.findMeeting(id: id, includingMerged: true),
+                FileManager.default.fileExists(atPath: found.store.layout.trimJournal.path)
+            else { continue }
+            _ = await finishInterruptedTrim(found)
+        }
+    }
+
+    /// Carries a trim from wherever it stopped to the end: the swap, the voice
+    /// memory, the transcript and processing. Returns whether the transcript
+    /// was rebuilt. Each step is recorded in the journal as it completes, so a
+    /// second interruption resumes after it.
+    private func finishInterruptedTrim(_ found: (metadata: MeetingMetadata, store: MeetingStore)) async -> Bool {
+        let store = found.store
+        let meetingID = found.metadata.id
+        guard !running.contains(meetingID) else { return true }
+        running.insert(meetingID)
+        holdFolder(meetingID)
+        await jobLock.acquire()
+        var finished: TrimJournal?
+        do {
+            finished = try MeetingTrimmer().finishInterrupted(store: store)
+        } catch {
+            Log.processing.error("trim not finished: \(logSafeDescription(error), privacy: .public)")
+        }
+        running.remove(meetingID)
+        releaseFolder(meetingID)
+        jobLock.release()
+        guard var journal = finished, journal.swapped else { return false }
+
+        if !journal.voiceMemoryAdjusted {
+            do {
+                if let service = backends.speakers {
+                    try await service.speakerStore.trimEvidence(
+                        meetingID: meetingID, keepingFrom: journal.start, to: journal.end, now: clock.now
+                    )
+                }
+                journal.voiceMemoryAdjusted = true
+                try store.writeTrimJournal(journal)
+            } catch {
+                Log.processing.error("voice memory not trimmed: \(logSafeDescription(error), privacy: .public)")
+            }
+        }
+        var rebuilt = true
+        do {
+            try await rebuildTranscript(meetingID: meetingID)
+        } catch {
+            rebuilt = false
+            Log.processing.error("transcript not rebuilt after trim: \(logSafeDescription(error), privacy: .public)")
+        }
+        await process(meetingID: meetingID, refiling: false)
+        // The marker stays until the voice memory has been adjusted, because
+        // that step cannot be repeated.
+        if journal.voiceMemoryAdjusted { store.removeTrimJournal() }
+        return rebuilt
     }
 
     /// Re-renders the transcript after a human speaker correction.

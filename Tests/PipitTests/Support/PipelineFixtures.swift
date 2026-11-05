@@ -17,6 +17,8 @@ public final class StubLocalTranscriber: TranscriptionBackend, @unchecked Sendab
     /// reaching the microphone, and the local lines are dropped.
     public var micSegments: [RawTranscriptSegment]?
     public var identifier = "stub-whisper"
+    /// The length each response reports, which becomes the chunk's length.
+    public var reportedSeconds: Double = 6
     public var isLocal = true
     public var limits = BackendAudioLimits.none
     public var timing = TranscriptTiming.words
@@ -55,7 +57,7 @@ public final class StubLocalTranscriber: TranscriptionBackend, @unchecked Sendab
             ? (micSegments ?? segments) : segments
         return TranscriptionOutput(
             segments: spoken, text: spoken.map(\.text).joined(separator: " "),
-            language: "en", durationSeconds: 6
+            language: "en", durationSeconds: reportedSeconds
         )
     }
 }

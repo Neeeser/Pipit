@@ -136,21 +136,59 @@ and metadata are durable. An interrupted compaction resumes during startup.
 Trim cuts a finished meeting to a range the person picks in the player bar and
 deletes the rest after they confirm. It works on a recording whose audio is
 compacted, recorded in one run, and done processing; in a meeting recorded in
-parts it moves only the start of the first part and the end of the last.
-`MeetingTrim` rewrites each file as a function of the old file and the range:
-the track archives and the cleaned microphone are re-exported, and every time on
-the meeting timeline (raw and assembled transcripts, diarization, sensor turns,
-speech evidence, the speaker map's line corrections and cuts, speaker
-suggestions, and the manifest's segments) is clipped and moved so the kept
-stretch starts at zero. Speaker clusters keep their identifiers, so names given
-to them stay. `MeetingTrimmer` writes every replacement beside the original,
-decodes the new audio to check its length, and then swaps the files in with the
-metadata last. Processing goes back to enrichment, which writes the summary,
-`transcript.md`, and `recording.m4a` again.
+parts it moves only the start of the first part and the end of the last. A
+meeting imported from a file is not offered Trim, because its original file in
+`raw/original/` holds the whole recording.
+
+`MeetingTrim` rewrites each file as a function of the old file and the range.
+The track archives and the cleaned microphone are re-exported by position in
+their own audio, and `recording.m4a` is cut with the same range at its own
+sample rate. A range that keeps the end keeps each track to its last frame,
+because the far end can start later than the microphone and so end later than
+the meeting's recorded length. Every time on the meeting timeline is clipped
+and moved so the kept stretch starts at zero: raw and assembled transcripts,
+diarization, sensor turns, speech evidence, the speaker map's line corrections
+and cuts (a correction survives while any part of its line does), speaker
+suggestions, and the manifest.
+
+The manifest is cut by each track's position in its joined audio, the way the
+archives are, not by capture time. The two agree only while a track has no gap
+in it, so a recording with a stall or a crash tail would otherwise keep a
+manifest that disagrees with its audio. A crash tail is clipped like any other
+segment. The trimmed manifest's per-track lengths and first-frame times match
+the new archives, and processing reads the meeting's length from it.
+
+A cloud chunk is text only; its word timings are in `raw/alignments/`. The
+alignment is cut with the chunk, and the chunk's text is rebuilt from the words
+that remain. A chunk with no alignment keeps the words that fall wholly inside
+the range when they are spread evenly through the chunk, so deleted speech is
+not kept at the cost of dropping a word at each edge. The stored responses in
+`raw/api/`, the summary, `transcript.md`, the AI description and a cleaned
+microphone with nothing left in range are deleted.
+
+Speaker clusters keep their identifiers, so names given to them stay.
+
+`MeetingTrimmer` writes every replacement beside the original and decodes the
+new audio to check its length. It then writes `raw/trim.journal.json`, which
+lists every replacement, every file to delete and the metadata change as
+absolute values, and swaps the files in with the metadata last, through
+`updateMetadata` so only the trim's fields change. The journal is the record
+that a trim is in progress. A failure or quit in the swap leaves it, and launch
+finishes the swap from it; each step can be repeated. A second trim is refused
+while it exists. After the swap, the pipeline moves the voice memory (see
+below), rebuilds the transcript, and processes the meeting again from
+enrichment without refiling its folder. The journal is removed when that is
+done. A failure to rebuild the transcript is reported apart from the trim,
+which has happened by then.
 
 Voice profiles are stored separately at
 `~/Library/Application Support/Pipit/Speakers/voices.sqlite`. Meeting folders
-and exports contain no voice vectors. A recording made by reading the enrolment
+and exports contain no voice vectors. The store records what each vector was
+derived from as spans of a meeting's seconds. A trim retracts the spans in the
+removed stretch through the same path a correction uses, which drops a vector
+that no longer stands on enough audio, then moves the rest by the start of the
+cut (`SpeakerStore.trimEvidence`). That shift is not safe to repeat, so the
+journal records that it ran. A recording made by reading the enrolment
 script aloud is kept beside it, under
 `~/Library/Application Support/Pipit/VoiceEnrollment/<identity>/`, and is deleted
 when that person's learned voice is forgotten or they are deleted.

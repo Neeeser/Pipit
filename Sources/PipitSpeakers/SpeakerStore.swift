@@ -746,6 +746,50 @@ public actor SpeakerStore {
         return affected
     }
 
+    /// Moves the voice memory with a trim of one meeting.
+    ///
+    /// Evidence is recorded as spans of the meeting's own seconds, on the
+    /// assumption that source audio never moves. A trim moves it: the kept
+    /// stretch starts at zero afterwards, and the audio outside it is deleted.
+    /// So the removed stretch is retracted first, by the same path a
+    /// correction takes, which drops a vector that no longer stands on enough
+    /// audio and rebuilds the profiles it fed. Then what is left is moved by
+    /// the start of the cut, and spans wholly in the removed stretch go.
+    ///
+    /// `end` is nil when everything after `start` is kept.
+    ///
+    /// Not safe to repeat: the second shift would move the spans again. The
+    /// caller records that it ran.
+    public func trimEvidence(
+        meetingID: String, keepingFrom start: Double, to end: Double?, now: Date = Date()
+    ) throws {
+        let beyondAnyRecording = 1_000_000.0
+        var removed: [AudioSpan] = []
+        if start > 0 { removed.append(AudioSpan(start: 0, end: start)) }
+        if let end { removed.append(AudioSpan(start: end, end: beyondAnyRecording)) }
+        guard !removed.isEmpty else { return }
+        for track in CaptureTrack.allCases {
+            try retractEvidence(
+                VoiceEvidenceRetraction(meetingID: meetingID, track: track, spans: removed),
+                keepingClaimant: false, now: now
+            )
+        }
+        let keptEnd = end ?? beyondAnyRecording
+        let rows = "(SELECT id FROM voice_evidence WHERE meeting_id = ?)"
+        try database.transaction {
+            try database.run(
+                "DELETE FROM voice_evidence_span WHERE evidence_id IN \(rows)"
+                    + " AND (end_time <= ? OR start_time >= ?)",
+                [.text(meetingID), .double(start), .double(keptEnd)]
+            )
+            try database.run(
+                "UPDATE voice_evidence_span SET start_time = MAX(start_time, ?) - ?,"
+                    + " end_time = MIN(end_time, ?) - ? WHERE evidence_id IN \(rows)",
+                [.double(start), .double(start), .double(keptEnd), .double(start), .text(meetingID)]
+            )
+        }
+    }
+
     /// Takes back everything one track of one meeting taught.
     ///
     /// For the case where the claim a whole track rests on is withdrawn rather
