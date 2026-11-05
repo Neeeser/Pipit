@@ -551,7 +551,10 @@ struct MeetingRowView: View {
         .padding(.horizontal, 6)
         .contentShape(Rectangle())
         .onTapGesture {
-            model.select(row.id, extending: NSEvent.modifierFlags.contains(.command))
+            let flags = NSEvent.modifierFlags
+            model.select(
+                row.id, extending: flags.contains(.command),
+                throughRange: flags.contains(.shift))
         }
         .contextMenu { menu }
         .accessibilityElement(children: .combine)
@@ -569,6 +572,11 @@ struct MeetingRowView: View {
         }
         Button(many ? "Rebuild \(targets.count) transcripts" : "Rebuild transcript") {
             model.rebuildTargets(targets)
+        }
+        if many {
+            let plan = model.mergePlan(for: targets)
+            Button("Merge Meetings") { model.merge(targets) }
+                .disabled(!plan.canMerge)
         }
         Divider()
         Menu(many ? "Move \(targets.count) to Folder" : "Move to Folder") {

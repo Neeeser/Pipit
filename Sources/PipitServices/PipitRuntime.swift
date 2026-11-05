@@ -1955,9 +1955,20 @@ public final class PipitRuntime {
             metadata.possibleContinuationOf = nil
             metadata.possibleContinuationReason = nil
         }
+        // A recording that already holds continuations of its own hands them to
+        // the target, so no recording is ever linked through another one.
+        let carried = later.metadata.absorbedMeetingIDs
+        if !carried.isEmpty {
+            for childID in carried {
+                guard let child = repository.findMeeting(id: childID, includingMerged: true)
+                else { continue }
+                _ = try? child.store.updateMetadata { $0.mergedIntoMeetingID = target.id }
+            }
+            _ = try? later.store.updateMetadata { $0.absorbedMeetingIDs = [] }
+        }
         _ = try? target.primary.store.updateMetadata { metadata in
-            if !metadata.absorbedMeetingIDs.contains(meetingID) {
-                metadata.absorbedMeetingIDs.append(meetingID)
+            for id in [meetingID] + carried where !metadata.absorbedMeetingIDs.contains(id) {
+                metadata.absorbedMeetingIDs.append(id)
             }
         }
         Log.app.info("combined a meeting into an earlier one: \(reason, privacy: .public)")
