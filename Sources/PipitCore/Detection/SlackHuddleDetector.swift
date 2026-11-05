@@ -78,17 +78,24 @@ public struct SlackHuddleDetector: Sendable {
         /// promoted on sustained two-way audio instead. Slack opened the
         /// microphone 12.2 s before the user joined, so this sits well past that.
         public var audioOnlyPromotionSeconds: Double
+        /// How long after the join a window title is withheld while no other
+        /// person has appeared in the roster. Covers a read that never returns
+        /// tiles and a huddle started alone in a conversation, where nobody
+        /// else is there yet to name.
+        public var rosterWaitSeconds: Double
 
         public init(
             consecutiveMissesToEnd: Int = 4,
             endGraceSeconds: Double = 3.0,
             candidateTimeoutSeconds: Double = 180,
-            audioOnlyPromotionSeconds: Double = 25
+            audioOnlyPromotionSeconds: Double = 25,
+            rosterWaitSeconds: Double = 8
         ) {
             self.consecutiveMissesToEnd = consecutiveMissesToEnd
             self.endGraceSeconds = endGraceSeconds
             self.candidateTimeoutSeconds = candidateTimeoutSeconds
             self.audioOnlyPromotionSeconds = audioOnlyPromotionSeconds
+            self.rosterWaitSeconds = rosterWaitSeconds
         }
     }
 
@@ -110,36 +117,32 @@ public struct SlackHuddleDetector: Sendable {
     /// The name to file the huddle under.
     ///
     /// Slack's window shows whichever conversation is open, which is not the
-    /// huddle's when someone calls you and you answer. The people in the huddle
-    /// are the better evidence, so:
-    /// - a direct message's own name is used as it is;
-    /// - a channel, a preview or no title gives way to the other person when
-    ///   there is exactly one;
-    /// - a channel with several others keeps its name, and with no title at all
-    ///   the others' names are joined, the way Slack titles a group message.
+    /// huddle's when someone calls you and you answer. The people currently in
+    /// the huddle are the better evidence, so:
+    /// - exactly one other person: that person's name, even over a direct
+    ///   message with someone else;
+    /// - two or more others: a channel keeps its name, and a direct message,
+    ///   a preview or no title gives their names joined, the way Slack titles
+    ///   a group message;
+    /// - nobody else yet: the window's conversation, once it is clear nobody
+    ///   is about to appear.
     ///
-    /// A channel or preview name is withheld until the roster has been read
-    /// once, so the saved meeting is not filed under a channel the call was never
-    /// in. Without accessibility there is no roster to wait for.
-    public var conversationTitle: String? {
-        let others = participants
-        if conversationKind == .directMessage { return conversation }
-        if others.count == 1 { return others[0] }
-        if let conversation, !conversationIsPreview {
-            if others.count >= 2 || rosterWasRead || joinedWithoutAccessibility
-                || state == .idle
-            {
-                return conversation
-            }
-            return nil
-        }
-        if others.count >= 2 { return others.joined(separator: ", ") }
-        if conversationIsPreview, state == .idle || joinedWithoutAccessibility { return conversation }
-        return nil
-    }
+    /// A window title is withheld until a roster with another person has been
+    /// read, or `rosterWaitSeconds` after the join, or when there is no
+    /// accessibility. Otherwise the join poll would save the channel the call
+    /// was never in, and the saved title is only corrected when it came from
+    /// the roster.
+    public private(set) var conversationTitle: String?
 
-    /// The other people in the huddle, in the order Slack first listed them.
+    /// The title came from the people in the huddle and not from Slack's window.
+    /// Only such a title may be replaced when the roster changes its mind.
+    public private(set) var titleIsFromParticipants = false
+
+    /// The other people in the latest roster, in the order Slack listed them.
     public private(set) var participants: [String] = []
+
+    /// The local user's names, for a roster that marks nobody as the user.
+    public var localNames: [String] = []
 
     private let configuration: Configuration
     private var missingSince: Double?
@@ -148,8 +151,8 @@ public struct SlackHuddleDetector: Sendable {
     private var conversationIsPreview = false
     private var conversation: String?
     private var conversationKind: SlackWindowTitle.Parsed.Kind = .unknown
-    private var participantIDs: Set<String> = []
-    private var rosterWasRead = false
+    private var rosterHasOtherPerson = false
+    private var joinedAt: Double?
 
     public init(configuration: Configuration = Configuration()) {
         self.configuration = configuration
@@ -180,7 +183,9 @@ public struct SlackHuddleDetector: Sendable {
             forgetConversation()
         } else if state != .idle {
             notePeople(observation.tiles)
+            if joinedAt == nil, state == .joined || state == .leaving { joinedAt = now }
         }
+        refreshTitle(at: now)
         return event
     }
 
@@ -320,14 +325,58 @@ public struct SlackHuddleDetector: Sendable {
         conversationIsPreview = parsed.isHuddlePreview
     }
 
+    /// Replaces the roster with the latest reading's other people. A reading
+    /// with no tiles carries no information, so it leaves the roster alone.
     private mutating func notePeople(_ tiles: [SlackHuddleTile]) {
         guard !tiles.isEmpty else { return }
-        rosterWasRead = true
-        for tile in tiles where !tile.isSelf && !participantIDs.contains(tile.userID) {
-            guard let name = tile.displayName, !name.isEmpty else { continue }
-            participantIDs.insert(tile.userID)
-            participants.append(name)
+        // Slack marks the local user's tile. Where it marked none, the local
+        // user's name finds it, so the user is not counted as another person.
+        let selfIsMarked = tiles.contains(where: \.isSelf)
+        var seen: Set<String> = []
+        var names: [String] = []
+        for tile in tiles where !tile.isSelf {
+            guard let name = tile.displayName, !name.isEmpty, seen.insert(tile.userID).inserted
+            else { continue }
+            if !selfIsMarked, localNames.contains(where: { PersonName.isSame($0, name) }) { continue }
+            names.append(name)
         }
+        participants = names
+        if !names.isEmpty { rosterHasOtherPerson = true }
+    }
+
+    private mutating func refreshTitle(at now: Double) {
+        let named = resolvedTitle(at: now)
+        // Everyone else leaving is not a reason to rename the meeting.
+        if participants.isEmpty, rosterHasOtherPerson, conversationTitle != nil { return }
+        conversationTitle = named?.title
+        titleIsFromParticipants = named?.fromParticipants ?? false
+    }
+
+    private func resolvedTitle(at now: Double) -> (title: String, fromParticipants: Bool)? {
+        if state == .idle { return conversation.map { ($0, false) } }
+        switch participants.count {
+        case 1:
+            return (participants[0], true)
+        case 2...:
+            if let conversation, conversationKind != .directMessage, !conversationIsPreview {
+                return (conversation, false)
+            }
+            return (Self.joinedNames(participants), true)
+        default:
+            let waited = joinedAt.map { now - $0 >= configuration.rosterWaitSeconds } ?? false
+            guard rosterHasOtherPerson || waited || joinedWithoutAccessibility else { return nil }
+            return conversation.map { ($0, false) }
+        }
+    }
+
+    /// A big huddle would otherwise make a title as long as the roster.
+    private static let namesInTitle = 3
+
+    private static func joinedNames(_ names: [String]) -> String {
+        guard names.count > namesInTitle else { return names.joined(separator: ", ") }
+        let extra = names.count - namesInTitle
+        return names.prefix(namesInTitle).joined(separator: ", ")
+            + " and \(extra) \(extra == 1 ? "other" : "others")"
     }
 
     private mutating func forgetConversation() {
@@ -335,8 +384,10 @@ public struct SlackHuddleDetector: Sendable {
         conversationKind = .unknown
         conversationIsPreview = false
         participants = []
-        participantIDs = []
-        rosterWasRead = false
+        rosterHasOtherPerson = false
+        joinedAt = nil
+        conversationTitle = nil
+        titleIsFromParticipants = false
     }
 
     public mutating func reset() {

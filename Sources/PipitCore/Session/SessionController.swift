@@ -596,7 +596,7 @@ public struct SessionController: Sendable {
         var titles = TitleCandidates(
             timestampFallback: MeetingRepository.timestampTitle(startedAt: wallClock, source: source)
         )
-        titles.provider = best.title
+        titles.applyProvider(title: best.title, origin: best.titleOrigin)
         if best.title == nil, let meetingID = best.meetingID {
             titles.provider = "\(best.provider.displayName) \(meetingID)"
         }
