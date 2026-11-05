@@ -192,8 +192,11 @@ enum SummaryEvalCommand {
             }
         }
         do {
-            let texts = runs.compactMap(\.answer.summary).flatMap(texts(of:)) + cases.flatMap { texts(of: $0.truth) }
-            try await matcher.prepare(texts)
+            // Named apart from texts(of:), which an older compiler cannot see
+            // past a local of the same name in its own initializer.
+            let everyText =
+                runs.compactMap(\.answer.summary).flatMap(texts(of:)) + cases.flatMap { texts(of: $0.truth) }
+            try await matcher.prepare(everyText)
         } catch {
             note("summaries: \(error.localizedDescription)")
             return 1
