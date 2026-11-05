@@ -1,9 +1,10 @@
 import AVFoundation
 import Foundation
-import PipitAudio
 import PipitCore
 import PipitServices
 import Testing
+
+@testable import PipitAudio
 
 /// Real audio through the real writers and readers. These use AVFoundation but no
 /// audio hardware, so they run anywhere.
@@ -122,6 +123,32 @@ struct AudioTests {
             VoiceEnrollmentRecorder.speechSeconds(
                 in: AudioFixtures.makeTone(seconds: 0.5, sampleRate: 48_000, amplitude: 0.001)
             ) == 0, "a room nobody is talking in fills no bar")
+    }
+
+    @Test("a three-channel microphone opens its first segment at three channels")
+    func threeChannelMicrophoneOpensFirstSegmentAtThreeChannels() async throws {
+        let root = try TestPaths.makeTemporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let layout = MeetingLayout(root: root)
+        try FileManager.default.createDirectory(
+            at: layout.segments, withIntermediateDirectories: true
+        )
+        let manifest = try ManifestWriter(url: layout.manifest)
+        let format = try #require(CaptureFormat.make(sampleRate: 48_000, channelCount: 3))
+        let writer = SegmentWriter(
+            track: .mic, layout: layout, manifest: manifest, format: format, segmentSeconds: 60
+        )
+        let buffer = try #require(AVAudioPCMBuffer(pcmFormat: format, frameCapacity: 4_800))
+        buffer.frameLength = 4_800
+        writer.enqueueSynchronously(AudioBufferPacket(buffer: buffer, hostTime: 100))
+        writer.finish(reason: "test")
+        manifest.close()
+
+        let segments = try ManifestReader.timeline(contentsOf: layout.manifest).segments(track: .mic)
+        #expect(segments.count == 1, "one segment, got \(segments.count)")
+        #expect(segments.first?.format.channelCount == 3)
+        #expect(segments.first?.frameCount == 4_800)
+        #expect(!segments.contains { $0.closeReason == "buffer_format_mismatch" })
     }
 
     @Test("segments rotate, close cleanly and report per-segment duration")

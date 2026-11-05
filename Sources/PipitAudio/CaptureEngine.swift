@@ -336,7 +336,7 @@ public final class CaptureEngine: Sendable {
         let engine = WeakEngine(self)
         let micFormat =
             format(from: micCoordinator.activeFormat)
-            ?? AVAudioFormat(standardFormatWithSampleRate: 48_000, channels: 1)!
+            ?? CaptureFormat.make(sampleRate: 48_000, channelCount: 1)!
         let (micBase, remoteBase) = state.withLock { ($0.micLastSegmentIndex, $0.remoteLastSegmentIndex) }
         let micWriter = SegmentWriter(
             track: .mic, layout: layout, manifest: manifest, format: micFormat,
@@ -656,9 +656,8 @@ public final class CaptureEngine: Sendable {
 
     private func format(from descriptor: AudioFormatDescriptor?) -> AVAudioFormat? {
         guard let descriptor, descriptor.isUsable else { return nil }
-        return AVAudioFormat(
-            standardFormatWithSampleRate: descriptor.sampleRate,
-            channels: AVAudioChannelCount(descriptor.channelCount)
+        return CaptureFormat.make(
+            sampleRate: descriptor.sampleRate, channelCount: descriptor.channelCount
         )
     }
 

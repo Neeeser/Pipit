@@ -159,8 +159,13 @@ public final class TrackAudioReader {
         while segmentIndex < segments.count {
             let segment = segments[segmentIndex]
             let url = segmentsDirectory.appendingPathComponent(segment.file)
-            guard let file = try? AVAudioFile(forReading: url), file.length > 0 else {
+            guard let file = try? AVAudioFile(forReading: url) else {
                 Log.processing.notice("skipping unreadable segment \(segment.file, privacy: .public)")
+                segmentIndex += 1
+                continue
+            }
+            guard file.length > 0 else {
+                Log.processing.debug("skipping empty segment \(segment.file, privacy: .public)")
                 segmentIndex += 1
                 continue
             }
