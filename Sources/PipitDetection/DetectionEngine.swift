@@ -412,7 +412,7 @@ public final class DetectionEngine: @unchecked Sendable {
                     confidence: slackConfidence,
                     source: .accessibility,
                     title: slackDetector.conversationTitle,
-                    titleOrigin: slackDetector.titleIsFromParticipants ? .participants : .provider,
+                    titleOrigin: slackDetector.titleOrigin,
                     muted: slackDetector.isMuted,
                     applicationBundleID: configuration.slackBundleIdentifier,
                     audioBundlePrefixes: configuration.slackAudioPrefixes

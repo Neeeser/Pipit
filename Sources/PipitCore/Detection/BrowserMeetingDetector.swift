@@ -21,11 +21,12 @@ public enum EvidenceSource: String, Sendable, Codable {
 }
 
 /// Where a provider's title was read from. A title taken from the people in a
-/// meeting may be corrected when the people change. One taken from a window or a
-/// meeting client may not.
+/// meeting may be corrected when the people change, and so may a guess made
+/// before anyone was known. One a window or meeting client stated may not.
 public enum ProviderTitleOrigin: String, Sendable, Codable {
     case provider
     case participants
+    case provisional
 }
 
 /// What one detector currently believes.
