@@ -428,11 +428,16 @@ public actor ProcessingPipeline {
                 )
                 // The code rides with the failure, so a diagnostic report
                 // names the category without reading the message.
+                //
+                // Out of attempts, the failure no longer says Pipit will try
+                // again: nothing will until the person presses Retry.
+                let outOfAttempts =
+                    metadata.processing.attemptCount(for: stage) >= Self.maxAttemptsPerStage
                 metadata.processing.recordFailure(
                     ProcessingFailure(
                         stage: stage,
                         message: failure.userMessage,
-                        isRetryable: failure.isRetryable,
+                        isRetryable: failure.isRetryable && !outOfAttempts,
                         occurredAt: clock.now,
                         code: code
                     ),
@@ -930,6 +935,15 @@ public actor ProcessingPipeline {
         for summary in repository.listMeetings() {
             guard summary.processingState != .complete else { continue }
             guard summary.processingState != .recording else { continue }
+            // A failed meeting that used every attempt waits for the Retry
+            // button. Without this, each launch gave it one more attempt.
+            if summary.processingState == .failed,
+                let metadata = repository.findMeeting(id: summary.id)?.metadata,
+                let stage = metadata.processing.resumeStage,
+                metadata.processing.attemptCount(for: stage) >= Self.maxAttemptsPerStage
+            {
+                continue
+            }
             await process(meetingID: summary.id)
         }
         // Meetings folded into an earlier one are hidden from the listing, and
