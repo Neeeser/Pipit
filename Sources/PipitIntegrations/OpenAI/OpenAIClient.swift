@@ -249,7 +249,7 @@ public struct OpenAIClient: AIBackend, StructuredLanguageModel {
             throw ProcessingError.transport(reason: (error as NSError).domain)
         }
         guard let http = response as? HTTPURLResponse else {
-            throw ProcessingError.malformedResponse(reason: "no HTTP response")
+            throw ProcessingError.transport(reason: "no HTTP response")
         }
         switch http.statusCode {
         case 200..<300:

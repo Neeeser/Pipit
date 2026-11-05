@@ -784,6 +784,16 @@ public enum LocalModelError: LocalProcessingFailure, DiagnosticCodeProviding, Cu
     /// repeat the failure.
     public var isRetryable: Bool { false }
 
+    /// Installing the models is the fix, and so is a connection that was down
+    /// while they downloaded. A recording that cannot be read stays unreadable.
+    public var cause: FailureCause {
+        switch self {
+        case .notInstalled: .fixedInSettings
+        case .installFailed: .clearsByWaiting
+        case .audioUnreadable: .sameResultEachTime
+        }
+    }
+
     /// The reasons are left out: they are the underlying error's own words.
     public var diagnosticCode: DiagnosticCode {
         switch self {

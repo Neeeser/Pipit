@@ -718,8 +718,12 @@ struct LocalPipelineTests {
             "and the download can be tried again"
         )
         #expect(
-            metadata.processing.isOutOfAttempts,
-            "every attempt is used, so the launch sweep leaves it for the Retry button"
+            !metadata.processing.isOutOfAttempts,
+            "a download that failed for want of a network is tried again at the next launch"
+        )
+        #expect(
+            metadata.processing.lastFailure?.message.contains("next time it opens") == true,
+            "and the message says so"
         )
 
         // The words are safe, so a retry aligns them rather than

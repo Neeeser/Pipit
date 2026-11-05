@@ -601,10 +601,13 @@ struct PipelineTests {
             failed.processing.lastFailure?.isRetryable == true,
             "a server error is a cause that waiting can clear"
         )
-        #expect(failed.processing.isOutOfAttempts)
+        #expect(
+            !failed.processing.isOutOfAttempts,
+            "an outage clears by waiting, so the next launch tries again"
+        )
         let message = try #require(failed.processing.lastFailure?.message)
-        #expect(message.contains("stopped retrying"), "out of attempts, the message says so: \(message)")
-        #expect(!message.contains("will retry"))
+        #expect(message.contains("next time it opens"), "and the message says so: \(message)")
+        #expect(!message.contains("will retry"), "nothing is about to retry in this run")
         // The category a diagnostic report carries in place of the message.
         #expect(failed.processing.lastFailure?.code?.rawValue == "processing.server_error.503")
         #expect(
@@ -629,8 +632,7 @@ struct PipelineTests {
         #expect(afterRetry.processing.state == .complete)
     }
 
-    /// Mirrors the pipeline's per-stage cap, which is not visible to tests.
-    private static let attemptsPerStageForLaunchSweep = 3
+    private static let attemptsPerStageForLaunchSweep = ProcessingStatus.maxAttemptsPerStage
 
     @Test("the launch sweep leaves a meeting that used every attempt alone")
     func theLaunchSweepLeavesAMeetingThatUsedEveryAttemptAlone() async throws {
@@ -702,15 +704,15 @@ struct PipelineTests {
     ]
 
     private static func markFailed(
-        _ store: MeetingStore, attempts: Int, retryable: Bool
+        _ store: MeetingStore, attempts: Int, cause: FailureCause
     ) throws {
         _ = try store.updateMetadata {
             $0.processing.advance(to: .transcribing, at: Date(timeIntervalSince1970: 1_787_090_000))
             $0.processing.attempts[ProcessingState.transcribing.rawValue] = attempts
             $0.processing.recordFailure(
                 ProcessingFailure(
-                    stage: .transcribing, message: "Transcription failed.", isRetryable: retryable,
-                    occurredAt: Date(timeIntervalSince1970: 1_787_090_100)
+                    stage: .transcribing, message: "Transcription failed.", isRetryable: cause != .fixedInSettings,
+                    occurredAt: Date(timeIntervalSince1970: 1_787_090_100), cause: cause
                 ),
                 at: Date(timeIntervalSince1970: 1_787_090_100)
             )
@@ -723,7 +725,7 @@ struct PipelineTests {
         defer { try? FileManager.default.removeItem(at: root) }
         let meeting = try PipelineFixtures.makeRecordedMeeting(root: root)
         try Self.markFailed(
-            meeting.store, attempts: Self.attemptsPerStageForLaunchSweep - 1, retryable: true)
+            meeting.store, attempts: Self.attemptsPerStageForLaunchSweep - 1, cause: .sameResultEachTime)
 
         let backend = FakeAIBackend()
         backend.transcriptionSegments = Self.sweepRecording
@@ -743,7 +745,7 @@ struct PipelineTests {
         defer { try? FileManager.default.removeItem(at: root) }
         let meeting = try PipelineFixtures.makeRecordedMeeting(root: root)
         try Self.markFailed(
-            meeting.store, attempts: Self.attemptsPerStageForLaunchSweep + 2, retryable: false)
+            meeting.store, attempts: Self.attemptsPerStageForLaunchSweep + 2, cause: .fixedInSettings)
 
         let backend = FakeAIBackend()
         backend.transcriptionSegments = Self.sweepRecording
@@ -766,7 +768,7 @@ struct PipelineTests {
         }
         _ = try second.store.updateMetadata { $0.mergedIntoMeetingID = first.metadata.id }
         try Self.markFailed(
-            second.store, attempts: Self.attemptsPerStageForLaunchSweep, retryable: true)
+            second.store, attempts: Self.attemptsPerStageForLaunchSweep, cause: .sameResultEachTime)
 
         let backend = FakeAIBackend()
         backend.transcriptionSegments = Self.sweepRecording
@@ -805,20 +807,111 @@ struct PipelineTests {
         #expect(reading.attempts == 0, "nothing has failed yet, so a quit now costs no attempt")
     }
 
-    @Test("a retryable failure on its last attempt says Pipit stopped, not that it will retry")
-    func aRetryableFailureOnItsLastAttemptSaysPipitStoppedNotThatItWillRetry() {
-        let causes: [ProcessingError] = [
+    @Test("the launch sweep keeps retrying a failure that waiting clears, however often it failed")
+    func theLaunchSweepKeepsRetryingAFailureThatWaitingClears() async throws {
+        let root = try TestPaths.makeTemporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let meeting = try PipelineFixtures.makeRecordedMeeting(root: root)
+        try Self.markFailed(
+            meeting.store, attempts: Self.attemptsPerStageForLaunchSweep * 3, cause: .clearsByWaiting)
+
+        let backend = FakeAIBackend()
+        backend.transcriptionSegments = Self.sweepRecording
+        backend.diarizationSegments = Self.sweepDiarization
+        let pipeline = PipelineFixtures.makePipeline(repository: meeting.repository, backend: backend)
+        await pipeline.resumeInterrupted()
+
+        #expect(
+            try meeting.store.readMetadata().processing.state == .complete,
+            "a meeting that was offline for three launches is not stranded"
+        )
+    }
+
+    @Test("what a later attempt changes decides each failure's group")
+    func whatALaterAttemptChangesDecidesEachFailuresGroup() {
+        let sameResult: [ProcessingError] = [
+            .emptyTranscript(chunk: "c"), .degenerateTranscript(chunk: "c"),
+            .malformedResponse(reason: "not JSON"),
+            .requestTooLarge(bytes: 2, limit: 1), .durationTooLong(seconds: 2, limit: 1),
+            .languageModel(provider: "Ollama", failure: .unexpectedResponse),
+            .languageModel(provider: "Ollama", failure: .rejected(status: 400)),
+            ProcessingPipeline.processingError(from: ProcessingPipelineTestsUnknownError()),
+        ]
+        let settings: [ProcessingError] = [
+            .missingAPIKey, .authenticationFailed,
+            .languageModel(provider: "Ollama", failure: .authenticationFailed),
+            .languageModel(provider: "Ollama", failure: .modelNotFound),
+        ]
+        let waiting: [ProcessingError] = [
+            .transport(reason: "offline"), .rateLimited(retryAfter: nil), .serverError(status: 503),
+            .languageModel(provider: "Ollama", failure: .unreachable),
+            .localProcessingFailed(reason: "download", retryable: true, cause: .clearsByWaiting),
+        ]
+        for error in sameResult { #expect(error.cause == .sameResultEachTime, "\(error)") }
+        for error in settings { #expect(error.cause == .fixedInSettings, "\(error)") }
+        for error in waiting { #expect(error.cause == .clearsByWaiting, "\(error)") }
+    }
+
+    @Test("the failure outcome says what happens next and fits the two-line caption")
+    func theFailureOutcomeSaysWhatHappensNextAndFitsTheTwoLineCaption() {
+        let every: [ProcessingError] = [
             .rateLimited(retryAfter: nil), .serverError(status: 503), .transport(reason: "offline"),
             .emptyTranscript(chunk: "c"), .degenerateTranscript(chunk: "c"),
-            .languageModel(provider: "Ollama", failure: .unreachable),
+            .malformedResponse(reason: "x"), .requestTooLarge(bytes: 2, limit: 1),
+            .durationTooLong(seconds: 2, limit: 1), .audioUnreadable(path: "a.m4a"), .cancelled,
+            .languageModel(provider: "an Ollama server", failure: .unreachable),
+            .languageModel(provider: "an Ollama server", failure: .rejected(status: 400)),
+            .languageModel(provider: "an Ollama server", failure: .unexpectedResponse),
+            .localProcessingFailed(reason: "Processing this meeting on this Mac failed.", retryable: true),
         ]
-        for cause in causes {
-            #expect(cause.message(retrying: true).contains("will retry"), "\(cause)")
-            let stopped = cause.message(retrying: false)
-            #expect(!stopped.contains("will retry"), "\(stopped)")
-            #expect(stopped.contains("stopped retrying"), "\(stopped)")
-            #expect(stopped.contains("Try again"), "\(stopped)")
+        var longest = 0
+        for error in every {
+            let message = { error.message(outcome: $0) }
+            #expect(message(.retryingNow).contains("will retry"), "\(error)")
+            #expect(message(.retryAtLaunch).contains("next time it opens"), "\(error)")
+            #expect(message(.stopped).contains("stopped retrying"), "\(error)")
+            #expect(!message(.stopped).contains("will retry"), "\(error)")
+            longest = max(longest, message(.stopped).count, message(.retryAtLaunch).count)
         }
+        #expect(longest <= 175, "the longest message is \(longest) characters")
+        #expect(
+            ProcessingError.missingAPIKey.message(outcome: .retryAtLaunch)
+                == ProcessingError.missingAPIKey.userMessage,
+            "a failure fixed in Settings already says what to do, and gets no outcome"
+        )
+    }
+
+    @Test("a failure stored by an older build is reworded from its cause and count")
+    func aFailureStoredByAnOlderBuildIsRewordedFromItsCauseAndCount() {
+        func stored(code: String, message: String, attempts: Int) -> ProcessingStatus {
+            var status = ProcessingStatus(state: .transcribing)
+            status.attempts[ProcessingState.transcribing.rawValue] = attempts
+            status.recordFailure(
+                ProcessingFailure(
+                    stage: .transcribing, message: message, isRetryable: true,
+                    occurredAt: Date(timeIntervalSince1970: 1_787_090_100),
+                    code: DiagnosticCode(checked: code)),
+                at: Date(timeIntervalSince1970: 1_787_090_100))
+            return status
+        }
+        let looping = stored(
+            code: "processing.degenerate_transcript",
+            message:
+                "Transcription repeated itself for part of this meeting. Pipit will retry. Your recording is safe.",
+            attempts: 38)
+        let loopingText = looping.failureMessage ?? ""
+        #expect(!loopingText.contains("will retry"), Comment(rawValue: loopingText))
+        #expect(loopingText.contains("stopped retrying"), Comment(rawValue: loopingText))
+        #expect(loopingText.hasSuffix("Your recording is safe."), Comment(rawValue: loopingText))
+
+        let offline = stored(
+            code: "processing.transport",
+            message: "Pipit could not reach OpenAI. It will retry. Your recording is safe.",
+            attempts: 3)
+        let offlineText = offline.failureMessage ?? ""
+        #expect(offlineText.contains("next time it opens"), Comment(rawValue: offlineText))
+        #expect(!offlineText.contains("will retry"), Comment(rawValue: offlineText))
+        #expect(!offline.isOutOfAttempts, "an outage is not capped")
     }
 
     @Test("an authentication failure is not retried in a loop")
@@ -1505,3 +1598,7 @@ private final class ConcurrencyProbeBackend: AIBackend, @unchecked Sendable {
         MeetingEnrichment()
     }
 }
+
+/// An error the pipeline has no mapping for, which it files as a failure on
+/// this Mac that another attempt repeats.
+private struct ProcessingPipelineTestsUnknownError: Error {}

@@ -73,25 +73,79 @@ public enum ProcessingState: String, Codable, Sendable, CaseIterable, Comparable
     }
 }
 
+/// What a later attempt at a failed stage would change.
+///
+/// The launch sweep stops starting a stage only when trying again gives the
+/// same result. A failure that Settings or the passing of time can clear is
+/// retried at every launch, since nothing else notices when it has cleared.
+public enum FailureCause: String, Codable, Sendable, Equatable {
+    /// The same input meets the same fault: an empty or looping transcript, a
+    /// reply that cannot be read, a request the service refuses.
+    case sameResultEachTime = "same_result"
+    /// The person fixes it in Settings: a missing or refused key, a model that
+    /// is not there. It fails before anything is sent.
+    case fixedInSettings = "settings"
+    /// A network, service or download problem that goes away by itself.
+    case clearsByWaiting = "waiting"
+
+    /// Whether the launch sweep leaves the stage after its attempts are used.
+    public var isCappedAtLaunch: Bool { self == .sameResultEachTime }
+
+    /// The cause of a failure stored before causes were recorded, read from its
+    /// code. Anything unrecognised that was not retryable is treated as a
+    /// Settings fix, which is how the sweep always handled it.
+    init(code: DiagnosticCode?, isRetryable: Bool) {
+        switch code?.rawValue ?? "" {
+        case "processing.missing_api_key", "processing.authentication_failed",
+            "language_model.authentication_failed", "language_model.model_not_found",
+            "model.not_installed":
+            self = .fixedInSettings
+        case let raw
+        where
+            [
+                "processing.rate_limited", "processing.server_error", "processing.transport",
+                "processing.cancelled", "language_model.unreachable",
+                "language_model.rate_limited", "language_model.server_error",
+            ].contains {
+                raw == $0 || raw.hasPrefix($0 + ".")
+            }:
+            self = .clearsByWaiting
+        default:
+            self = isRetryable ? .sameResultEachTime : .fixedInSettings
+        }
+    }
+}
+
 public struct ProcessingFailure: Codable, Sendable, Equatable {
     public var stage: ProcessingState
-    /// Written for the person, and never put in a diagnostic report.
+    /// Written for the person, and never put in a diagnostic report. States
+    /// what happens next as of the moment it was written.
     public var message: String
+    /// Whether the pipeline retries the stage in the same run.
     public var isRetryable: Bool
     public var occurredAt: Date
     /// The failure's category, which a diagnostic report carries in place of
     /// the message. Absent from a meeting that failed before codes were
     /// recorded, which an older build reads past.
     public var code: DiagnosticCode?
+    /// What another attempt would change. Absent from a failure recorded
+    /// before causes were kept; `effectiveCause` reads one from the code.
+    public var cause: FailureCause?
 
     public init(
-        stage: ProcessingState, message: String, isRetryable: Bool, occurredAt: Date, code: DiagnosticCode? = nil
+        stage: ProcessingState, message: String, isRetryable: Bool, occurredAt: Date,
+        code: DiagnosticCode? = nil, cause: FailureCause? = nil
     ) {
         self.stage = stage
         self.message = message
         self.isRetryable = isRetryable
         self.occurredAt = occurredAt
         self.code = code
+        self.cause = cause
+    }
+
+    public var effectiveCause: FailureCause {
+        cause ?? FailureCause(code: code, isRetryable: isRetryable)
     }
 }
 
@@ -170,19 +224,40 @@ public struct ProcessingStatus: Codable, Sendable, Equatable {
     /// Failed attempts a stage gets before Pipit stops starting it on its own.
     public static let maxAttemptsPerStage = 3
 
-    /// Whether the failure on this meeting is one that waiting can clear and
-    /// every attempt at it has failed.
+    /// Whether every attempt at a failure that repeats has been used.
     ///
     /// The launch sweep leaves such a meeting for the Retry button, since
-    /// another launch would repeat the same failure. A cause that does not
-    /// clear by waiting (a missing key, a model that is not installed) is not
-    /// counted: the person fixes it in Settings, nothing tells the sweep when
-    /// they have, and it fails quickly without sending anything.
+    /// another launch would give the same result. A failure that Settings or
+    /// waiting clears is never out of attempts: nothing tells the sweep when it
+    /// has cleared, and it fails quickly.
     public var isOutOfAttempts: Bool {
-        guard state == .failed, let failure = lastFailure, failure.isRetryable,
+        guard state == .failed, let failure = lastFailure, failure.effectiveCause.isCappedAtLaunch,
             let stage = resumeStage
         else { return false }
         return attemptCount(for: stage) >= Self.maxAttemptsPerStage
+    }
+
+    /// The failure's message as it should read now.
+    ///
+    /// A failure written by an older build says Pipit will retry, which stopped
+    /// being true for one that used its attempts. Those are reworded from the
+    /// cause and the count. A newer one was worded when it was recorded.
+    public var failureMessage: String? {
+        guard let failure = lastFailure else { return nil }
+        guard failure.cause == nil else { return failure.message }
+        var message = failure.message
+        for stale in [" Pipit will retry.", " It will retry."] {
+            message = message.replacingOccurrences(of: stale, with: "")
+        }
+        let cause = failure.effectiveCause
+        guard cause != .fixedInSettings else { return message }
+        let outcome: FailureOutcome = isOutOfAttempts ? .stopped : .retryAtLaunch
+        let sentence = outcome.sentence(advice: "Try again.")
+        let safe = " Your recording is safe."
+        if message.hasSuffix(safe) {
+            return String(message.dropLast(safe.count)) + " " + sentence + safe
+        }
+        return message + " " + sentence
     }
 
     /// The stage a resumed run should start from. A failed job resumes at the stage

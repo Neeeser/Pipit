@@ -99,6 +99,13 @@ public enum MicrophoneRedoError: LogSafeError, Equatable {
 public protocol LocalProcessingFailure: Error {
     var userMessage: String { get }
     var isRetryable: Bool { get }
+    /// What a later attempt would change. Defaults to nothing, which is right
+    /// for a failure the pipeline has no special knowledge of.
+    var cause: FailureCause { get }
+}
+
+extension LocalProcessingFailure {
+    public var cause: FailureCause { .sameResultEachTime }
 }
 
 public enum ProcessingError: LogSafeError, Equatable {
@@ -126,7 +133,8 @@ public enum ProcessingError: LogSafeError, Equatable {
     case cancelled
     /// A stage that runs on this Mac failed. Carries its own message because
     /// the cloud wording is wrong for it and often wrong about the cause.
-    case localProcessingFailed(reason: String, retryable: Bool)
+    case localProcessingFailed(
+        reason: String, retryable: Bool, cause: FailureCause = .sameResultEachTime)
     /// A model that writes about the meeting failed. Carries the provider's
     /// name because it is the wording that differs: the cases above speak of
     /// OpenAI, which is wrong for Ollama or an endpoint the person typed.
@@ -135,7 +143,7 @@ public enum ProcessingError: LogSafeError, Equatable {
     public var isRetryable: Bool {
         switch self {
         case .rateLimited, .serverError, .transport, .emptyTranscript, .degenerateTranscript: true
-        case .localProcessingFailed(_, let retryable): retryable
+        case .localProcessingFailed(_, let retryable, _): retryable
         case .languageModel(_, let failure): failure.isRetryable
         case .missingAPIKey, .authenticationFailed, .requestTooLarge, .durationTooLong,
             .malformedResponse, .audioUnreadable, .utteranceNotFound, .cancelled:
@@ -155,7 +163,7 @@ public enum ProcessingError: LogSafeError, Equatable {
         case .emptyTranscript(let chunk): "emptyTranscript(\(chunk))"
         case .degenerateTranscript(let chunk): "degenerateTranscript(\(chunk))"
         case .transport(let reason): "transport(\(reason))"
-        case .localProcessingFailed(let reason, _): "local(\(reason))"
+        case .localProcessingFailed(let reason, _, _): "local(\(reason))"
         case .languageModel(_, let failure): "languageModel(\(failure.logSafeDescription))"
         case .audioUnreadable(let path): "audioUnreadable(\(Self.logSafeExtension(of: path)))"
         case .utteranceNotFound: "utteranceNotFound"
@@ -175,54 +183,102 @@ public enum ProcessingError: LogSafeError, Equatable {
         return "." + pathExtension
     }
 
-    /// The message shown to the user. Every one of these reassures about the audio,
-    /// because the recording is safe in all of them.
-    public var userMessage: String { message(retrying: true) }
-
-    /// The message for a failure that Pipit may or may not try again.
+    /// What a later attempt would change, which decides whether the launch
+    /// sweep keeps starting the stage on its own.
     ///
-    /// A cause that can clear by waiting says Pipit will retry while attempts
-    /// remain. Once the last one has failed it says Pipit stopped, and what the
-    /// person can do, because nothing starts the stage again until they press
-    /// Retry.
-    public func message(retrying: Bool) -> String {
+    /// The one place that sorts a failure. Group by what the person or the
+    /// passing of time does to it, not by what raised it.
+    public var cause: FailureCause {
         switch self {
-        case .missingAPIKey: "Add an OpenAI API key in Settings to transcribe this meeting. Your recording is safe."
-        case .authenticationFailed: "OpenAI rejected the API key. Your recording is safe."
-        case .rateLimited:
-            "OpenAI is rate limiting requests. \(Self.temporaryCauseOutcome(retrying: retrying)) Your recording is safe."
-        case .serverError:
-            "OpenAI returned a server error. \(Self.temporaryCauseOutcome(retrying: retrying)) Your recording is safe."
-        case .requestTooLarge: "An audio chunk exceeded the OpenAI upload limit. Your recording is safe."
-        case .durationTooLong: "An audio chunk exceeded the OpenAI duration limit. Your recording is safe."
-        case .malformedResponse: "OpenAI returned an unexpected response. Your recording is safe."
-        case .emptyTranscript:
-            "Transcription returned nothing for part of this meeting. \(Self.badTranscriptOutcome(retrying: retrying)) Your recording is safe."
-        case .degenerateTranscript:
-            "Transcription repeated itself for part of this meeting. \(Self.badTranscriptOutcome(retrying: retrying)) Your recording is safe."
-        case .transport:
-            "Pipit could not reach OpenAI. \(Self.temporaryCauseOutcome(retrying: retrying)) Your recording is safe."
-        case .audioUnreadable: "Pipit could not read the recorded audio for this stage."
-        case .utteranceNotFound:
-            "That line has moved since the transcript was last analysed. Reopen the meeting and try again."
-        case .cancelled: "Processing was cancelled. Your recording is safe."
-        case .localProcessingFailed(let reason, _): "\(reason) Your recording is safe."
-        case .languageModel(let provider, let failure):
-            "\(failure.message(provider: provider, retrying: retrying)) Your recording is safe."
+        case .missingAPIKey, .authenticationFailed: .fixedInSettings
+        // A cancelled run is a quit, and the next launch is its retry.
+        case .rateLimited, .serverError, .transport, .cancelled: .clearsByWaiting
+        case .requestTooLarge, .durationTooLong, .malformedResponse, .emptyTranscript,
+            .degenerateTranscript, .audioUnreadable, .utteranceNotFound:
+            .sameResultEachTime
+        case .localProcessingFailed(_, _, let cause): cause
+        case .languageModel(_, let failure): failure.cause
         }
     }
 
-    /// For a network or server problem, which is gone once the service is back.
-    fileprivate static func temporaryCauseOutcome(retrying: Bool) -> String {
-        retrying ? "Pipit will retry." : "Pipit stopped retrying. Try again later."
+    /// The message with no word on what happens next.
+    public var userMessage: String { message(outcome: nil) }
+
+    /// The message shown to the user. Every one of these reassures about the
+    /// audio, because the recording is safe in all of them.
+    ///
+    /// `outcome` says what happens next, and is left out for a cause the
+    /// person fixes in Settings, where the message already says what to do.
+    public func message(outcome: FailureOutcome?) -> String {
+        var parts = [statement]
+        if let outcome, cause != .fixedInSettings, !isNeverStored {
+            parts.append(outcome.sentence(advice: stoppedAdvice))
+        }
+        if reassuresAboutAudio { parts.append("Your recording is safe.") }
+        return parts.joined(separator: " ")
     }
 
-    /// For a transcription that came back empty or looping, which a second
-    /// request usually fixes and a different model can.
-    fileprivate static func badTranscriptOutcome(retrying: Bool) -> String {
-        retrying
-            ? "Pipit will retry."
-            : "Pipit stopped retrying. Try again, or choose another transcription model in Settings."
+    /// A correction to a line that has moved is refused where it is made. It is
+    /// never the failure a meeting stops on.
+    private var isNeverStored: Bool {
+        if case .utteranceNotFound = self { return true }
+        return false
+    }
+
+    private var reassuresAboutAudio: Bool {
+        switch self {
+        case .audioUnreadable, .utteranceNotFound: false
+        default: true
+        }
+    }
+
+    /// What to try once Pipit has stopped.
+    private var stoppedAdvice: String {
+        switch self {
+        case .emptyTranscript, .degenerateTranscript:
+            "Try again, or choose another transcription model in Settings."
+        default: "Try again."
+        }
+    }
+
+    private var statement: String {
+        switch self {
+        case .missingAPIKey: "Add an OpenAI API key in Settings to transcribe this meeting."
+        case .authenticationFailed: "OpenAI rejected the API key."
+        case .rateLimited: "OpenAI is rate limiting requests."
+        case .serverError: "OpenAI returned a server error."
+        case .requestTooLarge: "An audio chunk exceeded the OpenAI upload limit."
+        case .durationTooLong: "An audio chunk exceeded the OpenAI duration limit."
+        case .malformedResponse: "OpenAI returned an unexpected response."
+        case .emptyTranscript: "Transcription returned nothing for part of this meeting."
+        case .degenerateTranscript: "Transcription repeated itself for part of this meeting."
+        case .transport: "Pipit could not reach OpenAI."
+        case .audioUnreadable: "Pipit could not read the recorded audio for this stage."
+        case .utteranceNotFound:
+            "That line has moved since the transcript was last analysed. Reopen the meeting and try again."
+        case .cancelled: "Processing was cancelled."
+        case .localProcessingFailed(let reason, _, _): reason
+        case .languageModel(let provider, let failure): failure.advice(provider: provider)
+        }
+    }
+}
+
+/// What happens to a failed stage next, said to the person.
+public enum FailureOutcome: Equatable, Sendable {
+    /// The pipeline is about to try the stage again.
+    case retryingNow
+    /// Nothing is running, and the next launch starts the stage again.
+    case retryAtLaunch
+    /// Every attempt failed and nothing starts the stage until Retry.
+    case stopped
+
+    /// `advice` follows "stopped", since what to do differs by cause.
+    func sentence(advice: String) -> String {
+        switch self {
+        case .retryingNow: "Pipit will retry."
+        case .retryAtLaunch: "Pipit will try again the next time it opens."
+        case .stopped: "Pipit stopped retrying. \(advice)"
+        }
     }
 }
 
@@ -274,15 +330,29 @@ public enum LanguageModelFailure: Equatable, Sendable {
         }
     }
 
-    /// The statement and what happens next, for a meeting that hit it.
-    public func message(provider: String, retrying: Bool = true) -> String {
+    /// What a retry would change.
+    public var cause: FailureCause {
+        switch self {
+        case .authenticationFailed, .modelNotFound: .fixedInSettings
+        case .unreachable, .rateLimited, .serverError: .clearsByWaiting
+        case .rejected, .unexpectedResponse: .sameResultEachTime
+        }
+    }
+
+    /// The statement and what to do about it, with nothing on what happens next.
+    public func advice(provider: String) -> String {
         let what = statement(provider: provider)
         switch self {
-        case .unreachable, .rateLimited, .serverError:
-            return "\(what). \(ProcessingError.temporaryCauseOutcome(retrying: retrying))"
         case .modelNotFound: return "\(what). Choose another in Settings."
         case .rejected: return "\(what). Try another model in Settings."
-        case .authenticationFailed, .unexpectedResponse: return "\(what)."
+        case .unreachable, .rateLimited, .serverError, .authenticationFailed, .unexpectedResponse:
+            return "\(what)."
         }
+    }
+
+    /// The statement and what happens next, for a meeting that hit it.
+    public func message(provider: String) -> String {
+        let what = advice(provider: provider)
+        return isRetryable ? "\(what) Pipit will retry." : what
     }
 }

@@ -48,8 +48,9 @@ public struct MeetingDetailView: View {
             ForEach(Array(detail.recordings.enumerated()), id: \.element.id) { index, recording in
                 if let failure = recording.processing.lastFailure {
                     failureBar(
-                        failure, partNumber: detail.isSplitRecording ? index + 1 : nil,
-                        meetingID: recording.id)
+                        failure, message: recording.processing.failureMessage ?? failure.message,
+                        partNumber: detail.isSplitRecording ? index + 1 : nil,
+                        meetingID: recording.id, isOutOfAttempts: recording.processing.isOutOfAttempts)
                     Divider()
                 }
             }
@@ -281,7 +282,10 @@ public struct MeetingDetailView: View {
         return lines.joined(separator: "\n")
     }
 
-    private func failureBar(_ failure: ProcessingFailure, partNumber: Int?, meetingID: String) -> some View {
+    private func failureBar(
+        _ failure: ProcessingFailure, message: String, partNumber: Int?, meetingID: String,
+        isOutOfAttempts: Bool
+    ) -> some View {
         HStack(spacing: 8) {
             Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(.red)
             VStack(alignment: .leading, spacing: 1) {
@@ -290,10 +294,13 @@ public struct MeetingDetailView: View {
                         + failure.stage.displayName.lowercased()
                 )
                 .font(.callout)
-                Text(failure.message).font(.caption).foregroundStyle(.secondary).lineLimit(2)
+                Text(message).font(.caption).foregroundStyle(.secondary).lineLimit(2)
             }
             Spacer(minLength: 8)
-            Button(failure.isRetryable ? "Retry" : "Try again anyway") { detail.retry(meetingID: meetingID) }
+            // "Anyway" only where another attempt has already given the same
+            // result every time. A failure waiting or Settings clears is a plain
+            // Retry.
+            Button(isOutOfAttempts ? "Try again anyway" : "Retry") { detail.retry(meetingID: meetingID) }
         }
         .padding(.horizontal, 20)
         .padding(.vertical, 10)

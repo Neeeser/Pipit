@@ -60,7 +60,7 @@ public actor ProcessingPipeline {
     private let clock: any Clock
     private let settingsProvider: @Sendable () -> AppSettings
     private let onProgress: @Sendable (Progress) -> Void
-    private let onFailure: @Sendable (String, ProcessingError) -> Void
+    private let onFailure: @Sendable (String, ProcessingFailure) -> Void
     private let calendar: CalendarService?
     private let diagnostics: DiagnosticLog
     private let wait: @Sendable (TimeInterval) async -> Void
@@ -156,7 +156,7 @@ public actor ProcessingPipeline {
         diagnostics: DiagnosticLog = .disabled,
         settingsProvider: @escaping @Sendable () -> AppSettings,
         onProgress: @escaping @Sendable (Progress) -> Void = { _ in },
-        onFailure: @escaping @Sendable (String, ProcessingError) -> Void = { _, _ in },
+        onFailure: @escaping @Sendable (String, ProcessingFailure) -> Void = { _, _ in },
         wait: @escaping @Sendable (TimeInterval) async -> Void = { seconds in
             try? await Task.sleep(nanoseconds: UInt64(seconds * 1_000_000_000))
         },
@@ -442,16 +442,21 @@ public actor ProcessingPipeline {
                 // it. Whether attempts remain is `isOutOfAttempts`. Out of
                 // attempts, the message says Pipit stopped, because nothing
                 // starts the stage again until the person presses Retry.
-                metadata.processing.recordFailure(
-                    ProcessingFailure(
-                        stage: stage,
-                        message: failure.message(retrying: attempts < Self.maxAttemptsPerStage),
-                        isRetryable: failure.isRetryable,
-                        occurredAt: clock.now,
-                        code: code
-                    ),
-                    at: clock.now
+                let retriesNow = failure.isRetryable && attempts < Self.maxAttemptsPerStage
+                let outcome: FailureOutcome =
+                    retriesNow
+                    ? .retryingNow
+                    : (failure.cause.isCappedAtLaunch && attempts >= Self.maxAttemptsPerStage
+                        ? .stopped : .retryAtLaunch)
+                let recorded = ProcessingFailure(
+                    stage: stage,
+                    message: failure.message(outcome: outcome),
+                    isRetryable: failure.isRetryable,
+                    occurredAt: clock.now,
+                    code: code,
+                    cause: failure.cause
                 )
+                metadata.processing.recordFailure(recorded, at: clock.now)
                 try? persist(metadata, to: store)
                 Log.processing.error(
                     "stage \(stage.rawValue, privacy: .public) failed: \(failure.logSafeDescription, privacy: .public)"
@@ -474,7 +479,7 @@ public actor ProcessingPipeline {
                     metadata.processing.advance(to: stage, at: clock.now)
                     continue
                 }
-                onFailure(metadata.id, failure)
+                onFailure(metadata.id, recorded)
                 // Nothing else will read the decoded working copies now.
                 scratch.discard(meetingID: metadata.id)
                 _ = discardIfGone(metadata.id, store: store)
@@ -1279,7 +1284,7 @@ public actor ProcessingPipeline {
             throw ProcessingError.localProcessingFailed(
                 reason: "The timing model could not be downloaded, so the transcript's "
                     + "word timings are missing. The words are saved.",
-                retryable: true
+                retryable: true, cause: .clearsByWaiting
             )
         }
 
@@ -4322,7 +4327,7 @@ public actor ProcessingPipeline {
         if error is CancellationError { return .cancelled }
         if let local = error as? any LocalProcessingFailure {
             return .localProcessingFailed(
-                reason: local.userMessage, retryable: local.isRetryable
+                reason: local.userMessage, retryable: local.isRetryable, cause: local.cause
             )
         }
         if error is VoiceEnrollmentRejection {

@@ -148,6 +148,14 @@ finalizing -> audio_safe -> transcribing -> diarizing
 only after this state. Each later stage records its state and can resume after a
 failure.
 
+A stage that fails is tried up to three times in one run. The launch sweep then
+starts a failed meeting again only when another attempt could change the
+result: a missing key or model (fixed in Settings) and a network or service
+outage (clears by waiting) are retried at every launch. A failure that repeats
+the same result, such as a transcript that loops, is left for the Retry button
+once three attempts have failed. A quit during a stage is not counted as an
+attempt.
+
 `transcribing` begins by subtracting the far end from the microphone. A call
 taken on speakers puts the far end back into the microphone through the air.
 Pipit records that far end separately through the process tap, and that
@@ -235,7 +243,8 @@ the summary are not touched. Corrections and line cuts on microphone lines are
 removed, because they are anchored to the old words and chunks. Corrections on
 the far end's lines stay. The marker is cleared in the same write that marks
 the meeting complete, so a crash or a failure leaves the old transcript
-readable and the launch sweep or Retry finishes the pass. Voice profiles are
+readable. A quit is finished by the launch sweep, and a failure by the sweep
+or Retry as described above. Voice profiles are
 not re-learned, and enrolments that came from a removed correction are not
 retracted.
 
