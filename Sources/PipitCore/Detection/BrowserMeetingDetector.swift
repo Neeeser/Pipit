@@ -118,7 +118,7 @@ public enum BrowserWindowTitle {
             }
             // Zoom's browser title carries the meeting name, not the numeric ID.
             let ending = title.range(
-                of: #"( - Zoom| Zoom Meeting)( [-\u{2013}\u{2014}] .*)?$"#, options: .regularExpression
+                of: #"( - Zoom| Zoom Meeting)("# + browserSuffixPattern + #")?$"#, options: .regularExpression
             )
             let name: String
             if let ending {
@@ -147,11 +147,12 @@ public enum BrowserWindowTitle {
 
     /// Takes off what a browser appends to a window title, such as a
     /// private-browsing label or the browser and profile name.
+    private static let browserSuffixPattern =
+        #" [-\u{2013}\u{2014}] (Private Browsing|Incognito|InPrivate|Google Chrome|Mozilla Firefox"#
+        + #"|Microsoft Edge|Brave|Arc|Vivaldi|Safari)( [-\u{2013}\u{2014}] .*)?"#
+
     private static func strippingBrowserSuffix(_ text: String) -> String {
-        let pattern =
-            #" [-\u{2013}\u{2014}] (Private Browsing|Incognito|InPrivate|Google Chrome|Mozilla Firefox"#
-            + #"|Microsoft Edge|Brave|Arc|Vivaldi|Safari)( [-\u{2013}\u{2014}] .*)?$"#
-        guard let range = text.range(of: pattern, options: .regularExpression) else { return text }
+        guard let range = text.range(of: browserSuffixPattern + "$", options: .regularExpression) else { return text }
         return String(text[..<range.lowerBound])
     }
 
@@ -295,6 +296,7 @@ public struct BrowserMeetingDetector: Sendable {
         // call is (another Chromium browser, a private window, a second
         // profile, Safari before site access is granted), and the memory then
         // works as it does without the add-on.
+
         // While the microphone holds a remembered meeting page, a title that is
         // not a meeting page (a mail that mentions Zoom, a provider's home page)
         // does not replace it.
@@ -365,9 +367,12 @@ public struct BrowserMeetingDetector: Sendable {
 
     private static func sameMeeting(_ lhs: BrowserWindowTitle.Parsed, _ rhs: BrowserWindowTitle.Parsed) -> Bool {
         guard lhs.provider == rhs.provider else { return false }
-        if lhs.meetingID != nil || rhs.meetingID != nil {
-            return lhs.meetingID == nil || rhs.meetingID == nil || lhs.meetingID == rhs.meetingID
-        }
+        if let left = lhs.meetingID, let right = rhs.meetingID { return left == right }
+        // A code on one side and only a name on the other cannot be shown to be
+        // the same call. Calling them different only clears the report, which
+        // the add-on sets again for a call it really reports.
+        if lhs.meetingID != nil { return rhs.title == nil }
+        if rhs.meetingID != nil { return lhs.title == nil }
         // Neither title has a code (Zoom, or a Meet call with a name): the name
         // tells two calls apart, and a missing name matches anything.
         return lhs.title == nil || rhs.title == nil || lhs.title == rhs.title
@@ -385,10 +390,10 @@ public struct BrowserMeetingDetector: Sendable {
         // cost extra recording, never the meeting.
         guard event.provider == remembered.provider, event.state == .inCall || event.state == .reconnecting
         else { return false }
-        if remembered.meetingID != nil || event.meetingID != nil {
-            return remembered.meetingID == nil || event.meetingID == nil || event.meetingID == remembered.meetingID
-        }
-        // No code on either side: the name separates two calls when the event has one.
+        // Codes decide when both sides have one, then names. Zoom's titles never
+        // carry the ID the extension reads from the address, so a name is what
+        // separates two Zoom calls.
+        if let code = event.meetingID, let rememberedCode = remembered.meetingID { return code == rememberedCode }
         guard let name = event.title.flatMap(BrowserWindowTitle.meetingName), let rememberedName = remembered.title
         else { return true }
         return name == rememberedName
@@ -415,7 +420,8 @@ public struct BrowserMeetingDetector: Sendable {
             source: .browserSensor,
             meetingID: meetingID,
             url: event.url,
-            title: event.title.flatMap(BrowserWindowTitle.meetingName) ?? parsed?.title,
+            title: event.title.flatMap(BrowserWindowTitle.meetingName)
+                ?? (parsed?.provider == event.provider ? parsed?.title : nil),
             muted: event.muted,
             otherAudibleTabs: event.otherAudibleTabs,
             browser: browser,
