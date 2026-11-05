@@ -177,27 +177,52 @@ public enum ProcessingError: LogSafeError, Equatable {
 
     /// The message shown to the user. Every one of these reassures about the audio,
     /// because the recording is safe in all of them.
-    public var userMessage: String {
+    public var userMessage: String { message(retrying: true) }
+
+    /// The message for a failure that Pipit may or may not try again.
+    ///
+    /// A cause that can clear by waiting says Pipit will retry while attempts
+    /// remain. Once the last one has failed it says Pipit stopped, and what the
+    /// person can do, because nothing starts the stage again until they press
+    /// Retry.
+    public func message(retrying: Bool) -> String {
         switch self {
         case .missingAPIKey: "Add an OpenAI API key in Settings to transcribe this meeting. Your recording is safe."
         case .authenticationFailed: "OpenAI rejected the API key. Your recording is safe."
-        case .rateLimited: "OpenAI is rate limiting requests. Pipit will retry. Your recording is safe."
-        case .serverError: "OpenAI returned a server error. Pipit will retry. Your recording is safe."
+        case .rateLimited:
+            "OpenAI is rate limiting requests. \(Self.temporaryCauseOutcome(retrying: retrying)) Your recording is safe."
+        case .serverError:
+            "OpenAI returned a server error. \(Self.temporaryCauseOutcome(retrying: retrying)) Your recording is safe."
         case .requestTooLarge: "An audio chunk exceeded the OpenAI upload limit. Your recording is safe."
         case .durationTooLong: "An audio chunk exceeded the OpenAI duration limit. Your recording is safe."
         case .malformedResponse: "OpenAI returned an unexpected response. Your recording is safe."
         case .emptyTranscript:
-            "Transcription returned nothing for part of this meeting. Pipit will retry. Your recording is safe."
+            "Transcription returned nothing for part of this meeting. \(Self.badTranscriptOutcome(retrying: retrying)) Your recording is safe."
         case .degenerateTranscript:
-            "Transcription repeated itself for part of this meeting. Pipit will retry. Your recording is safe."
-        case .transport: "Pipit could not reach OpenAI. It will retry. Your recording is safe."
+            "Transcription repeated itself for part of this meeting. \(Self.badTranscriptOutcome(retrying: retrying)) Your recording is safe."
+        case .transport:
+            "Pipit could not reach OpenAI. \(Self.temporaryCauseOutcome(retrying: retrying)) Your recording is safe."
         case .audioUnreadable: "Pipit could not read the recorded audio for this stage."
         case .utteranceNotFound:
             "That line has moved since the transcript was last analysed. Reopen the meeting and try again."
         case .cancelled: "Processing was cancelled. Your recording is safe."
         case .localProcessingFailed(let reason, _): "\(reason) Your recording is safe."
-        case .languageModel(let provider, let failure): "\(failure.message(provider: provider)) Your recording is safe."
+        case .languageModel(let provider, let failure):
+            "\(failure.message(provider: provider, retrying: retrying)) Your recording is safe."
         }
+    }
+
+    /// For a network or server problem, which is gone once the service is back.
+    fileprivate static func temporaryCauseOutcome(retrying: Bool) -> String {
+        retrying ? "Pipit will retry." : "Pipit stopped retrying. Try again later."
+    }
+
+    /// For a transcription that came back empty or looping, which a second
+    /// request usually fixes and a different model can.
+    fileprivate static func badTranscriptOutcome(retrying: Bool) -> String {
+        retrying
+            ? "Pipit will retry."
+            : "Pipit stopped retrying. Try again, or choose another transcription model in Settings."
     }
 }
 
@@ -250,10 +275,11 @@ public enum LanguageModelFailure: Equatable, Sendable {
     }
 
     /// The statement and what happens next, for a meeting that hit it.
-    public func message(provider: String) -> String {
+    public func message(provider: String, retrying: Bool = true) -> String {
         let what = statement(provider: provider)
         switch self {
-        case .unreachable, .rateLimited, .serverError: return "\(what). Pipit will retry."
+        case .unreachable, .rateLimited, .serverError:
+            return "\(what). \(ProcessingError.temporaryCauseOutcome(retrying: retrying))"
         case .modelNotFound: return "\(what). Choose another in Settings."
         case .rejected: return "\(what). Try another model in Settings."
         case .authenticationFailed, .unexpectedResponse: return "\(what)."

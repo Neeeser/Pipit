@@ -99,7 +99,9 @@ public struct ProcessingFailure: Codable, Sendable, Equatable {
 public struct ProcessingStatus: Codable, Sendable, Equatable {
     public var state: ProcessingState
     public var updatedAt: Date
-    /// Stage name to attempt count, so a retry loop is visible and boundable.
+    /// Stage name to the number of attempts that ended in a failure, so a retry
+    /// loop is visible and boundable. An attempt that was interrupted by a quit
+    /// is not counted, and a stage that succeeds starts again from zero.
     public var attempts: [String: Int]
     public var lastFailure: ProcessingFailure?
     /// Stages that finished successfully. A resumed run skips these.
@@ -165,6 +167,24 @@ public struct ProcessingStatus: Codable, Sendable, Equatable {
         attempts[stage.rawValue] ?? 0
     }
 
+    /// Failed attempts a stage gets before Pipit stops starting it on its own.
+    public static let maxAttemptsPerStage = 3
+
+    /// Whether the failure on this meeting is one that waiting can clear and
+    /// every attempt at it has failed.
+    ///
+    /// The launch sweep leaves such a meeting for the Retry button, since
+    /// another launch would repeat the same failure. A cause that does not
+    /// clear by waiting (a missing key, a model that is not installed) is not
+    /// counted: the person fixes it in Settings, nothing tells the sweep when
+    /// they have, and it fails quickly without sending anything.
+    public var isOutOfAttempts: Bool {
+        guard state == .failed, let failure = lastFailure, failure.isRetryable,
+            let stage = resumeStage
+        else { return false }
+        return attemptCount(for: stage) >= Self.maxAttemptsPerStage
+    }
+
     /// The stage a resumed run should start from. A failed job resumes at the stage
     /// that failed; source audio is never revisited.
     public var resumeStage: ProcessingState? {
@@ -185,8 +205,15 @@ public struct ProcessingStatus: Codable, Sendable, Equatable {
         }
     }
 
+    /// Counts an attempt at `stage` that failed.
     public mutating func recordAttempt(for stage: ProcessingState) {
         attempts[stage.rawValue, default: 0] += 1
+    }
+
+    /// Forgets the failed attempts at a stage that has now succeeded, so a
+    /// later run of the same stage starts with all of its attempts.
+    public mutating func clearAttempts(for stage: ProcessingState) {
+        attempts[stage.rawValue] = nil
     }
 
     public mutating func recordFailure(_ failure: ProcessingFailure, at date: Date) {

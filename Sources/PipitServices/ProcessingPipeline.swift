@@ -140,7 +140,7 @@ public actor ProcessingPipeline {
 
     /// How many times one stage is attempted before the meeting is left for the
     /// user, and the delays between those attempts.
-    static let maxAttemptsPerStage = 3
+    static let maxAttemptsPerStage = ProcessingStatus.maxAttemptsPerStage
     static let retryDelaysSeconds: [TimeInterval] = [20, 90]
     static let maxRetryDelaySeconds: TimeInterval = 300
 
@@ -332,12 +332,16 @@ public actor ProcessingPipeline {
                 // Without this the job ran a whole transcription pass on it and
                 // reported progress for a folder that was already gone.
                 if discardIfGone(metadata.id, store: store) { return }
-                metadata.processing.recordAttempt(for: stage)
+                // Counted when it fails, not here: a quit or a crash mid-stage
+                // leaves no failure behind, and counting it would let a few
+                // quits during one long transcription use up the attempts that
+                // are meant for failures.
+                let attempt = metadata.processing.attemptCount(for: stage) + 1
                 try persist(metadata, to: store)
                 report(metadata, chunks: nil)
                 stageStarted = clock.monotonicSeconds
                 diagnostics.record(
-                    .processingStageStarted(stage: stage, attempt: metadata.processing.attemptCount(for: stage)),
+                    .processingStageStarted(stage: stage, attempt: attempt),
                     session: session, job: job
                 )
 
@@ -405,17 +409,22 @@ public actor ProcessingPipeline {
                 case .complete, .failed:
                     break
                 }
+                // The stage worked, so the failures before it no longer count
+                // against a later run of the same stage.
+                metadata.processing.clearAttempts(for: stage)
                 try persist(metadata, to: store)
                 report(metadata, chunks: nil)
                 diagnostics.record(
                     .processingStageFinished(
-                        stage: stage, attempt: metadata.processing.attemptCount(for: stage),
+                        stage: stage, attempt: attempt,
                         seconds: clock.monotonicSeconds - (stageStarted ?? clock.monotonicSeconds)
                     ),
                     session: session, job: job
                 )
             } catch {
                 let failure = Self.processingError(from: error)
+                metadata.processing.recordAttempt(for: stage)
+                let attempts = metadata.processing.attemptCount(for: stage)
                 // Coded from the error as thrown. Categorising it first would
                 // file every unrecognised failure under one local case.
                 let code = DiagnosticCode(describing: error)
@@ -429,15 +438,15 @@ public actor ProcessingPipeline {
                 // The code rides with the failure, so a diagnostic report
                 // names the category without reading the message.
                 //
-                // Out of attempts, the failure no longer says Pipit will try
-                // again: nothing will until the person presses Retry.
-                let outOfAttempts =
-                    metadata.processing.attemptCount(for: stage) >= Self.maxAttemptsPerStage
+                // `isRetryable` stays the cause's own: whether waiting can clear
+                // it. Whether attempts remain is `isOutOfAttempts`. Out of
+                // attempts, the message says Pipit stopped, because nothing
+                // starts the stage again until the person presses Retry.
                 metadata.processing.recordFailure(
                     ProcessingFailure(
                         stage: stage,
-                        message: failure.userMessage,
-                        isRetryable: failure.isRetryable && !outOfAttempts,
+                        message: failure.message(retrying: attempts < Self.maxAttemptsPerStage),
+                        isRetryable: failure.isRetryable,
                         occurredAt: clock.now,
                         code: code
                     ),
@@ -449,10 +458,9 @@ public actor ProcessingPipeline {
                 )
                 report(metadata, chunks: nil)
 
-                // A rate limit or a server error usually clears on its own, and the
-                // failure message tells the user Pipit will try again. Attempts
-                // are bounded so a persistent outage stops asking.
-                let attempts = metadata.processing.attemptCount(for: stage)
+                // A rate limit or a server error usually clears on its own, so the
+                // stage is tried again here while attempts remain. Attempts are
+                // bounded so a persistent outage stops asking.
                 if failure.isRetryable, attempts < Self.maxAttemptsPerStage {
                     // The slot goes back first. A rate limit can ask for five
                     // minutes, and holding the one heavy-job slot through it
@@ -752,8 +760,9 @@ public actor ProcessingPipeline {
     /// The files that are replaced are copied under `backups` first. This
     /// validates and backs up, then marks the meeting and hands it to `process`,
     /// which does the work as a resumable `transcribing` stage. A crash or a
-    /// failure leaves the meeting waiting at that stage with the marker set, and
-    /// the launch sweep or Retry finishes it. Until the new microphone is
+    /// failure leaves the meeting waiting at that stage with the marker set. A
+    /// quit is finished by the launch sweep. A failure is finished by the sweep
+    /// while attempts remain and by Retry after that. Until the new microphone is
     /// transcribed the meeting reads the old transcript.
     public func redoMicrophone(meetingID: String, backups: URL) async throws {
         guard let found = repository.findMeeting(id: meetingID, includingMerged: true) else {
@@ -935,15 +944,7 @@ public actor ProcessingPipeline {
         for summary in repository.listMeetings() {
             guard summary.processingState != .complete else { continue }
             guard summary.processingState != .recording else { continue }
-            // A failed meeting that used every attempt waits for the Retry
-            // button. Without this, each launch gave it one more attempt.
-            if summary.processingState == .failed,
-                let metadata = repository.findMeeting(id: summary.id)?.metadata,
-                let stage = metadata.processing.resumeStage,
-                metadata.processing.attemptCount(for: stage) >= Self.maxAttemptsPerStage
-            {
-                continue
-            }
+            if isWaitingForRetry(meetingID: summary.id, includingMerged: false) { continue }
             await process(meetingID: summary.id)
         }
         // Meetings folded into an earlier one are hidden from the listing, and
@@ -951,8 +952,17 @@ public actor ProcessingPipeline {
         // recorded: without this a quit or a crash part-way through left the
         // second half of a dropped call untranscribed with nothing to resume it.
         for meetingID in repository.mergedMeetingIDs() {
+            if isWaitingForRetry(meetingID: meetingID, includingMerged: true) { continue }
             await process(meetingID: meetingID)
         }
+    }
+
+    /// Whether a failed meeting has used every attempt, so the launch sweep
+    /// leaves it for the Retry button. Without this, each launch gave it one
+    /// more attempt, without limit.
+    private func isWaitingForRetry(meetingID: String, includingMerged: Bool) -> Bool {
+        repository.findMeeting(id: meetingID, includingMerged: includingMerged)?
+            .metadata.processing.isOutOfAttempts ?? false
     }
 
     // MARK: - stages
@@ -1389,7 +1399,7 @@ public actor ProcessingPipeline {
         )
         let looping = try Self.dropIfLooping(
             response: output, chunkID: chunkID, purpose: .words,
-            isLastAttempt: metadata.processing.attemptCount(for: .transcribing)
+            isLastAttempt: metadata.processing.attemptCount(for: .transcribing) + 1
                 >= Self.maxAttemptsPerStage,
             scope: .wholeTrack
         )
@@ -1415,7 +1425,7 @@ public actor ProcessingPipeline {
     /// ordinary conversation. Recording that as a finished chunk lost 47% of one
     /// meeting's words and still reported `complete`, so an empty answer for
     /// audible audio fails the stage instead: the stage retries, and a meeting
-    /// that keeps coming back empty is left failed and retryable. A muted
+    /// that keeps coming back empty is left failed, for Retry. A muted
     /// microphone transcribes to nothing legitimately and must not fail forever,
     /// so the level of the audio that was sent decides between the two.
     public static func requireTranscribedOrSilent(
@@ -1482,8 +1492,8 @@ public actor ProcessingPipeline {
     /// arrives as a single chunk, so dropping it records the meeting as
     /// nothing: enrichment returns early on an empty transcript and the meeting
     /// completes with an empty transcript.md, reported as success. A whole
-    /// track therefore fails on every attempt and is left retryable, with its
-    /// audio untouched for a later run or a different backend.
+    /// track therefore fails on every attempt and is left failed, with its
+    /// audio untouched for a Retry or a different backend.
     ///
     /// - Returns: true when the chunk is to be recorded as nothing.
     public static func dropIfLooping(
@@ -2250,7 +2260,7 @@ public actor ProcessingPipeline {
         // Read before the group, because the attempt count belongs to the stage
         // and the group must not reach into the metadata being written here.
         let lastAttempt =
-            metadata.processing.attemptCount(for: .transcribing)
+            metadata.processing.attemptCount(for: .transcribing) + 1
             >= Self.maxAttemptsPerStage
         try await withThrowingTaskGroup(of: (PreparedChunk, TranscriptionOutput).self) { group in
             var nextIndex = 0

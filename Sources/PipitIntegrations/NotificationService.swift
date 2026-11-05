@@ -163,10 +163,12 @@ public struct NotificationService: Sendable {
         )
     }
 
+    /// Posted only once Pipit has stopped trying, so the body never says it
+    /// will retry.
     public func processingProblem(_ error: ProcessingError, meetingID: String) {
         post(
             title: "Processing needs attention",
-            body: error.userMessage,
+            body: error.message(retrying: false),
             category: .processingProblem,
             userInfo: ["meetingID": meetingID]
         )

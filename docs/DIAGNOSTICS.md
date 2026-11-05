@@ -359,9 +359,12 @@ Built by `DiagnosticSnapshot` (PipitCore) from values `DiagnosticReportCollector
   and `freeDisk` for the meetings folder's volume.
 - `summary.recentFailures`: the ten newest failures still standing on
   meetings: `stage`, `code` (the DiagnosticCode recorded with the failure, or
-  `unknown` for one recorded before codes were kept), `retryable`,
-  `attempts` at that stage, and `at`. The failure's message is never read; it
-  is prose for the person and can name a file.
+  `unknown` for one recorded before codes were kept), `retryable` (whether
+  the cause can clear by waiting, not whether attempts remain), `attempts`
+  (failed attempts at that stage, not counting a run a quit interrupted; a
+  retryable failure with 3 attempts has used all of them and waits for
+  Retry), and `at`. The failure's message is never read; it is prose for the
+  person and can name a file.
 - `summary.diagnostics`: `eventsDropped`, the sum of every
   `diagnostics.dropped` count in the log; `oldestEvent`, the oldest event on
   this Mac, left out when there is none; `eventsIncluded`; and

@@ -657,8 +657,12 @@ struct LocalPipelineTests {
         )
         #expect(metadata.processing.state == .failed)
         #expect(
-            metadata.processing.lastFailure?.isRetryable == false,
-            "every attempt is used, so it waits for the Retry button instead of saying it will retry"
+            metadata.processing.lastFailure?.isRetryable == true,
+            "and the meeting can be transcribed again"
+        )
+        #expect(
+            metadata.processing.isOutOfAttempts,
+            "every attempt is used, so the launch sweep leaves it for the Retry button"
         )
         let raw = try meeting.store.readRawTranscript()
         #expect(
@@ -710,8 +714,12 @@ struct LocalPipelineTests {
         )
         #expect(metadata.processing.state == .failed)
         #expect(
-            metadata.processing.lastFailure?.isRetryable == false,
-            "every attempt is used, so it waits for the Retry button instead of saying it will retry"
+            metadata.processing.lastFailure?.isRetryable == true,
+            "and the download can be tried again"
+        )
+        #expect(
+            metadata.processing.isOutOfAttempts,
+            "every attempt is used, so the launch sweep leaves it for the Retry button"
         )
 
         // The words are safe, so a retry aligns them rather than

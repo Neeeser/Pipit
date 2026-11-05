@@ -1094,7 +1094,9 @@ public final class MeetingReviewModel {
     /// `meetingID` then marked a folder nothing reads.
     private var shownMeetingID: String? { metadata?.id }
 
-    public func retry() { runtime.retryProcessing(meetingID: meetingID) }
+    /// Retries one recording of the conversation. A rejoined part is processed
+    /// on its own, so its failure is retried by its own identifier.
+    public func retry(meetingID target: String) { runtime.retryProcessing(meetingID: target) }
 
     /// How far the current stage has got, when the backend reports it. A local
     /// transcription has no chunks to count, and a stage showing nothing for
