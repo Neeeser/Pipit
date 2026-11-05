@@ -401,6 +401,16 @@ struct SlackHuddleDetectorTests {
         #expect(detector.conversationTitle == "Rowan Ashby, Ines Calloway")
     }
 
+    @Test("a title saved from a window is not replaced by the people in the call")
+    func aTitleSavedFromAWindowIsNotReplaced() {
+        var titles = TitleCandidates(timestampFallback: "Slack huddle")
+        titles.applyProvider(title: "launch-room", origin: .provider)
+        #expect(titles.providerIsProvisional == nil)
+        titles.applyProvider(title: "Rowan Ashby", origin: .participants)
+        titles.applyProvider(title: "launch", origin: .provisional)
+        #expect(titles.provider == "launch-room")
+    }
+
     @Test("metadata saved before titles could be corrected keeps its title fixed")
     func metadataSavedBeforeTitlesCouldBeCorrectedKeepsItsTitleFixed() async throws {
         let json = Data(#"{"provider":"launch-room","timestampFallback":"Slack huddle"}"#.utf8)
