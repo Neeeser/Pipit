@@ -196,9 +196,12 @@ public struct BrowserMeetingDetector: Sendable {
     private var micReleasedSince: Double?
     private var lastNativeParse: BrowserWindowTitle.Parsed?
     private var lastNativeParseAt: Double?
-    /// The microphone was open when the remembered title was last seen and has
-    /// not been released for longer than the refresh grace since.
+    /// The browser has held the microphone since the remembered title was seen
+    /// or while it was still fresh, with no release longer than the refresh
+    /// grace in between.
     private var titleHeldByMicrophone = false
+    /// The add-on has reported a call matching the remembered title.
+    private var addOnReportedMeeting = false
 
     public init(
         browser: BrowserKind = .firefox,
@@ -239,14 +242,13 @@ public struct BrowserMeetingDetector: Sendable {
 
         // A window title seen minutes ago is not evidence of a meeting now.
         //
-        // Without the add-on there is one exception: a title seen while the
-        // browser held the microphone is kept for as long as the browser holds
-        // it without a break. A window's title is its front tab's, so a call
-        // left running in a background tab shows no title at all, and the
-        // unbroken microphone is what still ties the browser to that call. A
-        // video in another tab plays sound but never opens the microphone, and
-        // leaving the call releases it. A release shorter than the refresh
-        // grace is not a break.
+        // There is one exception: a title remembered while the browser holds the
+        // microphone is kept for as long as the browser holds it without a break.
+        // A window's title is its front tab's, so a call left running in a
+        // background tab shows no title at all, and the unbroken microphone is
+        // what still ties the browser to that call. A video in another tab plays
+        // sound but never opens the microphone, and leaving the call releases it.
+        // A release shorter than the refresh grace is not a break.
         //
         // The trade-off: nothing without the add-on separates a Meet page
         // waiting to be joined from a joined call (the output flag is not read
@@ -254,23 +256,37 @@ public struct BrowserMeetingDetector: Sendable {
         // open records until the tab closes. The same already held while that
         // page was in front.
         //
-        // With the add-on loaded this memory is not extended. The add-on
-        // reports a call in a background tab itself, so its silence, a closed
-        // tab, or an `ended` report means no call; the microphone is shared by
-        // every Chromium browser or every WebKit process and cannot overrule it.
-        let extensionLoaded = sensor.connection.isLoaded
+        // The exception ends once the add-on has positive knowledge of this
+        // meeting: it reported the call, and the tab that reported it has since
+        // ended, closed, or gone silent. The add-on reports background calls
+        // itself, so from then on its word wins. An add-on that never reported
+        // this meeting says nothing about it, since it may not run where the
+        // call is (another Chromium browser, a private window, a second
+        // profile, Safari before site access is granted), and the memory then
+        // works as it does without the add-on.
         if let parsed {
+            if let remembered = lastNativeParse, !Self.sameMeeting(remembered, parsed) {
+                addOnReportedMeeting = false
+            }
             lastNativeParse = parsed
             lastNativeParseAt = now
-            titleHeldByMicrophone = signals.browserHoldsMicrophone
+        }
+        if let remembered = lastNativeParse, sensor.liveEvents.contains(where: { Self.reports($0, remembered) }) {
+            addOnReportedMeeting = true
+        }
+        let withinMemory = lastNativeParseAt.map { now - $0 <= configuration.titleMemorySeconds } ?? false
+        if signals.browserHoldsMicrophone {
+            if parsed != nil || withinMemory { titleHeldByMicrophone = true }
         } else if let releasedAt = micReleasedSince, now - releasedAt >= configuration.nativeEndGraceSeconds {
             titleHeldByMicrophone = false
         }
         if parsed == nil, let seenAt = lastNativeParseAt, now - seenAt > configuration.titleMemorySeconds,
-            !titleHeldByMicrophone || extensionLoaded
+            !titleHeldByMicrophone || addOnReportedMeeting
         {
             lastNativeParse = nil
             lastNativeParseAt = nil
+            titleHeldByMicrophone = false
+            addOnReportedMeeting = false
         }
 
         let native = nativeEvidence(native: signals, parsed: parsed ?? lastNativeParse, at: now)
@@ -300,6 +316,17 @@ public struct BrowserMeetingDetector: Sendable {
         }
         evidence = sensed
         return evidence
+    }
+
+    private static func sameMeeting(_ lhs: BrowserWindowTitle.Parsed, _ rhs: BrowserWindowTitle.Parsed) -> Bool {
+        lhs.provider == rhs.provider && (lhs.meetingID == nil || rhs.meetingID == nil || lhs.meetingID == rhs.meetingID)
+    }
+
+    /// Whether the add-on's event is a tab on the remembered meeting that is
+    /// still prejoin, waiting or in a call.
+    private static func reports(_ event: BrowserMeetingEvent, _ remembered: BrowserWindowTitle.Parsed) -> Bool {
+        guard event.provider == remembered.provider, event.state.detectionWeight > 0 else { return false }
+        return remembered.meetingID == nil || event.meetingID == nil || event.meetingID == remembered.meetingID
     }
 
     private func evidenceFromSensor(

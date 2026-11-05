@@ -140,6 +140,11 @@ public struct BrowserSensorTracker: Sendable {
         entries.values.max { lhs, rhs in lhs.receivedAt < rhs.receivedAt }?.event
     }
 
+    /// The events still inside the freshness window as of the last `evaluate`.
+    public var liveEvents: [BrowserMeetingEvent] {
+        entries.values.map(\.event)
+    }
+
     public var lastEventAt: Double? {
         entries.values.map(\.receivedAt).max()
     }

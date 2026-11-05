@@ -586,31 +586,40 @@ struct BrowserMeetingDetectorTests {
             browserHoldsMicrophone: true, browserProducesOutput: true,
             windowTitles: ["Meet - hzc-josd-epv"]
         )
-        detector.receive(
-            BrowserMeetingEvent(
-                browser: .firefox, provider: .googleMeet, state: .inCall, timestamp: now,
-                meetingID: "hzc-josd-epv", tabID: 1
-            ),
-            at: now
-        )
-        _ = detector.update(native: call, at: now)
-        now += 25
+        // The extension reports the call every few seconds until the tab closes.
+        for _ in 0...5 {
+            detector.receive(
+                BrowserMeetingEvent(
+                    browser: .firefox, provider: .googleMeet, state: .inCall, timestamp: now,
+                    meetingID: "hzc-josd-epv", tabID: 1
+                ),
+                at: now
+            )
+            _ = detector.update(native: call, at: now)
+            now += 5
+        }
         #expect(detector.update(native: call, at: now).confidence == .confirmed)
 
         // The tab closes while another page keeps the browser's microphone open
-        // for an unrelated reason. A loaded extension reports a background call
-        // itself, so silence from it means no call.
+        // for an unrelated reason. The extension reported this call, so its
+        // silence now means the call is over.
         detector.closeTab(1, at: now)
         let elsewhere = BrowserMeetingDetector.NativeSignals(
             browserHoldsMicrophone: true, browserProducesOutput: true,
             windowTitles: ["Voice memo - Recorder"]
         )
+        now += 1
+        let justClosed = detector.update(native: elsewhere, at: now)
+        #expect(justClosed.source == .native, "the closed tab's report is gone, not merely stale")
         now += 150
         #expect(detector.update(native: elsewhere, at: now).confidence == .none)
     }
 
-    @Test("with the extension loaded, a call it reports ended is not kept alive by the microphone")
-    func anEndedReportWinsOverTheMicrophoneWhileTheExtensionIsLoaded() async throws {
+    @Test("with the extension loaded but blind to the call, a background call keeps recording")
+    func aCallTheExtensionNeverReportedStaysAMeeting() async throws {
+        // A call in another Chromium browser, a private window, or a profile
+        // the add-on does not run in: the add-on says hello but never mentions
+        // this call, so its silence says nothing about it.
         var detector = BrowserMeetingDetector()
         var now = 100.0
         detector.sensorConnected(at: now)
@@ -622,7 +631,45 @@ struct BrowserMeetingDetectorTests {
         now += 25
         #expect(detector.update(native: call, at: now).confidence == .confirmed)
 
-        // Another web app starts a call in the same browser within seconds.
+        let otherTab = BrowserMeetingDetector.NativeSignals(
+            browserHoldsMicrophone: true, browserProducesOutput: true,
+            windowTitles: ["Quarterly plan - Docs"]
+        )
+        for _ in 0..<60 {
+            now += 5
+            detector.receive(
+                BrowserMeetingEvent(
+                    browser: .firefox, provider: .unknown, state: .browsing, timestamp: now, tabID: 7
+                ),
+                at: now
+            )
+            #expect(detector.update(native: otherTab, at: now).confidence == .confirmed)
+        }
+    }
+
+    @Test("with the extension loaded, a call it reports ended is not kept alive by the microphone")
+    func anEndedReportWinsOverTheMicrophoneWhileTheExtensionIsLoaded() async throws {
+        var detector = BrowserMeetingDetector()
+        var now = 100.0
+        detector.sensorConnected(at: now)
+        let call = BrowserMeetingDetector.NativeSignals(
+            browserHoldsMicrophone: true, browserProducesOutput: true,
+            windowTitles: ["Meet - hzc-josd-epv"]
+        )
+        for _ in 0...5 {
+            detector.receive(
+                BrowserMeetingEvent(
+                    browser: .firefox, provider: .googleMeet, state: .inCall, timestamp: now,
+                    meetingID: "hzc-josd-epv", tabID: 1
+                ),
+                at: now
+            )
+            _ = detector.update(native: call, at: now)
+            now += 5
+        }
+        #expect(detector.update(native: call, at: now).confidence == .confirmed)
+
+        // Another web app starts a call in the same browser.
         let elsewhere = BrowserMeetingDetector.NativeSignals(
             browserHoldsMicrophone: true, browserProducesOutput: true,
             windowTitles: ["Standup - Other App"]
@@ -635,6 +682,61 @@ struct BrowserMeetingDetectorTests {
             at: now
         )
         #expect(detector.update(native: elsewhere, at: now).confidence == .none)
+    }
+
+    @Test("a microphone that opens after the title has left the screen still ties the call to the browser")
+    func aMicrophoneOpeningAfterTheTitleStillHoldsTheCall() async throws {
+        var detector = BrowserMeetingDetector()
+        var now = 100.0
+        // Zoom's page shows its title before the microphone opens.
+        _ = detector.update(
+            native: .init(
+                browserHoldsMicrophone: false, browserProducesOutput: false,
+                windowTitles: ["Standup - Zoom"]
+            ),
+            at: now
+        )
+        let otherTab = BrowserMeetingDetector.NativeSignals(
+            browserHoldsMicrophone: true, browserProducesOutput: true,
+            windowTitles: ["Quarterly plan - Docs"]
+        )
+        now += 5
+        _ = detector.update(native: otherTab, at: now)
+        now += 300
+        let evidence = detector.update(native: otherTab, at: now)
+        #expect(evidence.confidence == .confirmed)
+        #expect(evidence.provider == .zoom)
+    }
+
+    @Test("a short microphone drop on the tick the title is visible does not forget the call")
+    func aShortMicrophoneDropWhileSwitchingTabsKeepsTheCall() async throws {
+        var detector = BrowserMeetingDetector()
+        var now = 100.0
+        let call = BrowserMeetingDetector.NativeSignals(
+            browserHoldsMicrophone: true, browserProducesOutput: true,
+            windowTitles: ["Meet - hzc-josd-epv"]
+        )
+        _ = detector.update(native: call, at: now)
+        now += 30
+        _ = detector.update(native: call, at: now)
+        // The microphone drops for a moment as the person switches tabs, and the
+        // title is still the last thing on screen.
+        now += 1
+        _ = detector.update(
+            native: .init(
+                browserHoldsMicrophone: false, browserProducesOutput: true,
+                windowTitles: ["Meet - hzc-josd-epv"]
+            ),
+            at: now
+        )
+        let otherTab = BrowserMeetingDetector.NativeSignals(
+            browserHoldsMicrophone: true, browserProducesOutput: true,
+            windowTitles: ["Quarterly plan - Docs"]
+        )
+        now += 1
+        _ = detector.update(native: otherTab, at: now)
+        now += 300
+        #expect(detector.update(native: otherTab, at: now).confidence == .confirmed)
     }
 
     @Test("with the extension loaded, a background call it reports stays a meeting")

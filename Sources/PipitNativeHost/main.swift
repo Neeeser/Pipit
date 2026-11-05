@@ -14,7 +14,7 @@ import os
 // and the browser side is told so, which is exactly the behaviour that lets
 // Pipit fall back to native detection.
 
-let hostVersion = "1.2.1"
+let hostVersion = "1.3.0"
 
 /// Reads the browser's length-prefixed messages from standard input.
 struct BrowserMessageReader {
