@@ -177,17 +177,25 @@ enum LanguageModelPrompts {
         interrupted. points are the facts, figures, reasons, concerns and outcomes someone \
         who missed it would need, one idea each, including what the group settled.
 
-        Under each topic, action_items are the tasks people took on there: someone said \
-        they would do it, or it was given to them to do. Leave out ideas, plans mentioned in \
-        passing and work nobody took on, because the list is what people will be held to. \
-        A question someone has to go and answer is an action item too, written as the task \
-        of finding out, with question set to true; leave out questions that were only asked \
-        in conversation. owner is the person who will do it, named as the transcript names \
-        them, and is empty when nobody in particular took it; due is a deadline someone said \
-        for that task, and is empty when nobody said one.
+        Under each topic, action_items are the tasks people took on there. Include a task \
+        only when a line in the transcript has someone saying they will do it, or being asked \
+        to do it and going along with it, and give the time of that line as at. Ideas, \
+        suggestions, open questions and plans mentioned in passing belong in the topic's \
+        points, not here, even when they sound like work someone could do, because this list \
+        is what people will be held to. Write each task as a complete instruction that a \
+        person could act on without reading the transcript. question is true only for a task \
+        whose purpose is to find something out and report back. owner is the person who will \
+        do it, named as the transcript names them, and is empty when nobody in particular took \
+        it; due is a deadline someone said for that task, and is empty when nobody said one. \
+        Tasks are often handed out or repeated in a round-up near the end of the meeting, so \
+        read the closing minutes for who agreed to do what, list each such task under the \
+        topic it is about, and give the time of the line where it was agreed. The person \
+        speaking is often not the owner: when one person asks another to do something, the \
+        owner is the one who was asked.
 
-        overview: a few sentences on why the group met, where it landed and what happens \
-        next, for someone who will read nothing else.
+        overview: a few sentences on why the group met, what it settled and what happens \
+        next, including who does what. Write it from the topics and action_items above and \
+        add nothing they do not say, because someone who reads only the overview will act on it.
         """
 
     /// Nil when the request asks for nothing.
