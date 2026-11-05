@@ -60,6 +60,13 @@ public actor ProcessingPipeline {
     /// Conversations a rewrite is running for, so one loop pays the debt and a
     /// second caller only adds to it.
     private var summaryRewriting: Set<String> = []
+    /// Debts the launch pass raised and nobody asked for, so a failure paying
+    /// them is logged and not announced, however much later they are paid. A
+    /// person's own ask removes the conversation from here.
+    private var quietSummaryDebts: Set<String> = []
+    /// Bumped whenever a debt is recorded, so a request can tell whether one
+    /// arrived while it was in flight.
+    private var summaryDebtGeneration: [String: Int] = [:]
     /// The cloud client. Still the only thing that writes titles, summaries and
     /// textual speaker suggestions, and still optional in every configuration.
     private let backend: any AIBackend
@@ -321,7 +328,8 @@ public actor ProcessingPipeline {
                 let store = MeetingStore(layout: MeetingLayout(root: summary.directory))
                 owed = (try? store.updateMetadata { $0.summaryNeedsRewrite = true }) != nil
             }
-            if owed { owing.append(summary.id) }
+            // A rewrite that failed for good is left to the person.
+            if owed, !summary.summaryRewriteGivenUp { owing.append(summary.id) }
         }
         if firstRun { try? Data().write(to: marker) }
         for id in owing { await refreshConversationSummary(meetingID: id, announcingFailure: false) }
@@ -329,10 +337,14 @@ public actor ProcessingPipeline {
 
     /// Records that a conversation's summary is behind its recordings, in memory
     /// for this run and on the first recording for the next one.
-    private func markSummaryOwed(_ conversationID: String) {
+    private func markSummaryOwed(_ conversationID: String, clearingGivenUp: Bool = true) {
         summaryRewritesOwed.insert(conversationID)
+        summaryDebtGeneration[conversationID, default: 0] += 1
         if let found = repository.findMeeting(id: conversationID, includingMerged: true) {
-            _ = try? found.store.updateMetadata { $0.summaryNeedsRewrite = true }
+            _ = try? found.store.updateMetadata {
+                $0.summaryNeedsRewrite = true
+                if clearingGivenUp { $0.summaryRewriteGivenUp = nil }
+            }
         }
     }
 
@@ -342,9 +354,10 @@ public actor ProcessingPipeline {
     /// Linking recordings changes the metadata and nothing else, so the summary
     /// written for the first recording stopped where that recording ended. This
     /// asks the model once, writes only the summary, title and description, and
-    /// leaves the processing state, the folder and the calendar link alone, the
-    /// way `generateEnrichment` does for a button. A failed request is reported
-    /// and leaves the meeting as it was.
+    /// leaves the processing state and the calendar link alone, the way
+    /// `generateEnrichment` does for a button. It does not file the meeting. A
+    /// changed title renames the folder at the next launch, as any title does.
+    /// A failed request is reported and leaves the meeting as it was.
     ///
     /// While a recording of the conversation is still processing nothing is
     /// asked: the conversation owes a rewrite, paid when that recording ends.
@@ -352,8 +365,13 @@ public actor ProcessingPipeline {
         meetingID: String, announcingFailure: Bool = true
     ) async {
         guard let conversation = repository.logicalMeeting(id: meetingID) else { return }
-        markSummaryOwed(conversation.id)
-        await payOwedSummaryRewrite(of: conversation.id, announcingFailure: announcingFailure)
+        if announcingFailure {
+            quietSummaryDebts.remove(conversation.id)
+        } else if !summaryRewritesOwed.contains(conversation.id) {
+            quietSummaryDebts.insert(conversation.id)
+        }
+        markSummaryOwed(conversation.id, clearingGivenUp: announcingFailure)
+        await payOwedSummaryRewrite(of: conversation.id)
     }
 
     /// Whether any recording of the conversation is being worked on, now or
@@ -365,9 +383,7 @@ public actor ProcessingPipeline {
         }
     }
 
-    private func payOwedSummaryRewrite(
-        of conversationID: String, announcingFailure: Bool = true
-    ) async {
+    private func payOwedSummaryRewrite(of conversationID: String) async {
         guard summaryRewriting.insert(conversationID).inserted else { return }
         defer { summaryRewriting.remove(conversationID) }
         while summaryRewritesOwed.contains(conversationID) {
@@ -391,28 +407,28 @@ public actor ProcessingPipeline {
                 var metadata = conversation.primary.metadata
                 await recordMissingKey(&metadata, settings: settings)
                 let missing = metadata.processing.skippedForMissingKey
-                _ = try? conversation.primary.store.updateMetadata {
-                    $0.processing.skippedForMissingKey = missing
+                // Only a change is written and announced: a launch pays many.
+                if missing != conversation.primary.metadata.processing.skippedForMissingKey {
+                    _ = try? conversation.primary.store.updateMetadata {
+                        $0.processing.skippedForMissingKey = missing
+                    }
+                    onSummaryRewritten(conversationID)
                 }
-                onSummaryRewritten(conversationID)
+                quietSummaryDebts.remove(conversationID)
                 continue
             }
-            await rewriteSummary(
-                of: conversation, settings: settings, announcingFailure: announcingFailure)
+            await rewriteSummary(of: conversation, settings: settings)
         }
     }
 
-    private func rewriteSummary(
-        of conversation: LogicalMeeting, settings: AppSettings, announcingFailure: Bool
-    ) async {
+    private func rewriteSummary(of conversation: LogicalMeeting, settings: AppSettings) async {
         let id = conversation.id
-        let store = conversation.primary.store
         onSummaryRewriting(id, true)
         defer { onSummaryRewriting(id, false) }
         let backups = summaryBackups
         holdFolder(id)
         defer { releaseFolder(id) }
-        defer { _ = discardIfGone(id, store: store) }
+        defer { if !summaryRewritesOwed.contains(id) { quietSummaryDebts.remove(id) } }
         await waitForSlot()
         defer { jobLock.release() }
 
@@ -423,6 +439,11 @@ public actor ProcessingPipeline {
             summaryRewritesOwed.insert(id)
             return
         }
+        // The store as it is now, not as it was before the model was checked: a
+        // move to a folder in that time left the old path behind. The folder is
+        // held from here on, so this one stays right.
+        let store = current.primary.store
+        defer { _ = discardIfGone(id, store: store) }
         if discardIfGone(id, store: store) { return }
         var metadata = (try? store.readMetadata()) ?? current.primary.metadata
         // A description is only ever written by this stage, so the one on file
@@ -434,11 +455,13 @@ public actor ProcessingPipeline {
                 store: store, metadata: &metadata, settings: settings, asksForFolders: false,
                 beforeWriting: { [clock] in
                     // A summary a person edited by hand is replaced; keep the
-                    // copy where the other redo features keep theirs.
+                    // copy where the other redo features keep theirs. A copy that
+                    // cannot be made stops the rewrite, since the old text would
+                    // be gone.
                     guard let backups else { return }
                     let folder = Reprocessing.backupDirectory(
                         under: backups, meetingID: id, at: clock.now)
-                    try? Reprocessing.backUp(
+                    try Reprocessing.backUp(
                         store: store, files: [store.layout.summary, store.layout.structuredSummary],
                         to: folder)
                 })
@@ -447,7 +470,7 @@ public actor ProcessingPipeline {
             Log.processing.error(
                 "summary rewrite failed: \(logSafeDescription(error), privacy: .public)"
             )
-            if announcingFailure { onSummaryFailure(id, Self.processingError(from: error)) }
+            failRewrite(id, store: store, error: error)
             return
         }
         // Filing is for a meeting being processed. The person merged or
@@ -471,7 +494,10 @@ public actor ProcessingPipeline {
                     current.titles.ai = title
                     if let description { current.descriptionText = description }
                 }
-                if !stillOwed { current.summaryNeedsRewrite = nil }
+                if !stillOwed {
+                    current.summaryNeedsRewrite = nil
+                    current.summaryRewriteGivenUp = nil
+                }
                 if wrote { current.processing.skippedForMissingKey = false }
             }
             if wrote { try await writeTranscriptMarkdown(store: store, metadata: written) }
@@ -479,11 +505,22 @@ public actor ProcessingPipeline {
             Log.processing.error(
                 "summary rewrite not saved: \(logSafeDescription(error), privacy: .public)"
             )
-            if announcingFailure { onSummaryFailure(id, Self.processingError(from: error)) }
+            failRewrite(id, store: store, error: error)
         }
         // No progress report: a report of a complete meeting is what posts the
         // "ready" notification, and nothing here was processed.
         onSummaryRewritten(id)
+    }
+
+    /// A rewrite that did not work: reported unless the debt is one nobody asked
+    /// for, and given up on for later launches when asking again cannot help.
+    private func failRewrite(_ id: String, store: MeetingStore, error: any Error) {
+        let failure = Self.processingError(from: error)
+        if !failure.isRetryable {
+            _ = try? store.updateMetadata { $0.summaryRewriteGivenUp = true }
+            onSummaryRewritten(id)
+        }
+        if !quietSummaryDebts.contains(id) { onSummaryFailure(id, failure) }
     }
 
     private func runStages(meetingID: String) async {
@@ -632,8 +669,21 @@ public actor ProcessingPipeline {
                     let continuationOf = (try? store.readMetadata())?.mergedIntoMeetingID
                     var enrichmentFailure: (any Error)?
                     if continuationOf == nil {
+                        let debts = summaryDebtGeneration[metadata.id, default: 0]
                         do {
-                            try await runEnrichment(store: store, metadata: &metadata, settings: settings)
+                            let outcome = try await runEnrichment(
+                                store: store, metadata: &metadata, settings: settings)
+                            // The request read every recording the conversation had,
+                            // so a debt recorded before it was sent is paid by it
+                            // and a second request would repeat it.
+                            if outcome == .wrote, summaryDebtGeneration[metadata.id, default: 0] == debts {
+                                summaryRewritesOwed.remove(metadata.id)
+                                quietSummaryDebts.remove(metadata.id)
+                                _ = try? store.updateMetadata {
+                                    $0.summaryNeedsRewrite = nil
+                                    $0.summaryRewriteGivenUp = nil
+                                }
+                            }
                         } catch {
                             enrichmentFailure = error
                         }
@@ -3427,7 +3477,7 @@ public actor ProcessingPipeline {
     @discardableResult
     private func runEnrichment(
         store: MeetingStore, metadata: inout MeetingMetadata, settings: AppSettings,
-        asksForFolders: Bool = true, beforeWriting: (() -> Void)? = nil
+        asksForFolders: Bool = true, beforeWriting: (() throws -> Void)? = nil
     ) async throws -> EnrichmentOutcome {
         guard settings.enrichment.wantsAnything else { return .skipped }
         guard !settings.models.metadata.isEmpty else { return .skipped }
@@ -3468,7 +3518,7 @@ public actor ProcessingPipeline {
         )
         if !document.isEmpty {
             // Written to summary.md, never to notes.md: the user's notes are theirs.
-            beforeWriting?()
+            try beforeWriting?()
             if let structure = enrichment.generatedSummary {
                 try store.writeSummary(document.markdown, structure: structure)
             } else {

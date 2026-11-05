@@ -169,6 +169,7 @@ public final class PipitRuntime {
     @ObservationIgnored public var notifications = NotificationService()
     /// Conversations whose summary is being written again right now.
     public private(set) var summariesBeingWritten: Set<String> = []
+    @ObservationIgnored private var lastSummaryProblemAt: Date?
     @ObservationIgnored public let permissions = PermissionsService()
     /// The OpenAI key, read from the keychain once and held for the process.
     /// Exposed so saving a rotated key updates it without a relaunch.
@@ -441,7 +442,7 @@ public final class PipitRuntime {
                 Task { @MainActor in
                     guard let runtime = relay?.runtimeForCallbacks, runtime.settings.showNotifications
                     else { return }
-                    runtime.notifications.summaryProblem(error, meetingID: meetingID)
+                    runtime.postSummaryProblem(error, meetingID: meetingID)
                 }
             },
             onSummaryRewriting: { [weak relay] meetingID, running in
@@ -2031,6 +2032,15 @@ public final class PipitRuntime {
         onProcessingUpdate?(target.id)
         if rewritingSummary { refreshConversationSummary(meetingID: target.id) }
         return true
+    }
+
+    /// One notification for a burst of failed rewrites. Separating a part asks for
+    /// two rewrites, and both fail the same way when the model is out of reach.
+    func postSummaryProblem(_ error: ProcessingError, meetingID: String) {
+        let now = clock.now
+        if let last = lastSummaryProblemAt, now.timeIntervalSince(last) < 60 { return }
+        lastSummaryProblemAt = now
+        notifications.summaryProblem(error, meetingID: meetingID)
     }
 
     /// Updates one recording's metadata through a store resolved now, once more

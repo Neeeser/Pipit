@@ -440,12 +440,15 @@ public struct MeetingSummary: Sendable, Equatable, Identifiable {
     /// Whether the first recording's metadata says the summary is behind the
     /// recordings. Carried so the launch pass needs no second read.
     public let summaryNeedsRewrite: Bool
+    /// Whether launches have stopped retrying that rewrite.
+    public let summaryRewriteGivenUp: Bool
 
     public init(
         id: String, directory: URL, title: String, startedAt: Date, durationSeconds: Double,
         source: MeetingSource, provider: MeetingProvider, processingState: ProcessingState,
         wasInterrupted: Bool, hasTranscript: Bool, recordingCount: Int = 1,
-        isArchived: Bool = false, folderName: String? = nil, summaryNeedsRewrite: Bool = false
+        isArchived: Bool = false, folderName: String? = nil, summaryNeedsRewrite: Bool = false,
+        summaryRewriteGivenUp: Bool = false
     ) {
         self.id = id
         self.directory = directory
@@ -461,6 +464,7 @@ public struct MeetingSummary: Sendable, Equatable, Identifiable {
         self.isArchived = isArchived
         self.folderName = folderName
         self.summaryNeedsRewrite = summaryNeedsRewrite
+        self.summaryRewriteGivenUp = summaryRewriteGivenUp
     }
 }
 
@@ -1038,7 +1042,8 @@ public struct MeetingRepository: Sendable {
             // Where it sits, not what the metadata remembers. A folder renamed
             // in Finder moves every meeting in it without touching a file.
             folderName: archive.folderName(ofDirectory: directory),
-            summaryNeedsRewrite: metadata.summaryNeedsRewrite == true
+            summaryNeedsRewrite: metadata.summaryNeedsRewrite == true,
+            summaryRewriteGivenUp: metadata.summaryRewriteGivenUp == true
         )
     }
 

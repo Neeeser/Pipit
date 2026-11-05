@@ -542,7 +542,12 @@ public final class MeetingsWindowModel {
         {
             linked = true
         }
-        if linked { runtime.refreshConversationSummary(meetingID: primaryID) }
+        guard linked else {
+            receipt = MeetingReceipt(
+                text: "These meetings could not be merged.", meetingID: primaryID)
+            return
+        }
+        runtime.refreshConversationSummary(meetingID: primaryID)
         archiveChanges += 1
         detail = nil
         show(meetingID: primaryID)

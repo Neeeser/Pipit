@@ -185,7 +185,7 @@ public struct NotificationService: Sendable {
     public func summaryProblem(_ error: ProcessingError, meetingID: String) {
         post(
             title: "Summary not updated",
-            body: error.userMessage,
+            body: error.summaryProblemMessage,
             category: .summaryProblem,
             userInfo: ["meetingID": meetingID]
         )

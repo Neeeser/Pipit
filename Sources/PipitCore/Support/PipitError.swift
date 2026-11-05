@@ -201,6 +201,26 @@ public enum ProcessingError: LogSafeError, Equatable {
     }
 }
 
+extension ProcessingError {
+    /// What a summary that could not be written says: the problem, stated
+    /// plainly, and where to try again. No promise that Pipit will retry, since
+    /// a rewrite that failed is tried again by the person, from the meeting.
+    public var summaryProblemMessage: String {
+        let problem: String
+        switch self {
+        case .authenticationFailed: problem = "OpenAI rejected the API key."
+        case .rateLimited: problem = "OpenAI is rate limiting requests."
+        case .serverError: problem = "OpenAI returned a server error."
+        case .transport: problem = "Pipit could not reach OpenAI."
+        case .malformedResponse: problem = "OpenAI returned an unexpected response."
+        case .missingAPIKey: problem = "There is no OpenAI API key."
+        case .languageModel(let provider, let failure): problem = failure.statement(provider: provider) + "."
+        default: problem = "The summary could not be written."
+        }
+        return problem + " Choose Write again in the meeting to try again."
+    }
+}
+
 /// How a request to a model that writes about the meeting went wrong.
 public enum LanguageModelFailure: Equatable, Sendable {
     case authenticationFailed

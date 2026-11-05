@@ -444,9 +444,15 @@ conversation owes, then tells the window to reload. The debt is also written to
 the first recording's metadata (`summaryNeedsRewrite`) and cleared when a rewrite
 is written with no newer debt pending, so a rewrite that could not run, for want
 of a key or because the app quit, is paid at the next launch. The first launch
-that knows about this marks conversations whose summary file is older than the
-last part's completion, once, and the summary tab offers "Write again" for a
-meeting that carries the mark and already has a summary. Separating after
+that knows about this marks every conversation of several recordings that has a
+`summary.md`, once, because each of those summaries was built from the first
+recording only. Launch rewrites run after the other launch work, are not
+announced when they fail, and stop for a conversation whose failure asking again
+cannot fix (`summaryRewriteGivenUp`). The summary tab offers "Write again" for a
+meeting that carries the mark and already has a summary. A rewrite that replaces
+a summary first copies it to the Backups folder and does not run if the copy
+cannot be made. Folder names follow titles as always, so a rewritten title
+renames the folder at the next launch. Separating after
 merging a row that was already a conversation does not restore the earlier
 grouping. `transcript.md` is still written per recording and does not include
 continuations.

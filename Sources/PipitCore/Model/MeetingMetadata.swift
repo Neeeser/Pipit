@@ -313,6 +313,10 @@ public struct MeetingMetadata: Codable, Sendable, Equatable, Identifiable {
     /// on disk so a rewrite that could not run, for want of a key or because the
     /// app quit, is still owed at the next launch.
     public var summaryNeedsRewrite: Bool?
+    /// Set when a rewrite failed in a way that asking again will not fix, such
+    /// as a rejected key or a refused request, so launches stop trying. The
+    /// notice and its button stay; a new ask or a change of recordings clears it.
+    public var summaryRewriteGivenUp: Bool?
     /// Original filename for an imported recording, preserved verbatim.
     public var importedOriginalFilename: String?
     /// Where an imported recording's `startedAt` came from. Absent on captured

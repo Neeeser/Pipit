@@ -137,4 +137,53 @@ struct ConversationDetailTests {
 
         #expect(posted.all == [.summaryProblem], "reported, and not as a processing problem with Retry")
     }
+
+    @Test("separating a part while the model is out of reach posts one notification")
+    @MainActor
+    func separateOfflinePostsOnce() async throws {
+        let root = try TestPaths.makeTemporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let made = try (0..<2).map { index in
+            try RuntimeFixtures.makeMeeting(
+                root: root, clusters: ["remote-001_speaker_00"], title: "Part \(index)",
+                startedAt: Self.base.addingTimeInterval(Double(index) * 3_600))
+        }
+        let backend = FakeAIBackend()
+        let runtime = RuntimeFixtures.makeRuntime(root: root, backend: backend)
+        let posted = Posted()
+        runtime.notifications = NotificationService(observer: { category, _ in posted.add(category) })
+        runtime.combine(
+            meetingID: made[1].id, into: made[0].id, reason: "a test", rewritingSummary: false)
+        backend.failEnrichment = .transport(reason: "offline")
+
+        runtime.detachContinuation(meetingID: made[1].id)
+        await Self.waitUntil { backend.enrichmentRequests.count >= 2 }
+        await Self.waitUntil { runtime.summariesBeingWritten.isEmpty }
+
+        #expect(posted.all == [.summaryProblem])
+    }
+
+    @Test("merging meetings that cannot be linked says so")
+    @MainActor
+    func mergeThatLinksNothingSaysSo() async throws {
+        let root = try TestPaths.makeTemporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let made = try (0..<3).map { index in
+            try RuntimeFixtures.makeMeeting(
+                root: root, clusters: ["remote-001_speaker_00"], title: "Part \(index)",
+                startedAt: Self.base.addingTimeInterval(Double(index) * 3_600))
+        }
+        let runtime = RuntimeFixtures.makeRuntime(root: root)
+        let model = MeetingsWindowModel(runtime: runtime)
+        await model.reload()
+        let rows = model.rows
+        // The folders of the later two disappear after the list was read.
+        for part in made.dropFirst() {
+            try FileManager.default.removeItem(at: part.store.layout.root)
+        }
+
+        model.merge(rows)
+
+        #expect(model.receipt?.text == "These meetings could not be merged.")
+    }
 }
