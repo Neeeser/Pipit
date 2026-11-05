@@ -204,89 +204,6 @@ struct CaptureEngineHardeningTests {
         return (delegate, try ManifestReader.read(contentsOf: layout.manifest).lines)
     }
 
-    @Test("a three-channel microphone's first segment opens at three channels")
-    func aThreeChannelMicrophonesFirstSegmentOpensAtThreeChannels() async throws {
-        // `CaptureEngine` built the writer's format with the standard
-        // initializer, which returns nil above two channels, and fell back to
-        // mono. The first three-channel buffer then closed an empty segment.
-        let root = try TestPaths.makeTemporaryDirectory()
-        defer { try? FileManager.default.removeItem(at: root) }
-        let layout = MeetingLayout(root: root)
-        try FileManager.default.createDirectory(at: layout.segments, withIntermediateDirectories: true)
-
-        let microphone = LockedBox<EmittingMicrophone?>(nil)
-        let engine = CaptureEngine(
-            segmentSeconds: 60,
-            makeMicrophone: { sink, _ in
-                let source = EmittingMicrophone(sink: sink)
-                source.format = AudioFormatDescriptor(sampleRate: 48_000, channelCount: 3)
-                microphone.withLock { $0 = source }
-                return source
-            },
-            makeTap: { sink, _ in EmittingTap(sink: sink) },
-            delegate: SilentDelegate()
-        )
-        await engine.arm(scope: .bundlePrefixes([]), capturesRemote: false)
-        try await engine.commit(layout: layout, meetingID: "m", source: .googleMeet)
-        microphone.withLock { $0?.emit(seconds: 1, hostTime: 100) }
-        _ = await engine.stop(reason: "test")
-
-        let segments = try ManifestReader.timeline(contentsOf: layout.manifest).segments(track: .mic)
-        #expect(segments.count == 1, "one segment, got \(segments.count)")
-        #expect(segments.first?.format.channelCount == 3)
-        #expect(!segments.contains { $0.closeReason == "buffer_format_mismatch" })
-    }
-
-    @Test("a first segment opens at the format of the audio in the ring")
-    func aFirstSegmentOpensAtTheFormatOfTheAudioInTheRing() async throws {
-        // Armed while the microphone is mono, then a call app switches the
-        // device to three channels and the microphone rebuilds before commit.
-        // The ring still starts with mono audio, so a writer opened at the
-        // newest build's format wrote that first packet into a mismatch and
-        // left an empty segment.
-        let root = try TestPaths.makeTemporaryDirectory()
-        defer { try? FileManager.default.removeItem(at: root) }
-        let layout = MeetingLayout(root: root)
-        try FileManager.default.createDirectory(at: layout.segments, withIntermediateDirectories: true)
-
-        let microphone = LockedBox<EmittingMicrophone?>(nil)
-        let configurationChanged = LockedBox<(@Sendable () -> Void)?>(nil)
-        let engine = CaptureEngine(
-            thresholds: CaptureThresholds(configurationDebounce: 0.02, pollInterval: 0.01),
-            segmentSeconds: 60,
-            makeMicrophone: { sink, onChange in
-                let source = EmittingMicrophone(sink: sink)
-                microphone.withLock { $0 = source }
-                configurationChanged.withLock { $0 = onChange }
-                return source
-            },
-            makeTap: { sink, _ in EmittingTap(sink: sink) },
-            delegate: SilentDelegate()
-        )
-        await engine.arm(scope: .bundlePrefixes([]), capturesRemote: false)
-        microphone.withLock { $0?.emit(seconds: 1, hostTime: 100) }
-
-        microphone.withLock {
-            $0?.format = AudioFormatDescriptor(sampleRate: 48_000, channelCount: 3)
-        }
-        configurationChanged.withLock { $0?() }
-        try await Task.sleep(nanoseconds: 600_000_000)
-        microphone.withLock { $0?.emit(seconds: 1, hostTime: 102) }
-
-        try await engine.commit(layout: layout, meetingID: "m", source: .googleMeet)
-        _ = await engine.stop(reason: "test")
-
-        let segments = try ManifestReader.timeline(contentsOf: layout.manifest).segments(track: .mic)
-        #expect(
-            segments.first?.format.channelCount == 1,
-            "the first segment holds the mono audio from the ring: \(segments.map(\.format.channelCount))"
-        )
-        #expect(
-            !segments.contains { $0.frameCount == 0 },
-            "no segment is left empty: \(segments.map { $0.frameCount ?? -1 })"
-        )
-    }
-
     @Test("a microphone whose device could not be set still records")
     func aMicrophoneWhoseDeviceCouldNotBeSetStillRecords() async throws {
         // Pointing the input unit at the default input device can fail.
@@ -868,6 +785,156 @@ struct CaptureEngineHardeningTests {
             "snapshot \(snapshot.micSeconds) s against \(timeline.duration(track: .mic)) s on disk"
         )
         #expect(abs(snapshot.micSeconds - 8) <= 0.1, "2 s, 5 s from the ring, 1 s: got \(snapshot.micSeconds)")
+    }
+}
+
+@Suite("FirstSegmentFormat")
+struct FirstSegmentFormatTests {
+    @Test("a three-channel microphone's first segment opens at three channels")
+    func aThreeChannelMicrophonesFirstSegmentOpensAtThreeChannels() async throws {
+        // `CaptureEngine` built the writer's format with the standard
+        // initializer, which returns nil above two channels, and fell back to
+        // mono. The first three-channel buffer then closed an empty segment.
+        let root = try TestPaths.makeTemporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let layout = MeetingLayout(root: root)
+        try FileManager.default.createDirectory(at: layout.segments, withIntermediateDirectories: true)
+
+        let microphone = LockedBox<EmittingMicrophone?>(nil)
+        let engine = CaptureEngine(
+            segmentSeconds: 60,
+            makeMicrophone: { sink, _ in
+                let source = EmittingMicrophone(sink: sink)
+                source.format = AudioFormatDescriptor(sampleRate: 48_000, channelCount: 3)
+                microphone.withLock { $0 = source }
+                return source
+            },
+            makeTap: { sink, _ in EmittingTap(sink: sink) },
+            delegate: SilentDelegate()
+        )
+        await engine.arm(scope: .bundlePrefixes([]), capturesRemote: false)
+        try await engine.commit(layout: layout, meetingID: "m", source: .googleMeet)
+        microphone.withLock { $0?.emit(seconds: 1, hostTime: 100) }
+        _ = await engine.stop(reason: "test")
+
+        let segments = try ManifestReader.timeline(contentsOf: layout.manifest).segments(track: .mic)
+        #expect(segments.count == 1, "one segment, got \(segments.count)")
+        #expect(segments.first?.format.channelCount == 3)
+        #expect(!segments.contains { $0.closeReason == "buffer_format_mismatch" })
+    }
+
+    @Test("a first segment opens at the format of the audio in the ring")
+    func aFirstSegmentOpensAtTheFormatOfTheAudioInTheRing() async throws {
+        // Armed while the microphone runs at 48 kHz, then the device switches to
+        // 44.1 kHz and the microphone rebuilds before commit. The ring still
+        // starts with 48 kHz audio, so a writer opened at the newest build's
+        // format wrote that first packet into a mismatch and left an empty
+        // segment.
+        let root = try TestPaths.makeTemporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let layout = MeetingLayout(root: root)
+        try FileManager.default.createDirectory(at: layout.segments, withIntermediateDirectories: true)
+
+        let microphone = LockedBox<EmittingMicrophone?>(nil)
+        let configurationChanged = LockedBox<(@Sendable () -> Void)?>(nil)
+        let engine = CaptureEngine(
+            thresholds: CaptureThresholds(configurationDebounce: 0.02, pollInterval: 0.01),
+            segmentSeconds: 60,
+            makeMicrophone: { sink, onChange in
+                let source = EmittingMicrophone(sink: sink)
+                microphone.withLock { $0 = source }
+                configurationChanged.withLock { $0 = onChange }
+                return source
+            },
+            makeTap: { sink, _ in EmittingTap(sink: sink) },
+            delegate: SilentDelegate()
+        )
+        await engine.arm(scope: .bundlePrefixes([]), capturesRemote: false)
+        microphone.withLock { $0?.emit(seconds: 1, hostTime: 100) }
+
+        microphone.withLock {
+            $0?.format = AudioFormatDescriptor(sampleRate: 44_100, channelCount: 1)
+        }
+        configurationChanged.withLock { $0?() }
+        let deadline = Date().addingTimeInterval(10)
+        while engine.health.micRestarts < 1, Date() < deadline {
+            try await Task.sleep(nanoseconds: 20_000_000)
+        }
+        try #require(engine.health.micRestarts >= 1, "the microphone rebuilt while armed")
+        microphone.withLock { $0?.emit(seconds: 1, hostTime: 102) }
+
+        try await engine.commit(layout: layout, meetingID: "m", source: .googleMeet)
+        _ = await engine.stop(reason: "test")
+
+        let segments = try ManifestReader.timeline(contentsOf: layout.manifest).segments(track: .mic)
+        #expect(
+            segments.first?.format.sampleRate == 48_000,
+            "the first segment holds the 48 kHz audio from the ring: \(segments.map(\.format.sampleRate))"
+        )
+        #expect(
+            !segments.contains { $0.frameCount == 0 },
+            "no segment is left empty: \(segments.map { $0.frameCount ?? -1 })"
+        )
+    }
+
+    @Test("a first remote segment opens at the format of the audio in the ring")
+    func aFirstRemoteSegmentOpensAtTheFormatOfTheAudioInTheRing() async throws {
+        // The far-end tap rebinds while armed, for instance when the output
+        // switches to a headset at another sample rate. Its ring starts with
+        // the old rate's audio.
+        let root = try TestPaths.makeTemporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let layout = MeetingLayout(root: root)
+        try FileManager.default.createDirectory(at: layout.segments, withIntermediateDirectories: true)
+
+        let tap = LockedBox<EmittingTap?>(nil)
+        let engine = CaptureEngine(
+            thresholds: CaptureThresholds(configurationDebounce: 0.02, pollInterval: 0.01),
+            segmentSeconds: 60,
+            makeMicrophone: { sink, _ in EmittingMicrophone(sink: sink) },
+            makeTap: { sink, _ in
+                let source = EmittingTap(sink: sink)
+                tap.withLock { $0 = source }
+                return source
+            },
+            delegate: SilentDelegate()
+        )
+        await engine.arm(scope: .bundlePrefixes(["com.example.app"]), capturesRemote: true)
+        tap.withLock {
+            $0?.setTargets([makeTarget(pid: 42, bundle: "com.example.app", producing: true)])
+        }
+        let deadline = Date().addingTimeInterval(10)
+        while engine.health.remoteRebinds < 1, Date() < deadline {
+            try await Task.sleep(nanoseconds: 20_000_000)
+        }
+        try #require(engine.health.remoteRebinds >= 1, "the tap bound while armed")
+        tap.withLock { $0?.emit(seconds: 1, hostTime: HostTime.now) }
+
+        tap.withLock {
+            $0?.format = AudioFormatDescriptor(sampleRate: 44_100, channelCount: 1)
+            $0?.setTargets([
+                makeTarget(pid: 42, bundle: "com.example.app", producing: true),
+                makeTarget(pid: 43, bundle: "com.example.app", producing: true),
+            ])
+        }
+        while engine.health.remoteRebinds < 2, Date() < deadline {
+            try await Task.sleep(nanoseconds: 20_000_000)
+        }
+        try #require(engine.health.remoteRebinds >= 2, "the tap rebound while armed")
+        tap.withLock { $0?.emit(seconds: 1, hostTime: HostTime.now) }
+
+        try await engine.commit(layout: layout, meetingID: "m", source: .googleMeet)
+        _ = await engine.stop(reason: "test")
+
+        let segments = try ManifestReader.timeline(contentsOf: layout.manifest).segments(track: .remote)
+        #expect(
+            segments.first?.format.sampleRate == 48_000,
+            "the first segment holds the 48 kHz audio from the ring: \(segments.map(\.format.sampleRate))"
+        )
+        #expect(
+            !segments.contains { $0.frameCount == 0 },
+            "no segment is left empty: \(segments.map { $0.frameCount ?? -1 })"
+        )
     }
 }
 
