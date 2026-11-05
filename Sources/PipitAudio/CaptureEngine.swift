@@ -365,12 +365,15 @@ public final class CaptureEngine: Sendable {
                 firstSegmentIndex: micBase + 1,
                 onFailure: { error in engine.value?.handleWriteFailure(error, track: .mic) }
             )
-            let remotePackets = remoteFallback == nil ? [] : self.remotePreRoll.drain()
+            // Drained whenever the session captures the far end, so a ring left
+            // behind by a tap with no usable format now is not flushed later,
+            // out of order.
+            let remotePackets = capturesRemote ? self.remotePreRoll.drain() : []
             var remoteWriter: SegmentWriter?
-            if let remoteFallback {
+            if let remoteFormat = Self.openingFormat(of: remotePackets) ?? remoteFallback {
                 remoteWriter = SegmentWriter(
                     track: .remote, layout: layout, manifest: manifest,
-                    format: Self.openingFormat(of: remotePackets) ?? remoteFallback,
+                    format: remoteFormat,
                     segmentSeconds: self.segmentSeconds, clock: self.clock,
                     firstSegmentIndex: remoteBase + 1,
                     onFailure: { error in engine.value?.handleWriteFailure(error, track: .remote) }
