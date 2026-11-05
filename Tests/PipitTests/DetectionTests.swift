@@ -466,6 +466,111 @@ struct BrowserMeetingDetectorTests {
         #expect(back.meetingID == "hzc-josd-epv")
     }
 
+    @Test("a call in a background tab stays a meeting while the browser keeps the microphone")
+    func aCallInABackgroundTabStaysAMeeting() async throws {
+        var detector = BrowserMeetingDetector()
+        var now = 100.0
+        let onCall = BrowserMeetingDetector.NativeSignals(
+            browserHoldsMicrophone: true, browserProducesOutput: true,
+            windowTitles: ["Meet - hzc-josd-epv"]
+        )
+        _ = detector.update(native: onCall, at: now)
+        now += 25
+        #expect(detector.update(native: onCall, at: now).confidence == .confirmed)
+
+        // The person switches to another tab in the same window. The window
+        // title is now that tab's, and the call keeps the microphone open.
+        let otherTab = BrowserMeetingDetector.NativeSignals(
+            browserHoldsMicrophone: true, browserProducesOutput: true,
+            windowTitles: ["Quarterly plan - Docs"]
+        )
+        for _ in 0..<300 {
+            now += 1
+            let evidence = detector.update(native: otherTab, at: now)
+            #expect(evidence.confidence == .confirmed)
+            #expect(evidence.provider == .googleMeet)
+        }
+    }
+
+    @Test("a refresh in a background tab does not end the call")
+    func aRefreshInABackgroundTabDoesNotEndTheCall() async throws {
+        var detector = BrowserMeetingDetector()
+        var now = 100.0
+        _ = detector.update(
+            native: .init(
+                browserHoldsMicrophone: true, browserProducesOutput: true,
+                windowTitles: ["Meet - hzc-josd-epv"]
+            ),
+            at: now
+        )
+        let otherTab = BrowserMeetingDetector.NativeSignals(
+            browserHoldsMicrophone: true, browserProducesOutput: true,
+            windowTitles: ["Quarterly plan - Docs"]
+        )
+        now += 200
+        #expect(detector.update(native: otherTab, at: now).confidence == .confirmed)
+
+        let dropped = BrowserMeetingDetector.NativeSignals(
+            browserHoldsMicrophone: false, browserProducesOutput: true,
+            windowTitles: ["Quarterly plan - Docs"]
+        )
+        now += 0.5
+        #expect(detector.update(native: dropped, at: now).confidence == .candidate)
+        now += 1.5
+        #expect(detector.update(native: otherTab, at: now).provider == .googleMeet)
+        now += 25
+        #expect(detector.update(native: otherTab, at: now).confidence == .confirmed)
+    }
+
+    @Test("a background call ends when the browser lets go of the microphone")
+    func aBackgroundCallEndsWhenTheMicrophoneIsReleased() async throws {
+        var detector = BrowserMeetingDetector()
+        var now = 100.0
+        _ = detector.update(
+            native: .init(
+                browserHoldsMicrophone: true, browserProducesOutput: true,
+                windowTitles: ["Meet - hzc-josd-epv"]
+            ),
+            at: now
+        )
+        now += 25
+        let otherTab = BrowserMeetingDetector.NativeSignals(
+            browserHoldsMicrophone: true, browserProducesOutput: true,
+            windowTitles: ["Quarterly plan - Docs"]
+        )
+        now += 200
+        #expect(detector.update(native: otherTab, at: now).confidence == .confirmed)
+
+        // Leaving the call releases the microphone. Past the refresh grace the
+        // title remembered from minutes ago no longer stands for anything.
+        let left = BrowserMeetingDetector.NativeSignals(
+            browserHoldsMicrophone: false, browserProducesOutput: false,
+            windowTitles: ["Quarterly plan - Docs"]
+        )
+        _ = detector.update(native: left, at: now + 1)
+        #expect(detector.update(native: left, at: now + 15).confidence == .none)
+    }
+
+    @Test("a meeting title seen without the microphone is forgotten")
+    func aTitleSeenWithoutTheMicrophoneIsForgotten() async throws {
+        var detector = BrowserMeetingDetector()
+        // A Meet tab that was looked at but never joined.
+        _ = detector.update(
+            native: .init(
+                browserHoldsMicrophone: false, browserProducesOutput: false,
+                windowTitles: ["Meet - hzc-josd-epv"]
+            ),
+            at: 100
+        )
+        // The microphone opens minutes later for something else entirely.
+        let elsewhere = BrowserMeetingDetector.NativeSignals(
+            browserHoldsMicrophone: true, browserProducesOutput: true,
+            windowTitles: ["Voice memo - Recorder"]
+        )
+        _ = detector.update(native: elsewhere, at: 300)
+        #expect(detector.update(native: elsewhere, at: 330).confidence == .none)
+    }
+
     @Test("a provider's own tab title decoration comes off the meeting name")
     func aProviderSOwnTabTitleDecorationComesOffTheMeetingName() async throws {
         #expect(BrowserWindowTitle.meetingName("Meet - Northwind Daily") == "Northwind Daily")

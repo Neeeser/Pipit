@@ -196,6 +196,9 @@ public struct BrowserMeetingDetector: Sendable {
     private var micReleasedSince: Double?
     private var lastNativeParse: BrowserWindowTitle.Parsed?
     private var lastNativeParseAt: Double?
+    /// The microphone was open when the remembered title was last seen and has
+    /// not been released for longer than the refresh grace since.
+    private var titleHeldByMicrophone = false
 
     public init(
         browser: BrowserKind = .firefox,
@@ -234,11 +237,23 @@ public struct BrowserMeetingDetector: Sendable {
             .sorted { lhs, _ in !lhs.isLanding }
             .first
 
-        // A window title seen minutes ago is not evidence of a meeting now.
+        // A window title seen minutes ago is not evidence of a meeting now,
+        // unless the browser has held the microphone without a break since it
+        // was seen. A window's title is its front tab's, so a call left running
+        // in a background tab shows no title at all; the unbroken microphone is
+        // what still ties the browser to that call. A video in another tab
+        // plays sound but never opens the microphone, and leaving the call
+        // releases it. A release shorter than the refresh grace is not a break.
         if let parsed {
             lastNativeParse = parsed
             lastNativeParseAt = now
-        } else if let seenAt = lastNativeParseAt, now - seenAt > configuration.titleMemorySeconds {
+            titleHeldByMicrophone = signals.browserHoldsMicrophone
+        } else if let releasedAt = micReleasedSince, now - releasedAt >= configuration.nativeEndGraceSeconds {
+            titleHeldByMicrophone = false
+        }
+        if parsed == nil, let seenAt = lastNativeParseAt, now - seenAt > configuration.titleMemorySeconds,
+            !titleHeldByMicrophone
+        {
             lastNativeParse = nil
             lastNativeParseAt = nil
         }

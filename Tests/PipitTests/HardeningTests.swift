@@ -945,8 +945,17 @@ struct DetectionHardeningTests {
         now += 25
         #expect(detector.update(native: withMeeting, at: now).confidence == .confirmed)
 
-        // The meeting tab is closed but the browser keeps using the
-        // microphone for something else.
+        // The meeting tab is closed, which releases the microphone, and the
+        // browser opens it again later for something else. A tab closed while
+        // another tab already held the microphone looks the same as a call in a
+        // background tab from outside the browser, and is kept on purpose.
+        let closed = BrowserMeetingDetector.NativeSignals(
+            browserHoldsMicrophone: false, browserProducesOutput: false, windowTitles: []
+        )
+        now += 1
+        _ = detector.update(native: closed, at: now)
+        now += 20
+        _ = detector.update(native: closed, at: now)
         let noTitles = BrowserMeetingDetector.NativeSignals(
             browserHoldsMicrophone: true, browserProducesOutput: true, windowTitles: []
         )
