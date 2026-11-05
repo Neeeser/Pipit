@@ -69,6 +69,10 @@ public actor ProcessingPipeline {
     private let chunking: ChunkPlanner.Configuration
 
     private var running: Set<String> = []
+    /// Meetings whose current attempt has already received a paid response. An
+    /// unrecognised error after one repeats the same result, since trying again
+    /// sends the request again and pays again.
+    private var paidResponses: Set<String> = []
     /// Meetings whose folders left the archive while a job was running, and
     /// when they left.
     ///
@@ -266,6 +270,7 @@ public actor ProcessingPipeline {
         await jobLock.acquire()
         var holdsSlot = true
         defer {
+            paidResponses.remove(meetingID)
             running.remove(meetingID)
             releaseFolder(meetingID)
             if holdsSlot { jobLock.release() }
@@ -345,10 +350,20 @@ public actor ProcessingPipeline {
                 // quits during one long transcription use up the attempts that
                 // are meant for failures.
                 let attempt = (runAttempts[stage] ?? 0) + 1
+                paidResponses.remove(metadata.id)
                 // A failed meeting the launch sweep starts again stops reading
                 // as failed while it runs, so the pane shows progress and not
                 // last time's "will try again next time it opens".
                 if metadata.processing.state == .failed {
+                    // A failure stored before causes were kept counted every
+                    // kind, so a count left by an outage would make the first
+                    // online attempt look like the last. Forgotten once here;
+                    // a failure with a recorded cause only counts repeats.
+                    if let failure = metadata.processing.lastFailure, failure.cause == nil,
+                        !failure.effectiveCause.isCappedAtLaunch
+                    {
+                        metadata.processing.clearAttempts(for: stage)
+                    }
                     metadata.processing.advance(to: stage, at: clock.now)
                 }
                 try persist(metadata, to: store)
@@ -437,7 +452,8 @@ public actor ProcessingPipeline {
                     session: session, job: job
                 )
             } catch {
-                let failure = Self.processingError(from: error, stage: stage)
+                let failure = Self.processingError(
+                    from: error, afterPaidResponse: paidResponses.contains(metadata.id))
                 let attempts = (runAttempts[stage] ?? 0) + 1
                 runAttempts[stage] = attempts
                 // Only a failure that repeats counts toward the cap. Waiting
@@ -729,6 +745,10 @@ public actor ProcessingPipeline {
         }
         let index = min(max(attempt - 1, 0), Self.retryDelaysSeconds.count - 1)
         return Self.retryDelaysSeconds[index]
+    }
+
+    private func notePaidResponse(_ meetingID: String) {
+        paidResponses.insert(meetingID)
     }
 
     /// Retries a failed meeting from the stage that failed.
@@ -1249,8 +1269,9 @@ public actor ProcessingPipeline {
                     // A local engine is one process on one Neural Engine, so
                     // its chunks go one at a time; the cloud takes three.
                     concurrency: transcriber.isLocal ? 1 : nil
-                ) { url, _ in
+                ) { [meetingID = metadata.id] url, _ in
                     let output = try await transcriber.transcribe(audio: url, progress: { _ in })
+                    if !transcriber.isLocal { await self.notePaidResponse(meetingID) }
                     return output
                 }
             } else {
@@ -1420,6 +1441,7 @@ public actor ProcessingPipeline {
                     title: title, fraction: fraction, detail: nil
                 ))
         }
+        if !backend.isLocal { notePaidResponse(meetingID) }
 
         let textOnly = output.segments.isEmpty && !output.text.isEmpty
         try Self.requireTranscribedOrSilent(
@@ -1643,8 +1665,9 @@ public actor ProcessingPipeline {
         try await runChunks(
             store: store, metadata: &metadata, track: track, location: location,
             model: backend.identifier, purpose: purpose
-        ) { url, _ in
+        ) { [meetingID = metadata.id] url, _ in
             let output = try await backend.diarize(audio: url, progress: { _ in })
+            if !backend.isLocal { await self.notePaidResponse(meetingID) }
             return TranscriptionOutput(
                 segments: output.segments, text: "", rawBody: output.rawBody
             )
@@ -1725,6 +1748,7 @@ public actor ProcessingPipeline {
                     title: title, fraction: fraction, detail: nil
                 ))
         }
+        if !backend.isLocal { notePaidResponse(meetingID) }
 
         let leadIn = timeline.leadIn(track: track)
         let runID = diarization.nextRunID(track: track)
@@ -2991,6 +3015,7 @@ public actor ProcessingPipeline {
             ),
             model: settings.models.metadata
         )
+        notePaidResponse(metadata.id)
 
         // Dismissals are the user's, so a re-run keeps them rather than
         // offering a name they have already turned down.
@@ -3098,6 +3123,7 @@ public actor ProcessingPipeline {
             )
         else { return }
         let enrichment = try await reasoner.enrich(request, model: settings.models.metadata)
+        notePaidResponse(metadata.id)
         pendingFolderCandidates[metadata.id] = enrichment.folderCandidates
 
         // A human title always wins; the AI title only fills an empty slot.
@@ -4346,7 +4372,7 @@ public actor ProcessingPipeline {
     /// was told Pipit could not reach a service they never configured, and a
     /// deterministic local failure was retried three times with backoff.
     public static func processingError(
-        from error: any Error, stage: ProcessingState? = nil
+        from error: any Error, afterPaidResponse: Bool = false
     ) -> ProcessingError {
         if let processing = error as? ProcessingError { return processing }
         if error is CancellationError { return .cancelled }
@@ -4377,15 +4403,15 @@ public actor ProcessingPipeline {
         //
         // Every cloud failure is a ProcessingError by now, so what reaches
         // here is local work (a storage write, a model), which costs nothing to
-        // run again, and the next launch tries it. Enriching is the exception:
-        // its paid request has been sent by the time a write after it fails,
-        // so another launch would send it again and pay again.
+        // run again, and the next launch tries it. Not after a paid response in
+        // the same attempt: another launch would send the request again and
+        // pay again, so the failure counts as a repeat.
         Log.processing.error(
             "unrecognised processing failure: \(logSafeDescription(error), privacy: .public)"
         )
         return .localProcessingFailed(
             reason: "Processing this meeting on this Mac failed.", retryable: true,
-            cause: stage == .enriching ? .sameResultEachTime : .clearsByWaiting
+            cause: afterPaidResponse ? .sameResultEachTime : .clearsByWaiting
         )
     }
 

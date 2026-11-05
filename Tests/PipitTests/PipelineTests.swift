@@ -1126,27 +1126,96 @@ struct PipelineTests {
         #expect(backend.calls.count == afterSix, "no request is sent once three repeats are counted")
     }
 
-    @Test("an unrecognised failure while enriching is capped, since its paid request was sent")
-    func anUnrecognisedFailureWhileEnrichingIsCapped() async throws {
+    /// Runs a meeting to the enriching stage and makes its folder read-only as
+    /// that stage is about to start, so the writes after the stage's work fail
+    /// with an error the pipeline has no mapping for. Returns the failure the
+    /// pipeline reported when it gave up.
+    private func runWithReadOnlyFolderAtEnriching(
+        enrichment: Bool
+    ) async throws -> (failure: ProcessingFailure?, backend: FakeAIBackend) {
         let root = try TestPaths.makeTemporaryDirectory()
-        defer { try? FileManager.default.removeItem(at: root) }
         let meeting = try PipelineFixtures.makeRecordedMeeting(root: root)
         let backend = FakeAIBackend()
         backend.transcriptionSegments = Self.sweepRecording
         backend.diarizationSegments = Self.sweepDiarization
-        backend.failEnrichmentUnrecognised = ProcessingPipelineTestsUnknownError()
+        var settings = AppSettings()
+        if !enrichment {
+            settings.enrichment = EnrichmentSettings(
+                generateTitle: false, generateDescription: false, generateNotes: false,
+                generateSummary: false, suggestSpeakers: false)
+        }
+        let chosen = settings
+        let repository = meeting.repository
+        let meetingID = meeting.metadata.id
+        let reported = Mutex<ProcessingFailure?>(nil)
+        let folder = Mutex<URL?>(nil)
+        let pipeline = ProcessingPipeline(
+            repository: repository, backend: backend, clock: ManualClock(),
+            settingsProvider: { chosen },
+            onProgress: { progress in
+                // The report that ends the previous stage already says
+                // enriching. The folder is found again, since stages move it.
+                guard progress.state == .enriching, folder.withLock({ $0 }) == nil,
+                    let found = repository.findMeeting(id: meetingID)
+                else { return }
+                folder.withLock { $0 = found.store.layout.root }
+                try? FileManager.default.setAttributes(
+                    [.posixPermissions: 0o555], ofItemAtPath: found.store.layout.root.path)
+            },
+            onFailure: { _, failure in reported.withLock { $0 = failure } },
+            wait: { _ in }
+        )
+        await pipeline.process(meetingID: meetingID)
+        if let locked = folder.withLock({ $0 }) {
+            try? FileManager.default.setAttributes(
+                [.posixPermissions: 0o755], ofItemAtPath: locked.path)
+        }
+        defer { try? FileManager.default.removeItem(at: root) }
+        return (reported.withLock { $0 }, backend)
+    }
+
+    @Test("a write that fails after a paid response repeats, so it is capped")
+    func aWriteThatFailsAfterAPaidResponseRepeatsSoItIsCapped() async throws {
+        let (failure, backend) = try await runWithReadOnlyFolderAtEnriching(enrichment: true)
+        #expect(failure?.stage == .enriching)
+        #expect(failure?.cause == .sameResultEachTime)
+        #expect(backend.calls.contains { $0.kind == "enrich" }, "the paid request was sent")
+    }
+
+    @Test("the same write failing with nothing sent is tried again at launch")
+    func theSameWriteFailingWithNothingSentIsTriedAgainAtLaunch() async throws {
+        let (failure, backend) = try await runWithReadOnlyFolderAtEnriching(enrichment: false)
+        #expect(backend.calls.filter { $0.kind == "enrich" }.isEmpty, "enrichment is off, so nothing was sent")
+        #expect(failure?.stage == .enriching)
+        #expect(failure?.cause == .clearsByWaiting)
+    }
+
+    @Test("a count left by an outage in an older build is forgotten before the first online attempt")
+    func aCountLeftByAnOutageInAnOlderBuildIsForgotten() async throws {
+        let root = try TestPaths.makeTemporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let meeting = try PipelineFixtures.makeRecordedMeeting(root: root)
+        _ = try meeting.store.updateMetadata {
+            $0.processing.advance(to: .transcribing, at: Date(timeIntervalSince1970: 1_787_090_000))
+            $0.processing.attempts[ProcessingState.transcribing.rawValue] = 5
+            // No cause: how an older build stored an offline failure.
+            $0.processing.recordFailure(
+                ProcessingFailure(
+                    stage: .transcribing, message: "x", isRetryable: true,
+                    occurredAt: Date(timeIntervalSince1970: 1_787_090_100),
+                    code: DiagnosticCode(checked: "processing.transport")),
+                at: Date(timeIntervalSince1970: 1_787_090_100))
+        }
+        let backend = FakeAIBackend()
+        backend.alwaysFailTranscription = .degenerateTranscript(chunk: "c")
         let pipeline = PipelineFixtures.makePipeline(repository: meeting.repository, backend: backend)
-        await pipeline.process(meetingID: meeting.metadata.id)
-
-        let status = try meeting.store.readMetadata().processing
-        #expect(status.state == .failed)
-        #expect(status.resumeStage == .enriching)
-        #expect(status.lastFailure?.effectiveCause == .sameResultEachTime)
-        #expect(status.isOutOfAttempts)
-
-        let sent = backend.calls.filter { $0.kind == "enrich" }.count
         await pipeline.resumeInterrupted()
-        #expect(backend.calls.filter { $0.kind == "enrich" }.count == sent, "and not sent again at launch")
+
+        #expect(
+            try meeting.store.readMetadata().processing.attemptCount(for: .transcribing)
+                == Self.attemptsPerStageForLaunchSweep,
+            "three attempts at the looping transcript, not one on top of the old count"
+        )
     }
 
     @Test("Try again anyway gives the stage its attempts again")
@@ -1186,8 +1255,10 @@ struct PipelineTests {
     @Test("an unrecognised error is free to repeat except where a paid request came first")
     func anUnrecognisedErrorIsFreeToRepeatExceptWhereAPaidRequestCameFirst() {
         let unknown = ProcessingPipelineTestsUnknownError()
-        #expect(ProcessingPipeline.processingError(from: unknown, stage: .transcribing).cause == .clearsByWaiting)
-        #expect(ProcessingPipeline.processingError(from: unknown, stage: .enriching).cause == .sameResultEachTime)
+        #expect(ProcessingPipeline.processingError(from: unknown).cause == .clearsByWaiting)
+        #expect(
+            ProcessingPipeline.processingError(from: unknown, afterPaidResponse: true).cause
+                == .sameResultEachTime)
     }
 
     @Test("a refused request says what Pipit does before what the person can do")

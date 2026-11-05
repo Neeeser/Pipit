@@ -21,10 +21,20 @@ public final class SetupModel {
         case verified
         /// OpenAI answered and refused the key. No amount of retrying helps.
         case rejected(String)
-        /// The key was not shown to be wrong: the request never got an answer,
-        /// or the model it checked against is not there. The key may be
-        /// perfectly good, so setup can go on.
+        /// The request never got an answer. The key may be perfectly good.
         case unreachable(String)
+        /// OpenAI answered, but not for the model the check asked about. The
+        /// key was not shown to be wrong, so setup can go on.
+        case modelMissing(String)
+
+        /// The line under "Continue anyway", worded from what the check found.
+        /// Nil where the state's own message already says everything.
+        public var unverifiedCaption: String? {
+            switch self {
+            case .unreachable: "OpenAI could not be reached. Try again."
+            case .modelMissing, .absent, .checking, .verified, .rejected: nil
+            }
+        }
     }
 
     public var current: SetupStepID = .welcome
@@ -234,8 +244,10 @@ public final class SetupModel {
     /// wrong now and will be wrong at the first meeting, so there is nothing to
     /// wave through.
     public var mayAcceptUnverifiedKey: Bool {
-        if case .unreachable = keyState { return true }
-        return false
+        switch keyState {
+        case .unreachable, .modelMissing: true
+        case .absent, .checking, .verified, .rejected: false
+        }
     }
 
     public func acceptUnverifiedKey() {
@@ -323,7 +335,7 @@ public final class SetupModel {
     /// model is missing, and the meeting models can be chosen later in Settings.
     public nonisolated static func keyState(after error: ProcessingError) -> KeyState {
         if case .languageModel(let provider, .modelNotFound) = error {
-            return .unreachable(LanguageModelFailure.modelNotFound.statement(provider: provider) + ".")
+            return .modelMissing(LanguageModelFailure.modelNotFound.statement(provider: provider) + ".")
         }
         return error.isRetryable ? .unreachable(error.userMessage) : .rejected(error.userMessage)
     }
