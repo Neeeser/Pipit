@@ -363,7 +363,8 @@ Built by `DiagnosticSnapshot` (PipitCore) from values `DiagnosticReportCollector
 - `summary.recentFailures`: the ten newest failures still standing on
   meetings: `stage`, `code` (the DiagnosticCode recorded with the failure, or
   `unknown` for one recorded before codes were kept), `retryable`
-  (whether that run tried the stage again), `cause` (`same_result`, `settings`
+  (whether this kind of failure is retried within a run; the failure
+  shown stopped that run, so it is the kind's property, not a promise), `cause` (`same_result`, `settings`
   or `waiting`: what another attempt would change), `attempts` (failed attempts
   at that stage, not counting a run a quit interrupted), and `at`. Only a
   `same_result` failure with 3 or more attempts has used them all and waits for

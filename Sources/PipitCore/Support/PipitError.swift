@@ -215,6 +215,8 @@ public enum ProcessingError: LogSafeError, Equatable {
         if let outcome, cause != .fixedInSettings, !isNeverStored {
             parts.append(outcome.sentence(advice: stoppedAdvice))
         }
+        // After the outcome, so the advice reads as what to do about it.
+        if let nextStep { parts.append(nextStep) }
         if reassuresAboutAudio { parts.append("Your recording is safe.") }
         return parts.joined(separator: " ")
     }
@@ -261,8 +263,13 @@ public enum ProcessingError: LogSafeError, Equatable {
             "That line has moved since the transcript was last analysed. Reopen the meeting and try again."
         case .cancelled: "Processing was cancelled."
         case .localProcessingFailed(let reason, _, _): reason
-        case .languageModel(let provider, let failure): failure.advice(provider: provider)
+        case .languageModel(let provider, let failure): failure.statement(provider: provider) + "."
         }
+    }
+
+    private var nextStep: String? {
+        if case .languageModel(_, let failure) = self { return failure.nextStep }
+        return nil
     }
 }
 
@@ -342,14 +349,18 @@ public enum LanguageModelFailure: Equatable, Sendable {
         }
     }
 
+    /// What the person can do about it, where there is something.
+    public var nextStep: String? {
+        switch self {
+        case .modelNotFound: "Choose another in Settings."
+        case .rejected: "Try another model in Settings."
+        case .unreachable, .rateLimited, .serverError, .authenticationFailed, .unexpectedResponse: nil
+        }
+    }
+
     /// The statement and what to do about it, with nothing on what happens next.
     public func advice(provider: String) -> String {
-        let what = statement(provider: provider)
-        switch self {
-        case .modelNotFound: return "\(what). Choose another in Settings."
-        case .rejected: return "\(what). Try another model in Settings."
-        case .unreachable, .rateLimited, .serverError, .authenticationFailed, .unexpectedResponse:
-            return "\(what)."
-        }
+        let what = statement(provider: provider) + "."
+        return nextStep.map { "\(what) \($0)" } ?? what
     }
 }

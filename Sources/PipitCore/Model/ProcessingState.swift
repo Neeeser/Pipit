@@ -92,8 +92,10 @@ public enum FailureCause: String, Codable, Sendable, Equatable {
     public var isCappedAtLaunch: Bool { self == .sameResultEachTime }
 
     /// The cause of a failure stored before causes were recorded, read from its
-    /// code. Anything unrecognised that was not retryable is treated as a
-    /// Settings fix, which is how the sweep always handled it.
+    /// code. The codes that repeat are listed. Any other code that was retryable
+    /// is read as local work, which an older build filed under whatever error
+    /// came up, and anything not retryable as a Settings fix, which is how the
+    /// sweep always handled it.
     init(code: DiagnosticCode?, isRetryable: Bool) {
         let raw = code?.rawValue ?? ""
         func matches(_ family: [String]) -> Bool {
@@ -106,7 +108,7 @@ public enum FailureCause: String, Codable, Sendable, Equatable {
         } else if matches(Self.legacySameResult) {
             self = .sameResultEachTime
         } else {
-            self = isRetryable ? .sameResultEachTime : .fixedInSettings
+            self = isRetryable ? .clearsByWaiting : .fixedInSettings
         }
     }
 
@@ -281,7 +283,9 @@ public struct ProcessingStatus: Codable, Sendable, Equatable {
     /// cause and the count. A newer one was worded when it was recorded.
     public var failureMessage: String? {
         guard let failure = lastFailure else { return nil }
-        guard failure.cause == nil else { return failure.message }
+        // A refused import is worded for the person already, and nothing starts
+        // it again: the file has to be imported again.
+        guard failure.cause == nil, failure.stage != .finalizing else { return failure.message }
         var message = failure.message
         for stale in [" Pipit will retry.", " It will retry."] {
             message = message.replacingOccurrences(of: stale, with: "")

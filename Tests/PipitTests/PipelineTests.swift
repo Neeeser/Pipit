@@ -897,7 +897,7 @@ struct PipelineTests {
         for error in waiting { #expect(error.cause == .clearsByWaiting, "\(error)") }
     }
 
-    @Test("the failure outcome says what happens next and fits the two-line caption")
+    @Test("the failure outcome says what happens next, and the longest message fits the caption length")
     func theFailureOutcomeSaysWhatHappensNextAndFitsTheTwoLineCaption() {
         let every: [ProcessingError] = [
             .rateLimited(retryAfter: nil), .serverError(status: 503), .transport(reason: "offline"),
@@ -1044,7 +1044,10 @@ struct PipelineTests {
                 occurredAt: Date(timeIntervalSince1970: 1), code: DiagnosticCode(checked: code))
             #expect(failure.effectiveCause == .sameResultEachTime, Comment(rawValue: code))
         }
-        for code in ["net.NSURLErrorDomain.-1009", "processing.local_failed"] {
+        for code in [
+            "net.NSURLErrorDomain.-1009", "processing.local_failed", "storage.file_write_failed",
+            "error.NSCocoaErrorDomain.640",
+        ] {
             let failure = ProcessingFailure(
                 stage: .transcribing, message: "x", isRetryable: true,
                 occurredAt: Date(timeIntervalSince1970: 1), code: DiagnosticCode(checked: code))
@@ -1070,6 +1073,81 @@ struct PipelineTests {
         #expect(
             try DiagnosticCoding.makeDecoder().decode(ProcessingFailure.self, from: Data(known.utf8)).cause
                 == .clearsByWaiting)
+    }
+
+    @Test("each cause gets its own attempts, so offline launches do not use up a repeating failure's")
+    func eachCauseGetsItsOwnAttempts() async throws {
+        let root = try TestPaths.makeTemporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let meeting = try PipelineFixtures.makeRecordedMeeting(root: root)
+        try Self.markFailed(
+            meeting.store, attempts: Self.attemptsPerStageForLaunchSweep, cause: .clearsByWaiting)
+
+        let backend = FakeAIBackend()
+        backend.alwaysFailTranscription = .degenerateTranscript(chunk: "c")
+        let pipeline = PipelineFixtures.makePipeline(repository: meeting.repository, backend: backend)
+        await pipeline.resumeInterrupted()
+
+        let status = try meeting.store.readMetadata().processing
+        #expect(
+            status.attemptCount(for: .transcribing) == Self.attemptsPerStageForLaunchSweep,
+            "three attempts at the looping transcript, not one after three offline ones"
+        )
+        #expect(status.lastFailure?.message.contains("stopped retrying") == true)
+    }
+
+    @Test("Try again anyway gives the stage its attempts again")
+    func tryAgainAnywayGivesTheStageItsAttemptsAgain() async throws {
+        let root = try TestPaths.makeTemporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let meeting = try PipelineFixtures.makeRecordedMeeting(root: root)
+        try Self.markFailed(
+            meeting.store, attempts: Self.attemptsPerStageForLaunchSweep, cause: .sameResultEachTime)
+
+        let backend = FakeAIBackend()
+        backend.alwaysFailTranscription = .degenerateTranscript(chunk: "c")
+        let pipeline = PipelineFixtures.makePipeline(repository: meeting.repository, backend: backend)
+        try await pipeline.retry(meetingID: meeting.metadata.id)
+
+        let status = try meeting.store.readMetadata().processing
+        #expect(
+            status.attemptCount(for: .transcribing) == Self.attemptsPerStageForLaunchSweep,
+            "three attempts of its own, then it caps again"
+        )
+        #expect(status.isOutOfAttempts)
+    }
+
+    @Test("a refused import keeps its own wording, whatever build stored it")
+    func aRefusedImportKeepsItsOwnWording() {
+        var status = ProcessingStatus(state: .finalizing)
+        status.recordFailure(
+            ProcessingFailure(
+                stage: .finalizing,
+                message: "The imported file could not be read to the end. Import it again. Your recording is safe.",
+                isRetryable: false, occurredAt: Date(timeIntervalSince1970: 1),
+                code: DiagnosticCode(checked: "processing.local_failed")),
+            at: Date(timeIntervalSince1970: 1))
+        #expect(status.failureMessage == status.lastFailure?.message)
+    }
+
+    @Test("an unrecognised error is free to repeat except where a paid request came first")
+    func anUnrecognisedErrorIsFreeToRepeatExceptWhereAPaidRequestCameFirst() {
+        let unknown = ProcessingPipelineTestsUnknownError()
+        #expect(ProcessingPipeline.processingError(from: unknown, stage: .transcribing).cause == .clearsByWaiting)
+        #expect(ProcessingPipeline.processingError(from: unknown, stage: .enriching).cause == .sameResultEachTime)
+    }
+
+    @Test("a refused request says what Pipit does before what the person can do")
+    func aRefusedRequestSaysWhatPipitDoesBeforeWhatThePersonCanDo() {
+        let refused = ProcessingError.languageModel(provider: "Ollama", failure: .rejected(status: 400))
+        for outcome in [FailureOutcome.retryAtLaunch, .stopped] {
+            let message = refused.message(outcome: outcome)
+            let outcomeAt = message.range(of: outcome == .stopped ? "stopped retrying" : "next time it opens")
+            let adviceAt = message.range(of: "Try another model in Settings.")
+            #expect(
+                outcomeAt != nil && adviceAt != nil && outcomeAt!.lowerBound < adviceAt!.lowerBound,
+                Comment(rawValue: message))
+        }
     }
 
     @Test("an authentication failure is not retried in a loop")
@@ -1758,6 +1836,6 @@ private final class ConcurrencyProbeBackend: AIBackend, @unchecked Sendable {
     }
 }
 
-/// An error the pipeline has no mapping for, which it files as a failure on
-/// this Mac that another attempt repeats.
+/// An error the pipeline has no mapping for, which it files as a failure of
+/// local work that costs nothing to run again.
 private struct ProcessingPipelineTestsUnknownError: Error {}

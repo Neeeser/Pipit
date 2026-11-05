@@ -779,9 +779,10 @@ public enum LocalModelError: LocalProcessingFailure, DiagnosticCodeProviding, Cu
         }
     }
 
-    /// None clear by waiting: a download, a readable recording or a different
-    /// transcript is what changes the outcome. Retrying the stage would only
-    /// repeat the failure.
+    /// Not retried within a run: a download that failed needs the connection
+    /// back, a readable recording or a different transcript is what changes the
+    /// outcome, and retrying straight away would only repeat the failure. A
+    /// later launch can still succeed where the install failed (see `cause`).
     public var isRetryable: Bool { false }
 
     /// Installing the models is the fix, and so is a connection that was down

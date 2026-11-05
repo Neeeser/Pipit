@@ -343,6 +343,12 @@ public actor ProcessingPipeline {
                 // as failed while it runs, so the pane shows progress and not
                 // last time's "will try again next time it opens".
                 if metadata.processing.state == .failed {
+                    // Each cause gets its own attempts. Three offline failures
+                    // say nothing about a transcript that loops, and carrying
+                    // them over stopped a meeting after one repeat.
+                    if metadata.processing.lastFailure?.effectiveCause.isCappedAtLaunch != true {
+                        metadata.processing.clearAttempts(for: stage)
+                    }
                     metadata.processing.advance(to: stage, at: clock.now)
                 }
                 try persist(metadata, to: store)
@@ -430,7 +436,7 @@ public actor ProcessingPipeline {
                     session: session, job: job
                 )
             } catch {
-                let failure = Self.processingError(from: error)
+                let failure = Self.processingError(from: error, stage: stage)
                 metadata.processing.recordAttempt(for: stage)
                 let attempts = metadata.processing.attemptCount(for: stage)
                 // Coded from the error as thrown. Categorising it first would
@@ -745,9 +751,12 @@ public actor ProcessingPipeline {
         if metadata.source == .imported, stage == .finalizing {
             throw ProcessingError.localProcessingFailed(
                 reason: "The imported file could not be read to the end. Import it again.",
-                retryable: false
+                retryable: false, cause: .sameResultEachTime
             )
         }
+        // The person asked, so the stage gets its attempts again. Past the cap
+        // it had one, and a failure that repeats stopped after a single try.
+        metadata.processing.clearAttempts(for: stage)
         metadata.processing.advance(to: stage, at: clock.now)
         try? persist(metadata, to: found.store)
         await process(meetingID: meetingID)
@@ -4331,7 +4340,9 @@ public actor ProcessingPipeline {
     /// OpenAI and whose retryable flag is true. A fully local user with no key
     /// was told Pipit could not reach a service they never configured, and a
     /// deterministic local failure was retried three times with backoff.
-    public static func processingError(from error: any Error) -> ProcessingError {
+    public static func processingError(
+        from error: any Error, stage: ProcessingState? = nil
+    ) -> ProcessingError {
         if let processing = error as? ProcessingError { return processing }
         if error is CancellationError { return .cancelled }
         if let local = error as? any LocalProcessingFailure {
@@ -4360,14 +4371,16 @@ public actor ProcessingPipeline {
         // failed, and there is nothing to work from.
         //
         // Every cloud failure is a ProcessingError by now, so what reaches
-        // here ran on this Mac (a storage write, a model) and costs nothing to
-        // run again. The default cause for local work is waiting, which keeps
-        // the next launch trying it.
+        // here is local work (a storage write, a model), which costs nothing to
+        // run again, and the next launch tries it. Enriching is the exception:
+        // its paid request has been sent by the time a write after it fails,
+        // so another launch would send it again and pay again.
         Log.processing.error(
             "unrecognised processing failure: \(logSafeDescription(error), privacy: .public)"
         )
         return .localProcessingFailed(
-            reason: "Processing this meeting on this Mac failed.", retryable: true
+            reason: "Processing this meeting on this Mac failed.", retryable: true,
+            cause: stage == .enriching ? .sameResultEachTime : .clearsByWaiting
         )
     }
 

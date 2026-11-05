@@ -22,7 +22,8 @@ struct LanguageModelTransport: Sendable {
             throw failure(.unreachable)
         }
         guard let http = response as? HTTPURLResponse else {
-            throw failure(.unexpectedResponse)
+            // No reply at all is the connection's fault, as in OpenAIClient.
+            throw failure(.unreachable)
         }
         switch http.statusCode {
         case 200..<300:

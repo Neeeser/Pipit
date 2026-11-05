@@ -1015,7 +1015,9 @@ public final class PipitRuntime {
                 isRetryable: false,
                 occurredAt: clock.now,
                 code: DiagnosticCode(describing: error),
-                cause: failure.cause
+                // Neither is started again by the launch sweep: the file has
+                // to be imported again.
+                cause: .sameResultEachTime
             ),
             at: clock.now
         )
@@ -1071,7 +1073,9 @@ public final class PipitRuntime {
                 isRetryable: false,
                 occurredAt: clock.now,
                 code: DiagnosticCode(describing: error),
-                cause: failure.cause
+                // Neither is started again by the launch sweep: the file has
+                // to be imported again.
+                cause: .sameResultEachTime
             ),
             at: clock.now
         )
