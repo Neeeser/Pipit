@@ -542,4 +542,96 @@ struct MeetingTrimPipelineTests {
         }
         #expect(store.readPendingVoiceAdjustments().isEmpty, "it was made first")
     }
+
+    private struct ToneExtractor: SpeakerEmbeddingExtractor {
+        var model: EmbeddingModelIdentifier { .fluidAudioOffline }
+        func embed(audio: URL, intervals: [DiarizationInterval]) async throws -> [DiarizationChunkEmbedding] {
+            intervals.map {
+                DiarizationChunkEmbedding(
+                    clusterID: $0.clusterID, start: $0.start, end: $0.end, vector: SpeakerFixtures.vector(seed: 5))
+            }
+        }
+    }
+
+    /// A minute of one speaker on the far end, as a single line, and a
+    /// pipeline that can learn from a correction made to it.
+    private static func makeCorrectable(
+        root: URL, voices: SpeakerStore, requireModels: (@Sendable () async throws -> Void)? = nil
+    ) throws -> (store: MeetingStore, pipeline: ProcessingPipeline, id: String) {
+        let meeting = try PipelineFixtures.makeRecordedMeeting(root: root, source: .googleMeet, seconds: 60)
+        try meeting.store.writeCanonicalTranscript(
+            CanonicalTranscript(
+                generatedAt: TrimFixtures.started,
+                utterances: [
+                    Utterance(
+                        id: "u1", start: 0, end: 60, track: .remote, rawSpeakerLabel: nil,
+                        speakerKey: "remote-001_speaker_00", text: "hello", chunkID: "c", model: "m")
+                ]))
+        let pipeline = ProcessingPipeline(
+            repository: meeting.repository, backend: FakeAIBackend(),
+            backends: ProcessingBackends(
+                transcription: { _, _ in StubLocalTranscriber(segments: []) },
+                diarization: { _, _ in StubLocalDiarizer(intervals: [], chunkEmbeddings: []) },
+                embeddings: ToneExtractor(), speakers: SpeakerRecognitionService(store: voices),
+                requireLocalModels: requireModels),
+            scratch: ProcessingScratch(root: root.appendingPathComponent("scratch")), clock: ManualClock(),
+            settingsProvider: { AppSettings() }, wait: { _ in })
+        return (meeting.store, pipeline, meeting.metadata.id)
+    }
+
+    private static func writeJournal(_ store: MeetingStore, swapped: Bool, adjusted: Bool) throws {
+        try store.writeTrimJournal(
+            TrimJournal(
+                createdAt: TrimFixtures.started, start: 0, end: nil, swaps: [], removals: [],
+                metadata: TrimMetadataChange(
+                    startedAt: TrimFixtures.started, endedAt: TrimFixtures.started, durationSeconds: 0,
+                    audioArchive: AudioArchive(compactedAt: TrimFixtures.started), cleanedMicrophone: nil,
+                    dropsCleanedMicrophone: false, at: TrimFixtures.started),
+                swapped: swapped, voiceMemoryAdjusted: adjusted))
+    }
+
+    @Test("a correction made once the trim's files are in place still builds the replacement voice")
+    func aCorrectionAfterTheSwapBuildsTheReplacementVoice() async throws {
+        let root = try TestPaths.makeTemporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let (voices, voiceRoot) = try SpeakerFixtures.makeStore()
+        defer { try? FileManager.default.removeItem(at: voiceRoot) }
+        let made = try Self.makeCorrectable(root: root, voices: voices)
+        try Self.writeJournal(made.store, swapped: true, adjusted: true)
+
+        _ = try await made.pipeline.applyUtteranceSpeaker("Speaker A", utteranceIDs: ["u1"], meetingID: made.id)
+
+        let person = try #require(try await voices.identities().first { $0.resolvedName == "Speaker A" })
+        #expect(
+            try await voices.profileStatus(of: person.id, model: .fluidAudioOffline).sampleCount == 1,
+            "the voice was learned from the correction")
+    }
+
+    @Test("an edit holds the folder for as long as it runs")
+    func anEditHoldsTheFolder() async throws {
+        let root = try TestPaths.makeTemporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let (voices, voiceRoot) = try SpeakerFixtures.makeStore()
+        defer { try? FileManager.default.removeItem(at: voiceRoot) }
+        let entered = Gate()
+        let proceed = Gate()
+        let made = try Self.makeCorrectable(
+            root: root, voices: voices,
+            requireModels: {
+                entered.release()
+                await proceed.wait()
+            })
+
+        let editing = Task { [pipeline = made.pipeline, id = made.id] in
+            try? await pipeline.applyUtteranceSpeaker("Speaker A", utteranceIDs: ["u1"], meetingID: id)
+        }
+        await entered.wait()
+        var refused = false
+        do { try await made.pipeline.performFolderChange(involving: [made.id]) { 0 } } catch { refused = true }
+        #expect(refused, "a rename would move the folder under the edit")
+
+        proceed.release()
+        _ = await editing.value
+        try await made.pipeline.performFolderChange(involving: [made.id]) { 0 }
+    }
 }

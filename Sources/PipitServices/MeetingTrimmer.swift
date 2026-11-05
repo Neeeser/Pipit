@@ -191,8 +191,11 @@ public struct MeetingTrimmer: Sendable {
     /// cut stretch, and writes the metadata last, through the store so its
     /// lock is honoured and an edit made meanwhile is kept.
     func finish(_ journal: TrimJournal, store: MeetingStore) throws -> TrimJournal {
-        guard !journal.swapped else { return journal }
         let manager = FileManager.default
+        // The marker a trim leaves while it stages outlives a crash, and with
+        // the swap done it no longer says anything.
+        defer { if journal.swapped { try? manager.removeItem(at: store.layout.trimStaging) } }
+        guard !journal.swapped else { return journal }
         let root = store.layout.root
         for (position, swap) in journal.swaps.enumerated() {
             try beforeSwap?(position)
@@ -234,6 +237,7 @@ public struct MeetingTrimmer: Sendable {
         var done = journal
         done.swapped = true
         try store.writeTrimJournal(done)
+        try? manager.removeItem(at: store.layout.trimStaging)
         return done
     }
 
@@ -427,7 +431,7 @@ public struct MeetingTrimmer: Sendable {
     /// the removed stretch, so it must not stay.
     private func stageMixdown(layout: MeetingLayout, range: TrimRange, staging: inout Staging) {
         guard FileManager.default.fileExists(atPath: layout.recordingAudio.path) else { return }
-        var partial = layout.root.appendingPathComponent("recording.trimming.m4a")
+        let partial = layout.root.appendingPathComponent("recording.trimming.m4a")
         do {
             let info = try inspector.inspect(url: layout.recordingAudio)
             let whole = Double(info.frameCount) / info.sampleRate
@@ -447,7 +451,6 @@ public struct MeetingTrimmer: Sendable {
             let mixdown = TrackArchiveExporter(
                 settings: .init(sampleRate: info.sampleRate, channelCount: info.channelCount, bitRate: 64_000)
             )
-            partial = layout.root.appendingPathComponent("recording.trimming.m4a")
             staging.swaps.append((partial, layout.recordingAudio))
             try mixdown.export(location: location, from: range.start, to: to, destination: partial)
             try verify(partial, seconds: to - range.start, name: "mixdown")

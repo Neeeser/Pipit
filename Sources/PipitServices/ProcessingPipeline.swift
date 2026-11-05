@@ -3284,6 +3284,8 @@ public actor ProcessingPipeline {
         if await !applyPendingVoiceAdjustments(found.store, meetingID: meetingID) {
             throw TrimError.voicePending
         }
+        // Applying them is a wait, and a trim may have started in it.
+        if found.store.trimIsChangingFiles { throw TrimError.inProgress }
     }
 
     /// Whether a trim of this meeting stopped part way and has not been
@@ -3460,6 +3462,10 @@ public actor ProcessingPipeline {
     public func applySpeakerName(
         _ name: String, to key: String, meetingID: String, identityID: IdentityID? = nil
     ) async throws -> IdentityID? {
+        // The folder is held for the whole edit: an edit writes into it, and the
+        // rename at the end of a trim must not move it out from under one.
+        holdFolder(meetingID)
+        defer { releaseFolder(meetingID) }
         try await requireNoTrimPending(meetingID)
         guard let found = repository.findMeeting(id: meetingID, includingMerged: true) else {
             throw StorageError.meetingNotFound(id: meetingID)
@@ -3669,6 +3675,10 @@ public actor ProcessingPipeline {
         _ name: String, meetingID: String, track: CaptureTrack, parts: [SpeakerRangePart],
         identityID: IdentityID? = nil
     ) async throws -> IdentityID? {
+        // The folder is held for the whole edit: an edit writes into it, and the
+        // rename at the end of a trim must not move it out from under one.
+        holdFolder(meetingID)
+        defer { releaseFolder(meetingID) }
         try await requireNoTrimPending(meetingID)
         guard let found = repository.findMeeting(id: meetingID, includingMerged: true) else {
             throw StorageError.meetingNotFound(id: meetingID)
@@ -3801,6 +3811,10 @@ public actor ProcessingPipeline {
     private func correctUtterances(
         _ name: String, utteranceIDs: [String], meetingID: String, identityID: IdentityID?
     ) async throws -> IdentityID? {
+        // The folder is held for the whole edit: an edit writes into it, and the
+        // rename at the end of a trim must not move it out from under one.
+        holdFolder(meetingID)
+        defer { releaseFolder(meetingID) }
         try await requireNoTrimPending(meetingID)
         guard let found = repository.findMeeting(id: meetingID, includingMerged: true) else {
             throw StorageError.meetingNotFound(id: meetingID)
@@ -4423,7 +4437,7 @@ public actor ProcessingPipeline {
         // same things.
         await waitForSlot()
         defer { jobLock.release() }
-        guard !hasUnfinishedTrim(metadata.id) else { return }
+        guard !store.trimIsChangingFiles else { return }
         defer { scratch.discard(meetingID: metadata.id) }
 
         // Resolved after the wait, from a fresh read: the job this call queued

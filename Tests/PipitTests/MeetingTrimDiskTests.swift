@@ -631,7 +631,7 @@ struct MeetingTrimDiskTests {
         #expect(!FileManager.default.fileExists(atPath: store.layout.trimStaging.path))
         #expect(
             !FileManager.default.fileExists(atPath: url.path)
-                || abs((try? TrimFixtures.seconds(of: url)) ?? 0 - 10) < 0.5,
+                || abs(((try? TrimFixtures.seconds(of: url)) ?? 0) - 10) < 0.5,
             "the copy that holds the removed stretch is not left")
     }
 
@@ -687,5 +687,31 @@ struct MeetingTrimDiskTests {
         journal.voiceMemoryAdjusted = true
         try store.writeTrimJournal(journal)
         #expect(!store.trimIsChangingFiles, "edits are safe from here")
+    }
+
+    @Test("the staging marker a crash leaves behind is cleared once the trim is finished")
+    func theStagingMarkerACrashLeavesIsCleared() throws {
+        let root = try TestPaths.makeTemporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let store = try TrimFixtures.makeCompacted(root: root)
+        #expect(throws: TrimError.filesNotWritten) {
+            try Self.trimmer(stopAtSwap: 2).trim(
+                store: store, to: try #require(TrimRange(start: 2, end: 12, duration: 20)), at: Self.at)
+        }
+        // A thrown error runs the trim's cleanup; a crash does not.
+        try AtomicFile.write(Data(), to: store.layout.trimStaging)
+        #expect(store.trimIsChangingFiles)
+
+        var journal = try #require(try MeetingTrimmer().finishInterrupted(store: store))
+
+        #expect(!FileManager.default.fileExists(atPath: store.layout.trimStaging.path))
+        journal.voiceMemoryAdjusted = true
+        try store.writeTrimJournal(journal)
+        #expect(!store.trimIsChangingFiles, "edits are not refused for the rest of the session")
+
+        // And when the crash came after the swap was recorded.
+        try AtomicFile.write(Data(), to: store.layout.trimStaging)
+        _ = try MeetingTrimmer().finishInterrupted(store: store)
+        #expect(!FileManager.default.fileExists(atPath: store.layout.trimStaging.path))
     }
 }
