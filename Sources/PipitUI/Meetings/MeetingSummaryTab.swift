@@ -15,13 +15,14 @@ struct MeetingSummaryTab: View {
 
     private var notes: [MeetingNoteEntry] {
         guard let started = detail.metadata?.startedAt else { return [] }
-        return MeetingNoteEntry.entries(in: detail.notes, startedAt: started)
+        return MeetingNoteEntry.entries(in: detail.notes, startedAt: started) + detail.continuationNotes
     }
 
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 28) {
                 if let suggestion = detail.continuationSuggestion { continuationCard(suggestion) }
+                if detail.summaryIsOutOfDate { outOfDateNotice }
                 if let structure = detail.generatedSummary, !structure.isEmpty {
                     structured(structure)
                 } else {
@@ -100,6 +101,25 @@ struct MeetingSummaryTab: View {
                 SummarySectionHeading(title: "Your notes", count: notes.count)
                 SummaryTimeline(topics: [], notes: notes, detail: detail)
             }
+        }
+    }
+
+    /// Shown when the recordings changed after the summary was written and the
+    /// rewrite has not happened, for want of a key or because the app quit.
+    private var outOfDateNotice: some View {
+        HStack(spacing: 10) {
+            Text("This summary does not cover every recording.")
+                .foregroundStyle(.secondary)
+            Button {
+                detail.generateEnrichment()
+            } label: {
+                if detail.isEnriching {
+                    ProgressView().controlSize(.small)
+                } else {
+                    Label("Write again", systemImage: "sparkles")
+                }
+            }
+            .disabled(detail.isEnriching)
         }
     }
 

@@ -1960,33 +1960,38 @@ public final class PipitRuntime {
         // The later recording may still be processing, and its run ends by
         // moving its folder to a name that carries the title. A store resolved
         // before that move reads a folder that is no longer there, so each write
-        // resolves the recording again and the link is refused, not half made,
-        // when the write cannot land.
+        // resolves the recording again, and the link is refused when it cannot land.
+        //
+        // Ordered so that a failure part-way shows a recording twice rather than
+        // not at all: the earlier recording lists the later one first, and the
+        // later recording stops being a row of its own last.
+        let carried =
+            repository.findMeeting(id: meetingID, includingMerged: true)?
+            .metadata.absorbedMeetingIDs ?? later.metadata.absorbedMeetingIDs
+        // A recording that already holds continuations of its own hands them to
+        // the target, so no recording is ever linked through another one.
+        guard
+            updateLinked(
+                target.id,
+                { metadata in
+                    for id in [meetingID] + carried where !metadata.absorbedMeetingIDs.contains(id) {
+                        metadata.absorbedMeetingIDs.append(id)
+                    }
+                })
+        else { return }
+        for childID in carried {
+            updateLinked(childID, { $0.mergedIntoMeetingID = target.id })
+        }
         guard
             updateLinked(
                 meetingID,
                 {
+                    $0.absorbedMeetingIDs = []
                     $0.mergedIntoMeetingID = target.id
                     $0.possibleContinuationOf = nil
                     $0.possibleContinuationReason = nil
                 })
         else { return }
-        // A recording that already holds continuations of its own hands them to
-        // the target, so no recording is ever linked through another one.
-        let carried =
-            repository.findMeeting(id: meetingID, includingMerged: true)?
-            .metadata.absorbedMeetingIDs ?? later.metadata.absorbedMeetingIDs
-        if !carried.isEmpty {
-            for childID in carried {
-                updateLinked(childID, { $0.mergedIntoMeetingID = target.id })
-            }
-            updateLinked(meetingID, { $0.absorbedMeetingIDs = [] })
-        }
-        updateLinked(target.id) { metadata in
-            for id in [meetingID] + carried where !metadata.absorbedMeetingIDs.contains(id) {
-                metadata.absorbedMeetingIDs.append(id)
-            }
-        }
         Log.app.info("combined a meeting into an earlier one: \(reason, privacy: .public)")
         refreshRecentMeetings()
         onProcessingUpdate?(target.id)

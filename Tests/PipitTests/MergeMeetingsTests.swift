@@ -178,6 +178,18 @@ struct MergeMeetingsTests {
         }
     }
 
+    /// Counts the runtime's "this meeting changed" calls, one for each link and
+    /// one when each ask for a rewrite returns.
+    @MainActor
+    private final class UpdateCounter {
+        private(set) var count = 0
+        func attach(to runtime: PipitRuntime) {
+            runtime.onProcessingUpdate = { [weak self] _ in
+                MainActor.assumeIsolated { self?.count += 1 }
+            }
+        }
+    }
+
     /// Lets the test hold the model's answer until it says so, so everything
     /// else a merge started has run while the first request is still open.
     private final class Gate: @unchecked Sendable {
@@ -245,19 +257,22 @@ struct MergeMeetingsTests {
         let model = MeetingsWindowModel(runtime: runtime)
         await model.reload()
 
+        let updates = UpdateCounter()
+        updates.attach(to: runtime)
         let gate = Gate()
         backend.enrichInterference = { await gate.wait() }
         model.merge(model.rows)
-        // The first request is open. Anything else the merge asked for has run
-        // by the time the test gets the main actor back, and a second ask would
-        // have added a debt that a second request pays once this one ends.
+        // The first request is open. Each ask of the runtime ends in one update,
+        // and an ask that arrives while a rewrite runs ends at once, so a
+        // merge that asked once per link would already have counted three
+        // by the time the request is let go.
         await Self.waitForRequests(1, on: backend)
-        for _ in 0..<50 { await Task.yield() }
         gate.release()
         await Self.waitForComplete(ids[0], in: runtime)
-        await Self.waitUntil { runtime.repository.findMeeting(id: ids[0])?.store.readSummaryDocument().summary != nil }
-        for _ in 0..<200 { await Task.yield() }
+        await Self.waitUntil { updates.count >= 3 }
 
+        // Two links, then one ask for the whole merge. Nothing else reports.
+        #expect(updates.count == 3)
         #expect(backend.enrichmentRequests.count == 1)
         #expect(runtime.repository.logicalMeeting(id: ids[0])?.recordings.count == 3)
     }

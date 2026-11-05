@@ -307,6 +307,12 @@ public struct MeetingMetadata: Codable, Sendable, Equatable, Identifiable {
     /// than acted on: an uncertain match is offered to the user, never guessed.
     public var possibleContinuationOf: String?
     public var possibleContinuationReason: String?
+    /// Set on the first recording of a conversation whose summary was written
+    /// before the conversation last changed, by linking or separating
+    /// recordings, and cleared when a summary is written from all of them. Kept
+    /// on disk so a rewrite that could not run, for want of a key or because the
+    /// app quit, is still owed at the next launch.
+    public var summaryNeedsRewrite: Bool?
     /// Original filename for an imported recording, preserved verbatim.
     public var importedOriginalFilename: String?
     /// Where an imported recording's `startedAt` came from. Absent on captured

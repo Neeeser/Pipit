@@ -486,6 +486,10 @@ public final class MeetingReviewModel {
     public var metadata: MeetingMetadata?
     public var transcript: CanonicalTranscript?
     public var notes = ""
+    /// Notes typed during the later recordings of a conversation, on the
+    /// conversation's clock. Shown on the summary timeline beside the first
+    /// recording's notes; the Notes tab edits only the first recording's file.
+    public private(set) var continuationNotes: [MeetingNoteEntry] = []
     public var title = ""
     public var summary: String?
     /// What enrichment wrote as notes, kept apart from the user's own. Shown on
@@ -639,6 +643,9 @@ public final class MeetingReviewModel {
         let found = (metadata: logical.primary.metadata, store: logical.primary.store)
         recordings = logical.recordings.map(\.metadata)
         combinedLines = logical.combinedTranscript()
+        continuationNotes = logical.continuations.flatMap {
+            MeetingNoteEntry.entries(in: $0.store.readNotes(), startedAt: logical.startedAt)
+        }
         // The same walk over the new lines, kept on the same place where it
         // still exists. A correction renames a block, which is not a reason
         // to lose one's place in the search.
@@ -971,6 +978,12 @@ public final class MeetingReviewModel {
             // would otherwise offer a button that throws its notes away.
             && (generatedNotes?.isEmpty ?? true)
             && metadata?.processing.state == .complete
+    }
+
+    /// Whether the summary was written before recordings were linked or
+    /// separated, so it does not describe the conversation as it is now.
+    public var summaryIsOutOfDate: Bool {
+        metadata?.summaryNeedsRewrite == true && metadata?.processing.state == .complete
     }
 
     /// Writes the summary, notes, description and title this meeting never got.

@@ -265,12 +265,27 @@ public actor ProcessingPipeline {
     /// flight is left alone.
     public func process(meetingID: String) async {
         await runStages(meetingID: meetingID)
-        // After the job slot is let go, because the rewrite needs it. Asked of
-        // the conversation this recording belongs to, whichever recording it was.
+        await payRewriteOwed(afterJobOn: meetingID)
+    }
+
+    /// After a job on one recording lets go of the job slot, which the rewrite
+    /// needs, pays what its conversation owes. Asked of the conversation the
+    /// recording belongs to, whichever recording it was, and by every kind of
+    /// job that holds a recording in `running`.
+    private func payRewriteOwed(afterJobOn meetingID: String) async {
         if let conversation = repository.logicalMeeting(id: meetingID),
             summaryRewritesOwed.contains(conversation.id)
         {
             await payOwedSummaryRewrite(of: conversation.id)
+        }
+    }
+
+    /// Records that a conversation's summary is behind its recordings, in memory
+    /// for this run and on the first recording for the next one.
+    private func markSummaryOwed(_ conversationID: String) {
+        summaryRewritesOwed.insert(conversationID)
+        if let found = repository.findMeeting(id: conversationID, includingMerged: true) {
+            _ = try? found.store.updateMetadata { $0.summaryNeedsRewrite = true }
         }
     }
 
@@ -288,7 +303,7 @@ public actor ProcessingPipeline {
     /// asked: the conversation owes a rewrite, paid when that recording ends.
     public func refreshConversationSummary(meetingID: String) async {
         guard let conversation = repository.logicalMeeting(id: meetingID) else { return }
-        summaryRewritesOwed.insert(conversation.id)
+        markSummaryOwed(conversation.id)
         await payOwedSummaryRewrite(of: conversation.id)
     }
 
@@ -342,8 +357,12 @@ public actor ProcessingPipeline {
         }
         if discardIfGone(id, store: store) { return }
         var metadata = (try? store.readMetadata()) ?? current.primary.metadata
+        // A description is only ever written by this stage, so the one on file
+        // is an earlier answer about the first recording and is replaced.
+        metadata.descriptionText = nil
+        let wrote: Bool
         do {
-            try await runEnrichment(store: store, metadata: &metadata, settings: settings)
+            wrote = try await runEnrichment(store: store, metadata: &metadata, settings: settings)
         } catch {
             pendingFolderCandidates.removeValue(forKey: id)
             Log.processing.error(
@@ -355,19 +374,29 @@ public actor ProcessingPipeline {
         // Filing is for a meeting being processed. The person merged or
         // separated recordings; they did not ask for the meeting to move.
         pendingFolderCandidates.removeValue(forKey: id)
+        guard wrote else { return }
         do {
             // Not `finish`: that looks up the calendar for a meeting that has
-            // none and would rename an old meeting and add people to it.
-            try await writeTranscriptMarkdown(store: store, metadata: metadata)
-            try persist(metadata, to: store)
+            // none and would rename an old meeting and add people to it. And not
+            // `persist`, which writes back the processing state read before the
+            // request: a retry started meanwhile must keep its newer one.
+            let title = metadata.titles.ai
+            let description = metadata.descriptionText
+            let written = try store.updateMetadata { current in
+                current.titles.ai = title
+                if let description { current.descriptionText = description }
+                current.summaryNeedsRewrite = nil
+            }
+            try await writeTranscriptMarkdown(store: store, metadata: written)
         } catch {
             Log.processing.error(
                 "summary rewrite not saved: \(logSafeDescription(error), privacy: .public)"
             )
             onFailure(id, Self.processingError(from: error))
-            return
         }
-        report(metadata, chunks: nil)
+        // No progress report: a report of a complete meeting is what posts the
+        // "ready" notification, and nothing here was processed. The runtime
+        // refreshes its lists when the rewrite returns.
     }
 
     private func runStages(meetingID: String) async {
@@ -528,7 +557,7 @@ public actor ProcessingPipeline {
                     // Read once more, because a link made while the request was in
                     // flight also leaves this recording with no summary of its own.
                     if let parent = (try? store.readMetadata())?.mergedIntoMeetingID {
-                        summaryRewritesOwed.insert(parent)
+                        markSummaryOwed(repository.logicalMeeting(id: parent)?.id ?? parent)
                     }
                     // The decoded working copies are derived from audio that is
                     // never modified, so they are thrown away as soon as the
@@ -755,6 +784,13 @@ public actor ProcessingPipeline {
     /// it was a writer nothing could stop, and a meeting trashed in the middle
     /// of the launch sweep came back holding audio and no metadata.
     public func compactAudio(meetingID: String) async {
+        await compactJob(meetingID: meetingID)
+        // The job holds the recording in `running`, which a rewrite waits out,
+        // and nothing else asks again when it ends.
+        await payRewriteOwed(afterJobOn: meetingID)
+    }
+
+    private func compactJob(meetingID: String) async {
         guard let found = repository.findMeeting(id: meetingID, includingMerged: true) else { return }
         guard AudioCompactor.hasWork(store: found.store, metadata: found.metadata) else { return }
         guard !running.contains(meetingID) else { return }
@@ -1070,6 +1106,13 @@ public actor ProcessingPipeline {
         // second half of a dropped call untranscribed with nothing to resume it.
         for meetingID in repository.mergedMeetingIDs() {
             await process(meetingID: meetingID)
+        }
+        // A rewrite the last run did not get to, because the app quit or no key
+        // was stored, is recorded on the conversation's first recording.
+        for summary in repository.listMeetings() {
+            let store = MeetingStore(layout: MeetingLayout(root: summary.directory))
+            guard (try? store.readMetadata())?.summaryNeedsRewrite == true else { continue }
+            await refreshConversationSummary(meetingID: summary.id)
         }
     }
 
@@ -3162,10 +3205,11 @@ public actor ProcessingPipeline {
     }
 
     /// Joins the lines of a conversation, and when they are longer than the limit
-    /// keeps the start of each recording's lines in proportion to how much it
-    /// said, so a long conversation is cut across every recording instead of
-    /// losing the last ones whole. A single cut at the limit would summarize
-    /// only the first recordings.
+    /// keeps the start and the end of each recording's lines, in proportion to
+    /// how much it said, and drops the middle. A conversation is cut across
+    /// every recording instead of losing the last ones whole, and each recording
+    /// still shows how it opened and how it ended. A single cut at the limit
+    /// would summarize only the first recordings.
     ///
     /// The chunked path in `ChunkedLanguageModel` reads everything and is used
     /// for the providers that have it. OpenAI reads one bounded request, which
@@ -3174,27 +3218,55 @@ public actor ProcessingPipeline {
     private static func evenlyCut(_ lines: [(recordingID: String, text: String)], limit: Int) -> String {
         let total = lines.reduce(0) { $0 + $1.text.count + 1 }
         guard total > limit else { return lines.map(\.text).joined(separator: "\n") }
-        var size: [String: Int] = [:]
-        for line in lines { size[line.recordingID, default: 0] += line.text.count + 1 }
-        var used: [String: Int] = [:]
-        var closed: Set<String> = []
-        var kept: [String] = []
-        for line in lines where !closed.contains(line.recordingID) {
-            let budget = limit * (size[line.recordingID] ?? 0) / total
-            let next = used[line.recordingID, default: 0] + line.text.count + 1
-            if next > budget {
-                closed.insert(line.recordingID)
-                // A recording is never cut to nothing: its first line is kept as
-                // far as its share reaches.
-                if used[line.recordingID] == nil, budget > 0 {
-                    kept.append(String(line.text.prefix(budget)))
-                }
-            } else {
-                used[line.recordingID] = next
-                kept.append(line.text)
+        var indices: [String: [Int]] = [:]
+        for (index, line) in lines.enumerated() { indices[line.recordingID, default: []].append(index) }
+        var kept: [Int: String] = [:]
+        for (_, own) in indices {
+            let size = own.reduce(0) { $0 + lines[$1].text.count + 1 }
+            let budget = limit * size / total
+            if size <= budget {
+                for index in own { kept[index] = lines[index].text }
+                continue
+            }
+            var used = 0
+            var head = 0
+            while head < own.count, used + lines[own[head]].text.count + 1 <= budget / 2 {
+                used += lines[own[head]].text.count + 1
+                head += 1
+            }
+            var tail = own.count
+            while tail > head, used + lines[own[tail - 1]].text.count + 1 <= budget {
+                used += lines[own[tail - 1]].text.count + 1
+                tail -= 1
+            }
+            for index in own[..<head] + own[tail...] { kept[index] = lines[index].text }
+            // A recording is never cut to nothing: its first line is kept as
+            // far as its share reaches.
+            if head == 0, tail == own.count, budget > 0 {
+                kept[own[0]] = String(lines[own[0]].text.prefix(budget))
             }
         }
-        return kept.joined(separator: "\n")
+        return kept.keys.sorted().compactMap { kept[$0] }.joined(separator: "\n")
+    }
+
+    /// Every recording's notes, each stamped on the conversation's timeline like
+    /// the transcript lines. A note carries the wall-clock time it was typed, so
+    /// one written during a later recording lands at its place in the
+    /// conversation. Nil when nobody wrote any.
+    private static func conversationNotes(_ conversation: LogicalMeeting) -> String? {
+        let renderer = TranscriptRenderer()
+        var timed: [MeetingNoteEntry] = []
+        var untimed: [String] = []
+        for recording in conversation.recordings {
+            for entry in MeetingNoteEntry.entries(
+                in: recording.store.readNotes(), startedAt: conversation.startedAt)
+            {
+                if entry.at != nil { timed.append(entry) } else { untimed.append(entry.text) }
+            }
+        }
+        timed.sort { ($0.at ?? 0) < ($1.at ?? 0) }
+        let lines = untimed + timed.map { "[\(renderer.timecode($0.at ?? 0))] \($0.text)" }
+        return lines.isEmpty ? nil : lines.joined(separator: "\n")
     }
 
     /// What enrichment asks about a conversation that was recorded more than
@@ -3238,7 +3310,7 @@ public actor ProcessingPipeline {
         }.max()
         return EnrichmentRequest(
             transcript: text,
-            humanNotes: conversation.primary.store.readNotes(),
+            humanNotes: conversationNotes(conversation),
             participants: participants,
             provider: metadata.provider,
             durationSeconds: max(conversation.durationSeconds, timelineEnd ?? 0),
@@ -3251,16 +3323,18 @@ public actor ProcessingPipeline {
         )
     }
 
+    /// Whether the model answered and the answer was applied.
+    @discardableResult
     private func runEnrichment(
         store: MeetingStore, metadata: inout MeetingMetadata, settings: AppSettings
-    ) async throws {
-        guard settings.enrichment.wantsAnything else { return }
-        guard !settings.models.metadata.isEmpty else { return }
+    ) async throws -> Bool {
+        guard settings.enrichment.wantsAnything else { return false }
+        guard !settings.models.metadata.isEmpty else { return false }
         // Same reason as the speaker suggestion above: titles and summaries are
         // the one part of Pipit that needs the cloud, and wanting them by
         // default must not fail a meeting for someone who runs everything here.
         let reasoner = languageModels(settings)
-        guard await reasoner.isConfigured() else { return }
+        guard await reasoner.isConfigured() else { return false }
         let folders = folderCatalogue(for: metadata, settings: settings)
         // Read through the conversation, so a recording that has continuations
         // is summarized as one meeting rather than up to where it ended.
@@ -3272,12 +3346,12 @@ public actor ProcessingPipeline {
             request = try Self.enrichmentRequest(
                 store: store, metadata: metadata, settings: settings, folders: folders)
         }
-        guard let request else { return }
+        guard let request else { return false }
         let enrichment = try await reasoner.enrich(request, model: settings.models.metadata)
         // Linked under another recording while the request was in flight: the
         // conversation writes the summary, from every recording, and this
         // answer covers only some of them.
-        if (try? store.readMetadata())?.mergedIntoMeetingID != nil { return }
+        if (try? store.readMetadata())?.mergedIntoMeetingID != nil { return false }
         pendingFolderCandidates[metadata.id] = enrichment.folderCandidates
 
         // A human title always wins; the AI title only fills an empty slot.
@@ -3299,6 +3373,7 @@ public actor ProcessingPipeline {
                 try store.writeSummary(document.markdown)
             }
         }
+        return true
     }
 
     /// Renders `transcript.md` from what is on disk now.
@@ -3943,7 +4018,7 @@ public actor ProcessingPipeline {
         // title is the one field enrichment overwrites rather than fills.
         // Where the slot is empty this run fills it, which is the point.
         let existingTitle = metadata.titles.ai?.trimmingCharacters(in: .whitespacesAndNewlines)
-        try await runEnrichment(store: store, metadata: &metadata, settings: settings)
+        let wrote = try await runEnrichment(store: store, metadata: &metadata, settings: settings)
         if let existingTitle, !existingTitle.isEmpty { metadata.titles.ai = existingTitle }
         // The notice is why the user pressed the button. Leaving it up after
         // the button worked says the key is still missing on a meeting that
@@ -3956,6 +4031,8 @@ public actor ProcessingPipeline {
         // it. Neither is a summary, and neither is what the button offered.
         try await writeTranscriptMarkdown(store: store, metadata: metadata)
         try persist(metadata, to: store)
+        // A summary written from every recording is what a rewrite owed.
+        if wrote { _ = try? store.updateMetadata { $0.summaryNeedsRewrite = nil } }
         report(metadata, chunks: nil)
         // Before the rename, not only in the defer below. The writes above
         // recreate the folder, so a meeting trashed during the request has a
