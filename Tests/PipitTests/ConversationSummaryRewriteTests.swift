@@ -15,13 +15,13 @@ struct ConversationSummaryRewriteTests {
     /// Two recordings an hour apart, both with words, the second linked under
     /// the first the way `combine` links it.
     static func makeLinkedPair(
-        root: URL, secondState: ProcessingState = .complete
+        root: URL, secondState: ProcessingState = .complete, days: Double = 0
     ) throws -> (repository: MeetingRepository, ids: [String], stores: [MeetingStore]) {
         let words = ["opening budget question", "closing hiring answer"]
         let made = try words.enumerated().map { index, text in
             try RuntimeFixtures.makeMeeting(
                 root: root, clusters: ["remote-001_speaker_00"], words: text, title: "Part \(index)",
-                startedAt: base.addingTimeInterval(Double(index) * 3_600))
+                startedAt: base.addingTimeInterval(days * 86_400 + Double(index) * 3_600))
         }
         _ = try made[0].store.updateMetadata { $0.absorbedMeetingIDs = [made[1].id] }
         _ = try made[1].store.updateMetadata {
@@ -275,6 +275,12 @@ struct ConversationSummaryRewriteTests {
         await pipeline.refreshConversationSummary(meetingID: pair.ids[0])
 
         #expect(backend.enrichmentRequests.isEmpty)
+        #expect(try pair.stores[0].readMetadata().summaryNeedsRewrite == nil)
+        #expect(try pair.stores[0].readMetadata().summaryCoversParts == true)
+
+        // A summary with no words behind it is not marked again at launch.
+        try pair.stores[0].writeSummary("Typed by hand.")
+        await pipeline.payLaunchSummaryRewrites()
         #expect(try pair.stores[0].readMetadata().summaryNeedsRewrite == nil)
     }
 

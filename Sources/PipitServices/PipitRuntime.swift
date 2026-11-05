@@ -909,11 +909,16 @@ public final class PipitRuntime {
         // pairing a previous build stored normalizes on the next save.
         newSettings.coupleDiarization()
         let rootChanged = newSettings.storageRootPath != settings.storageRootPath
+        let summaryModelChanged =
+            newSettings.models.metadata != settings.models.metadata
+            || newSettings.models.metadataProvider != settings.models.metadataProvider
         let sharingChanged = newSettings.sharesDiagnosticsAutomatically != settings.sharesDiagnosticsAutomatically
         settings = newSettings
         settingsSnapshot.withLock { $0 = newSettings }
         live.localUserName = newSettings.localUserName
         live.hiddenFromSharing = newSettings.live.hiddenFromScreenSharing
+        // A model that refused a rewrite may accept it from another one.
+        if summaryModelChanged, let pipeline { Task { await pipeline.clearGivenUpSummaryRewrites() } }
         if sharingChanged { automaticSharingDidChange(to: newSettings.sharesDiagnosticsAutomatically) }
         do {
             try settingsStore.save(newSettings)
@@ -2011,6 +2016,10 @@ public final class PipitRuntime {
                     for id in [meetingID] + carried where !metadata.absorbedMeetingIDs.contains(id) {
                         metadata.absorbedMeetingIDs.append(id)
                     }
+                    // In the write that links, so a quit right after cannot lose
+                    // the rewrite this link owes.
+                    metadata.summaryNeedsRewrite = true
+                    metadata.summaryCoversParts = nil
                 })
         else { return false }
         for childID in carried {
@@ -2105,6 +2114,8 @@ public final class PipitRuntime {
         if let parent = repository.findMeeting(id: parentID, includingMerged: true) {
             _ = try? parent.store.updateMetadata { metadata in
                 metadata.absorbedMeetingIDs.removeAll { $0 == meetingID }
+                metadata.summaryNeedsRewrite = true
+                metadata.summaryCoversParts = nil
             }
         }
         Log.app.info("separated a continuation from the meeting it was linked to")

@@ -427,4 +427,72 @@ extension ConversationSummaryRewriteTests {
         #expect(backend.enrichmentRequests.count == 1, "one request covers both recordings")
         #expect(try earlier.store.readMetadata().summaryNeedsRewrite == nil)
     }
+
+    @Test("an expired key at launch stops the pass, gives up on nothing, and the next launch writes them all")
+    func expiredKeyAtLaunch() async throws {
+        let root = try TestPaths.makeTemporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let first = try Self.makeLinkedPair(root: root)
+        let second = try Self.makeLinkedPair(root: root, days: 1)
+        for pair in [first, second] { try pair.stores[0].writeSummary("First part only.") }
+        let expired = FakeAIBackend()
+        expired.failEnrichment = .authenticationFailed
+
+        await Self.makePipeline(repository: first.repository, backend: expired)
+            .payLaunchSummaryRewrites()
+
+        #expect(expired.enrichmentRequests.count == 1, "the second would fail the same way")
+        for pair in [first, second] {
+            let metadata = try pair.stores[0].readMetadata()
+            #expect(metadata.summaryNeedsRewrite == true)
+            #expect(metadata.summaryRewriteGivenUp == nil)
+        }
+
+        // The key was changed.
+        let working = FakeAIBackend()
+        await Self.makePipeline(repository: first.repository, backend: working)
+            .payLaunchSummaryRewrites()
+        #expect(working.enrichmentRequests.count == 2)
+        for pair in [first, second] {
+            #expect(try pair.stores[0].readMetadata().summaryNeedsRewrite == nil)
+        }
+    }
+
+    @Test("the button path clears a give-up along with the debt")
+    func generateEnrichmentClearsGiveUp() async throws {
+        let root = try TestPaths.makeTemporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let pair = try Self.makeLinkedPair(root: root)
+        _ = try pair.stores[0].updateMetadata {
+            $0.summaryNeedsRewrite = true
+            $0.summaryRewriteGivenUp = true
+        }
+        let pipeline = Self.makePipeline(repository: pair.repository, backend: FakeAIBackend())
+
+        try await pipeline.generateEnrichment(meetingID: pair.ids[0])
+
+        let metadata = try pair.stores[0].readMetadata()
+        #expect(metadata.summaryNeedsRewrite == nil)
+        #expect(metadata.summaryRewriteGivenUp == nil)
+    }
+
+    @Test("changing the summary model lets launches ask again about rewrites that were refused")
+    @MainActor
+    func modelChangeClearsGiveUp() async throws {
+        let root = try TestPaths.makeTemporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let pair = try Self.makeLinkedPair(root: root)
+        _ = try pair.stores[0].updateMetadata { $0.summaryRewriteGivenUp = true }
+        let runtime = RuntimeFixtures.makeRuntime(root: root)
+
+        var settings = runtime.settings
+        settings.models.metadata += "-next"
+        runtime.update(settings: settings)
+
+        let deadline = Date().addingTimeInterval(10)
+        while (try pair.stores[0].readMetadata()).summaryRewriteGivenUp == true, Date() < deadline {
+            try await Task.sleep(nanoseconds: 20_000_000)
+        }
+        #expect(try pair.stores[0].readMetadata().summaryRewriteGivenUp == nil)
+    }
 }

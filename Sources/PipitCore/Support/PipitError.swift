@@ -202,15 +202,27 @@ public enum ProcessingError: LogSafeError, Equatable {
 }
 
 extension ProcessingError {
-    /// A refusal asking again will not change: the key, the model name or the
-    /// request itself is wrong. A garbled answer is not one, and a later ask can
-    /// get a good one.
+    /// A refusal of this one request, which asking again will not change: it is
+    /// too large, or the server rejected it. A garbled answer is not one, and a
+    /// later ask can get a good one.
     public var isRefusal: Bool {
         switch self {
-        case .authenticationFailed, .requestTooLarge: true
+        case .requestTooLarge: true
+        case .languageModel(_, let failure):
+            if case .rejected = failure { true } else { false }
+        default: false
+        }
+    }
+
+    /// The key or the model is the problem, so every other request would fail
+    /// the same way. Nothing is given up for it: changing the key or the model
+    /// is the fix, and every conversation is still owed its rewrite.
+    public var isAccessProblem: Bool {
+        switch self {
+        case .authenticationFailed: true
         case .languageModel(_, let failure):
             switch failure {
-            case .authenticationFailed, .modelNotFound, .rejected: true
+            case .authenticationFailed, .modelNotFound: true
             default: false
             }
         default: false

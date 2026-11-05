@@ -64,6 +64,8 @@ public actor ProcessingPipeline {
     /// them is logged and not announced, however much later they are paid. A
     /// person's own ask removes the conversation from here.
     private var quietSummaryDebts: Set<String> = []
+    /// Set when a launch rewrite found the key or the model refused.
+    private var launchPassBlocked = false
     /// Bumped whenever a debt is recorded, so a request can tell whether one
     /// arrived while it was in flight.
     private var summaryDebtGeneration: [String: Int] = [:]
@@ -330,7 +332,20 @@ public actor ProcessingPipeline {
             // A rewrite that failed for good is left to the person.
             if owed, !summary.summaryRewriteGivenUp { owing.append(summary.id) }
         }
-        for id in owing { await refreshConversationSummary(meetingID: id, announcingFailure: false) }
+        launchPassBlocked = false
+        for id in owing {
+            await refreshConversationSummary(meetingID: id, announcingFailure: false)
+            if launchPassBlocked { break }
+        }
+    }
+
+    /// Lets launches ask again for the rewrites given up on, once the model they
+    /// were refused by has been changed.
+    public func clearGivenUpSummaryRewrites() {
+        for summary in repository.listMeetings() where summary.summaryRewriteGivenUp {
+            let store = MeetingStore(layout: MeetingLayout(root: summary.directory))
+            _ = try? store.updateMetadata { $0.summaryRewriteGivenUp = nil }
+        }
     }
 
     /// Records that a conversation's summary is behind its recordings, in memory
@@ -496,7 +511,8 @@ public actor ProcessingPipeline {
                 if !stillOwed {
                     current.summaryNeedsRewrite = nil
                     current.summaryRewriteGivenUp = nil
-                    if wrote { current.summaryCoversParts = true }
+                    // Nothing to summarize is also settled: the same answer every time.
+                    if outcome != .skipped { current.summaryCoversParts = true }
                 }
                 if wrote { current.processing.skippedForMissingKey = false }
             }
@@ -520,6 +536,9 @@ public actor ProcessingPipeline {
             _ = try? store.updateMetadata { $0.summaryRewriteGivenUp = true }
             onSummaryRewritten(id)
         }
+        // A launch that finds the key or the model refused stops asking for the
+        // rest, which would all fail the same way, and leaves them owed.
+        if failure.isAccessProblem, quietSummaryDebts.contains(id) { launchPassBlocked = true }
         if !quietSummaryDebts.contains(id) { onSummaryFailure(id, failure) }
     }
 
@@ -4194,6 +4213,7 @@ public actor ProcessingPipeline {
         {
             _ = try? store.updateMetadata {
                 $0.summaryNeedsRewrite = nil
+                $0.summaryRewriteGivenUp = nil
                 $0.summaryCoversParts = true
             }
         }

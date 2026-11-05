@@ -230,4 +230,36 @@ struct ConversationDetailTests {
         await ask(4, click: true)
         #expect(posted.all.count == 3, "the person's own click posts even for a repeat")
     }
+
+    @Test("the write that links or separates also records the rewrite it owes")
+    @MainActor
+    func linkWritesTheDebt() async throws {
+        let root = try TestPaths.makeTemporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let made = try (0..<2).map { index in
+            try RuntimeFixtures.makeMeeting(
+                root: root, clusters: ["remote-001_speaker_00"], title: "Part \(index)",
+                startedAt: Self.base.addingTimeInterval(Double(index) * 3_600))
+        }
+        let backend = FakeAIBackend()
+        backend.configured = false
+        let runtime = RuntimeFixtures.makeRuntime(root: root, backend: backend)
+        _ = try made[0].store.updateMetadata { $0.summaryCoversParts = true }
+
+        // Read before anything else runs: the flags came with the link itself.
+        runtime.combine(
+            meetingID: made[1].id, into: made[0].id, reason: "a test", rewritingSummary: false)
+        var metadata = try made[0].store.readMetadata()
+        #expect(metadata.summaryNeedsRewrite == true)
+        #expect(metadata.summaryCoversParts == nil)
+
+        _ = try made[0].store.updateMetadata {
+            $0.summaryNeedsRewrite = nil
+            $0.summaryCoversParts = true
+        }
+        runtime.detachContinuation(meetingID: made[1].id)
+        metadata = try made[0].store.readMetadata()
+        #expect(metadata.summaryNeedsRewrite == true)
+        #expect(metadata.summaryCoversParts == nil)
+    }
 }
