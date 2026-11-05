@@ -205,7 +205,7 @@ let package = Package(
             dependencies: [
                 "PipitCore", "PipitAudio", "PipitDetection",
                 "PipitIntegrations", "PipitSpeakers", "PipitLocalAI",
-                "PipitServices", "PipitUI", "PipitBench", "PipitCLIKit",
+                "PipitServices", "PipitUI", "PipitBench", "PipitCLIKit", "PipitEval",
             ],
             path: "Tests/PipitTests"
         ),

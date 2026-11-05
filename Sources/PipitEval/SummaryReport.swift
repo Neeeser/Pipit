@@ -16,18 +16,17 @@ struct SummaryReport {
         out.append("What each model found, against the answer key")
         out.append(
             row([
-                "model", "actions", "must-find", "questions", "must-find", "topics",
-                "owner right",
+                "model", "actions", "must-find", "as questions", "topics", "owner right",
             ]))
         for model in models {
             let scores = pooled(model)
+            let tasks = runs.filter { $0.model == model }.compactMap(\.answer.summary).flatMap(\.actionItems)
             out.append(
                 row([
                     model,
                     share(scores.actions.found, scores.actions.truth),
                     share(scores.actions.foundMustFind, scores.actions.mustFind),
-                    share(scores.questions.found, scores.questions.truth),
-                    share(scores.questions.foundMustFind, scores.questions.mustFind),
+                    share(tasks.filter(\.isQuestion).count, tasks.count),
                     share(scores.topicsCovered, scores.keyTopics),
                     share(scores.ownerRight, scores.ownerChecked),
                 ]))
@@ -51,7 +50,7 @@ struct SummaryReport {
             // Invented items are counted against everything the model listed,
             // matched or not, so a model that lists more is not punished for it.
             let judged = runs.filter { $0.model == model && $0.verdict != nil }.compactMap(\.scores)
-            let listed = judged.reduce(0) { $0 + $1.actions.given + $1.questions.given }
+            let listed = judged.reduce(0) { $0 + $1.actions.given }
             out.append(
                 row([
                     model,
@@ -85,6 +84,7 @@ struct SummaryReport {
         out.append(
             "found: share of key items the model also listed; must-find: of those the AMI annotators also listed"
         )
+        out.append("as questions: share of the model's action items it flagged as a question to go and answer")
         out.append(
             "invented: items matching nothing in the key that the judge found were never said, as a share of all listed"
         )
@@ -96,7 +96,6 @@ struct SummaryReport {
         var total = SummaryEvalCommand.Scores()
         for scores in runs.filter({ $0.model == model }).compactMap(\.scores) {
             total.actions.add(scores.actions)
-            total.questions.add(scores.questions)
             total.ownerRight += scores.ownerRight
             total.ownerChecked += scores.ownerChecked
             total.timesOnLines += scores.timesOnLines
@@ -117,8 +116,8 @@ struct SummaryReport {
             var found = 0
             var truth = 0
             for scores in group.compactMap(\.scores) {
-                found += scores.actions.found + scores.questions.found
-                truth += scores.actions.truth + scores.questions.truth
+                found += scores.actions.found
+                truth += scores.actions.truth
             }
             return truth == 0 ? nil : Double(found) / Double(truth)
         }

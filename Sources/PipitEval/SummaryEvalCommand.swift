@@ -50,7 +50,6 @@ enum SummaryEvalCommand {
 
     struct Scores: Codable, Sendable {
         var actions = KindScore()
-        var questions = KindScore()
         var ownerRight = 0
         var ownerChecked = 0
         var timesOnLines = 0
@@ -360,6 +359,11 @@ enum SummaryEvalCommand {
 
         var kinds: [Kind]
 
+        /// Every task the model wrote, flagged as a question or not, is
+        /// compared with the key's action items: the prompt asks for a question
+        /// someone has to go and answer as the task of finding out. The key's
+        /// open questions are unresolved issues, which the prompt no longer
+        /// asks for, so they are not scored.
         init(summary: GeneratedSummary, truth: SummaryTruth) {
             let time = { (text: String) in GeneratedSummary.seconds(fromTimecode: text) }
             kinds = [
@@ -368,15 +372,7 @@ enum SummaryEvalCommand {
                     truth: truth.actionItems.map {
                         Entry(text: $0.task, at: time($0.at), mustFind: $0.mustFind, owner: $0.owner)
                     },
-                    model: summary.actionItems.filter { !$0.isQuestion }.map {
-                        Entry(text: $0.task, at: $0.at, owner: $0.owner)
-                    }),
-                Kind(
-                    name: "open question",
-                    truth: truth.openQuestions.map { Entry(text: $0.text, at: time($0.at), mustFind: $0.mustFind) },
-                    model: summary.actionItems.filter(\.isQuestion).map {
-                        Entry(text: $0.task, at: $0.at, owner: $0.owner)
-                    }),
+                    model: summary.actionItems.map { Entry(text: $0.task, at: $0.at, owner: $0.owner) })
             ]
         }
 
@@ -392,7 +388,7 @@ enum SummaryEvalCommand {
     }
 
     private static func texts(of truth: SummaryTruth) -> [String] {
-        truth.actionItems.map(\.task) + truth.openQuestions.map(\.text)
+        truth.actionItems.map(\.task)
     }
 
     static func score(
@@ -435,10 +431,7 @@ enum SummaryEvalCommand {
                         kind: kind.name, key: key.text, mustFind: key.mustFind,
                         model: pair.map { kind.model[$0.candidate].text }, similarity: pair?.similarity))
             }
-            switch kind.name {
-            case "action item": scores.actions = result
-            default: scores.questions = result
-            }
+            scores.actions = result
         }
 
         // Every time the model gave, on any item or topic, should be a line
