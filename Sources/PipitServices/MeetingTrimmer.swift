@@ -108,10 +108,12 @@ public struct MeetingTrimmer: Sendable {
         staging.remove(layout.apiResponses)
         for url in [layout.summary, layout.structuredSummary, layout.transcriptMarkdown] { staging.remove(url) }
 
+        // On disk before the journal says they are: a power loss after the
+        // journal must not find a replacement that was only in the cache.
+        let swaps = try staging.flushed()
         let journal = TrimJournal(
             createdAt: now, start: range.start, end: range.keepsEnd ? nil : range.end,
-            swaps: staging.swaps.map { .init(staged: staging.relative($0.from), target: staging.relative($0.to)) },
-            removals: staging.removals.map(staging.relative),
+            swaps: swaps, removals: staging.removals.map(staging.relative),
             metadata: MeetingTrim.change(
                 metadata, to: range, archive: audio.archive, cleanedMic: audio.cleaned, at: now)
         )
@@ -155,13 +157,21 @@ public struct MeetingTrimmer: Sendable {
             try beforeSwap?(position)
             let staged = root.appendingPathComponent(swap.staged)
             let target = root.appendingPathComponent(swap.target)
-            guard manager.fileExists(atPath: staged.path) else { continue }
+            guard manager.fileExists(atPath: staged.path) else {
+                // Already swapped by an earlier run, which is the only reason
+                // a replacement may be missing: the file in its place is it.
+                guard Self.size(of: target) == swap.size else { throw TrimError.filesNotWritten }
+                continue
+            }
+            guard Self.size(of: staged) == swap.size else { throw TrimError.filesNotWritten }
             if manager.fileExists(atPath: target.path) {
                 _ = try manager.replaceItemAt(target, withItemAt: staged)
             } else {
                 try manager.createDirectory(at: target.deletingLastPathComponent(), withIntermediateDirectories: true)
                 try manager.moveItem(at: staged, to: target)
             }
+            try AtomicFile.flush(target)
+            try AtomicFile.flush(target.deletingLastPathComponent())
         }
         // A removal that fails is an error, not a skipped step: what it holds
         // is what the person asked to delete.
@@ -174,6 +184,24 @@ public struct MeetingTrimmer: Sendable {
         done.swapped = true
         try store.writeTrimJournal(done)
         return done
+    }
+
+    private static func size(of url: URL) -> Int64? {
+        (try? FileManager.default.attributesOfItem(atPath: url.path)[.size] as? NSNumber)?.int64Value
+    }
+
+    /// Removes what a trim that stopped before its journal was written left
+    /// beside the files it meant to replace. With no journal nothing refers to
+    /// them, and they hold the very content the person was about to delete.
+    public static func removeLeftovers(layout: MeetingLayout) {
+        guard !FileManager.default.fileExists(atPath: layout.trimJournal.path) else { return }
+        let manager = FileManager.default
+        for folder in [layout.root, layout.raw, layout.trackArchiveDirectory, layout.alignments] {
+            for name in (try? manager.contentsOfDirectory(atPath: folder.path)) ?? []
+            where name.contains(".trimming") {
+                try? manager.removeItem(at: folder.appendingPathComponent(name))
+            }
+        }
     }
 
     // MARK: staging
@@ -197,6 +225,23 @@ public struct MeetingTrimmer: Sendable {
         }
 
         mutating func remove(_ url: URL) { removals.append(url) }
+
+        /// Forces every replacement and the folders holding them to disk, and
+        /// returns the journal's record of each.
+        func flushed() throws -> [TrimJournal.Swap] {
+            var folders = Set<URL>()
+            var records: [TrimJournal.Swap] = []
+            for file in swaps {
+                try AtomicFile.flush(file.from)
+                folders.insert(file.from.deletingLastPathComponent())
+                let size =
+                    (try FileManager.default.attributesOfItem(atPath: file.from.path)[.size] as? NSNumber)?
+                    .int64Value ?? -1
+                records.append(.init(staged: relative(file.from), target: relative(file.to), size: size))
+            }
+            for folder in folders { try AtomicFile.flush(folder) }
+            return records
+        }
 
         func discard() {
             for file in swaps { try? FileManager.default.removeItem(at: file.from) }
@@ -233,7 +278,11 @@ public struct MeetingTrimmer: Sendable {
         // The capture record is cut by the audio each track keeps, and its
         // track lengths and start times come out matching the new archives.
         let manifest = MeetingTrim.trim(
-            try ManifestReader.read(contentsOf: layout.manifest).lines, to: range, origin: origin ?? 0, cuts: cuts
+            try ManifestReader.read(contentsOf: layout.manifest).lines, to: range, origin: origin ?? 0, cuts: cuts,
+            firstHostTimes: Dictionary(
+                uniqueKeysWithValues: CaptureTrack.allCases.compactMap { name in
+                    archive.track(name)?.firstFrameHostTime.map { (name, $0) }
+                })
         )
         try staging.stage(try encodeManifest(manifest.lines), for: layout.manifest)
 

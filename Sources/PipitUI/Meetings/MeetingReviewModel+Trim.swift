@@ -31,7 +31,7 @@ extension MeetingReviewModel {
     /// the start of the first part and the end of the last part move, so a
     /// middle recording is never cut and a whole one is never removed.
     static func cuts(
-        parts: [PlaybackTimeline.Part], durations: [String: Double], keepFrom start: Double, to end: Double
+        parts: [PlaybackTimeline.Part], keepFrom start: Double, to end: Double
     ) -> [(id: String, range: TrimRange)] {
         guard let first = parts.first, let last = parts.last else { return [] }
         let keepStart = min(max(start, first.start), first.end)
@@ -39,8 +39,11 @@ extension MeetingReviewModel {
         // The handle sits at the end of the timeline, which can be later than
         // the recording's recorded length where one track began late.
         let toEnd = keepEnd >= last.end - MeetingTrim.tolerance
-        let firstDuration = durations[first.recordingID] ?? first.duration
-        let lastDuration = durations[last.recordingID] ?? last.duration
+        // The length of the listening copy, which is the timeline the bar
+        // draws. A recording's recorded length is shorter by how late its
+        // other track began, and a handle in that tail is inside the audio.
+        let firstDuration = first.duration
+        let lastDuration = last.duration
         var cuts: [(id: String, range: TrimRange)] = []
         if first.recordingID == last.recordingID {
             if let range = TrimRange(
@@ -66,9 +69,12 @@ extension MeetingReviewModel {
     /// to confirm.
     public func trim(keepFrom start: Double, to end: Double) {
         guard canTrim else { return }
-        let durations = Dictionary(uniqueKeysWithValues: recordings.map { ($0.id, $0.durationSeconds) })
-        let cuts = Self.cuts(parts: playback.timeline.parts, durations: durations, keepFrom: start, to: end)
-        guard !cuts.isEmpty else { return }
+        let cuts = Self.cuts(parts: playback.timeline.parts, keepFrom: start, to: end)
+        guard !cuts.isEmpty else {
+            // The person has confirmed, so something has to be said.
+            trimMessage = Self.trimMessage(for: .invalidRange)
+            return
+        }
         // The player holds the file that is about to be replaced.
         playback.stop()
         isTrimming = true
@@ -100,7 +106,7 @@ extension MeetingReviewModel {
         case .notFinished: "Wait for this meeting to finish processing, then trim it."
         case .notArchived, .severalRuns: "This meeting can't be trimmed."
         case .imported: "A meeting imported from a file can't be trimmed."
-        case .invalidRange: "Keep at least a second of the meeting."
+        case .invalidRange: "Choose a stretch of at least a second that leaves out some of the meeting."
         case .interrupted: "An earlier trim was finished. Check the meeting, then trim again."
         case .verificationFailed, .filesNotWritten: "Couldn't trim this meeting. Try again."
         }

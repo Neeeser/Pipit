@@ -249,9 +249,8 @@ public actor ProcessingPipeline {
     }
 
     /// Runs or resumes a meeting. Safe to call repeatedly; a meeting already in
-    /// flight is left alone. `refiling` is false for work on a meeting that has
-    /// long had its title and its folder, which must not move because of it.
-    public func process(meetingID: String, refiling: Bool = true) async {
+    /// flight is left alone.
+    public func process(meetingID: String) async {
         guard !running.contains(meetingID) else { return }
         // includingMerged, because a reconnected meeting is folded into the
         // earlier one and hidden from the archive listing while its own segments
@@ -273,7 +272,9 @@ public actor ProcessingPipeline {
         var metadata = found.metadata
         let store = found.store
         let settings = settingsProvider()
-        let refilesFolder = refiling && metadata.microphoneRedoRequestedAt == nil
+        // A meeting that was redone or trimmed has long had its title and its
+        // folder, and is not filed again by rules written since.
+        let refilesFolder = metadata.microphoneRedoRequestedAt == nil && metadata.trimmedAt == nil
         // The recording's own session, from its manifest, so a failure here can
         // be read beside the capture events of the same call. Nil for a
         // meeting recorded before diagnostics existed.
@@ -752,6 +753,7 @@ public actor ProcessingPipeline {
     /// the launch sweep or Retry finishes it. Until the new microphone is
     /// transcribed the meeting reads the old transcript.
     public func redoMicrophone(meetingID: String, backups: URL) async throws {
+        guard !hasUnfinishedTrim(meetingID) else { throw MicrophoneRedoError.busy }
         guard let found = repository.findMeeting(id: meetingID, includingMerged: true) else {
             throw StorageError.meetingNotFound(id: meetingID)
         }
@@ -3151,6 +3153,13 @@ public actor ProcessingPipeline {
     /// re-renders the Markdown. Makes no API call. Used after an assembly
     /// improvement, so a meeting processed under the old rules picks them up.
     public func rebuildTranscript(meetingID: String) async throws {
+        guard !hasUnfinishedTrim(meetingID) else { throw TrimError.interrupted }
+        try await rebuildTranscriptAfterTrim(meetingID: meetingID)
+    }
+
+    /// The rebuild itself, without the refusal a trim in progress earns it:
+    /// finishing the trim is what calls it.
+    private func rebuildTranscriptAfterTrim(meetingID: String) async throws {
         guard let found = repository.findMeeting(id: meetingID, includingMerged: true) else {
             throw StorageError.meetingNotFound(id: meetingID)
         }
@@ -3207,16 +3216,18 @@ public actor ProcessingPipeline {
     /// its transcript, summary and mixdown again from what is left.
     ///
     /// Holds the job slot while files are rewritten, so no stage reads a
-    /// meeting halfway through being cut.
-    public func trim(meetingID: String, to range: TrimRange) async -> TrimOutcome {
+    /// meeting halfway through being cut. `backups` is where redoing the
+    /// microphone copies files to; what it holds of this meeting goes too.
+    public func trim(meetingID: String, to range: TrimRange, backups: URL? = nil) async -> TrimOutcome {
         guard !running.contains(meetingID),
             let found = repository.findMeeting(id: meetingID, includingMerged: true)
         else { return TrimOutcome(failure: .notFinished) }
         if FileManager.default.fileExists(atPath: found.store.layout.trimJournal.path) {
             // An earlier trim stopped part way. It is finished here, and the
             // range chosen against the meeting as it was is not applied.
-            _ = await finishInterruptedTrim(found)
-            return TrimOutcome(failure: .interrupted)
+            var outcome = await finishInterruptedTrim(found, backups: backups)
+            if outcome.failure == nil { outcome.failure = .interrupted }
+            return outcome
         }
         running.insert(meetingID)
         holdFolder(meetingID)
@@ -3229,54 +3240,89 @@ public actor ProcessingPipeline {
         case .failure(let error):
             let failure = (error as? TrimError) ?? .filesNotWritten
             Log.processing.error("trim failed: \(failure.logSafeDescription, privacy: .public)")
-            return TrimOutcome(failure: failure)
+            // A swap that stopped part way is finished now, not at the next
+            // launch, so the meeting is not left half cut meanwhile.
+            guard FileManager.default.fileExists(atPath: found.store.layout.trimJournal.path) else {
+                return TrimOutcome(failure: failure)
+            }
+            return await finishInterruptedTrim(found, backups: backups)
         case .success:
             Log.processing.info(
                 "trimmed meeting=\(found.metadata.logIdentifier, privacy: .public) kept=\(range.seconds, privacy: .public)s"
             )
-            return TrimOutcome(transcriptNotRebuilt: await finishInterruptedTrim(found) == false)
+            return await finishInterruptedTrim(found, backups: backups)
         }
     }
 
-    /// Finishes every trim that was interrupted, at launch. A meeting is
-    /// either trimmed completely or not at all.
-    public func finishInterruptedTrims() async {
+    /// Finishes every trim that was interrupted, at launch, and removes what a
+    /// trim that stopped earlier left beside the files. A meeting is either
+    /// trimmed completely or not at all.
+    public func finishInterruptedTrims(backups: URL? = nil) async {
         let ids = repository.listMeetings().map(\.id) + repository.mergedMeetingIDs()
         for id in ids {
-            guard let found = repository.findMeeting(id: id, includingMerged: true),
-                FileManager.default.fileExists(atPath: found.store.layout.trimJournal.path)
-            else { continue }
-            _ = await finishInterruptedTrim(found)
+            guard let found = repository.findMeeting(id: id, includingMerged: true) else { continue }
+            if FileManager.default.fileExists(atPath: found.store.layout.trimJournal.path) {
+                _ = await finishInterruptedTrim(found, backups: backups)
+            } else {
+                MeetingTrimmer.removeLeftovers(layout: found.store.layout)
+            }
         }
+    }
+
+    /// Whether a trim of this meeting stopped part way and has not been
+    /// finished, which every other change to its files waits out.
+    private func hasUnfinishedTrim(_ meetingID: String) -> Bool {
+        guard let found = repository.findMeeting(id: meetingID, includingMerged: true) else { return false }
+        return FileManager.default.fileExists(atPath: found.store.layout.trimJournal.path)
     }
 
     /// Carries a trim from wherever it stopped to the end: the swap, the voice
-    /// memory, the transcript and processing. Returns whether the transcript
-    /// was rebuilt. Each step is recorded in the journal as it completes, so a
-    /// second interruption resumes after it.
-    private func finishInterruptedTrim(_ found: (metadata: MeetingMetadata, store: MeetingStore)) async -> Bool {
+    /// memory, the backups, the transcript and processing. Each step is
+    /// recorded in the journal as it completes, so a second interruption
+    /// resumes after it.
+    ///
+    /// The meeting stays in `running` through the voice step. That step is
+    /// recorded in the voice database as well, and an overlapping run, a
+    /// launch sweep and a second click on Trim, must not meet it half done.
+    private func finishInterruptedTrim(
+        _ found: (metadata: MeetingMetadata, store: MeetingStore), backups: URL?
+    ) async -> TrimOutcome {
         let store = found.store
         let meetingID = found.metadata.id
-        guard !running.contains(meetingID) else { return true }
+        guard !running.contains(meetingID) else { return TrimOutcome() }
         running.insert(meetingID)
         holdFolder(meetingID)
         await jobLock.acquire()
+        var held = true
+        func release() {
+            guard held else { return }
+            held = false
+            running.remove(meetingID)
+            releaseFolder(meetingID)
+            jobLock.release()
+        }
+        defer { release() }
+
         var finished: TrimJournal?
         do {
             finished = try MeetingTrimmer().finishInterrupted(store: store)
         } catch {
             Log.processing.error("trim not finished: \(logSafeDescription(error), privacy: .public)")
         }
-        running.remove(meetingID)
-        releaseFolder(meetingID)
-        jobLock.release()
-        guard var journal = finished, journal.swapped else { return false }
+        guard var journal = finished, journal.swapped else { return TrimOutcome(failure: .filesNotWritten) }
 
+        // What was decoded from the old audio, and what redoing the
+        // microphone copied from it, both hold the removed stretch.
+        scratch.discard(meetingID: meetingID)
+        if let backups {
+            try? FileManager.default.removeItem(at: backups.appendingPathComponent(meetingID, isDirectory: true))
+        }
         if !journal.voiceMemoryAdjusted {
             do {
                 if let service = backends.speakers {
                     try await service.speakerStore.trimEvidence(
-                        meetingID: meetingID, keepingFrom: journal.start, to: journal.end, now: clock.now
+                        meetingID: meetingID, trimID: ManifestCoding.string(from: journal.createdAt),
+                        keepingFrom: journal.start, to: journal.end, now: clock.now
                     )
                 }
                 journal.voiceMemoryAdjusted = true
@@ -3285,18 +3331,23 @@ public actor ProcessingPipeline {
                 Log.processing.error("voice memory not trimmed: \(logSafeDescription(error), privacy: .public)")
             }
         }
-        var rebuilt = true
+        release()
+
+        var outcome = TrimOutcome()
         do {
-            try await rebuildTranscript(meetingID: meetingID)
+            try await rebuildTranscriptAfterTrim(meetingID: meetingID)
         } catch {
-            rebuilt = false
+            outcome.transcriptNotRebuilt = true
             Log.processing.error("transcript not rebuilt after trim: \(logSafeDescription(error), privacy: .public)")
         }
-        await process(meetingID: meetingID, refiling: false)
-        // The marker stays until the voice memory has been adjusted, because
-        // that step cannot be repeated.
+        await process(meetingID: meetingID)
+        // The marker stays until the voice memory has been adjusted. Removed
+        // before the rename below, which moves the folder it is in.
         if journal.voiceMemoryAdjusted { store.removeTrimJournal() }
-        return rebuilt
+        // The folder is named for the meeting's start, which has moved. Once,
+        // here, so a later launch has nothing left to rename.
+        if let current = try? store.readMetadata() { repository.settleFolderName(for: current) }
+        return outcome
     }
 
     /// Re-renders the transcript after a human speaker correction.
@@ -3887,6 +3938,7 @@ public actor ProcessingPipeline {
     /// 60-minute meeting instead of about fifteen. The previous result stays on
     /// disk, marked inactive, so the change can be undone.
     public func reanalyzeSpeakers(meetingID: String, speakerCount: Int?) async throws {
+        guard !hasUnfinishedTrim(meetingID) else { throw TrimError.interrupted }
         guard let found = repository.findMeeting(id: meetingID, includingMerged: true) else {
             throw StorageError.meetingNotFound(id: meetingID)
         }

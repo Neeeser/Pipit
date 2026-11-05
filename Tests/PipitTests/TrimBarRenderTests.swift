@@ -79,21 +79,27 @@ struct TrimBarRenderTests {
         // The mixdown is 65 s because the far end began 5 s late, and the
         // meeting's recorded length is 60 s.
         let one = parts([("a", 65)])
-        let toEnd = MeetingReviewModel.cuts(parts: one, durations: ["a": 60], keepFrom: 5, to: 65)
+        let toEnd = MeetingReviewModel.cuts(parts: one, keepFrom: 5, to: 65)
         #expect(toEnd.count == 1)
         #expect(toEnd.first?.range.keepsEnd == true)
         #expect(toEnd.first?.range.start == 5)
-        let before = MeetingReviewModel.cuts(parts: one, durations: ["a": 60], keepFrom: 5, to: 40)
+        let before = MeetingReviewModel.cuts(parts: one, keepFrom: 5, to: 40)
         #expect(before.first?.range.keepsEnd == false)
         #expect(before.first?.range.end == 40)
+
+        // A handle in the far end's late tail, between 60 s and 65 s, cuts the
+        // tail off. With the start at 0 that is the whole trim.
+        let tail = MeetingReviewModel.cuts(parts: one, keepFrom: 0, to: 62)
+        #expect(tail.count == 1, "a handle at 62 s of 65 removes the last 3 s")
+        #expect(tail.first?.range.keepsEnd == false)
+        #expect(tail.first?.range.end == 62)
     }
 
     @Test("across recordings only the start of the first and the end of the last move")
     func acrossRecordingsOnlyTheOuterEndsMove() throws {
         let two = parts([("a", 60), ("b", 40)])
-        let durations = ["a": 60.0, "b": 40.0]
 
-        let both = MeetingReviewModel.cuts(parts: two, durations: durations, keepFrom: 10, to: 90)
+        let both = MeetingReviewModel.cuts(parts: two, keepFrom: 10, to: 90)
         #expect(both.map(\.id) == ["a", "b"])
         #expect(both[0].range.start == 10)
         #expect(both[0].range.keepsEnd, "the first recording is kept to its end")
@@ -101,12 +107,12 @@ struct TrimBarRenderTests {
         #expect(both[1].range.end == 30, "90 on the playback bar is 30 s into the second recording")
         #expect(!both[1].range.keepsEnd)
 
-        let startOnly = MeetingReviewModel.cuts(parts: two, durations: durations, keepFrom: 10, to: 100)
+        let startOnly = MeetingReviewModel.cuts(parts: two, keepFrom: 10, to: 100)
         #expect(startOnly.map(\.id) == ["a"], "the second is kept whole, so it is not touched")
-        let endOnly = MeetingReviewModel.cuts(parts: two, durations: durations, keepFrom: 0, to: 90)
+        let endOnly = MeetingReviewModel.cuts(parts: two, keepFrom: 0, to: 90)
         #expect(endOnly.map(\.id) == ["b"])
         // A handle cannot take a whole recording with it.
-        let clamped = MeetingReviewModel.cuts(parts: two, durations: durations, keepFrom: 75, to: 100)
+        let clamped = MeetingReviewModel.cuts(parts: two, keepFrom: 75, to: 100)
         #expect(clamped.isEmpty, "the start cannot leave the first recording, and there is nothing else to cut")
     }
 }

@@ -50,11 +50,12 @@ extension MeetingTrim {
     /// stream descriptions from before the cut, which are moved to its start
     /// because they still describe the audio that remains.
     public static func trim(
-        _ lines: [ManifestLine], to range: TrimRange, origin: Double, cuts: [CaptureTrack: TrackCut]
+        _ lines: [ManifestLine], to range: TrimRange, origin: Double, cuts: [CaptureTrack: TrackCut],
+        firstHostTimes: [CaptureTrack: Double] = [:]
     ) -> TrimmedManifest {
         let startHost = origin + range.start
         let endHost = origin + range.effectiveEnd
-        let plans = segmentPlans(lines, cuts: cuts)
+        let plans = segmentPlans(lines, cuts: cuts, firstHostTimes: firstHostTimes)
         var kept: [CaptureTrack: Double] = [:]
         for (key, plan) in plans { kept[key.track, default: 0] += plan.seconds }
         let keptDuration = kept.values.max() ?? 0
@@ -109,7 +110,7 @@ extension MeetingTrim {
     /// joined audio the archive was cut from, and works out what the cut
     /// leaves of each one.
     private static func segmentPlans(
-        _ lines: [ManifestLine], cuts: [CaptureTrack: TrackCut]
+        _ lines: [ManifestLine], cuts: [CaptureTrack: TrackCut], firstHostTimes: [CaptureTrack: Double]
     ) -> [SegmentKey: SegmentPlan] {
         var records: [SegmentKey: SegmentRecord] = [:]
         for line in lines {
@@ -158,24 +159,56 @@ extension MeetingTrim {
                 startFrame += frames
             }
         }
-        return plans
+        return aligned(plans, cuts: cuts, firstHostTimes: firstHostTimes)
     }
 
-    /// The capture time of each track's first kept frame. Where the first kept
-    /// segment has no start of its own, it is worked back from the first one
-    /// that does, assuming nothing is missing between them.
-    private static func firstFrameHostTimes(_ plans: [SegmentKey: SegmentPlan]) -> [CaptureTrack: Double] {
-        var result: [CaptureTrack: Double] = [:]
+    /// Puts each track on the clock the meeting timeline is read from.
+    ///
+    /// The timeline is a track's lead-in plus a position in its joined audio,
+    /// and the lead-in is the track's first-frame time less the earliest
+    /// track's. After a gap in the capture clock the real time of a later
+    /// frame is ahead of that position by the gap, so the kept audio starts at
+    /// the old first-frame time plus the cut, not at its real capture time. The
+    /// first kept segment is stamped with that, even where it never had a
+    /// start of its own (a crash tail), so the manifest and the archive say
+    /// the same, and the track's other segments move by the same amount so the
+    /// gaps between them stay as recorded.
+    private static func aligned(
+        _ plans: [SegmentKey: SegmentPlan], cuts: [CaptureTrack: TrackCut], firstHostTimes: [CaptureTrack: Double]
+    ) -> [SegmentKey: SegmentPlan] {
+        var result = plans
         for track in CaptureTrack.allCases {
+            guard let cut = cuts[track], let old = firstHostTimes[track] else { continue }
+            let keys = plans.keys.filter { $0.track == track }.sorted { $0.index < $1.index }
+            guard let first = keys.first else { continue }
+            let target = old + cut.from
+            // Where the first kept frame really was, worked back from the first
+            // segment that knows its start.
             var before = 0.0
-            for key in plans.keys.filter({ $0.track == track }).sorted(by: { $0.index < $1.index }) {
+            var real: Double?
+            for key in keys {
                 guard let plan = plans[key] else { continue }
                 if let host = plan.firstFrameHostTime {
-                    result[track] = host - before
+                    real = host - before
                     break
                 }
                 before += plan.seconds
             }
+            let shift = real.map { target - $0 } ?? 0
+            for key in keys {
+                result[key]?.firstFrameHostTime = plans[key]?.firstFrameHostTime.map { $0 + shift }
+            }
+            result[first]?.firstFrameHostTime = target
+        }
+        return result
+    }
+
+    /// Capture time of each track's first kept frame, as the timeline reads it.
+    private static func firstFrameHostTimes(_ plans: [SegmentKey: SegmentPlan]) -> [CaptureTrack: Double] {
+        var result: [CaptureTrack: Double] = [:]
+        for track in CaptureTrack.allCases {
+            let keys = plans.keys.filter { $0.track == track }.sorted { $0.index < $1.index }
+            if let host = keys.first.flatMap({ plans[$0]?.firstFrameHostTime }) { result[track] = host }
         }
         return result
     }
@@ -187,7 +220,7 @@ extension MeetingTrim {
     ) -> ManifestLine {
         let event = ManifestEvent.SegmentOpen(
             track: open.track, index: open.index, file: open.file,
-            firstFrameHostTime: plan.isWhole ? open.firstFrameHostTime : plan.firstFrameHostTime,
+            firstFrameHostTime: plan.firstFrameHostTime ?? open.firstFrameHostTime,
             startFrame: plan.startFrame, sampleRate: open.sampleRate, channelCount: open.channelCount,
             reason: open.reason
         )
@@ -198,13 +231,13 @@ extension MeetingTrim {
     private static func moved(
         _ close: ManifestEvent.SegmentClose, plan: SegmentPlan, line: ManifestLine, endHost: Double
     ) -> ManifestLine {
-        guard !plan.isWhole else { return line }
-        return ManifestLine(
-            hostTime: min(line.hostTime, endHost), wallClock: line.wallClock,
+        ManifestLine(
+            hostTime: plan.isWhole ? line.hostTime : min(line.hostTime, endHost), wallClock: line.wallClock,
             event: .segmentClose(
                 ManifestEvent.SegmentClose(
                     track: close.track, index: close.index, frameCount: plan.frames, byteCount: plan.bytes,
-                    seconds: plan.seconds, firstFrameHostTime: plan.firstFrameHostTime, reason: "trimmed"
+                    seconds: plan.seconds, firstFrameHostTime: plan.firstFrameHostTime ?? close.firstFrameHostTime,
+                    reason: plan.isWhole ? close.reason : "trimmed"
                 ))
         )
     }

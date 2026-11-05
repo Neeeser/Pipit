@@ -758,11 +758,20 @@ public actor SpeakerStore {
     ///
     /// `end` is nil when everything after `start` is kept.
     ///
-    /// Not safe to repeat: the second shift would move the spans again. The
-    /// caller records that it ran.
+    /// A second call with the same `trimID` does nothing: the shift is recorded
+    /// with the change, and moving the spans again would be wrong.
     public func trimEvidence(
-        meetingID: String, keepingFrom start: Double, to end: Double?, now: Date = Date()
+        meetingID: String, trimID: String, keepingFrom start: Double, to end: Double?, now: Date = Date()
     ) throws {
+        try database.run(
+            "CREATE TABLE IF NOT EXISTS trim_applied(meeting_id TEXT NOT NULL, trim_id TEXT NOT NULL,"
+                + " PRIMARY KEY(meeting_id, trim_id))"
+        )
+        var applied = false
+        try database.query(
+            "SELECT 1 FROM trim_applied WHERE meeting_id = ? AND trim_id = ?", [.text(meetingID), .text(trimID)]
+        ) { _ in applied = true }
+        guard !applied else { return }
         let beyondAnyRecording = 1_000_000.0
         var removed: [AudioSpan] = []
         if start > 0 { removed.append(AudioSpan(start: 0, end: start)) }
@@ -777,6 +786,11 @@ public actor SpeakerStore {
         let keptEnd = end ?? beyondAnyRecording
         let rows = "(SELECT id FROM voice_evidence WHERE meeting_id = ?)"
         try database.transaction {
+            // Recorded in the transaction that shifts, so the two happen
+            // together or not at all, and a repeat of this trim finds it.
+            try database.run(
+                "INSERT INTO trim_applied(meeting_id, trim_id) VALUES(?, ?)", [.text(meetingID), .text(trimID)]
+            )
             try database.run(
                 "DELETE FROM voice_evidence_span WHERE evidence_id IN \(rows)"
                     + " AND (end_time <= ? OR start_time >= ?)",

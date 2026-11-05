@@ -38,7 +38,7 @@ struct TrimEvidenceTests {
         let elsewhere = try await Self.enrol(
             store, name: "Speaker C", seed: 83, meeting: "m2", spans: [AudioSpan(start: 200, end: 300)])
 
-        try await store.trimEvidence(meetingID: "m1", keepingFrom: 150, to: 280)
+        try await store.trimEvidence(meetingID: "m1", trimID: "t1", keepingFrom: 150, to: 280)
 
         let kept = try #require(try await store.storedEmbeddings(of: mostlyKept).first?.evidence.first)
         #expect(kept.spans == [AudioSpan(start: 50, end: 130)], "200 to 280 is now 50 to 130, got \(kept.spans)")
@@ -56,8 +56,22 @@ struct TrimEvidenceTests {
         defer { try? FileManager.default.removeItem(at: root) }
         let person = try await Self.enrol(
             store, name: "Speaker A", seed: 84, meeting: "m1", spans: [AudioSpan(start: 100, end: 400)])
-        try await store.trimEvidence(meetingID: "m1", keepingFrom: 60, to: nil)
+        try await store.trimEvidence(meetingID: "m1", trimID: "t1", keepingFrom: 60, to: nil)
         let evidence = try #require(try await store.storedEmbeddings(of: person).first?.evidence.first)
         #expect(evidence.spans == [AudioSpan(start: 40, end: 340)])
+    }
+
+    @Test("the same trim is applied once, however many times it is asked for")
+    func theSameTrimIsAppliedOnce() async throws {
+        let (store, root) = try SpeakerFixtures.makeStore()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let person = try await Self.enrol(
+            store, name: "Speaker A", seed: 85, meeting: "m1", spans: [AudioSpan(start: 100, end: 400)])
+        // A crash after the shift committed, or a second run of the same step,
+        // asks again with the same trim.
+        try await store.trimEvidence(meetingID: "m1", trimID: "t1", keepingFrom: 60, to: nil)
+        try await store.trimEvidence(meetingID: "m1", trimID: "t1", keepingFrom: 60, to: nil)
+        let evidence = try #require(try await store.storedEmbeddings(of: person).first?.evidence.first)
+        #expect(evidence.spans == [AudioSpan(start: 40, end: 340)], "moved once, got \(evidence.spans)")
     }
 }

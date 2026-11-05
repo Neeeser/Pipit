@@ -59,7 +59,7 @@ struct MeetingTrimPipelineTests {
             root: root)
     }
 
-    @Test("a trim leaves a transcript of what is kept, and the folder keeps its place")
+    @Test("a trim leaves a transcript of what is kept, and renames the folder once")
     func aTrimLeavesATranscriptOfWhatIsKept() async throws {
         let root = try TestPaths.makeTemporaryDirectory()
         defer { try? FileManager.default.removeItem(at: root) }
@@ -72,15 +72,27 @@ struct MeetingTrimPipelineTests {
             $0.directoryName = name
             $0.titles.human = "A title set after filing"
         }
-        let folder = made.store.layout.root.path
 
         let range = try #require(TrimRange(start: 10, end: 20, duration: 30))
         let outcome = await made.pipeline.trim(meetingID: made.id, to: range)
 
         #expect(outcome == ProcessingPipeline.TrimOutcome())
         let found = try #require(made.repository.findMeeting(id: made.id))
-        #expect(found.store.layout.root.path == folder, "processing does not refile or rename a trimmed meeting")
-        #expect(found.metadata.processing.state == .complete)
+        #expect(
+            found.store.layout.root.lastPathComponent != name,
+            "the folder is named for the meeting as it now is, once, as part of the trim")
+        let settled = found.store.layout.root.path
+        made.repository.settleFolderNames()
+        #expect(
+            made.repository.findMeeting(id: made.id)?.store.layout.root.path == settled,
+            "nothing is left to rename at the next launch")
+        // Processing it again later does not file it by rules written since.
+        _ = try found.store.updateMetadata {
+            $0.titles.human = "Another title entirely"
+            $0.processing = ProcessingStatus(state: .enriching, updatedAt: TrimFixtures.started)
+        }
+        await made.pipeline.process(meetingID: made.id)
+        #expect(made.repository.findMeeting(id: made.id)?.store.layout.root.path == settled)
         #expect(abs(found.metadata.durationSeconds - 10) < 0.2)
         let after = try #require(try found.store.readCanonicalTranscript())
         #expect(after.utterances.map(\.text).joined().contains("bravoword"))
@@ -187,5 +199,62 @@ struct MeetingTrimPipelineTests {
 
         let evidence = try #require(try await voices.storedEmbeddings(of: person.id).first?.evidence.first)
         #expect(evidence.spans == [AudioSpan(start: 3, end: 298)], "5 to 300 is now 3 to 298, got \(evidence.spans)")
+    }
+
+    @Test("what redoing the microphone copied aside goes with the trim")
+    func theBackupsGoWithTheTrim() async throws {
+        let root = try TestPaths.makeTemporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let made = try await Self.makeProcessed(root: root)
+        let backups = root.appendingPathComponent("Application Support/Backups")
+        let copy = Reprocessing.backupDirectory(under: backups, meetingID: made.id, at: TrimFixtures.started)
+        try FileManager.default.createDirectory(at: copy, withIntermediateDirectories: true)
+        try Data("alphaword charlieword".utf8).write(to: copy.appendingPathComponent("transcript.md"))
+        let other = backups.appendingPathComponent("another-meeting")
+        try FileManager.default.createDirectory(at: other, withIntermediateDirectories: true)
+
+        _ = await made.pipeline.trim(
+            meetingID: made.id, to: try #require(TrimRange(start: 10, end: 20, duration: 30)), backups: backups)
+
+        #expect(!FileManager.default.fileExists(atPath: backups.appendingPathComponent(made.id).path))
+        #expect(FileManager.default.fileExists(atPath: other.path), "another meeting's backups stay")
+    }
+
+    @Test("nothing else changes a meeting's files while a trim is unfinished")
+    func nothingElseChangesTheFilesWhileATrimIsUnfinished() async throws {
+        let root = try TestPaths.makeTemporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let made = try await Self.makeProcessed(root: root)
+        try Self.interrupt(made)
+
+        await #expect(throws: MicrophoneRedoError.busy) {
+            try await made.pipeline.redoMicrophone(meetingID: made.id, backups: root.appendingPathComponent("Backups"))
+        }
+        await #expect(throws: TrimError.interrupted) { try await made.pipeline.rebuildTranscript(meetingID: made.id) }
+        await #expect(throws: TrimError.interrupted) {
+            try await made.pipeline.reanalyzeSpeakers(meetingID: made.id, speakerCount: nil)
+        }
+    }
+
+    @Test("an earlier trim is reported as finished only when it was")
+    func anEarlierTrimIsReportedAsFinishedOnlyWhenItWas() async throws {
+        let root = try TestPaths.makeTemporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let made = try await Self.makeProcessed(root: root)
+        try Self.interrupt(made)
+        let audio = made.store.layout.trackArchiveDirectory
+        // Nothing can be swapped into the audio folder.
+        try FileManager.default.setAttributes([.posixPermissions: 0o555], ofItemAtPath: audio.path)
+        defer { try? FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: audio.path) }
+        let range = try #require(TrimRange(start: 1, end: 5, duration: 30))
+
+        let stuck = await made.pipeline.trim(meetingID: made.id, to: range)
+        #expect(stuck.failure == .filesNotWritten, "finishing failed, so it is not reported as finished")
+        #expect(FileManager.default.fileExists(atPath: made.store.layout.trimJournal.path))
+
+        try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: audio.path)
+        let finished = await made.pipeline.trim(meetingID: made.id, to: range)
+        #expect(finished.failure == .interrupted)
+        try Self.expectTrimmedAndFinished(made)
     }
 }

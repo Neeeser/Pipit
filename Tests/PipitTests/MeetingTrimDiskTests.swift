@@ -25,7 +25,11 @@ struct MeetingTrimDiskTests {
         let root = try TestPaths.makeTemporaryDirectory()
         defer { try? FileManager.default.removeItem(at: root) }
         let store = try TrimFixtures.makeCompacted(root: root, remoteStartOffset: 5)
-        _ = try store.updateMetadata { $0.descriptionText = "A description of the whole meeting" }
+        _ = try store.updateMetadata {
+            $0.descriptionText = "A description of the whole meeting"
+            $0.titles.ai = "A title from the whole meeting"
+            $0.processing.attempts[ProcessingState.enriching.rawValue] = 3
+        }
 
         let range = try #require(TrimRange(start: 2, end: 12, duration: 20))
         try Self.trimmer().trim(store: store, to: range, at: Self.at)
@@ -38,6 +42,9 @@ struct MeetingTrimDiskTests {
             "the far end began at 5 s, so 7 s of it fall in 2 to 12")
         #expect(abs(metadata.durationSeconds - 10) < 0.1)
         #expect(metadata.descriptionText == nil, "the description is written again from what is left")
+        #expect(metadata.titles.ai == nil, "a generated title does not outlive the speech it came from")
+        #expect(metadata.processing.attempts[ProcessingState.enriching.rawValue] == nil, "enrichment starts afresh")
+        #expect(metadata.trimmedAt == Self.at)
 
         let timeline = try store.readTimeline()
         #expect(abs(timeline.duration(track: .mic) - 10) < 0.1, "got \(timeline.duration(track: .mic))")
@@ -118,8 +125,9 @@ struct MeetingTrimDiskTests {
         #expect(abs(before.duration(track: .mic) - 10) < 0.01)
 
         // Seconds 5 to 9 of the joined audio: three of the second segment and
-        // one of the crash tail. On the capture clock they sit at 111 to 114
-        // and the first second of a segment with no start time.
+        // one of the crash tail. The timeline is a track's first frame plus a
+        // position in its joined audio, so the kept audio starts at 100 + 5,
+        // not at the 111 the capture clock read for it after the gap.
         let range = try #require(TrimRange(start: 5, end: 9, duration: 10))
         try Self.trimmer().trim(store: store, to: range, at: Self.at)
 
@@ -135,8 +143,45 @@ struct MeetingTrimDiskTests {
         let tail = try #require(segments.last)
         #expect(tail.wasAdoptedFromCrashTail, "still a crash tail, now one second long")
         #expect(abs(tail.seconds - 1) < 0.01, "got \(tail.seconds)")
-        #expect(abs((timeline.firstFrameHostTime(track: .mic) ?? 0) - 111) < 0.01)
-        #expect(abs((archive.firstFrameHostTime ?? 0) - 111) < 0.01, "the archive starts where the manifest says")
+        #expect(abs((timeline.firstFrameHostTime(track: .mic) ?? 0) - 105) < 0.01)
+        #expect(abs((archive.firstFrameHostTime ?? 0) - 105) < 0.01, "the archive starts where the manifest says")
+    }
+
+    @Test("after a gap, a start trim leaves the two tracks aligned as they were")
+    func afterAGapTheTracksStayAligned() throws {
+        let root = try TestPaths.makeTemporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let store = try TrimFixtures.makeWithGapAndCrashTail(root: root, withFarEnd: true)
+        let before = try store.readTimeline()
+        #expect(before.leadIn(track: .mic) == 0 && before.leadIn(track: .remote) == 0)
+
+        try Self.trimmer().trim(
+            store: store, to: try #require(TrimRange(start: 5, end: 10, duration: 10)), at: Self.at)
+
+        let timeline = try store.readTimeline()
+        #expect(
+            abs(timeline.leadIn(track: .mic) - timeline.leadIn(track: .remote)) < 0.01,
+            "mic starts \(timeline.leadIn(track: .mic)) s in and the far end \(timeline.leadIn(track: .remote)) s")
+        let archive = try #require(try store.readMetadata().audioArchive)
+        let micStart = try #require(archive.mic?.firstFrameHostTime)
+        let remoteStart = try #require(archive.remote?.firstFrameHostTime)
+        #expect(abs(micStart - remoteStart) < 0.01, "the archives agree with each other and with the manifest")
+        #expect(abs(timeline.duration(track: .mic) - (archive.mic?.seconds ?? 0)) < 0.1)
+    }
+
+    @Test("a crash tail that becomes the first kept segment still gives the track its start")
+    func aCrashTailAsTheFirstKeptSegment() throws {
+        let root = try TestPaths.makeTemporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let store = try TrimFixtures.makeWithGapAndCrashTail(root: root)
+        // 8.5 s to the end falls inside the crash tail, which has no start time.
+        try Self.trimmer().trim(
+            store: store, to: try #require(TrimRange(start: 8.5, end: 10, duration: 10)), at: Self.at)
+        let archive = try #require(try store.readMetadata().audioArchive?.mic)
+        let timeline = try store.readTimeline()
+        let seen = try #require(timeline.firstFrameHostTime(track: .mic), "the track still has a start")
+        #expect(abs(seen - (archive.firstFrameHostTime ?? 0)) < 0.01, "the manifest and the archive agree")
+        #expect(abs(seen - 108.5) < 0.01, "got \(seen)")
     }
 
     // MARK: the other files
@@ -327,5 +372,82 @@ struct MeetingTrimDiskTests {
         let again = try #require(try MeetingTrimmer().finishInterrupted(store: store))
         #expect(again.swapped && again.swaps == finished.swaps)
         #expect(abs(try store.readMetadata().durationSeconds - 10) < 0.1)
+    }
+
+    @Test("a trim stopped at any swap is finished, whichever one it was")
+    func aTrimStoppedAtAnySwapIsFinished() throws {
+        // The manifest, two tracks and the listening copy.
+        for position in 0..<4 {
+            let root = try TestPaths.makeTemporaryDirectory()
+            defer { try? FileManager.default.removeItem(at: root) }
+            let store = try TrimFixtures.makeCompacted(root: root)
+            let range = try #require(TrimRange(start: 2, end: 12, duration: 20))
+            #expect(throws: TrimError.filesNotWritten) {
+                try Self.trimmer(stopAtSwap: position).trim(store: store, to: range, at: Self.at)
+            }
+            let finished = try #require(try MeetingTrimmer().finishInterrupted(store: store))
+            #expect(finished.swapped)
+            let archive = try #require(try store.readMetadata().audioArchive)
+            for record in [archive.mic, archive.remote] {
+                let track = try #require(record)
+                let file = store.layout.trackArchiveDirectory.appendingPathComponent(track.file)
+                #expect(abs(try TrimFixtures.seconds(of: file) - track.seconds) < 0.2, "stopped at swap \(position)")
+            }
+            #expect(abs(try store.readTimeline().duration(track: .mic) - 10) < 0.1, "stopped at swap \(position)")
+            #expect(abs(try TrimFixtures.seconds(of: store.layout.recordingAudio) - 10) < 0.2)
+        }
+    }
+
+    @Test("a replacement that is missing or changed is an error, not a step to skip")
+    func aMissingOrChangedReplacementIsAnError() throws {
+        for damage in ["missing", "changed"] {
+            let root = try TestPaths.makeTemporaryDirectory()
+            defer { try? FileManager.default.removeItem(at: root) }
+            let store = try TrimFixtures.makeCompacted(root: root)
+            let range = try #require(TrimRange(start: 2, end: 12, duration: 20))
+            #expect(throws: TrimError.filesNotWritten) {
+                try Self.trimmer(stopAtSwap: 1).trim(store: store, to: range, at: Self.at)
+            }
+            // The last replacement has not been swapped in yet.
+            let journal = try #require(try store.readTrimJournal())
+            let staged = store.layout.root.appendingPathComponent(try #require(journal.swaps.last).staged)
+            if damage == "missing" {
+                try FileManager.default.removeItem(at: staged)
+            } else {
+                try Data("not the replacement".utf8).write(to: staged)
+            }
+            #expect(throws: TrimError.filesNotWritten, "\(damage)") {
+                try MeetingTrimmer().finishInterrupted(store: store)
+            }
+            #expect(
+                abs(try store.readMetadata().durationSeconds - 20) < 0.1, "the record is not written over a bad swap")
+        }
+    }
+
+    @Test("files a trim left before its journal was written are removed, and a journal's are not")
+    func leftoversAreRemoved() throws {
+        let root = try TestPaths.makeTemporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let store = try TrimFixtures.makeCompacted(root: root)
+        let layout = store.layout
+        let leftovers = [
+            layout.trackArchiveDirectory.appendingPathComponent("mic.trimming.m4a"),
+            layout.rawTranscript.appendingPathExtension("trimming"),
+            layout.root.appendingPathComponent("recording.trimming.m4a"),
+        ]
+        for url in leftovers { try Data("old content".utf8).write(to: url) }
+
+        MeetingTrimmer.removeLeftovers(layout: layout)
+
+        for url in leftovers { #expect(!FileManager.default.fileExists(atPath: url.path), "\(url.lastPathComponent)") }
+        #expect(FileManager.default.fileExists(atPath: layout.trackArchiveFile(track: .mic).path), "real files stay")
+
+        // With a journal they are what finishes the trim.
+        #expect(throws: TrimError.filesNotWritten) {
+            try Self.trimmer(stopAtSwap: 1).trim(
+                store: store, to: try #require(TrimRange(start: 2, end: 12, duration: 20)), at: Self.at)
+        }
+        MeetingTrimmer.removeLeftovers(layout: layout)
+        #expect(try MeetingTrimmer().finishInterrupted(store: store)?.swapped == true)
     }
 }

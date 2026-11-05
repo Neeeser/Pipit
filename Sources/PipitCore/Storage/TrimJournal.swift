@@ -55,6 +55,12 @@ public struct TrimMetadataChange: Codable, Sendable, Equatable {
         // Enrichment fills the description only when it is empty, so the old
         // one, which describes the removed stretch too, has to go.
         metadata.descriptionText = nil
+        // Likewise the generated title, which can name something said in the
+        // removed stretch and would otherwise stay where enrichment is off or
+        // fails.
+        metadata.titles.ai = nil
+        metadata.trimmedAt = at
+        metadata.processing.attempts[ProcessingState.enriching.rawValue] = nil
         metadata.processing.state = .enriching
         metadata.processing.updatedAt = at
         metadata.processing.completedStages.removeAll { $0 == .enriching || $0 == .complete }
@@ -82,10 +88,15 @@ public struct TrimJournal: Codable, Sendable, Equatable {
     public struct Swap: Codable, Sendable, Equatable {
         public var staged: String
         public var target: String
+        /// The replacement's size when it was checked. Finishing the swap
+        /// compares against it, so a replacement that is missing or changed
+        /// is an error and not a step to skip.
+        public var size: Int64
 
-        public init(staged: String, target: String) {
+        public init(staged: String, target: String, size: Int64) {
             self.staged = staged
             self.target = target
+            self.size = size
         }
     }
 

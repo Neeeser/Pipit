@@ -169,17 +169,35 @@ microphone with nothing left in range are deleted.
 Speaker clusters keep their identifiers, so names given to them stay.
 
 `MeetingTrimmer` writes every replacement beside the original and decodes the
-new audio to check its length. It then writes `raw/trim.journal.json`, which
-lists every replacement, every file to delete and the metadata change as
-absolute values, and swaps the files in with the metadata last, through
-`updateMetadata` so only the trim's fields change. The journal is the record
-that a trim is in progress. A failure or quit in the swap leaves it, and launch
-finishes the swap from it; each step can be repeated. A second trim is refused
-while it exists. After the swap, the pipeline moves the voice memory (see
-below), rebuilds the transcript, and processes the meeting again from
-enrichment without refiling its folder. The journal is removed when that is
-done. A failure to rebuild the transcript is reported apart from the trim,
-which has happened by then.
+new audio to check its length. It forces the replacements and their folders to
+disk, then writes `raw/trim.journal.json`, which lists every replacement with
+its size, every file to delete and the metadata change as absolute values. It
+swaps the files in with the metadata last, through `updateMetadata` so only the
+trim's fields change. The journal is the record that a trim is in progress. A
+failure or quit in the swap leaves it; the pipeline finishes the swap straight
+away, or at launch if that fails too. Finishing checks each replacement against
+its recorded size, and a replacement that is missing and not already in place
+is an error. Redoing the microphone, re-analysing speakers and rebuilding the
+transcript refuse while the journal exists, and a second trim is refused. At
+launch, `*.trimming` files left by a trim that stopped before its journal was
+written are removed.
+
+After the swap the pipeline discards the decoded working copies in Caches and
+the meeting's folder under `Application Support/Pipit/Backups`, where redoing
+the microphone copies files that hold the removed stretch. It then moves the
+voice memory (below), rebuilds the transcript, and processes the meeting again
+from enrichment. A trimmed meeting (`trimmedAt` in the metadata) is not filed
+by rules again; its folder is renamed once, after processing, to match its new
+start. The journal is removed before that rename. A failure to rebuild the
+transcript is reported apart from the trim, which has happened by then.
+
+A track's first-frame time after a trim is its old first-frame time plus where
+the cut starts in its joined audio, not the capture time of the first kept
+frame, because the meeting timeline is a lead-in plus a position in the joined
+audio and a gap in the capture clock would otherwise shift the track against
+the other one. The first kept segment is stamped with it, including a crash
+tail that had no start of its own, and the track's other segments move by the
+same amount.
 
 Voice profiles are stored separately at
 `~/Library/Application Support/Pipit/Speakers/voices.sqlite`. Meeting folders
@@ -187,8 +205,9 @@ and exports contain no voice vectors. The store records what each vector was
 derived from as spans of a meeting's seconds. A trim retracts the spans in the
 removed stretch through the same path a correction uses, which drops a vector
 that no longer stands on enough audio, then moves the rest by the start of the
-cut (`SpeakerStore.trimEvidence`). That shift is not safe to repeat, so the
-journal records that it ran. A recording made by reading the enrolment
+cut (`SpeakerStore.trimEvidence`). The shift is recorded in the voice database in
+the transaction that makes it, under the journal's creation time, so a repeat of
+the same trim does nothing. A recording made by reading the enrolment
 script aloud is kept beside it, under
 `~/Library/Application Support/Pipit/VoiceEnrollment/<identity>/`, and is deleted
 when that person's learned voice is forgotten or they are deleted.

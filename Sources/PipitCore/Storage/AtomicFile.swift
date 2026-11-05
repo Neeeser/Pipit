@@ -58,6 +58,21 @@ public enum AtomicFile {
         try write(Data(text.utf8), to: url)
     }
 
+    /// Forces a file or folder to disk. For callers that stage several files
+    /// and need them durable before recording that they are.
+    public static func flush(_ url: URL) throws {
+        let descriptor = open(url.path, O_RDONLY)
+        guard descriptor >= 0 else {
+            throw StorageError.fileWriteFailed(path: url.path, underlying: "open errno \(errno)")
+        }
+        let result = fsync(descriptor)
+        let code = errno
+        close(descriptor)
+        if result != 0 {
+            throw StorageError.fileWriteFailed(path: url.path, underlying: "fsync errno \(code)")
+        }
+    }
+
     /// Reports a failed directory sync, because the rename it commits is what
     /// makes the new file the one that survives a power loss.
     private static func syncDirectory(_ url: URL) throws {

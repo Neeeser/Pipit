@@ -34,7 +34,7 @@ public enum TrimFixtures {
     /// clock between the first two, and the last one never closed, the way a
     /// crash leaves it and recovery adopts it. The joined audio is 4 s, 4 s
     /// and 2 s; the second segment starts 6 s after the first one ended.
-    public static func makeWithGapAndCrashTail(root: URL) throws -> MeetingStore {
+    public static func makeWithGapAndCrashTail(root: URL, withFarEnd: Bool = false) throws -> MeetingStore {
         let repository = MeetingRepository(root: root)
         let made = try repository.createMeeting(
             source: .manual, provider: .unknown, startedAt: started,
@@ -52,36 +52,41 @@ public enum TrimFixtures {
         let rate = 16_000.0
         let format = try requireFormat(AVAudioFormat(standardFormatWithSampleRate: rate, channels: 1))
         // Where each segment starts on the capture clock; nil for the crash tail.
-        let parts: [(seconds: Double, host: Double?, closed: Bool)] = [(4, 100, true), (4, 110, true), (2, nil, false)]
-        var frames: Int64 = 0
-        for (offset, part) in parts.enumerated() {
-            let index = offset + 1
-            let name = layout.segmentFileName(track: .mic, index: index)
-            let url = layout.segmentFile(track: .mic, index: index)
-            let file = try AVAudioFile(forWriting: url, settings: format.settings)
-            try file.write(from: AudioFixtures.makeTone(seconds: part.seconds, sampleRate: rate, amplitude: 0.4))
-            let count = Int64(part.seconds * rate)
-            manifest.append(
-                .segmentOpen(
-                    .init(
-                        track: .mic, index: index, file: name, firstFrameHostTime: part.host, startFrame: frames,
-                        sampleRate: rate, channelCount: 1, reason: index == 1 ? "start" : "rotate"
-                    )))
-            if part.closed {
+        typealias Part = (seconds: Double, host: Double?, closed: Bool)
+        func write(_ track: CaptureTrack, _ parts: [Part]) throws {
+            var frames: Int64 = 0
+            for (offset, part) in parts.enumerated() {
+                let index = offset + 1
+                let url = layout.segmentFile(track: track, index: index)
+                let file = try AVAudioFile(forWriting: url, settings: format.settings)
+                try file.write(from: AudioFixtures.makeTone(seconds: part.seconds, sampleRate: rate, amplitude: 0.4))
+                let count = Int64(part.seconds * rate)
                 manifest.append(
-                    .segmentClose(
+                    .segmentOpen(
                         .init(
-                            track: .mic, index: index, frameCount: count, byteCount: 0, seconds: part.seconds,
-                            firstFrameHostTime: part.host, reason: "rotate"
+                            track: track, index: index, file: layout.segmentFileName(track: track, index: index),
+                            firstFrameHostTime: part.host, startFrame: frames, sampleRate: rate, channelCount: 1,
+                            reason: index == 1 ? "start" : "rotate"
                         )))
-            } else {
-                manifest.append(
-                    .crashTailAdopted(
-                        .init(track: .mic, index: index, frameCount: count, byteCount: 0, seconds: part.seconds)))
+                if part.closed {
+                    manifest.append(
+                        .segmentClose(
+                            .init(
+                                track: track, index: index, frameCount: count, byteCount: 0, seconds: part.seconds,
+                                firstFrameHostTime: part.host, reason: "rotate"
+                            )))
+                } else {
+                    manifest.append(
+                        .crashTailAdopted(
+                            .init(track: track, index: index, frameCount: count, byteCount: 0, seconds: part.seconds)))
+                }
+                frames += count
             }
-            frames += count
         }
-        manifest.append(.sessionEnd(.init(reason: "test", micSeconds: 10, remoteSeconds: 0)))
+        try write(.mic, [(4, 100, true), (4, 110, true), (2, nil, false)])
+        // A far end with no gap, starting with the microphone.
+        if withFarEnd { try write(.remote, [(10, 100, true)]) }
+        manifest.append(.sessionEnd(.init(reason: "test", micSeconds: 10, remoteSeconds: withFarEnd ? 10 : 0)))
         manifest.close()
         _ = try store.updateMetadata {
             $0.durationSeconds = 10
