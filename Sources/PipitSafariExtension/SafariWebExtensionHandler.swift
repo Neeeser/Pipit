@@ -61,6 +61,9 @@ final class SafariWebExtensionHandler: NSObject, NSExtensionRequestHandling {
             Self.diagnostics.flush(timeout: 0.1)
             let reply = NSExtensionItem()
             reply.userInfo = [SFExtensionMessageKey: ["type": "ack", "connected": false]]
+            // Safari may never call the completion handler, and this process
+            // must not outlive its file.
+            DispatchQueue.global().asyncAfter(deadline: .now() + 2) { exit(0) }
             context.completeRequest(returningItems: [reply]) { _ in exit(0) }
             return
         }
