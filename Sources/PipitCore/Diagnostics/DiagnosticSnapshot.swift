@@ -526,6 +526,7 @@ extension DiagnosticSnapshot {
                 stage: failure.stage.rawValue,
                 code: failure.code?.rawValue ?? "unknown",
                 retryable: failure.isRetryable,
+                cause: failure.effectiveCause.rawValue,
                 attempts: status.attemptCount(for: failure.stage),
                 at: failure.occurredAt
             )

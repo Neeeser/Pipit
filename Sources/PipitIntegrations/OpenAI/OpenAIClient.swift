@@ -276,6 +276,15 @@ public struct OpenAIClient: AIBackend, StructuredLanguageModel {
                 )
             }
             throw ProcessingError.malformedResponse(reason: "http 400")
+        case 404:
+            // A retired or misspelled model answers 404 on every request.
+            throw ProcessingError.languageModel(provider: "OpenAI", failure: .modelNotFound)
+        case 408:
+            throw ProcessingError.serverError(status: http.statusCode)
+        case 400..<500:
+            // Refused as sent, so sending it again is refused again.
+            throw ProcessingError.languageModel(
+                provider: "OpenAI", failure: .rejected(status: http.statusCode))
         default:
             throw ProcessingError.serverError(status: http.statusCode)
         }

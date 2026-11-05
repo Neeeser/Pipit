@@ -95,25 +95,39 @@ public enum FailureCause: String, Codable, Sendable, Equatable {
     /// code. Anything unrecognised that was not retryable is treated as a
     /// Settings fix, which is how the sweep always handled it.
     init(code: DiagnosticCode?, isRetryable: Bool) {
-        switch code?.rawValue ?? "" {
-        case "processing.missing_api_key", "processing.authentication_failed",
-            "language_model.authentication_failed", "language_model.model_not_found",
-            "model.not_installed":
+        let raw = code?.rawValue ?? ""
+        func matches(_ family: [String]) -> Bool {
+            family.contains { raw == $0 || raw.hasPrefix($0 + ".") }
+        }
+        if matches(Self.legacyFixedInSettings) {
             self = .fixedInSettings
-        case let raw
-        where
-            [
-                "processing.rate_limited", "processing.server_error", "processing.transport",
-                "processing.cancelled", "language_model.unreachable",
-                "language_model.rate_limited", "language_model.server_error",
-            ].contains {
-                raw == $0 || raw.hasPrefix($0 + ".")
-            }:
+        } else if matches(Self.legacyClearsByWaiting) {
             self = .clearsByWaiting
-        default:
+        } else if matches(Self.legacySameResult) {
+            self = .sameResultEachTime
+        } else {
             self = isRetryable ? .sameResultEachTime : .fixedInSettings
         }
     }
+
+    private static let legacyFixedInSettings = [
+        "processing.missing_api_key", "processing.authentication_failed",
+        "language_model.authentication_failed", "language_model.model_not_found",
+        "model.not_installed",
+    ]
+    private static let legacyClearsByWaiting = [
+        "processing.rate_limited", "processing.server_error", "processing.transport",
+        "processing.cancelled", "language_model.unreachable", "language_model.rate_limited",
+        "language_model.server_error",
+    ]
+    /// Listed rather than read from `isRetryable`, since several of these were
+    /// stored as not retryable and would otherwise read as a Settings fix.
+    private static let legacySameResult = [
+        "processing.empty_transcript", "processing.degenerate_transcript",
+        "processing.malformed_response", "processing.request_too_large",
+        "processing.duration_too_long", "processing.audio_unreadable", "processing.local_failed",
+        "model.audio_unreadable", "language_model.unexpected_response", "language_model.rejected",
+    ]
 }
 
 public struct ProcessingFailure: Codable, Sendable, Equatable {
@@ -142,6 +156,23 @@ public struct ProcessingFailure: Codable, Sendable, Equatable {
         self.occurredAt = occurredAt
         self.code = code
         self.cause = cause
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case stage, message, isRetryable, occurredAt, code, cause
+    }
+
+    /// Decoded by hand so a cause this build does not know reads as absent. A
+    /// value written by a newer build must not make the whole `metadata.json`
+    /// unreadable here.
+    public init(from decoder: any Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        stage = try container.decode(ProcessingState.self, forKey: .stage)
+        message = try container.decode(String.self, forKey: .message)
+        isRetryable = try container.decode(Bool.self, forKey: .isRetryable)
+        occurredAt = try container.decode(Date.self, forKey: .occurredAt)
+        code = try container.decodeIfPresent(DiagnosticCode.self, forKey: .code)
+        cause = (try? container.decodeIfPresent(FailureCause.self, forKey: .cause)) ?? nil
     }
 
     public var effectiveCause: FailureCause {
@@ -252,7 +283,7 @@ public struct ProcessingStatus: Codable, Sendable, Equatable {
         let cause = failure.effectiveCause
         guard cause != .fixedInSettings else { return message }
         let outcome: FailureOutcome = isOutOfAttempts ? .stopped : .retryAtLaunch
-        let sentence = outcome.sentence(advice: "Try again.")
+        let sentence = outcome.sentence(advice: "")
         let safe = " Your recording is safe."
         if message.hasSuffix(safe) {
             return String(message.dropLast(safe.count)) + " " + sentence + safe

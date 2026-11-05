@@ -3,6 +3,7 @@ import Foundation
 import PipitAudio
 import PipitCore
 import PipitIntegrations
+import PipitLocalAI
 import PipitServices
 import Synchronization
 import Testing
@@ -842,11 +843,18 @@ struct PipelineTests {
             .languageModel(provider: "Ollama", failure: .authenticationFailed),
             .languageModel(provider: "Ollama", failure: .modelNotFound),
         ]
+        // Through the mapping the pipeline applies to whatever was thrown, not
+        // with the cause written in by hand.
         let waiting: [ProcessingError] = [
             .transport(reason: "offline"), .rateLimited(retryAfter: nil), .serverError(status: 503),
             .languageModel(provider: "Ollama", failure: .unreachable),
-            .localProcessingFailed(reason: "download", retryable: true, cause: .clearsByWaiting),
+            ProcessingPipeline.processingError(from: URLError(.notConnectedToInternet)),
+            ProcessingPipeline.processingError(from: LocalModelError.installFailed("offline")),
         ]
+        let localSettings = ProcessingPipeline.processingError(from: LocalModelError.notInstalled)
+        let localSame = ProcessingPipeline.processingError(from: LocalModelError.audioUnreadable("x"))
+        #expect(localSettings.cause == .fixedInSettings)
+        #expect(localSame.cause == .sameResultEachTime)
         for error in sameResult { #expect(error.cause == .sameResultEachTime, "\(error)") }
         for error in settings { #expect(error.cause == .fixedInSettings, "\(error)") }
         for error in waiting { #expect(error.cause == .clearsByWaiting, "\(error)") }
@@ -863,6 +871,11 @@ struct PipelineTests {
             .languageModel(provider: "an Ollama server", failure: .rejected(status: 400)),
             .languageModel(provider: "an Ollama server", failure: .unexpectedResponse),
             .localProcessingFailed(reason: "Processing this meeting on this Mac failed.", retryable: true),
+            .localProcessingFailed(
+                reason: ProcessingPipeline.timingModelDownloadFailure, retryable: true,
+                cause: .clearsByWaiting),
+            ProcessingPipeline.processingError(from: URLError(.notConnectedToInternet)),
+            ProcessingPipeline.processingError(from: LocalModelError.installFailed("x")),
         ]
         var longest = 0
         for error in every {
@@ -870,7 +883,9 @@ struct PipelineTests {
             #expect(message(.retryingNow).contains("will retry"), "\(error)")
             #expect(message(.retryAtLaunch).contains("next time it opens"), "\(error)")
             #expect(message(.stopped).contains("stopped retrying"), "\(error)")
+            #expect(!message(.stopped).contains("Try another model in Settings. You can"), "\(error)")
             #expect(!message(.stopped).contains("will retry"), "\(error)")
+            #expect(!message(.stopped).contains("Try again"), "the button already says it: \(error)")
             longest = max(longest, message(.stopped).count, message(.retryAtLaunch).count)
         }
         #expect(longest <= 175, "the longest message is \(longest) characters")
@@ -912,6 +927,106 @@ struct PipelineTests {
         #expect(offlineText.contains("next time it opens"), Comment(rawValue: offlineText))
         #expect(!offlineText.contains("will retry"), Comment(rawValue: offlineText))
         #expect(!offline.isOutOfAttempts, "an outage is not capped")
+    }
+
+    @Test("a model download that lost its network is tried again at the next launch")
+    func aModelDownloadThatLostItsNetworkIsTriedAgainAtTheNextLaunch() async throws {
+        let root = try TestPaths.makeTemporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let meeting = try PipelineFixtures.makeRecordedMeeting(root: root)
+        let offline = Mutex(true)
+        let pipeline = PipelineFixtures.makePipeline(
+            repository: meeting.repository, backend: FakeAIBackend(),
+            transcriber: StubLocalTranscriber(segments: Self.sweepRecording),
+            diarizer: StubLocalDiarizer(
+                intervals: [DiarizationInterval(start: 0, end: 5, clusterID: "S1")],
+                chunkEmbeddings: []),
+            speakers: nil,
+            prepareLocalModels: { if offline.withLock({ $0 }) { throw URLError(.notConnectedToInternet) } },
+            settings: AppSettings(), scratchRoot: root.appendingPathComponent("scratch")
+        )
+        await pipeline.process(meetingID: meeting.metadata.id)
+
+        let failed = try meeting.store.readMetadata().processing
+        #expect(failed.state == .failed)
+        #expect(failed.attemptCount(for: .transcribing) == Self.attemptsPerStageForLaunchSweep)
+        #expect(failed.lastFailure?.effectiveCause == .clearsByWaiting)
+        #expect(!failed.isOutOfAttempts, "being offline is not a fault that repeats")
+
+        offline.withLock { $0 = false }
+        await pipeline.resumeInterrupted()
+        #expect(
+            try meeting.store.readMetadata().processing.state != .failed,
+            "the next launch tried it again"
+        )
+    }
+
+    @Test("a failed meeting stops reading as failed while the launch sweep runs it again")
+    func aFailedMeetingStopsReadingAsFailedWhileTheLaunchSweepRunsItAgain() async throws {
+        let root = try TestPaths.makeTemporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let meeting = try PipelineFixtures.makeRecordedMeeting(root: root)
+        try Self.markFailed(meeting.store, attempts: 1, cause: .clearsByWaiting)
+
+        final class Reading: @unchecked Sendable {
+            let first = Mutex<String??>(nil)
+        }
+        let reading = Reading()
+        let backend = FakeAIBackend()
+        backend.transcriptionSegments = Self.sweepRecording
+        backend.diarizationSegments = Self.sweepDiarization
+        // The first progress report of the run, which follows the write that
+        // starts the attempt: what the pane would draw while it works.
+        let pipeline = ProcessingPipeline(
+            repository: meeting.repository, backend: backend, clock: ManualClock(),
+            settingsProvider: { AppSettings() },
+            onProgress: { [store = meeting.store] _ in
+                reading.first.withLock { first in
+                    if first == nil { first = .some((try? store.readMetadata())?.processing.lastFailure?.message) }
+                }
+            },
+            wait: { _ in }
+        )
+        await pipeline.resumeInterrupted()
+
+        let seen = reading.first.withLock { $0 }
+        #expect(seen != nil, "the run reported progress")
+        #expect(seen == .some(nil), "no stale failure on screen during the run: \(String(describing: seen))")
+    }
+
+    @Test("a failure code stored before causes were kept is sorted without trusting isRetryable")
+    func aFailureCodeStoredBeforeCausesWereKeptIsSortedWithoutTrustingIsRetryable() {
+        let repeats = [
+            "processing.malformed_response", "processing.request_too_large",
+            "processing.duration_too_long", "processing.audio_unreadable",
+            "language_model.unexpected_response", "language_model.rejected.400",
+        ]
+        for code in repeats {
+            let failure = ProcessingFailure(
+                stage: .transcribing, message: "x", isRetryable: false,
+                occurredAt: Date(timeIntervalSince1970: 1), code: DiagnosticCode(checked: code))
+            #expect(failure.effectiveCause == .sameResultEachTime, Comment(rawValue: code))
+        }
+        let key = ProcessingFailure(
+            stage: .transcribing, message: "x", isRetryable: false,
+            occurredAt: Date(timeIntervalSince1970: 1),
+            code: DiagnosticCode(checked: "processing.missing_api_key"))
+        #expect(key.effectiveCause == .fixedInSettings)
+    }
+
+    @Test("a cause this build does not know does not make the meeting unreadable")
+    func aCauseThisBuildDoesNotKnowDoesNotMakeTheMeetingUnreadable() throws {
+        let json = """
+            {"stage":"transcribing","message":"x","isRetryable":true,
+             "occurredAt":"2026-10-21T03:18:16Z","cause":"a_future_value"}
+            """
+        let decoded = try DiagnosticCoding.makeDecoder().decode(ProcessingFailure.self, from: Data(json.utf8))
+        #expect(decoded.cause == nil)
+        #expect(decoded.message == "x")
+        let known = json.replacingOccurrences(of: "a_future_value", with: "waiting")
+        #expect(
+            try DiagnosticCoding.makeDecoder().decode(ProcessingFailure.self, from: Data(known.utf8)).cause
+                == .clearsByWaiting)
     }
 
     @Test("an authentication failure is not retried in a loop")

@@ -359,11 +359,12 @@ Built by `DiagnosticSnapshot` (PipitCore) from values `DiagnosticReportCollector
   and `freeDisk` for the meetings folder's volume.
 - `summary.recentFailures`: the ten newest failures still standing on
   meetings: `stage`, `code` (the DiagnosticCode recorded with the failure, or
-  `unknown` for one recorded before codes were kept), `retryable` (whether
-  the cause can clear by waiting, not whether attempts remain), `attempts`
-  (failed attempts at that stage, not counting a run a quit interrupted; a
-  retryable failure with 3 attempts has used all of them and waits for
-  Retry), and `at`. The failure's message is never read; it is prose for the
+  `unknown` for one recorded before codes were kept), `retryable`
+  (whether that run tried the stage again), `cause` (`same_result`, `settings`
+  or `waiting`: what another attempt would change), `attempts` (failed attempts
+  at that stage, not counting a run a quit interrupted), and `at`. Only a
+  `same_result` failure with 3 attempts has used them all and waits for Retry;
+  `settings` and `waiting` failures are started again at every launch. The failure's message is never read; it is prose for the
   person and can name a file.
 - `summary.diagnostics`: `eventsDropped`, the sum of every
   `diagnostics.dropped` count in the log; `oldestEvent`, the oldest event on

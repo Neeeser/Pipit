@@ -1014,7 +1014,8 @@ public final class PipitRuntime {
                 message: failure.userMessage,
                 isRetryable: false,
                 occurredAt: clock.now,
-                code: DiagnosticCode(describing: error)
+                code: DiagnosticCode(describing: error),
+                cause: failure.cause
             ),
             at: clock.now
         )
@@ -1069,7 +1070,8 @@ public final class PipitRuntime {
                 message: failure.userMessage,
                 isRetryable: false,
                 occurredAt: clock.now,
-                code: DiagnosticCode(describing: error)
+                code: DiagnosticCode(describing: error),
+                cause: failure.cause
             ),
             at: clock.now
         )

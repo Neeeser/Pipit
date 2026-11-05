@@ -148,8 +148,9 @@ finalizing -> audio_safe -> transcribing -> diarizing
 only after this state. Each later stage records its state and can resume after a
 failure.
 
-A stage that fails is tried up to three times in one run. The launch sweep then
-starts a failed meeting again only when another attempt could change the
+A stage that fails with a cause that waiting can clear (a network or service
+problem) is tried up to three times in one run; other failures are tried once.
+The launch sweep then starts a failed meeting again only when another attempt could change the
 result: a missing key or model (fixed in Settings) and a network or service
 outage (clears by waiting) are retried at every launch. A failure that repeats
 the same result, such as a transcript that loops, is left for the Retry button

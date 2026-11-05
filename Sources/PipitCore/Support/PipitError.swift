@@ -232,12 +232,14 @@ public enum ProcessingError: LogSafeError, Equatable {
         }
     }
 
-    /// What to try once Pipit has stopped.
+    /// What else the person can do once Pipit has stopped. The Retry button is
+    /// already on screen, so only a different way forward is said. A message
+    /// that already points to Settings adds nothing.
     private var stoppedAdvice: String {
         switch self {
         case .emptyTranscript, .degenerateTranscript:
-            "Try again, or choose another transcription model in Settings."
-        default: "Try again."
+            "You can choose another transcription model in Settings."
+        default: ""
         }
     }
 
@@ -277,7 +279,7 @@ public enum FailureOutcome: Equatable, Sendable {
         switch self {
         case .retryingNow: "Pipit will retry."
         case .retryAtLaunch: "Pipit will try again the next time it opens."
-        case .stopped: "Pipit stopped retrying. \(advice)"
+        case .stopped: advice.isEmpty ? "Pipit stopped retrying." : "Pipit stopped retrying. \(advice)"
         }
     }
 }
@@ -348,11 +350,5 @@ public enum LanguageModelFailure: Equatable, Sendable {
         case .unreachable, .rateLimited, .serverError, .authenticationFailed, .unexpectedResponse:
             return "\(what)."
         }
-    }
-
-    /// The statement and what happens next, for a meeting that hit it.
-    public func message(provider: String) -> String {
-        let what = advice(provider: provider)
-        return isRetryable ? "\(what) Pipit will retry." : what
     }
 }

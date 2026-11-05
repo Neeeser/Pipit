@@ -141,6 +141,8 @@ public actor ProcessingPipeline {
     /// How many times one stage is attempted before the meeting is left for the
     /// user, and the delays between those attempts.
     static let maxAttemptsPerStage = ProcessingStatus.maxAttemptsPerStage
+    public static let timingModelDownloadFailure =
+        "The timing model could not be downloaded, so word timings are missing. The words are saved."
     static let retryDelaysSeconds: [TimeInterval] = [20, 90]
     static let maxRetryDelaySeconds: TimeInterval = 300
 
@@ -337,6 +339,12 @@ public actor ProcessingPipeline {
                 // quits during one long transcription use up the attempts that
                 // are meant for failures.
                 let attempt = metadata.processing.attemptCount(for: stage) + 1
+                // A failed meeting the launch sweep starts again stops reading
+                // as failed while it runs, so the pane shows progress and not
+                // last time's "will try again next time it opens".
+                if metadata.processing.state == .failed {
+                    metadata.processing.advance(to: stage, at: clock.now)
+                }
                 try persist(metadata, to: store)
                 report(metadata, chunks: nil)
                 stageStarted = clock.monotonicSeconds
@@ -438,10 +446,12 @@ public actor ProcessingPipeline {
                 // The code rides with the failure, so a diagnostic report
                 // names the category without reading the message.
                 //
-                // `isRetryable` stays the cause's own: whether waiting can clear
-                // it. Whether attempts remain is `isOutOfAttempts`. Out of
-                // attempts, the message says Pipit stopped, because nothing
-                // starts the stage again until the person presses Retry.
+                // `isRetryable` is whether this run tries the stage again, and
+                // `cause` is what another attempt would change. Only a cause
+                // that repeats the same result is capped: once its attempts
+                // are used the message says Pipit stopped, because nothing
+                // starts the stage again until the person presses Retry. Any
+                // other cause is tried again at the next launch.
                 let retriesNow = failure.isRetryable && attempts < Self.maxAttemptsPerStage
                 let outcome: FailureOutcome =
                     retriesNow
@@ -1282,8 +1292,7 @@ public actor ProcessingPipeline {
                 "aligner unavailable: \(logSafeDescription(error), privacy: .public)"
             )
             throw ProcessingError.localProcessingFailed(
-                reason: "The timing model could not be downloaded, so the transcript's "
-                    + "word timings are missing. The words are saved.",
+                reason: Self.timingModelDownloadFailure,
                 retryable: true, cause: .clearsByWaiting
             )
         }
@@ -4328,6 +4337,15 @@ public actor ProcessingPipeline {
         if let local = error as? any LocalProcessingFailure {
             return .localProcessingFailed(
                 reason: local.userMessage, retryable: local.isRetryable, cause: local.cause
+            )
+        }
+        // A download that lost its connection. Left to the fallback below it
+        // read as a fault on this Mac that another attempt repeats, and a
+        // meeting offline for three launches was stranded.
+        if error is URLError || (error as NSError).domain == NSURLErrorDomain {
+            return .localProcessingFailed(
+                reason: "A download Pipit needs did not finish.", retryable: true,
+                cause: .clearsByWaiting
             )
         }
         if error is VoiceEnrollmentRejection {
