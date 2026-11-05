@@ -4,11 +4,14 @@ import Foundation
 /// reading it.
 ///
 /// A browser keeps its sensor relay running for as long as the browser stays
-/// open. Installing a new Pipit replaces the relay's file underneath it, and
-/// the old process then no longer matches any signature on disk, so the app
-/// refuses every connection it makes until the browser is restarted. The relay
-/// compares the identity it started from with what is at its path now and
-/// exits once they differ, which lets the browser start the new one.
+/// open. A new Pipit replaces the relay's file underneath it: for Safari the
+/// extension inside the app is replaced by the install, and for Firefox and
+/// Chrome the browser runs a copy in Application Support that the new Pipit
+/// writes over at launch. The old process then no longer matches any signature
+/// on disk, so the app refuses every connection it makes until the browser is
+/// restarted. The relay compares the identity it started from with what is at
+/// its path now and exits once they differ, which lets the browser start the
+/// new one.
 public struct FileIdentity: Sendable, Equatable {
     public let device: UInt64
     public let inode: UInt64

@@ -237,13 +237,28 @@ public struct BrowserMeetingDetector: Sendable {
             .sorted { lhs, _ in !lhs.isLanding }
             .first
 
-        // A window title seen minutes ago is not evidence of a meeting now,
-        // unless the browser has held the microphone without a break since it
-        // was seen. A window's title is its front tab's, so a call left running
-        // in a background tab shows no title at all; the unbroken microphone is
-        // what still ties the browser to that call. A video in another tab
-        // plays sound but never opens the microphone, and leaving the call
-        // releases it. A release shorter than the refresh grace is not a break.
+        // A window title seen minutes ago is not evidence of a meeting now.
+        //
+        // Without the add-on there is one exception: a title seen while the
+        // browser held the microphone is kept for as long as the browser holds
+        // it without a break. A window's title is its front tab's, so a call
+        // left running in a background tab shows no title at all, and the
+        // unbroken microphone is what still ties the browser to that call. A
+        // video in another tab plays sound but never opens the microphone, and
+        // leaving the call releases it. A release shorter than the refresh
+        // grace is not a break.
+        //
+        // The trade-off: nothing without the add-on separates a Meet page
+        // waiting to be joined from a joined call (the output flag is not read
+        // here), so a waiting page left in a background tab with the microphone
+        // open records until the tab closes. The same already held while that
+        // page was in front.
+        //
+        // With the add-on loaded this memory is not extended. The add-on
+        // reports a call in a background tab itself, so its silence, a closed
+        // tab, or an `ended` report means no call; the microphone is shared by
+        // every Chromium browser or every WebKit process and cannot overrule it.
+        let extensionLoaded = sensor.connection.isLoaded
         if let parsed {
             lastNativeParse = parsed
             lastNativeParseAt = now
@@ -252,7 +267,7 @@ public struct BrowserMeetingDetector: Sendable {
             titleHeldByMicrophone = false
         }
         if parsed == nil, let seenAt = lastNativeParseAt, now - seenAt > configuration.titleMemorySeconds,
-            !titleHeldByMicrophone
+            !titleHeldByMicrophone || extensionLoaded
         {
             lastNativeParse = nil
             lastNativeParseAt = nil

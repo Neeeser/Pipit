@@ -49,6 +49,8 @@ final class SafariWebExtensionHandler: NSObject, NSExtensionRequestHandling {
         // next message; this one is dropped, and the add-on sends again within
         // seconds.
         if let path = Self.executablePath, let startedFrom = Self.startedFrom, startedFrom.isReplaced(at: path) {
+            Self.diagnostics.record(.nativeHostExited(reason: .replaced, relayed: 0))
+            Self.diagnostics.flush(timeout: 0.1)
             let reply = NSExtensionItem()
             reply.userInfo = [SFExtensionMessageKey: ["type": "ack", "connected": false]]
             context.completeRequest(returningItems: [reply]) { _ in exit(0) }
