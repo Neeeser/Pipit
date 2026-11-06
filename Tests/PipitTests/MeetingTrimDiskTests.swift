@@ -253,7 +253,7 @@ struct MeetingTrimDiskTests {
         let diarization = try store.readRawDiarization()
         #expect(diarization.runs.first?.intervals.map(\.clusterID) == ["S1", "S2"], "clusters keep their identifiers")
         #expect(diarization.runs.first?.intervals.map(\.start) == [0, 1])
-        #expect(try store.readSpeechEvidence()?.remoteLevels == Array(8..<14))
+        #expect(store.readSpeechEvidence()?.remoteLevels == Array(8..<14))
         let map = try store.readSpeakerMap()
         #expect(map.entries["remote-001:S1"]?.displayName == "Speaker A", "the name stays")
         #expect(map.utteranceOverrides.first?.anchorSeconds == 2.5)
@@ -624,7 +624,7 @@ struct MeetingTrimDiskTests {
         bytes.replaceSubrange(middle, with: Data(repeating: 0xFF, count: middle.count))
         try bytes.write(to: url)
 
-        try? Self.trimmer().trim(
+        _ = try? Self.trimmer().trim(
             store: store, to: try #require(TrimRange(start: 2, end: 12, duration: 20)), at: Self.at)
 
         #expect(Self.stagedFiles(in: root).isEmpty, "got \(Self.stagedFiles(in: root))")

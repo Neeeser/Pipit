@@ -627,11 +627,11 @@ struct MeetingTrimPipelineTests {
         }
         await entered.wait()
         var refused = false
-        do { try await made.pipeline.performFolderChange(involving: [made.id]) { 0 } } catch { refused = true }
+        do { _ = try await made.pipeline.performFolderChange(involving: [made.id]) { 0 } } catch { refused = true }
         #expect(refused, "a rename would move the folder under the edit")
 
         proceed.release()
         _ = await editing.value
-        try await made.pipeline.performFolderChange(involving: [made.id]) { 0 }
+        _ = try await made.pipeline.performFolderChange(involving: [made.id]) { 0 }
     }
 }
