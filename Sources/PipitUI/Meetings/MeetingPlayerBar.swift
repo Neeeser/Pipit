@@ -4,19 +4,17 @@ import SwiftUI
 /// The meeting's recording, docked at the bottom of the pane.
 ///
 /// Outside the tabs, so it stays put while the summary or the notes are read
-/// against what is playing. Closed, one lane between the controls holds every
-/// speaker in their own colour. The Lanes button opens a lane per speaker
-/// above the controls, across the whole bar, with a time ruler over them and
-/// each speaker's talk time at the end. The open lanes are then the thing to
-/// click or drag, so the single lane goes, and the lanes get the width it and
-/// the controls beside it held.
+/// against what is playing. One strip between the controls holds every
+/// speaker's turns in their own colour. The Lanes button opens a lane per
+/// speaker above the controls, across the whole bar, with a time ruler over
+/// them and each speaker's talk time at the end. The open lanes are then the
+/// thing to click or drag, so the single strip goes, and the lanes get the
+/// width it and the controls beside it held.
 struct MeetingPlayerBar: View {
     let detail: MeetingReviewModel
-    /// Whether the pane is tall enough for the lanes to start open.
-    let roomy: Bool
 
-    /// The person's own choice, kept across meetings and launches. Empty
-    /// until they press Lanes, and then the pane's height decides.
+    /// The person's choice, kept across meetings and launches. The lanes stay
+    /// closed until they open them.
     @AppStorage("MeetingPlayerLanes") private var lanesChoice = ""
     @State private var hover: CGFloat?
     @State private var lanesHover: CGFloat?
@@ -27,13 +25,7 @@ struct MeetingPlayerBar: View {
 
     private var playback: MeetingPlaybackModel { detail.playback }
 
-    private var lanesShown: Bool {
-        switch lanesChoice {
-        case "open": true
-        case "closed": false
-        default: roomy
-        }
-    }
+    private var lanesShown: Bool { lanesChoice == "open" }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -82,7 +74,7 @@ struct MeetingPlayerBar: View {
                     playerControls
                 }
             }
-            .frame(height: 46)
+            .frame(height: 56)
         }
         .controlSize(.small)
         .padding(.horizontal, 16)
@@ -112,23 +104,22 @@ struct MeetingPlayerBar: View {
             Button {
                 playback.follows.toggle()
             } label: {
-                Label("Follow", systemImage: "text.line.first.and.arrowtriangle.forward")
+                icon("text.alignleft")
             }
-            .buttonStyle(PillButtonStyle(prominent: playback.follows))
+            // Blue while on, the way a toolbar toggle shows its state.
+            .buttonStyle(PillButtonStyle(tint: playback.follows ? .accentColor : nil))
+            .accessibilityLabel("Follow")
             .accessibilityAddTraits(playback.follows ? .isSelected : [])
             .help("Keep the transcript on what is playing")
 
-            // A button rather than a toggle, with an arrow that says
-            // which way the lanes will move.
             Button {
                 lanesChoice = lanesShown ? "closed" : "open"
             } label: {
-                HStack(spacing: 4) {
-                    Text("Lanes")
-                    Image(systemName: lanesShown ? "chevron.down" : "chevron.up")
-                        .font(.system(size: 8, weight: .bold))
-                }
+                icon("person.2.wave.2")
             }
+            .buttonStyle(PillButtonStyle(tint: lanesShown ? .accentColor : nil))
+            .accessibilityLabel("Lanes")
+            .accessibilityAddTraits(lanesShown ? .isSelected : [])
             .help(lanesShown ? "Hide the lane for each speaker" : "Show a lane for each speaker")
 
             if detail.isTrimming {
@@ -141,8 +132,9 @@ struct MeetingPlayerBar: View {
                 Button {
                     detail.beginTrimming()
                 } label: {
-                    Label("Trim", systemImage: "scissors")
+                    icon("scissors")
                 }
+                .accessibilityLabel("Trim")
                 .help("Remove the start or end of this meeting")
             }
         }
@@ -172,6 +164,13 @@ struct MeetingPlayerBar: View {
         }
         .buttonStyle(PillButtonStyle())
         .fixedSize()
+    }
+
+    /// An icon-only pill. The name goes to the tooltip and VoiceOver.
+    private func icon(_ symbol: String) -> some View {
+        Image(systemName: symbol)
+            .font(.system(size: 12))
+            .frame(minWidth: 14)
     }
 
     private var trimQuestion: String {

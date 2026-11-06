@@ -10,6 +10,9 @@ import SwiftUI
 struct MeetingSummaryTab: View {
     let model: MeetingsWindowModel
     let detail: MeetingReviewModel
+    /// Drawn in the panel beside the transcript: a heading of its own, and
+    /// the transcript's size of type so the narrow panel holds more.
+    var inPanel = false
     @State private var copiedTimeline = false
     @State private var copiedActions = false
 
@@ -20,7 +23,10 @@ struct MeetingSummaryTab: View {
 
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 28) {
+            VStack(alignment: .leading, spacing: inPanel ? 18 : 28) {
+                if inPanel {
+                    Text("Summary").font(.system(size: 15, weight: .bold))
+                }
                 if let suggestion = detail.continuationSuggestion { continuationCard(suggestion) }
                 if detail.summaryIsOutOfDate { outOfDateNotice }
                 if let structure = detail.generatedSummary, !structure.isEmpty {
@@ -35,7 +41,9 @@ struct MeetingSummaryTab: View {
                 }
                 Spacer(minLength: 0)
             }
-            .padding(.horizontal, 24)
+            .environment(\.summaryInPanel, inPanel)
+            .padding(.horizontal, inPanel ? 20 : 24)
+            .padding(.top, inPanel ? 18 : 0)
             .padding(.bottom, 24)
             // The same centred column as the title and the transcript.
             .frame(maxWidth: MeetingDetailView.columnWidth, alignment: .leading)
@@ -47,8 +55,8 @@ struct MeetingSummaryTab: View {
     @ViewBuilder private func structured(_ structure: GeneratedSummary) -> some View {
         if !structure.overview.isEmpty {
             Text(structure.overview)
-                .font(.system(size: 15))
-                .lineSpacing(3)
+                .font(.system(size: inPanel ? 13 : 15))
+                .lineSpacing(inPanel ? 2 : 3)
                 .textSelection(.enabled)
                 .frame(maxWidth: 640, alignment: .leading)
         }
@@ -196,6 +204,7 @@ struct SummaryTimeline: View {
     let topics: [GeneratedSummary.Topic]
     let notes: [MeetingNoteEntry]
     let detail: MeetingReviewModel
+    @Environment(\.summaryInPanel) private var inPanel
 
     /// The notes typed while each topic was being discussed: from the moment
     /// it started until the next one did. A note before the first topic goes
@@ -216,7 +225,7 @@ struct SummaryTimeline: View {
         VStack(alignment: .leading, spacing: 0) {
             ForEach(Array(topics.enumerated()), id: \.offset) { index, topic in
                 TimelineRow(time: topic.at, detail: detail) {
-                    Text(topic.title).font(.system(size: 14, weight: .semibold))
+                    Text(topic.title).font(.system(size: inPanel ? 13 : 14, weight: .semibold))
                 } content: {
                     ForEach(Array(topic.points.enumerated()), id: \.offset) { _, point in
                         HStack(alignment: .firstTextBaseline, spacing: 7) {

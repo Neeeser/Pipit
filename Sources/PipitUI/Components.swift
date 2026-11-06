@@ -212,3 +212,44 @@ struct PillButtonStyle: ButtonStyle {
         return tint?.opacity(0.18) ?? Color.primary.opacity(0.1)
     }
 }
+
+extension View {
+    /// The search field at the top of a sidebar, as the Meetings and People
+    /// windows draw it: a magnifying glass and the field on a faint rounded
+    /// fill, with no border.
+    func sidebarSearchField() -> some View {
+        padding(.horizontal, 8)
+            .frame(height: 28)
+            .background(RoundedRectangle(cornerRadius: 8, style: .continuous).fill(Color.primary.opacity(0.06)))
+    }
+}
+
+extension View {
+    /// The window's name in bold at the leading end of the toolbar, where
+    /// System Settings shows the name of its pane.
+    ///
+    /// Also what gives a split-view window its look: with no item in the
+    /// detail's toolbar, the window buttons sit on a strip above the sidebar
+    /// and a line runs under the toolbar.
+    func toolbarTitle(_ title: String) -> some View {
+        toolbar {
+            if #available(macOS 26.0, *) {
+                ToolbarItem(placement: .navigation) { ToolbarTitleText(title: title) }
+                    .sharedBackgroundVisibility(.hidden)
+            } else {
+                ToolbarItem(placement: .navigation) { ToolbarTitleText(title: title) }
+            }
+        }
+    }
+}
+
+private struct ToolbarTitleText: View {
+    let title: String
+
+    var body: some View {
+        Text(title)
+            .font(.system(size: 15, weight: .bold))
+            .fixedSize()
+            .padding(.leading, 4)
+    }
+}

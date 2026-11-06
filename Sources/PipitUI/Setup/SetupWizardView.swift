@@ -39,6 +39,7 @@ public struct SetupWizardView: View {
                 }
                 footer.padding(.horizontal, 24).padding(.vertical, 14)
             }
+            .toolbarTitle("Setup")
         }
         .frame(minWidth: 720, minHeight: 540)
         .task { await model.begin() }

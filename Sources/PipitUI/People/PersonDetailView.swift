@@ -19,7 +19,8 @@ struct PersonDetailView: View {
                 notes
                 actions
             }
-            .padding(18)
+            .padding(.horizontal, 28)
+            .padding(.vertical, 20)
             .frame(maxWidth: .infinity, alignment: .leading)
         }
     }
@@ -38,7 +39,7 @@ struct PersonDetailView: View {
                     "Name",
                     text: model.text(\.nameDraft)
                 )
-                .font(.title3)
+                .font(.title.weight(.bold))
                 .textFieldStyle(.plain)
                 .onSubmit { Task { await model.commitName() } }
 

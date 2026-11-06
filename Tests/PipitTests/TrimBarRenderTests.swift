@@ -41,7 +41,7 @@ struct TrimBarRenderTests {
             for (look, appearance) in [("dark", NSAppearance.Name.darkAqua), ("light", .aqua)] {
                 detail.trimDraft = trim
                 let host = NSHostingView(
-                    rootView: MeetingPlayerBar(detail: detail, roomy: false)
+                    rootView: MeetingPlayerBar(detail: detail)
                         .frame(width: 900)
                         .background(Color(nsColor: .windowBackgroundColor)))
                 host.appearance = NSAppearance(named: appearance)

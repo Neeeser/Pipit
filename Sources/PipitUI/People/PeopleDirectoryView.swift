@@ -21,7 +21,7 @@ public struct PeopleDirectoryView: View {
         NavigationSplitView {
             sidebar.navigationSplitViewColumnWidth(min: 240, ideal: 264, max: 360)
         } detail: {
-            detail.frame(minWidth: 380)
+            detail.frame(minWidth: 380).toolbarTitle("People")
         }
         .frame(minWidth: 820, minHeight: 520)
         // The search field takes the keys when the window opens, so typing
@@ -92,9 +92,16 @@ public struct PeopleDirectoryView: View {
     private var sidebar: some View {
         VStack(spacing: 0) {
             VStack(spacing: 8) {
-                TextField("Search", text: model.text(\.query))
-                    .textFieldStyle(.roundedBorder)
-                    .focused($searchFocused)
+                HStack(spacing: 6) {
+                    Image(systemName: "magnifyingglass")
+                        .font(.system(size: 12))
+                        .foregroundStyle(.secondary)
+                    TextField("Search", text: model.text(\.query))
+                        .textFieldStyle(.plain)
+                        .font(.system(size: 13))
+                        .focused($searchFocused)
+                }
+                .sidebarSearchField()
                 Picker(
                     "",
                     selection: Binding(
@@ -129,8 +136,8 @@ public struct PeopleDirectoryView: View {
                 }
                 ForEach(model.sections) { section in
                     Text(section.title)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundStyle(.tertiary)
                         .padding(.horizontal, 10)
                         .padding(.top, 10)
                         .padding(.bottom, 4)

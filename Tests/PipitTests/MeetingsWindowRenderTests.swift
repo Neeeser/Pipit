@@ -110,15 +110,16 @@ struct MeetingsWindowRenderTests {
 
     private static let looks: [(String, NSAppearance.Name)] = [("dark", .darkAqua), ("light", .aqua)]
 
-    /// Lays a view out in a window built the way the app builds the meetings
-    /// window, and writes it to `PIPIT_RENDER_DIR` when that is set.
+    /// Lays a view out in a window built the way the app builds its
+    /// split-view windows, and writes it to `PIPIT_RENDER_DIR` when that is set.
     ///
     /// A window rather than a bare hosting view: a split view's panes draw
-    /// nothing offscreen without one. The fill behind the content stands in for
-    /// the window background, which `cacheDisplay` does not capture.
-    private func render(_ content: some View, size: CGSize, appearance: NSAppearance.Name, name: String) async throws {
-        let window = WindowManager.makeMeetingsWindow(
-            content: content.background(Color(nsColor: .windowBackgroundColor)), autosaveName: "PipitRenderTest"
+    /// nothing offscreen without one.
+    private func render(
+        _ content: some View, size: CGSize, appearance: NSAppearance.Name, name: String
+    ) async throws {
+        let window = WindowManager.makeSplitWindow(
+            title: "Render", size: size, content: content, autosaveName: "PipitRenderTest"
         )
         window.appearance = NSAppearance(named: appearance)
         window.setContentSize(size)
@@ -288,5 +289,18 @@ struct MeetingsWindowRenderTests {
         try await Task.sleep(for: .milliseconds(400))
         let editor = window.firstResponder as? NSTextView
         #expect(editor?.string != "Beta check-in", "the title field holds the keys")
+    }
+
+    /// macOS 26 rounds a window with a toolbar much more than one without,
+    /// and the split-view windows looked rounder than the windows beside them.
+    @Test("the split-view windows keep the corner of a window without a toolbar")
+    func splitWindowsUseTheSmallCorner() throws {
+        guard #available(macOS 26.0, *) else { return }
+        let window = WindowManager.makeSplitWindow(
+            title: "Corner", size: NSSize(width: 400, height: 300), content: Text("")
+        )
+        defer { window.close() }
+        #expect(window is SmallCornerWindow)
+        #expect(window.value(forKey: "_cornerRadius") as? CGFloat == SmallCornerWindow.cornerRadius)
     }
 }

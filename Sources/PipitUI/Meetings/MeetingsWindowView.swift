@@ -29,7 +29,7 @@ public struct MeetingsWindowView: View {
         // hand-drawn lines to keep level across the two.
         NavigationSplitView {
             sidebar
-                .navigationSplitViewColumnWidth(min: Self.sidebarMinWidth, ideal: 272, max: 380)
+                .navigationSplitViewColumnWidth(min: Self.sidebarMinWidth, ideal: 288, max: 380)
         } detail: {
             detail
                 .frame(minWidth: 460)
@@ -209,7 +209,7 @@ public struct MeetingsWindowView: View {
     private var searchField: some View {
         HStack(spacing: 5) {
             Image(systemName: "magnifyingglass")
-                .font(.system(size: 11))
+                .font(.system(size: 12))
                 .foregroundStyle(.secondary)
             if let held = model.sourceFilter { sourceToken(held) }
             TextField(
@@ -217,7 +217,7 @@ public struct MeetingsWindowView: View {
                 text: model.text(\.query)
             )
             .textFieldStyle(.plain)
-            .font(.system(size: 12))
+            .font(.system(size: 13))
             .focused($searchFocused)
             .onSubmit { model.takeSuggestedSource() }
             // Backspace on an empty field drops the token, the way it does in
@@ -236,10 +236,7 @@ public struct MeetingsWindowView: View {
                 return .handled
             }
         }
-        .padding(.horizontal, 7)
-        .frame(height: 22)
-        .background(RoundedRectangle(cornerRadius: 6).fill(.background))
-        .overlay(RoundedRectangle(cornerRadius: 6).stroke(.quaternary))
+        .sidebarSearchField()
         .help(model.searchesTranscripts ? "Titles, notes, people and transcripts" : "Titles, notes and people")
     }
 
@@ -349,8 +346,8 @@ public struct MeetingsWindowView: View {
                 if sections.isEmpty { emptyList }
                 ForEach(sections) { section in
                     Text(section.title)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundStyle(.tertiary)
                         .padding(.horizontal, 10)
                         .padding(.top, 10)
                         .padding(.bottom, 4)

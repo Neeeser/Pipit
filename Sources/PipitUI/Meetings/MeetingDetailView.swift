@@ -21,8 +21,6 @@ public struct MeetingDetailView: View {
     /// Confirms a copy for two seconds, because the clipboard says nothing.
     @State private var copied = false
     @State private var confirmingMicrophoneRedo = false
-    /// Whether the pane is tall enough to open the speaker lanes by default.
-    @State private var roomy = false
     /// Whether the pane is wide enough for the summary panel.
     @State private var wide = false
     /// The person's choice to hide the summary panel, kept across launches.
@@ -97,7 +95,7 @@ public struct MeetingDetailView: View {
             // pushing the transcript down.
             if detail.playback.hasAudio {
                 Divider()
-                MeetingPlayerBar(detail: detail, roomy: roomy)
+                MeetingPlayerBar(detail: detail)
             } else if isPreparingAudio {
                 Divider()
                 MeetingPlayerPlaceholder()
@@ -105,11 +103,6 @@ public struct MeetingDetailView: View {
         }
         .background(Color(nsColor: .textBackgroundColor))
         .toolbar { toolbarContent }
-        .onGeometryChange(for: Bool.self) {
-            $0.size.height >= 760
-        } action: {
-            roomy = $0
-        }
         .onGeometryChange(for: Bool.self) {
             $0.size.width >= Self.columnWidth + Self.panelWidth + 16
         } action: {
@@ -209,11 +202,12 @@ public struct MeetingDetailView: View {
 
     /// The Summary tab, beside the transcript, in a panel of its own.
     private var summaryPanel: some View {
-        MeetingSummaryTab(model: model, detail: detail)
-            .contentMargins(.top, 16, for: .scrollContent)
+        MeetingSummaryTab(model: model, detail: detail, inPanel: true)
             .frame(width: Self.panelWidth)
             .frame(maxHeight: .infinity)
-            .background(Color(nsColor: .windowBackgroundColor))
+            // The same faint fill as the sidebar on the other side, so the
+            // two read as a pair around the transcript.
+            .background(Color.primary.opacity(0.05))
             .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
             .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).stroke(.separator))
             .padding([.trailing, .bottom], 8)
@@ -256,7 +250,7 @@ public struct MeetingDetailView: View {
             // is longer than the room left.
             HStack(spacing: 8) {
                 Text(detail.title.isEmpty ? "Title" : detail.title)
-                    .font(.title2.weight(.semibold))
+                    .font(.title.weight(.bold))
                     .lineLimit(1)
                     .padding(.trailing, 6)
                     .hidden()
@@ -317,7 +311,7 @@ public struct MeetingDetailView: View {
     private var titleField: some View {
         TextField("Title", text: detail.titleBinding())
             .textFieldStyle(.plain)
-            .font(.title2.weight(.semibold))
+            .font(.title.weight(.bold))
             .onSubmit { detail.save() }
     }
 
