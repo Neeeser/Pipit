@@ -226,6 +226,47 @@ struct MeetingsWindowRenderTests {
         }
     }
 
+    @Test("the People window lays out with one person and with several selected, dark and light")
+    func thePeopleWindowLaysOut() async throws {
+        let root = try TestPaths.makeTemporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        NSApplication.shared.setActivationPolicy(.prohibited)
+        let runtime = try makeArchive(root: root).runtime
+        let store = try #require(runtime.speakerStore)
+        var ids: [IdentityID] = []
+        for (name, organization) in [
+            ("Priya Shah", "Northwind"), ("Marcus Lee", "Northwind"), ("Jordan Ellis", nil), ("Avery Tran", nil),
+        ] {
+            ids.append(try await store.createPerson(name: name, organization: organization).id)
+        }
+        let model = PeopleDirectoryModel(runtime: runtime)
+        await model.reload()
+        for (state, selected) in [("one", Array(ids.prefix(1))), ("several", Array(ids.prefix(3)))] {
+            model.select(selected[0], extending: false)
+            for id in selected.dropFirst() { model.select(id, extending: true) }
+            for (look, appearance) in Self.looks {
+                try await render(
+                    PeopleDirectoryView(model: model), size: CGSize(width: 900, height: 600), appearance: appearance,
+                    name: "people-\(state)-\(look)")
+            }
+        }
+    }
+
+    /// One step only: Setup chooses the step it opens on when it appears, so
+    /// a step set beforehand does not survive into the drawing.
+    @Test("Setup lays out, dark and light")
+    func setupLaysOut() async throws {
+        let root = try TestPaths.makeTemporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        NSApplication.shared.setActivationPolicy(.prohibited)
+        let model = SetupModel(runtime: PipitRuntime(settingsDirectory: root), install: { _, _ in })
+        for (look, appearance) in Self.looks {
+            try await render(
+                SetupWizardView(model: model, onFinish: {}), size: CGSize(width: 760, height: 580),
+                appearance: appearance, name: "setup-\(look)")
+        }
+    }
+
     /// Typing in a freshly opened window renamed the meeting: the split view
     /// handed the first key view to the title field rather than the search
     /// field, and Space stopped playing because a field with text held it.

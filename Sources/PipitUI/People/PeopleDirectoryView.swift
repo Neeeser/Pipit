@@ -9,18 +9,28 @@ import SwiftUI
 /// could act on more than one row.
 public struct PeopleDirectoryView: View {
     let model: PeopleDirectoryModel
+    @FocusState private var searchFocused: Bool
 
     public init(model: PeopleDirectoryModel) {
         self.model = model
     }
 
     public var body: some View {
-        HSplitView {
-            sidebar.frame(minWidth: 240, idealWidth: 264, maxWidth: 360)
+        // The system split view, as in the Meetings and Settings windows, so
+        // the list is the standard floating sidebar.
+        NavigationSplitView {
+            sidebar.navigationSplitViewColumnWidth(min: 240, ideal: 264, max: 360)
+        } detail: {
             detail.frame(minWidth: 380)
         }
         .frame(minWidth: 820, minHeight: 520)
-        .task { await model.reload() }
+        // The search field takes the keys when the window opens, so typing
+        // finds a person rather than renaming the one shown.
+        .defaultFocus($searchFocused, true)
+        .task {
+            searchFocused = true
+            await model.reload()
+        }
         .alert(
             model.pendingAction?.title ?? "",
             isPresented: Binding(
@@ -84,6 +94,7 @@ public struct PeopleDirectoryView: View {
             VStack(spacing: 8) {
                 TextField("Search", text: model.text(\.query))
                     .textFieldStyle(.roundedBorder)
+                    .focused($searchFocused)
                 Picker(
                     "",
                     selection: Binding(
@@ -95,8 +106,8 @@ public struct PeopleDirectoryView: View {
                 .pickerStyle(.segmented)
                 .labelsHidden()
             }
-            .padding(10)
-            Divider()
+            .padding(.horizontal, 10)
+            .padding(.bottom, 10)
             list
             Divider()
             footer
@@ -117,7 +128,7 @@ public struct PeopleDirectoryView: View {
                     .padding(12)
                 }
                 ForEach(model.sections) { section in
-                    Text("\(section.title) · \(section.entries.count)")
+                    Text(section.title)
                         .font(.caption)
                         .foregroundStyle(.secondary)
                         .padding(.horizontal, 10)
@@ -161,10 +172,13 @@ public struct PeopleDirectoryView: View {
             Spacer(minLength: 4)
             profileDot(entry.profile)
         }
-        .padding(.horizontal, 10)
+        .padding(.horizontal, 6)
         .padding(.vertical, 5)
+        .background(
+            RoundedRectangle(cornerRadius: 6).fill(selected ? Color.accentColor.opacity(0.18) : .clear)
+        )
+        .padding(.horizontal, 6)
         .contentShape(Rectangle())
-        .background(selected ? Color.accentColor.opacity(0.18) : .clear)
         .onTapGesture {
             model.select(entry.id, extending: NSEvent.modifierFlags.contains(.command))
         }
@@ -193,7 +207,7 @@ public struct PeopleDirectoryView: View {
         }
         Divider()
         Button(
-            targets.count == 1 ? "Delete…" : "Delete \(targets.count) people…",
+            targets.count == 1 ? "Delete…" : "Delete \(targets.count) People…",
             role: .destructive
         ) {
             model.confirmDelete(targets)
@@ -261,10 +275,8 @@ public struct PeopleDirectoryView: View {
         } else if let entry = model.focused {
             PersonDetailView(model: model, entry: entry)
         } else {
-            VStack(spacing: 6) {
-                Text("Select someone").font(.title3)
-            }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            Text("No Person Selected").font(.title3).foregroundStyle(.secondary)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
     }
 
@@ -299,34 +311,32 @@ public struct PeopleDirectoryView: View {
     }
 }
 
-/// What a multiple selection can be told to do.
+/// What several selected people can be told to do: a count and one row of
+/// buttons, centred in the pane, the same shape as several selected meetings.
 struct PeopleSelectionSummary: View {
     let model: PeopleDirectoryModel
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            Text("\(model.selection.count) selected").font(.title3)
-            Text(
-                model.selectedEntries.prefix(8).map(\.identity.resolvedName)
-                    .joined(separator: ", ")
-                    + (model.selection.count > 8 ? ", and \(model.selection.count - 8) more" : "")
-            )
-            .font(.callout)
-            .foregroundStyle(.secondary)
+        VStack(spacing: 16) {
+            HStack(spacing: -10) {
+                ForEach(model.selectedEntries.prefix(3)) { entry in
+                    PersonAvatar(identity: entry.identity, image: model.avatarImage(for: entry), side: 44)
+                        .overlay(Circle().stroke(Color(nsColor: .textBackgroundColor), lineWidth: 2))
+                }
+            }
+            .accessibilityHidden(true)
+            Text("\(model.selection.count) people").font(.title2.weight(.semibold))
             HStack(spacing: 8) {
-                Button("Set Organization…") { model.beginSetOrganization() }
-                Button("Merge People") { Task { await model.mergeSelection() } }
+                Button("Merge") { Task { await model.mergeSelection() } }
+                    .buttonStyle(.borderedProminent)
                     .disabled(!model.canMerge)
-                Button("Delete", role: .destructive) { model.confirmDeleteSelection() }
+                    .help(model.canMerge ? "Merge into one person" : "Select two people to merge")
+                Button("Set Organization…") { model.beginSetOrganization() }
+                Button("Delete…", role: .destructive) { model.confirmDeleteSelection() }
             }
-            if model.selection.count != 2 {
-                Text("Select two people to merge")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
-            Spacer()
+            .controlSize(.large)
         }
-        .padding(18)
-        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(24)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 }
