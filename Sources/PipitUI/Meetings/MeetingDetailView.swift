@@ -28,8 +28,10 @@ public struct MeetingDetailView: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     /// About 75 characters of body text, plus the column's margins.
-    static let columnWidth: CGFloat = 760
-    static let panelWidth: CGFloat = 400
+    /// Nonisolated because the geometry closure that compares the pane's width
+    /// against them is not on the main actor.
+    nonisolated static let columnWidth: CGFloat = 760
+    nonisolated static let panelWidth: CGFloat = 400
     private static let columnMargin: CGFloat = 28
 
     private var showsPanel: Bool { wide && !panelHidden }
