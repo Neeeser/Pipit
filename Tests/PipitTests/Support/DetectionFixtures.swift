@@ -15,9 +15,12 @@ public enum DetectionFixtures {
         )
     }
 
-    public static func joined(mute: Bool? = nil, title: String? = nil) -> SlackAccessibilityObservation {
+    public static func joined(
+        mute: Bool? = nil, title: String? = nil, tiles: [SlackHuddleTile] = []
+    ) -> SlackAccessibilityObservation {
         SlackAccessibilityObservation(
-            hasLeaveHuddleControl: true, subtreeWasEmpty: false, isMuted: mute, windowTitle: title
+            hasLeaveHuddleControl: true, subtreeWasEmpty: false, isMuted: mute, windowTitle: title,
+            tiles: tiles
         )
     }
 }

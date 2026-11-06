@@ -14,7 +14,12 @@ import Testing
 private final class EmittingMicrophone: MicrophoneEngineController, @unchecked Sendable {
     private let lock = NSLock()
     private var sinkHandler: AudioBufferSink?
-    var format = AudioFormatDescriptor(sampleRate: 48_000, channelCount: 1)
+    private var storedFormat = AudioFormatDescriptor(sampleRate: 48_000, channelCount: 1)
+    /// Set from the test thread and read on the engine's control queue.
+    var format: AudioFormatDescriptor {
+        get { lock.withLock { storedFormat } }
+        set { lock.withLock { storedFormat = newValue } }
+    }
     /// Reported by every build, as `MicrophoneSource` reports a device the
     /// input unit refused to open. A build that carries one still succeeds.
     var deviceSelectionStatus: Int32?
@@ -40,7 +45,10 @@ private final class EmittingMicrophone: MicrophoneEngineController, @unchecked S
         lock.lock()
         let handler = sinkHandler
         lock.unlock()
-        let buffer = AudioFixtures.makeTone(seconds: seconds, sampleRate: format.sampleRate)
+        let buffer = AudioFixtures.makeTone(
+            seconds: seconds, sampleRate: format.sampleRate,
+            channels: AVAudioChannelCount(format.channelCount)
+        )
         handler?(AudioBufferPacket(buffer: buffer, hostTime: hostTime))
     }
 }
@@ -50,8 +58,18 @@ private final class EmittingTap: ProcessTapController, @unchecked Sendable {
     private var sinkHandler: AudioBufferSink?
     private var targets: [RemoteAudioTarget] = []
     private var reading: TapCallbackReading?
-    var format = AudioFormatDescriptor(sampleRate: 48_000, channelCount: 1)
-    private(set) var bindCount = 0
+    private var storedFormat = AudioFormatDescriptor(sampleRate: 48_000, channelCount: 1)
+    /// Set from the test thread and read on the engine's control queue.
+    var format: AudioFormatDescriptor {
+        get { lock.withLock { storedFormat } }
+        set { lock.withLock { storedFormat = newValue } }
+    }
+    private var bindCount = 0
+    var bindsSoFar: Int {
+        lock.lock()
+        defer { lock.unlock() }
+        return bindCount
+    }
 
     init(sink: @escaping AudioBufferSink) { self.sinkHandler = sink }
 
@@ -92,6 +110,7 @@ private final class EmittingTap: ProcessTapController, @unchecked Sendable {
     func emit(
         seconds: Double, hostTime: Double, amplitude: Float = 0.5, toneChannel: Int? = nil
     ) {
+        let format = self.format
         let buffer = AudioFixtures.makeTone(
             seconds: seconds, sampleRate: format.sampleRate,
             channels: AVAudioChannelCount(format.channelCount),
@@ -785,6 +804,222 @@ struct CaptureEngineHardeningTests {
     }
 }
 
+@Suite("FirstSegmentFormat")
+struct FirstSegmentFormatTests {
+    @Test("a three-channel microphone's first segment opens at three channels")
+    func aThreeChannelMicrophonesFirstSegmentOpensAtThreeChannels() async throws {
+        // `CaptureEngine` built the writer's format with the standard
+        // initializer, which returns nil above two channels, and fell back to
+        // mono. The first three-channel buffer then closed an empty segment.
+        let root = try TestPaths.makeTemporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let layout = MeetingLayout(root: root)
+        try FileManager.default.createDirectory(at: layout.segments, withIntermediateDirectories: true)
+
+        let microphone = LockedBox<EmittingMicrophone?>(nil)
+        let engine = CaptureEngine(
+            segmentSeconds: 60,
+            makeMicrophone: { sink, _ in
+                let source = EmittingMicrophone(sink: sink)
+                source.format = AudioFormatDescriptor(sampleRate: 48_000, channelCount: 3)
+                microphone.withLock { $0 = source }
+                return source
+            },
+            makeTap: { sink, _ in EmittingTap(sink: sink) },
+            delegate: SilentDelegate()
+        )
+        await engine.arm(scope: .bundlePrefixes([]), capturesRemote: false)
+        try await engine.commit(layout: layout, meetingID: "m", source: .googleMeet)
+        microphone.withLock { $0?.emit(seconds: 1, hostTime: 100) }
+        _ = await engine.stop(reason: "test")
+
+        let segments = try ManifestReader.timeline(contentsOf: layout.manifest).segments(track: .mic)
+        #expect(segments.count == 1, "one segment, got \(segments.count)")
+        #expect(segments.first?.format.channelCount == 3)
+        #expect(!segments.contains { $0.closeReason == "buffer_format_mismatch" })
+    }
+
+    @Test("a first segment opens at the format of the audio in the ring")
+    func aFirstSegmentOpensAtTheFormatOfTheAudioInTheRing() async throws {
+        // Armed while the microphone runs at 48 kHz, then the device switches to
+        // 44.1 kHz and the microphone rebuilds before commit. The ring still
+        // starts with 48 kHz audio, so a writer opened at the newest build's
+        // format wrote that first packet into a mismatch and left an empty
+        // segment.
+        let root = try TestPaths.makeTemporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let layout = MeetingLayout(root: root)
+        try FileManager.default.createDirectory(at: layout.segments, withIntermediateDirectories: true)
+
+        let microphone = LockedBox<EmittingMicrophone?>(nil)
+        let configurationChanged = LockedBox<(@Sendable () -> Void)?>(nil)
+        let engine = CaptureEngine(
+            thresholds: CaptureThresholds(configurationDebounce: 0.02, pollInterval: 0.01),
+            segmentSeconds: 60,
+            makeMicrophone: { sink, onChange in
+                let source = EmittingMicrophone(sink: sink)
+                microphone.withLock { $0 = source }
+                configurationChanged.withLock { $0 = onChange }
+                return source
+            },
+            makeTap: { sink, _ in EmittingTap(sink: sink) },
+            delegate: SilentDelegate()
+        )
+        await engine.arm(scope: .bundlePrefixes([]), capturesRemote: false)
+        microphone.withLock { $0?.emit(seconds: 1, hostTime: 100) }
+
+        microphone.withLock {
+            $0?.format = AudioFormatDescriptor(sampleRate: 44_100, channelCount: 1)
+        }
+        configurationChanged.withLock { $0?() }
+        let deadline = Date().addingTimeInterval(10)
+        while engine.health.micRestarts < 1, Date() < deadline {
+            try await Task.sleep(nanoseconds: 20_000_000)
+        }
+        try #require(engine.health.micRestarts >= 1, "the microphone rebuilt while armed")
+        microphone.withLock { $0?.emit(seconds: 1, hostTime: 102) }
+
+        try await engine.commit(layout: layout, meetingID: "m", source: .googleMeet)
+        _ = await engine.stop(reason: "test")
+
+        let segments = try ManifestReader.timeline(contentsOf: layout.manifest).segments(track: .mic)
+        #expect(
+            segments.first?.format.sampleRate == 48_000,
+            "the first segment holds the 48 kHz audio from the ring: \(segments.map(\.format.sampleRate))"
+        )
+        #expect(
+            !segments.contains { $0.frameCount == 0 },
+            "no segment is left empty: \(segments.map { $0.frameCount ?? -1 })"
+        )
+    }
+
+    @Test("a first remote segment opens at the format of the audio in the ring")
+    func aFirstRemoteSegmentOpensAtTheFormatOfTheAudioInTheRing() async throws {
+        // The far-end tap rebinds while armed, for instance when the output
+        // switches to a headset at another sample rate. Its ring starts with
+        // the old rate's audio.
+        let root = try TestPaths.makeTemporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let layout = MeetingLayout(root: root)
+        try FileManager.default.createDirectory(at: layout.segments, withIntermediateDirectories: true)
+
+        let tap = LockedBox<EmittingTap?>(nil)
+        let engine = CaptureEngine(
+            thresholds: CaptureThresholds(configurationDebounce: 0.02, pollInterval: 0.01),
+            segmentSeconds: 60,
+            makeMicrophone: { sink, _ in EmittingMicrophone(sink: sink) },
+            makeTap: { sink, _ in
+                let source = EmittingTap(sink: sink)
+                tap.withLock { $0 = source }
+                return source
+            },
+            delegate: SilentDelegate()
+        )
+        // Set before arming, so the bind arm makes is a real one at 48 kHz and
+        // not a bind to no process.
+        tap.withLock {
+            $0?.setTargets([makeTarget(pid: 42, bundle: "com.example.app", producing: true)])
+        }
+        await engine.arm(scope: .bundlePrefixes(["com.example.app"]), capturesRemote: true)
+        let deadline = Date().addingTimeInterval(10)
+        while (tap.withLock { $0?.bindsSoFar ?? 0 }) < 1, Date() < deadline {
+            try await Task.sleep(nanoseconds: 20_000_000)
+        }
+        try #require((tap.withLock { $0?.bindsSoFar ?? 0 }) >= 1, "the tap bound while armed")
+        tap.withLock { $0?.emit(seconds: 1, hostTime: HostTime.now) }
+
+        tap.withLock {
+            $0?.format = AudioFormatDescriptor(sampleRate: 44_100, channelCount: 1)
+            $0?.setTargets([
+                makeTarget(pid: 42, bundle: "com.example.app", producing: true),
+                makeTarget(pid: 43, bundle: "com.example.app", producing: true),
+            ])
+        }
+        while (tap.withLock { $0?.bindsSoFar ?? 0 }) < 2, Date() < deadline {
+            try await Task.sleep(nanoseconds: 20_000_000)
+        }
+        try #require((tap.withLock { $0?.bindsSoFar ?? 0 }) >= 2, "the tap rebound while armed")
+        tap.withLock { $0?.emit(seconds: 1, hostTime: HostTime.now) }
+
+        try await engine.commit(layout: layout, meetingID: "m", source: .googleMeet)
+        _ = await engine.stop(reason: "test")
+
+        let segments = try ManifestReader.timeline(contentsOf: layout.manifest).segments(track: .remote)
+        #expect(
+            segments.first?.format.sampleRate == 48_000,
+            "the first segment holds the 48 kHz audio from the ring: \(segments.map(\.format.sampleRate))"
+        )
+        #expect(
+            !segments.contains { $0.frameCount == 0 },
+            "no segment is left empty: \(segments.map { $0.frameCount ?? -1 })"
+        )
+    }
+
+    @Test("remote audio in the ring is written when the tap has no usable format at commit")
+    func remoteAudioInTheRingIsWrittenWhenTheTapHasNoUsableFormatAtCommit() async throws {
+        // The tap rebinds while armed and reports a format with no sample rate.
+        // The ring still holds audio from before, and it was left undrained.
+        let root = try TestPaths.makeTemporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let layout = MeetingLayout(root: root)
+        try FileManager.default.createDirectory(at: layout.segments, withIntermediateDirectories: true)
+
+        let tap = LockedBox<EmittingTap?>(nil)
+        let engine = CaptureEngine(
+            thresholds: CaptureThresholds(configurationDebounce: 0.02, pollInterval: 0.01),
+            segmentSeconds: 60,
+            makeMicrophone: { sink, _ in EmittingMicrophone(sink: sink) },
+            makeTap: { sink, _ in
+                let source = EmittingTap(sink: sink)
+                tap.withLock { $0 = source }
+                return source
+            },
+            delegate: SilentDelegate()
+        )
+        // Set before arming, so the bind arm makes is a real one at 48 kHz and
+        // not a bind to no process.
+        tap.withLock {
+            $0?.setTargets([makeTarget(pid: 42, bundle: "com.example.app", producing: true)])
+        }
+        await engine.arm(scope: .bundlePrefixes(["com.example.app"]), capturesRemote: true)
+        let deadline = Date().addingTimeInterval(10)
+        while (tap.withLock { $0?.bindsSoFar ?? 0 }) < 1, Date() < deadline {
+            try await Task.sleep(nanoseconds: 20_000_000)
+        }
+        try #require((tap.withLock { $0?.bindsSoFar ?? 0 }) >= 1, "the tap bound while armed")
+        tap.withLock { $0?.emit(seconds: 1, hostTime: HostTime.now) }
+
+        tap.withLock {
+            $0?.format = AudioFormatDescriptor(sampleRate: 0, channelCount: 0)
+            $0?.setTargets([
+                makeTarget(pid: 42, bundle: "com.example.app", producing: true),
+                makeTarget(pid: 43, bundle: "com.example.app", producing: true),
+            ])
+        }
+        while (tap.withLock { $0?.bindsSoFar ?? 0 }) < 2, Date() < deadline {
+            try await Task.sleep(nanoseconds: 20_000_000)
+        }
+        try #require((tap.withLock { $0?.bindsSoFar ?? 0 }) >= 2, "the tap rebound while armed")
+
+        try await engine.commit(layout: layout, meetingID: "m", source: .googleMeet)
+        _ = await engine.stop(reason: "test")
+
+        let segments = try ManifestReader.timeline(contentsOf: layout.manifest).segments(track: .remote)
+        #expect(
+            segments.first?.format.sampleRate == 48_000,
+            "the first segment holds the 48 kHz audio from the ring: \(segments.map(\.format.sampleRate))"
+        )
+        #expect(
+            segments.first?.frameCount == 48_000,
+            "the ring's second of audio is written: \(segments.map { $0.frameCount ?? -1 })"
+        )
+        #expect(
+            !segments.contains { $0.frameCount == 0 },
+            "no segment is left empty: \(segments.map { $0.frameCount ?? -1 })"
+        )
+    }
+}
+
 @Suite("DetectionHardening")
 struct DetectionHardeningTests {
     @Test("consecutive uninformative reads never end a live huddle")
@@ -945,8 +1180,17 @@ struct DetectionHardeningTests {
         now += 25
         #expect(detector.update(native: withMeeting, at: now).confidence == .confirmed)
 
-        // The meeting tab is closed but the browser keeps using the
-        // microphone for something else.
+        // The meeting tab is closed, which releases the microphone, and the
+        // browser opens it again later for something else. A tab closed while
+        // another tab already held the microphone looks the same as a call in a
+        // background tab from outside the browser, and is kept on purpose.
+        let closed = BrowserMeetingDetector.NativeSignals(
+            browserHoldsMicrophone: false, browserProducesOutput: false, windowTitles: []
+        )
+        now += 1
+        _ = detector.update(native: closed, at: now)
+        now += 20
+        _ = detector.update(native: closed, at: now)
         let noTitles = BrowserMeetingDetector.NativeSignals(
             browserHoldsMicrophone: true, browserProducesOutput: true, windowTitles: []
         )

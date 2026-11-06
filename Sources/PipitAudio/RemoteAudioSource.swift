@@ -120,9 +120,9 @@ public final class RemoteAudioSource: ProcessTapController, Sendable {
             throw CaptureError.tapFormatUnavailable
         }
         guard
-            let format = AVAudioFormat(
-                standardFormatWithSampleRate: streamDescription.mSampleRate,
-                channels: AVAudioChannelCount(streamDescription.mChannelsPerFrame)
+            let format = CaptureFormat.make(
+                sampleRate: streamDescription.mSampleRate,
+                channelCount: Int(streamDescription.mChannelsPerFrame)
             )
         else {
             AudioHardwareDestroyProcessTap(tapID)

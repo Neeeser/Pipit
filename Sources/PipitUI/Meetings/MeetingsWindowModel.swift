@@ -405,11 +405,27 @@ public final class MeetingsWindowModel {
     /// The total of the meetings this filter holds, for the footer.
     public var totalDuration: Double { PipitRuntime.totalDuration(of: filteredRows) }
 
-    public func select(_ id: String, extending: Bool) {
-        if extending {
+    /// The row a Shift-click measures its range from: the last one clicked
+    /// without Shift.
+    private var selectionAnchor: String?
+
+    /// `extending` toggles one row (Command-click). `throughRange` selects
+    /// every visible row from the anchor to this one (Shift-click), and adds
+    /// that range to the selection when `extending` is also set
+    /// (Command-Shift-click).
+    public func select(_ id: String, extending: Bool, throughRange: Bool = false) {
+        let visible = sections.flatMap(\.rows).map(\.id)
+        if throughRange, let anchor = selectionAnchor,
+            let from = visible.firstIndex(of: anchor), let to = visible.firstIndex(of: id)
+        {
+            let range = Set(visible[min(from, to)...max(from, to)])
+            selection = extending ? selection.union(range) : range
+        } else if extending {
             if selection.contains(id) { selection.remove(id) } else { selection.insert(id) }
+            selectionAnchor = id
         } else {
             selection = [id]
+            selectionAnchor = id
         }
         // The detail model writes what was typed into it before the pane shows
         // another meeting. Without this, moving the selection while a title was
@@ -428,6 +444,7 @@ public final class MeetingsWindowModel {
     public func show(meetingID: String) {
         let resolved = runtime.repository.logicalMeeting(id: meetingID)?.id ?? meetingID
         selection = [resolved]
+        selectionAnchor = resolved
         openDetail(resolved)
     }
 
@@ -497,6 +514,43 @@ public final class MeetingsWindowModel {
         detail.combineWithEarlier()
         archiveChanges += 1
         show(meetingID: meetingID)
+        Task { [weak self] in await self?.reload() }
+    }
+
+    /// How a right-click on these rows would merge them.
+    public func mergePlan(for rows: [MeetingRow]) -> MeetingMergePlan {
+        MeetingMergePlan(
+            rows.map {
+                .init(id: $0.id, startedAt: $0.startedAt, state: $0.summary.processingState)
+            })
+    }
+
+    /// Combines the meetings into the earliest of them, then reads the archive
+    /// again, the way `combineWithEarlier` does for one suggested pair.
+    ///
+    /// A row that is already a merged conversation goes in whole: `combine`
+    /// hands its recordings to the primary. The selection moves to the primary,
+    /// because every other row has just left the list.
+    public func merge(_ rows: [MeetingRow]) {
+        let plan = mergePlan(for: rows)
+        guard let primaryID = plan.primaryID else { return }
+        detail?.saveEdits()
+        var linked = false
+        for id in plan.combineIDs
+        where runtime.combine(
+            meetingID: id, into: primaryID, reason: "merged by the user", rewritingSummary: false)
+        {
+            linked = true
+        }
+        guard linked else {
+            receipt = MeetingReceipt(
+                text: "These meetings could not be merged.", meetingID: primaryID)
+            return
+        }
+        runtime.refreshConversationSummary(meetingID: primaryID)
+        archiveChanges += 1
+        detail = nil
+        show(meetingID: primaryID)
         Task { [weak self] in await self?.reload() }
     }
 

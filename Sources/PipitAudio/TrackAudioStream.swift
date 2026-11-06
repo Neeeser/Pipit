@@ -153,14 +153,30 @@ public final class TrackAudioReader {
         }
     }
 
+    /// A file that reads back with no frames is expected when the manifest says
+    /// the segment closed empty. When the manifest recorded frames, they are lost.
+    static func emptyFileLosesAudio(manifestFrameCount: Int64?) -> Bool {
+        (manifestFrameCount ?? 0) > 0
+    }
+
     /// Opens the next run of segments that share one source format.
     private func openNextSegmentGroup() -> Bool {
         guard !isDrained else { return false }
         while segmentIndex < segments.count {
             let segment = segments[segmentIndex]
             let url = segmentsDirectory.appendingPathComponent(segment.file)
-            guard let file = try? AVAudioFile(forReading: url), file.length > 0 else {
+            guard let file = try? AVAudioFile(forReading: url) else {
                 Log.processing.notice("skipping unreadable segment \(segment.file, privacy: .public)")
+                segmentIndex += 1
+                continue
+            }
+            guard file.length > 0 else {
+                if Self.emptyFileLosesAudio(manifestFrameCount: segment.frameCount) {
+                    Log.processing.notice(
+                        "segment has no frames but the manifest records some \(segment.file, privacy: .public)")
+                } else {
+                    Log.processing.debug("skipping empty segment \(segment.file, privacy: .public)")
+                }
                 segmentIndex += 1
                 continue
             }

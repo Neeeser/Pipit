@@ -47,6 +47,9 @@ public final class FakeAIBackend: AIBackend, @unchecked Sendable {
     /// The folder catalogue the last enrichment request carried, so a test can
     /// check what the model was and was not shown.
     public private(set) var lastEnrichmentFolders: [EnrichmentFolder]?
+    /// Every enrichment request, so a test can read the transcript the model
+    /// was shown.
+    public private(set) var enrichmentRequests: [EnrichmentRequest] = []
 
     public func isConfigured() async -> Bool { configured }
 
@@ -107,7 +110,10 @@ public final class FakeAIBackend: AIBackend, @unchecked Sendable {
 
     public func enrich(_ request: EnrichmentRequest, model: String) async throws -> MeetingEnrichment {
         record(Call(kind: "enrich", model: model, file: ""))
-        lock.withLock { lastEnrichmentFolders = request.folders }
+        lock.withLock {
+            lastEnrichmentFolders = request.folders
+            enrichmentRequests.append(request)
+        }
         if !configured { throw ProcessingError.missingAPIKey }
         if let enrichInterference { await enrichInterference() }
         if let failEnrichment { throw failEnrichment }

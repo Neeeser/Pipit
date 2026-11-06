@@ -6,7 +6,10 @@ import PipitServices
 /// Writes one meeting's summary and notes again with the current prompt.
 ///
 /// For seeing what a prompt change does to real meetings without waiting for
-/// new ones. The request is built the way the app builds it, and only
+/// new ones. The request is built the way the app builds it for one recording,
+/// from this folder's own transcript. A meeting merged from several recordings
+/// is asked about in the app from all of them, which this tool does not do:
+/// it reads one folder, not the archive that links the recordings. Only
 /// `summary.md` and `raw/summary.json` are written, after a copy of both goes
 /// to the backups folder. Titles, descriptions, folders and every other file
 /// are left as they are.

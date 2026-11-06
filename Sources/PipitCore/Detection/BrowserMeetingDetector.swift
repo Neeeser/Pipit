@@ -20,6 +20,15 @@ public enum EvidenceSource: String, Sendable, Codable {
     case manual
 }
 
+/// Where a provider's title was read from. A title taken from the people in a
+/// meeting may be corrected when the people change, and so may a guess made
+/// before anyone was known. One a window or meeting client stated may not.
+public enum ProviderTitleOrigin: String, Sendable, Codable {
+    case provider
+    case participants
+    case provisional
+}
+
 /// What one detector currently believes.
 public struct ProviderEvidence: Sendable, Equatable {
     public var provider: MeetingProvider
@@ -28,6 +37,7 @@ public struct ProviderEvidence: Sendable, Equatable {
     public var meetingID: String?
     public var url: String?
     public var title: String?
+    public var titleOrigin: ProviderTitleOrigin
     public var muted: Bool?
     public var otherAudibleTabs: Int?
     public var browser: BrowserKind?
@@ -42,6 +52,7 @@ public struct ProviderEvidence: Sendable, Equatable {
         meetingID: String? = nil,
         url: String? = nil,
         title: String? = nil,
+        titleOrigin: ProviderTitleOrigin = .provider,
         muted: Bool? = nil,
         otherAudibleTabs: Int? = nil,
         browser: BrowserKind? = nil,
@@ -54,6 +65,7 @@ public struct ProviderEvidence: Sendable, Equatable {
         self.meetingID = meetingID
         self.url = url
         self.title = title
+        self.titleOrigin = titleOrigin
         self.muted = muted
         self.otherAudibleTabs = otherAudibleTabs
         self.browser = browser
@@ -90,6 +102,10 @@ public enum BrowserWindowTitle {
         public let title: String?
         /// The page is a landing or interstitial screen rather than a meeting.
         public let isLanding: Bool
+        /// The title has the shape of a page for one meeting, as opposed to any
+        /// page that mentions the provider. Only such a title lets the open
+        /// microphone keep the meeting after the title has left the screen.
+        public var isMeetingPage = false
     }
 
     public static func parse(_ rawTitle: String) -> Parsed? {
@@ -100,11 +116,12 @@ public enum BrowserWindowTitle {
             return Parsed(provider: .googleMeet, meetingID: nil, title: nil, isLanding: true)
         }
         if title.hasPrefix("Meet - ") {
-            let code = String(title.dropFirst("Meet - ".count)).trimmingCharacters(in: .whitespaces)
+            let code = strippingBrowserSuffix(String(title.dropFirst("Meet - ".count)))
+                .trimmingCharacters(in: .whitespaces)
             let isCode = code.range(of: "^[a-z]{3}-[a-z]{4}-[a-z]{3}$", options: [.regularExpression]) != nil
             return Parsed(
                 provider: .googleMeet, meetingID: isCode ? code : nil,
-                title: isCode ? nil : code, isLanding: false
+                title: isCode ? nil : code, isLanding: false, isMeetingPage: true
             )
         }
         if title.localizedCaseInsensitiveContains("zoom") {
@@ -112,17 +129,43 @@ public enum BrowserWindowTitle {
                 return Parsed(provider: .zoom, meetingID: nil, title: nil, isLanding: true)
             }
             // Zoom's browser title carries the meeting name, not the numeric ID.
-            let name =
-                title
-                .replacingOccurrences(of: " - Zoom", with: "")
-                .trimmingCharacters(in: .whitespaces)
+            let ending = title.range(
+                of: #"( - Zoom| Zoom Meeting)("# + browserSuffixPattern + #")?$"#, options: .regularExpression
+            )
+            let name: String
+            if let ending {
+                // Cut at the Zoom label so what the browser adds after it stays out.
+                let isLabelSuffix = title[ending].hasPrefix(" - Zoom")
+                let labelEnd = title.range(of: "Zoom Meeting", range: ending)?.upperBound ?? title.endIndex
+                name = (isLabelSuffix ? String(title[..<ending.lowerBound]) : String(title[..<labelEnd]))
+                    .trimmingCharacters(in: .whitespaces)
+            } else {
+                name = title.replacingOccurrences(of: " - Zoom", with: "").trimmingCharacters(in: .whitespaces)
+            }
+            // The web client's titles in this repo's tests end in "Zoom" or
+            // "Zoom Meeting", optionally followed by what the browser adds (a
+            // private-browsing label, a profile name). The parse stays broad so a
+            // call is not missed, but a title that mentions Zoom some other way
+            // is not a meeting page.
+            let isLanding = name.isEmpty || name == "Zoom"
+            let endsLikeMeetingPage = ending != nil
             return Parsed(
-                provider: .zoom, meetingID: nil,
-                title: name.isEmpty || name == "Zoom" ? nil : name,
-                isLanding: name.isEmpty || name == "Zoom"
+                provider: .zoom, meetingID: nil, title: isLanding ? nil : name, isLanding: isLanding,
+                isMeetingPage: !isLanding && endsLikeMeetingPage
             )
         }
         return nil
+    }
+
+    /// Takes off what a browser appends to a window title, such as a
+    /// private-browsing label or the browser and profile name.
+    private static let browserSuffixPattern =
+        #" [-\u{2013}\u{2014}] (Private Browsing|Incognito|InPrivate|Google Chrome|Mozilla Firefox"#
+        + #"|Microsoft Edge|Brave|Arc|Vivaldi|Safari)( [-\u{2013}\u{2014}] .*)?"#
+
+    private static func strippingBrowserSuffix(_ text: String) -> String {
+        guard let range = text.range(of: browserSuffixPattern + "$", options: .regularExpression) else { return text }
+        return String(text[..<range.lowerBound])
     }
 
     /// The meeting's own name inside a tab title, with the provider's own
@@ -196,6 +239,12 @@ public struct BrowserMeetingDetector: Sendable {
     private var micReleasedSince: Double?
     private var lastNativeParse: BrowserWindowTitle.Parsed?
     private var lastNativeParseAt: Double?
+    /// The browser has held the microphone since the remembered title was seen
+    /// or while it was still fresh, with no release longer than the refresh
+    /// grace in between.
+    private var titleHeldByMicrophone = false
+    /// The add-on has reported a call matching the remembered title.
+    private var addOnReportedMeeting = false
 
     public init(
         browser: BrowserKind = .firefox,
@@ -230,17 +279,73 @@ public struct BrowserMeetingDetector: Sendable {
             micHeldSince = nil
         }
 
-        let parsed = signals.windowTitles.compactMap(BrowserWindowTitle.parse)
-            .sorted { lhs, _ in !lhs.isLanding }
-            .first
+        // The window that is a meeting page wins over one that merely mentions
+        // a provider, and either wins over a landing page.
+        let seen = signals.windowTitles.compactMap(BrowserWindowTitle.parse)
+            .max { Self.rank($0) < Self.rank($1) }
 
         // A window title seen minutes ago is not evidence of a meeting now.
+        //
+        // There is one exception: a title remembered while the browser holds the
+        // microphone is kept for as long as the browser holds it without a break.
+        // A window's title is its front tab's, so a call left running in a
+        // background tab shows no title at all, and the unbroken microphone is
+        // what still ties the browser to that call. A video in another tab plays
+        // sound but never opens the microphone, and leaving the call releases it.
+        // A release shorter than the refresh grace is not a break.
+        //
+        // The trade-off: nothing without the add-on separates a Meet page
+        // waiting to be joined from a joined call (the output flag is not read
+        // here), so a waiting page left in a background tab with the microphone
+        // open records until the tab closes. The same already held while that
+        // page was in front.
+        //
+        // The exception ends once the add-on has positive knowledge of this
+        // meeting: it reported the call, and the tab that reported it has since
+        // ended, closed, or gone silent. The add-on reports background calls
+        // itself, so from then on its word wins. An add-on that never reported
+        // this meeting says nothing about it, since it may not run where the
+        // call is (another Chromium browser, a private window, a second
+        // profile, Safari before site access is granted), and the memory then
+        // works as it does without the add-on.
+
+        // While the microphone holds a remembered meeting page, a title that is
+        // not a meeting page (a mail that mentions Zoom, a provider's home page)
+        // does not replace it.
+        let keepsRemembered =
+            titleHeldByMicrophone && lastNativeParse?.isMeetingPage == true && seen?.isMeetingPage == false
+        let parsed = keepsRemembered ? nil : seen
         if let parsed {
+            if let remembered = lastNativeParse, !Self.sameMeeting(remembered, parsed) {
+                addOnReportedMeeting = false
+            }
             lastNativeParse = parsed
             lastNativeParseAt = now
-        } else if let seenAt = lastNativeParseAt, now - seenAt > configuration.titleMemorySeconds {
+        }
+        if let remembered = lastNativeParse, sensor.liveEvents.contains(where: { Self.reports($0, remembered) }) {
+            addOnReportedMeeting = true
+        }
+        // The microphone ties the call to the browser when it is open while the
+        // title is visible or within the refresh grace of it (Zoom's page shows
+        // its title a moment before the microphone opens). A microphone that
+        // opens later was not opened for this title, even if the title is still
+        // remembered.
+        let titleIsCurrent = lastNativeParseAt.map { now - $0 <= configuration.nativeEndGraceSeconds } ?? false
+        if signals.browserHoldsMicrophone {
+            if titleIsCurrent, lastNativeParse?.isMeetingPage == true { titleHeldByMicrophone = true }
+        } else if let releasedAt = micReleasedSince, now - releasedAt >= configuration.nativeEndGraceSeconds {
+            // The call the add-on reported is over. Zoom titles carry no
+            // meeting ID, so a later call would otherwise look like the same one.
+            titleHeldByMicrophone = false
+            addOnReportedMeeting = false
+        }
+        if parsed == nil, let seenAt = lastNativeParseAt, now - seenAt > configuration.titleMemorySeconds,
+            !titleHeldByMicrophone || addOnReportedMeeting
+        {
             lastNativeParse = nil
             lastNativeParseAt = nil
+            titleHeldByMicrophone = false
+            addOnReportedMeeting = false
         }
 
         let native = nativeEvidence(native: signals, parsed: parsed ?? lastNativeParse, at: now)
@@ -272,6 +377,40 @@ public struct BrowserMeetingDetector: Sendable {
         return evidence
     }
 
+    private static func sameMeeting(_ lhs: BrowserWindowTitle.Parsed, _ rhs: BrowserWindowTitle.Parsed) -> Bool {
+        guard lhs.provider == rhs.provider else { return false }
+        if let left = lhs.meetingID, let right = rhs.meetingID { return left == right }
+        // A code on one side and only a name on the other cannot be shown to be
+        // the same call. Calling them different only clears the report, which
+        // the add-on sets again for a call it really reports.
+        if lhs.meetingID != nil { return rhs.title == nil }
+        if rhs.meetingID != nil { return lhs.title == nil }
+        // Neither title has a code (Zoom, or a Meet call with a name): the name
+        // tells two calls apart, and a missing name matches anything.
+        return lhs.title == nil || rhs.title == nil || lhs.title == rhs.title
+    }
+
+    private static func rank(_ parsed: BrowserWindowTitle.Parsed) -> Int {
+        parsed.isMeetingPage ? 2 : parsed.isLanding ? 0 : 1
+    }
+
+    /// Whether the add-on's event is a tab on the remembered meeting that is
+    /// in a call.
+    private static func reports(_ event: BrowserMeetingEvent, _ remembered: BrowserWindowTitle.Parsed) -> Bool {
+        // A prejoin or waiting report is not enough: if the add-on's in-call
+        // detection breaks it reports those and then browsing, and that must
+        // cost extra recording, never the meeting.
+        guard event.provider == remembered.provider, event.state == .inCall || event.state == .reconnecting
+        else { return false }
+        // Codes decide when both sides have one, then names. Zoom's titles never
+        // carry the ID the extension reads from the address, so a name is what
+        // separates two Zoom calls.
+        if let code = event.meetingID, let rememberedCode = remembered.meetingID { return code == rememberedCode }
+        guard let name = event.title.flatMap(BrowserWindowTitle.meetingName), let rememberedName = remembered.title
+        else { return true }
+        return name == rememberedName
+    }
+
     private func evidenceFromSensor(
         _ event: BrowserMeetingEvent, native: NativeSignals, parsed: BrowserWindowTitle.Parsed?
     ) -> ProviderEvidence {
@@ -293,7 +432,8 @@ public struct BrowserMeetingDetector: Sendable {
             source: .browserSensor,
             meetingID: meetingID,
             url: event.url,
-            title: event.title.flatMap(BrowserWindowTitle.meetingName) ?? parsed?.title,
+            title: event.title.flatMap(BrowserWindowTitle.meetingName)
+                ?? (parsed?.provider == event.provider ? parsed?.title : nil),
             muted: event.muted,
             otherAudibleTabs: event.otherAudibleTabs,
             browser: browser,

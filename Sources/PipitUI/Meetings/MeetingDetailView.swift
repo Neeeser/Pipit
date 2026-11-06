@@ -276,7 +276,7 @@ public struct MeetingDetailView: View {
         }
         if detail.isSplitRecording {
             lines.append(
-                "\(detail.recordings.count) parts: the call dropped and was rejoined, and both are shown in order."
+                "Recorded in \(detail.recordings.count) parts, shown in order."
             )
         }
         return lines.joined(separator: "\n")
