@@ -7,7 +7,7 @@ import Testing
 
 /// Storage compaction: PCM segments become verified archive files, and the
 /// layout migration that moves old folders under `raw/`.
-@Suite("Compaction")
+@Suite("Compaction", .tags(.slow))
 struct CompactionTests {
     /// A finished two-track meeting marked `complete`, ready to compact.
     private static func makeCompleteMeeting(

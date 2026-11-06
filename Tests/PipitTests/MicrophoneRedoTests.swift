@@ -10,7 +10,7 @@ import Testing
 /// clean, finished first with the cleaning outcome already recorded as
 /// bypassed. That is what a meeting from before the current canceller looks
 /// like to the pipeline: an answer on file, so the cleaner never runs again.
-@Suite("MicrophoneRedo")
+@Suite("MicrophoneRedo", .tags(.slow))
 struct MicrophoneRedoTests {
     private static let farEndWords = RawTranscriptSegment(
         start: 0, end: 5, text: "we should look at the plan", speaker: nil,

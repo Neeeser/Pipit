@@ -13,12 +13,17 @@ Line Tools problems. `scripts/test.sh` wraps `swift test --no-parallel`.
 ./scripts/build.sh debug
 ./scripts/test.sh
 ./scripts/test.sh --filter Name
+./scripts/test.sh --fast
 ./scripts/bundle-app.sh debug
 ./scripts/lint.sh
 ./scripts/format.sh
 xcodegen generate
 ```
 
+`scripts/test.sh --fast` skips the suites tagged `.slow` (the echo canceller and
+the processing pipeline), which take most of a full run. Pull request CI runs
+the fast tests only; a push to `main` runs every test and builds the release
+bundle.
 `scripts/lint.sh` checks formatting and SwiftLint rules without changing files.
 `scripts/format.sh` rewrites the sources in place to satisfy that check.
 `xcodegen generate` rewrites `Pipit.xcodeproj` after an edit to `project.yml`,

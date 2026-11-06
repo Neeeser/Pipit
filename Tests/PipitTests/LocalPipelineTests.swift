@@ -9,7 +9,7 @@ import Synchronization
 import Testing
 
 /// The whole local path, with the models replaced and everything else real.
-@Suite("LocalPipeline")
+@Suite("LocalPipeline", .tags(.slow))
 struct LocalPipelineTests {
     private static func embeddings(cluster: String, seed: Int, spans: [(Double, Double)]) -> [DiarizationChunkEmbedding]
     {

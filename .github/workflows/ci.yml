@@ -19,58 +19,30 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  # One macOS job checks a pull request: lint, the project file, one debug
+  # build and the tests not tagged .slow (see scripts/slow-suites.sh). A push
+  # to main runs every test, and a second job builds the Xcode project and the
+  # release bundle. The release workflow reads the "Build and test" check on
+  # the commit it releases, so on main that check covers every test.
   build-and-test:
-    if: ${{ !(github.event_name == 'workflow_dispatch' && inputs.notarize) }}
     name: Build and test
+    if: ${{ !(github.event_name == 'workflow_dispatch' && inputs.notarize) }}
     runs-on: macos-15
-    timeout-minutes: 45
+    timeout-minutes: 60
     env:
       # Every swift build and the test run compile with -warnings-as-errors.
       # scripts/spm-env.sh reads this variable. A local build leaves it unset.
       PIPIT_WARNINGS_AS_ERRORS: '1'
     steps:
       - uses: actions/checkout@v7
-        with:
-          # The packaging step below stamps the commit count as the build
-          # number, and the default depth of 1 would make it 1. The other jobs
-          # here build no bundle and keep the shallow checkout.
-          fetch-depth: 0
 
-      - name: Select the newest Xcode on the image
-        id: toolchain
-        # The SpeechAnalyzer backend needs the macOS 26 SDK to compile in.
-        # The code carries its own compile gate, so an image without a new
-        # enough Xcode still builds; it just builds without the Apple engine,
-        # and a release from such a toolchain would ship without it too.
-        run: |
-          newest="$(ls -d /Applications/Xcode*.app | sort -V | tail -1)"
-          echo "selecting $newest"
-          sudo xcode-select -s "$newest"
-          echo "xcode=$(xcodebuild -version | head -1)" >> "$GITHUB_OUTPUT"
-
-      - name: Cache the SwiftPM build directory
-        # .build holds the dependency checkouts, the build artifacts and both
-        # configurations, so nothing is excluded. It runs a few gigabytes.
-        # GitHub evicts by age under the 10 GB repository limit, and a change
-        # to Package.resolved or Package.swift moves the key onto a fresh
-        # entry that the restore-keys prefix still warms from the last one.
-        #
-        # PIPIT_WARNINGS_AS_ERRORS adds -Xswiftc -warnings-as-errors, and an
-        # object compiled without that flag is reused as compiled. That is
-        # fine here: this job sets the flag on every build, so a cache written
-        # by it was compiled with the gate on.
-        uses: actions/cache@v6
-        with:
-          path: .build
-          key: spm-${{ runner.os }}-${{ steps.toolchain.outputs.xcode }}-${{ hashFiles('Package.resolved', 'Package.swift') }}
-          restore-keys: |
-            spm-${{ runner.os }}-${{ steps.toolchain.outputs.xcode }}-
+      - uses: ./.github/actions/select-xcode
 
       - name: Install SwiftLint and XcodeGen
         run: brew install swiftlint xcodegen
 
       - name: Show toolchain
-        # Printed before the first build so a red Lint or Build step can be
+        # Printed before the first build so a red Lint or test step can be
         # read against the exact tool versions that produced it.
         run: |
           swift --version
@@ -112,8 +84,38 @@ jobs:
           }
           diff -u <(normalise "$committed") <(normalise Pipit.xcodeproj/project.pbxproj)
 
-      - name: Build (debug)
-        run: ./scripts/build.sh debug
+      - name: Run the tests
+        # A pull request runs everything except the suites tagged .slow, which
+        # run the echo canceller and the processing pipeline over seconds of
+        # audio. Main runs them all. Live OpenAI tests are skipped in both:
+        # they need a key, and CI must not spend money or depend on a network
+        # service.
+        env:
+          EVENT: ${{ github.event_name }}
+        run: |
+          if [ "$EVENT" = pull_request ]; then
+            ./scripts/test.sh --fast
+          else
+            ./scripts/test.sh
+          fi
+
+  package:
+    name: Package the app
+    # The release workflow builds, checks and signs the bundle again before it
+    # tags, so this runs after merge rather than on every pull request.
+    if: ${{ github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && !inputs.notarize) }}
+    runs-on: macos-15
+    timeout-minutes: 45
+    env:
+      PIPIT_WARNINGS_AS_ERRORS: '1'
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          # The packaging step stamps the commit count as the build number,
+          # and the default depth of 1 would make it 1.
+          fetch-depth: 0
+
+      - uses: ./.github/actions/select-xcode
 
       - name: Build the Xcode project
         # The shell a contributor opens. It compiles Sources/PipitApp against
@@ -122,32 +124,10 @@ jobs:
           xcodebuild -project Pipit.xcodeproj -scheme Pipit \
             -configuration Debug build CODE_SIGNING_ALLOWED=NO
 
-      - name: Run the test suite
-        # Live OpenAI tests are skipped here: they need a key, and CI must not
-        # spend money or depend on a network service.
-        run: ./scripts/test.sh --enable-code-coverage
-
-      - name: Report code coverage
-        # Informational only. There is no threshold and a missing profile does
-        # not fail the job.
-        run: |
-          profdata=.build/debug/codecov/default.profdata
-          binary="$(ls -d .build/debug/*.xctest/Contents/MacOS/* 2>/dev/null | head -1)"
-          if [ ! -f "$profdata" ] || [ -z "$binary" ]; then
-            echo "coverage: no profile or test binary found, skipping the report"
-            exit 0
-          fi
-          xcrun llvm-cov report "$binary" \
-            -instr-profile "$profdata" \
-            -ignore-filename-regex '(\.build|Tests/|CWebRTCAEC3)' \
-            || echo "coverage: llvm-cov report failed"
-
-      - name: Build (release)
-        run: ./scripts/build.sh release
-
       - name: Package the app
         # Ad-hoc signing only. A Developer ID build happens in the release
-        # workflow, where the signing secrets live.
+        # workflow, where the signing secrets live. This builds the release
+        # products itself; nothing builds them before it.
         run: ./scripts/bundle-app.sh release
 
       - name: Verify the bundle
@@ -189,20 +169,7 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Select the newest Xcode
-        id: toolchain
-        run: |
-          newest="$(ls -d /Applications/Xcode*.app | sort -V | tail -1)"
-          sudo xcode-select -s "$newest"
-          echo "xcode=$(xcodebuild -version | head -1)" >> "$GITHUB_OUTPUT"
-
-      - name: Restore the tested build cache
-        uses: actions/cache/restore@v6
-        with:
-          path: .build
-          key: spm-${{ runner.os }}-${{ steps.toolchain.outputs.xcode }}-${{ hashFiles('Package.resolved', 'Package.swift') }}
-          restore-keys: |
-            spm-${{ runner.os }}-${{ steps.toolchain.outputs.xcode }}-
+      - uses: ./.github/actions/select-xcode
 
       - uses: actions/setup-node@v7
         with:
@@ -245,7 +212,8 @@ jobs:
 
   extension:
     name: Browser extension
-    runs-on: macos-15
+    # Node only: the build is sed, cp and `node --check`, so it needs no Mac.
+    runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v7
