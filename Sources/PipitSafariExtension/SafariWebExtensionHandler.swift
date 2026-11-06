@@ -37,7 +37,36 @@ final class SafariWebExtensionHandler: NSObject, NSExtensionRequestHandling {
 
     private static let version = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "unknown"
 
+    /// The file this process started from, to notice a newer Pipit installed
+    /// over it while Safari kept the process running.
+    private static let executablePath = Bundle.main.executablePath
+    private static let startedFrom = executablePath.flatMap(FileIdentity.init(path:))
+
+    /// Reads the file's identity when the handler is first created, which is
+    /// when the process starts, so a reinstall before the first message is
+    /// still noticed.
+    override init() {
+        _ = Self.startedFrom
+        super.init()
+    }
+
     func beginRequest(with context: NSExtensionContext) {
+        // Pipit refuses a relay whose running code no longer matches the file
+        // on disk, which is the case for this process once Pipit is reinstalled.
+        // Exiting after the reply means Safari starts the new extension for the
+        // next message; this one is dropped, and the add-on sends again within
+        // seconds.
+        if let path = Self.executablePath, let startedFrom = Self.startedFrom, startedFrom.isReplaced(at: path) {
+            Self.diagnostics.record(.nativeHostExited(reason: .replaced, relayed: 0))
+            Self.diagnostics.flush(timeout: 0.1)
+            let reply = NSExtensionItem()
+            reply.userInfo = [SFExtensionMessageKey: ["type": "ack", "connected": false]]
+            // Safari may never call the completion handler, and this process
+            // must not outlive its file.
+            DispatchQueue.global().asyncAfter(deadline: .now() + 2) { exit(0) }
+            context.completeRequest(returningItems: [reply]) { _ in exit(0) }
+            return
+        }
         let item = context.inputItems.first as? NSExtensionItem
         let raw = item?.userInfo?[SFExtensionMessageKey] as? [String: Any]
         var delivered = false

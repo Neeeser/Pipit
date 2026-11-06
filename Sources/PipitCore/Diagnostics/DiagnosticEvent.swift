@@ -316,6 +316,8 @@ extension DiagnosticEvent {
     public enum HostExitReason: String, Sendable, CaseIterable {
         case browserClosed = "browser_closed"
         case appClosed = "app_closed"
+        /// A newer Pipit replaced the relay's file, so it stepped aside for it.
+        case replaced
         case error
     }
 

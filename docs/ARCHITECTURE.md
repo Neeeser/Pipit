@@ -573,5 +573,11 @@ has a meeting of its own.
 Pipit accepts sensor connections only from its bundled native host when a browser
 launched that host, or from its own Safari extension inside its bundle. On a
 signed build both must carry Pipit's team and their own signing identifier.
-Sensor evidence is combined with native evidence and cannot end a recording by
-disappearing on its own.
+Sensor evidence is combined with native evidence. It cannot end a recording by
+disappearing on its own, with one exception: a call the add-on reported in a
+background tab, whose tab then ends, closes or goes silent, no longer counts as
+open just because the browser still holds the microphone. A call the add-on
+never reported is kept while the browser holds the microphone, since the add-on
+may not run where that call is. The relay helpers (`pipit-nativehost` and the
+Safari extension) exit when their file is replaced by a newer Pipit, so the
+browser starts the new one.
