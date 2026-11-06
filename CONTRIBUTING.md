@@ -82,13 +82,11 @@ other test, and `./scripts/test.sh --slow` runs only the tagged suites.
 select by tag, and fails when a `.slow` is not on a suite line it can read. Tag
 a new suite when its tests take several seconds each.
 
-Pull request CI runs the fast tests, the Xcode project build and the app
-packaging as parallel jobs, and those block the merge. The slow suites run in a
-separate `Slow tests` workflow when the change can reach them, which
-`scripts/needs-slow-tests.sh` decides from the changed paths: anything outside
-the front ends, documentation and scripts runs them. That check does not block
-the merge, so read it before merging a change to audio or processing code. A
-push to `main` always runs every test, and those must pass for a release.
+Pull request CI runs one macOS job: lint, the project file check, one debug
+build and `./scripts/test.sh --fast`. The slow suites, the Xcode project build
+and the release bundle run after merge, on the push to `main`, and a release
+needs them to pass. Run `./scripts/test.sh --slow` locally before opening a pull
+request that changes audio or processing code.
 
 Run the browser sensor tests after changing `extension/`:
 

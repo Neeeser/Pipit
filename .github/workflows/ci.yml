@@ -19,18 +19,16 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  # A pull request runs the fast tests, the Xcode project build and the
-  # packaging. The slow suites (tagged .slow, see scripts/slow-suites.sh) run
-  # for a pull request in slow-tests.yml, as a check that does not block the
-  # merge. A push to main and a manual run run them here, and they must pass.
-  # The jobs below run side by side and "Build and test" at the end reports
-  # their combined result under the one name that the main ruleset and the
-  # release workflow look for.
-  fast-tests:
-    name: Lint and fast tests
+  # One macOS job checks a pull request: lint, the project file, one debug
+  # build and the tests not tagged .slow (see scripts/slow-suites.sh). A push
+  # to main runs every test, and a second job builds the Xcode project and the
+  # release bundle. The release workflow reads the "Build and test" check on
+  # the commit it releases, so on main that check covers every test.
+  build-and-test:
+    name: Build and test
     if: ${{ !(github.event_name == 'workflow_dispatch' && inputs.notarize) }}
     runs-on: macos-15
-    timeout-minutes: 30
+    timeout-minutes: 60
     env:
       # Every swift build and the test run compile with -warnings-as-errors.
       # scripts/spm-env.sh reads this variable. A local build leaves it unset.
@@ -40,8 +38,8 @@ jobs:
 
       - uses: ./.github/actions/select-xcode
 
-      - name: Install SwiftLint
-        run: brew install swiftlint
+      - name: Install SwiftLint and XcodeGen
+        run: brew install swiftlint xcodegen
 
       - name: Show toolchain
         # Printed before the first build so a red Lint or test step can be
@@ -51,50 +49,12 @@ jobs:
           xcodebuild -version || true
           swift format --version
           swiftlint version
+          xcodegen --version
 
       - name: Lint
         # Style and defect rules. It fails on any file that has not been run
         # through scripts/format.sh, and on a SwiftLint error.
         run: ./scripts/lint.sh
-
-      - name: Run the fast tests
-        # Everything except the suites tagged .slow. This is the only debug
-        # build of the package in the workflow besides the slow job's. Live
-        # OpenAI tests are skipped here: they need a key, and CI must not spend
-        # money or depend on a network service.
-        run: ./scripts/test.sh --fast
-
-  slow-tests:
-    name: Slow tests
-    if: ${{ github.event_name != 'pull_request' && !(github.event_name == 'workflow_dispatch' && inputs.notarize) }}
-    runs-on: macos-15
-    timeout-minutes: 45
-    env:
-      PIPIT_WARNINGS_AS_ERRORS: '1'
-    steps:
-      - uses: actions/checkout@v7
-
-      - uses: ./.github/actions/select-xcode
-
-      - name: Run the slow tests
-        # The suites tagged .slow run the echo canceller and the processing
-        # pipeline over seconds of speech, and take most of a full run.
-        run: ./scripts/test.sh --slow
-
-  xcode-project:
-    name: Xcode project
-    if: ${{ !(github.event_name == 'workflow_dispatch' && inputs.notarize) }}
-    runs-on: macos-15
-    timeout-minutes: 30
-    env:
-      PIPIT_WARNINGS_AS_ERRORS: '1'
-    steps:
-      - uses: actions/checkout@v7
-
-      - uses: ./.github/actions/select-xcode
-
-      - name: Install XcodeGen
-        run: brew install xcodegen
 
       - name: Check the Xcode project matches project.yml
         # project.yml is the source. A hand edit in Xcode that is not mirrored
@@ -124,18 +84,28 @@ jobs:
           }
           diff -u <(normalise "$committed") <(normalise Pipit.xcodeproj/project.pbxproj)
 
-      - name: Build the Xcode project
-        # The shell a contributor opens. It compiles Sources/PipitApp against
-        # the package products and assembles the bundle Xcode runs.
+      - name: Run the tests
+        # A pull request runs everything except the suites tagged .slow, which
+        # run the echo canceller and the processing pipeline over seconds of
+        # audio. Main runs them all. Live OpenAI tests are skipped in both:
+        # they need a key, and CI must not spend money or depend on a network
+        # service.
+        env:
+          EVENT: ${{ github.event_name }}
         run: |
-          xcodebuild -project Pipit.xcodeproj -scheme Pipit \
-            -configuration Debug build CODE_SIGNING_ALLOWED=NO
+          if [ "$EVENT" = pull_request ]; then
+            ./scripts/test.sh --fast
+          else
+            ./scripts/test.sh
+          fi
 
   package:
     name: Package the app
-    if: ${{ !(github.event_name == 'workflow_dispatch' && inputs.notarize) }}
+    # The release workflow builds, checks and signs the bundle again before it
+    # tags, so this runs after merge rather than on every pull request.
+    if: ${{ github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && !inputs.notarize) }}
     runs-on: macos-15
-    timeout-minutes: 30
+    timeout-minutes: 45
     env:
       PIPIT_WARNINGS_AS_ERRORS: '1'
     steps:
@@ -146,6 +116,13 @@ jobs:
           fetch-depth: 0
 
       - uses: ./.github/actions/select-xcode
+
+      - name: Build the Xcode project
+        # The shell a contributor opens. It compiles Sources/PipitApp against
+        # the package products and assembles the bundle Xcode runs.
+        run: |
+          xcodebuild -project Pipit.xcodeproj -scheme Pipit \
+            -configuration Debug build CODE_SIGNING_ALLOWED=NO
 
       - name: Package the app
         # Ad-hoc signing only. A Developer ID build happens in the release
@@ -181,38 +158,6 @@ jobs:
         # same script here means a change that leaves a release without
         # symbols that match its binaries fails on the pull request instead.
         run: ./scripts/archive-dsyms.sh
-
-  build-and-test:
-    name: Build and test
-    # Reports the jobs above under the name the main ruleset requires and the
-    # release workflow reads. The slow suites may be skipped on a pull request
-    # that cannot reach them; every other run needs them to have passed.
-    needs: [fast-tests, slow-tests, xcode-project, package]
-    if: ${{ !cancelled() && !(github.event_name == 'workflow_dispatch' && inputs.notarize) }}
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
-    steps:
-      - name: Check the results
-        env:
-          EVENT: ${{ github.event_name }}
-          FAST: ${{ needs.fast-tests.result }}
-          SLOW: ${{ needs.slow-tests.result }}
-          XCODE: ${{ needs.xcode-project.result }}
-          PACKAGE: ${{ needs.package.result }}
-        run: |
-          echo "fast=$FAST slow=$SLOW xcode=$XCODE package=$PACKAGE"
-          for result in "$FAST" "$XCODE" "$PACKAGE"; do
-            [ "$result" = success ] || { echo "a required job did not pass" >&2; exit 1; }
-          done
-          if [ "$SLOW" = success ]; then
-            exit 0
-          fi
-          if [ "$SLOW" = skipped ] && [ "$EVENT" = pull_request ]; then
-            echo "the slow suites run separately for a pull request"
-            exit 0
-          fi
-          echo "the slow suites did not pass" >&2
-          exit 1
 
   notarized-test:
     name: Notarized test app
@@ -267,7 +212,8 @@ jobs:
 
   extension:
     name: Browser extension
-    runs-on: macos-15
+    # Node only: the build is sed, cp and `node --check`, so it needs no Mac.
+    runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v7
