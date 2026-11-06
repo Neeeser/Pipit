@@ -192,11 +192,11 @@ struct LanguageModelSettingsTests {
         for failure in all {
             let fact = failure.statement(provider: "Ollama")
             #expect(fact.contains("Ollama") && !fact.hasSuffix("."), "\(failure)")
-            #expect(failure.message(provider: "Ollama").hasPrefix(fact))
-            #expect(failure.message(provider: "Ollama").hasSuffix("."))
+            #expect(failure.advice(provider: "Ollama").hasPrefix(fact))
+            #expect(failure.advice(provider: "Ollama").hasSuffix("."))
             #expect(
-                failure.message(provider: "Ollama").contains("retry") == failure.isRetryable,
-                "only a failure that is retried says so: \(failure)"
+                !failure.advice(provider: "Ollama").contains("retry"),
+                "what happens next is the meeting's to say: \(failure)"
             )
         }
     }

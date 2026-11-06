@@ -455,7 +455,7 @@ struct CompactionTests {
         do { _ = try AudioCompactor().compact(store: store) } catch { thrown = error }
         #expect(thrown != nil, "verification refuses the corrupt archive")
         if let processing = thrown as? ProcessingError,
-            case .localProcessingFailed(_, let retryable) = processing
+            case .localProcessingFailed(_, let retryable, _) = processing
         {
             #expect(retryable, "the segments are still there, so a later run can rebuild")
         } else {

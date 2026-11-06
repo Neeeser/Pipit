@@ -310,8 +310,11 @@ do not fit, the newest that fit are sent and `summary.diagnostics.eventsOmitted`
 says how many were left out; the preview shows the same.
 
 The fixture `Tests/Fixtures/Diagnostics/report-v1.json` is a
-synthetic valid report. The website's tests validate the same file, so a change
-to the format breaks one side's tests until both agree.
+synthetic valid report. The website keeps its own copy of the format and its own
+fixture, so a change here is not checked against it until the two are compared
+by hand. The schema version stays 1: the website rejects any other, and a new
+field that passes its validation (as `recentFailures[].cause` does) does not
+need a new version.
 
 ### Sections
 
@@ -359,9 +362,17 @@ Built by `DiagnosticSnapshot` (PipitCore) from values `DiagnosticReportCollector
   and `freeDisk` for the meetings folder's volume.
 - `summary.recentFailures`: the ten newest failures still standing on
   meetings: `stage`, `code` (the DiagnosticCode recorded with the failure, or
-  `unknown` for one recorded before codes were kept), `retryable`,
-  `attempts` at that stage, and `at`. The failure's message is never read; it
-  is prose for the person and can name a file.
+  `unknown` for one recorded before codes were kept), `retryable`
+  (whether this kind of failure is retried within a run; the failure
+  shown stopped that run, so it is the kind's property, not a promise), `cause` (`same_result`, `settings`
+  or `waiting`: what another attempt would change), `attempts` (failures at that
+  stage that repeat the same result, counted across launches; waiting and
+  Settings failures and a run a quit interrupted are not counted), and `at`. Only a
+  `same_result` failure with 3 or more attempts has used them all and waits for
+  Retry; `settings` and `waiting` failures are started again at every launch.
+  `cause` is absent from reports by older builds, and for a failure stored
+  before causes were recorded it is inferred from the code. The failure's
+  message is never read; it is prose for the person and can name a file.
 - `summary.diagnostics`: `eventsDropped`, the sum of every
   `diagnostics.dropped` count in the log; `oldestEvent`, the oldest event on
   this Mac, left out when there is none; `eventsIncluded`; and

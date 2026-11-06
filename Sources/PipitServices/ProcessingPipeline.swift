@@ -82,7 +82,7 @@ public actor ProcessingPipeline {
     private let clock: any Clock
     private let settingsProvider: @Sendable () -> AppSettings
     private let onProgress: @Sendable (Progress) -> Void
-    private let onFailure: @Sendable (String, ProcessingError) -> Void
+    private let onFailure: @Sendable (String, ProcessingFailure) -> Void
     /// Called with a conversation's identifier whenever a rewrite changed what
     /// is on disk for it. A rewrite is paid after the job that ended, where no
     /// progress report follows, so a window that is open needs telling.
@@ -103,6 +103,10 @@ public actor ProcessingPipeline {
     private let chunking: ChunkPlanner.Configuration
 
     private var running: Set<String> = []
+    /// Meetings whose current attempt has already received a paid response. An
+    /// unrecognised error after one repeats the same result, since trying again
+    /// sends the request again and pays again.
+    private var paidResponses: Set<String> = []
     /// Meetings whose folders left the archive while a job was running, and
     /// when they left.
     ///
@@ -174,7 +178,9 @@ public actor ProcessingPipeline {
 
     /// How many times one stage is attempted before the meeting is left for the
     /// user, and the delays between those attempts.
-    static let maxAttemptsPerStage = 3
+    static let maxAttemptsPerStage = ProcessingStatus.maxAttemptsPerStage
+    public static let timingModelDownloadFailure =
+        "The timing model could not be downloaded, so word timings are missing. The words are saved."
     static let retryDelaysSeconds: [TimeInterval] = [20, 90]
     static let maxRetryDelaySeconds: TimeInterval = 300
 
@@ -190,7 +196,7 @@ public actor ProcessingPipeline {
         diagnostics: DiagnosticLog = .disabled,
         settingsProvider: @escaping @Sendable () -> AppSettings,
         onProgress: @escaping @Sendable (Progress) -> Void = { _ in },
-        onFailure: @escaping @Sendable (String, ProcessingError) -> Void = { _, _ in },
+        onFailure: @escaping @Sendable (String, ProcessingFailure) -> Void = { _, _ in },
         onSummaryRewritten: @escaping @Sendable (String) -> Void = { _ in },
         onSummaryFailure: @escaping @Sendable (String, ProcessingError) -> Void = { _, _ in },
         onSummaryRewriting: @escaping @Sendable (String, Bool) -> Void = { _, _ in },
@@ -556,6 +562,7 @@ public actor ProcessingPipeline {
         await jobLock.acquire()
         var holdsSlot = true
         defer {
+            paidResponses.remove(meetingID)
             running.remove(meetingID)
             releaseFolder(meetingID)
             if holdsSlot { jobLock.release() }
@@ -571,6 +578,12 @@ public actor ProcessingPipeline {
         // be read beside the capture events of the same call. Nil for a
         // meeting recorded before diagnostics existed.
         let session = (try? store.readTimeline())?.diagnosticSession
+
+        // Failed attempts at each stage in this run, which bound the retries
+        // below. Kept apart from the stored count, which is the launch sweep's
+        // cap and only grows for a failure that repeats: an outage must
+        // neither use up that cap nor, by ending, reset it.
+        var runAttempts: [ProcessingState: Int] = [:]
 
         while let stage = metadata.processing.resumeStage, stage != .complete {
             // A job identifier per attempt, so a retry's events are told from
@@ -626,12 +639,32 @@ public actor ProcessingPipeline {
                 // Without this the job ran a whole transcription pass on it and
                 // reported progress for a folder that was already gone.
                 if discardIfGone(metadata.id, store: store) { return }
-                metadata.processing.recordAttempt(for: stage)
+                // Counted when it fails, not here: a quit or a crash mid-stage
+                // leaves no failure behind, and counting it would let a few
+                // quits during one long transcription use up the attempts that
+                // are meant for failures.
+                let attempt = (runAttempts[stage] ?? 0) + 1
+                paidResponses.remove(metadata.id)
+                // A failed meeting the launch sweep starts again stops reading
+                // as failed while it runs, so the pane shows progress and not
+                // last time's "will try again next time it opens".
+                if metadata.processing.state == .failed {
+                    // A failure stored before causes were kept counted every
+                    // kind, so a count left by an outage would make the first
+                    // online attempt look like the last. Forgotten once here;
+                    // a failure with a recorded cause only counts repeats.
+                    if let failure = metadata.processing.lastFailure, failure.cause == nil,
+                        !failure.effectiveCause.isCappedAtLaunch
+                    {
+                        metadata.processing.clearAttempts(for: stage)
+                    }
+                    metadata.processing.advance(to: stage, at: clock.now)
+                }
                 try persist(metadata, to: store)
                 report(metadata, chunks: nil)
                 stageStarted = clock.monotonicSeconds
                 diagnostics.record(
-                    .processingStageStarted(stage: stage, attempt: metadata.processing.attemptCount(for: stage)),
+                    .processingStageStarted(stage: stage, attempt: attempt),
                     session: session, job: job
                 )
 
@@ -725,50 +758,72 @@ public actor ProcessingPipeline {
                 case .complete, .failed:
                     break
                 }
+                // The stage worked, so the failures before it no longer count
+                // against a later run of the same stage.
+                metadata.processing.clearAttempts(for: stage)
+                runAttempts[stage] = nil
                 try persist(metadata, to: store)
                 report(metadata, chunks: nil)
                 diagnostics.record(
                     .processingStageFinished(
-                        stage: stage, attempt: metadata.processing.attemptCount(for: stage),
+                        stage: stage, attempt: attempt,
                         seconds: clock.monotonicSeconds - (stageStarted ?? clock.monotonicSeconds)
                     ),
                     session: session, job: job
                 )
             } catch {
-                let failure = Self.processingError(from: error)
+                let failure = Self.processingError(
+                    from: error, afterPaidResponse: paidResponses.contains(metadata.id))
+                let attempts = (runAttempts[stage] ?? 0) + 1
+                runAttempts[stage] = attempts
+                // Only a failure that repeats counts toward the cap. Waiting
+                // and Settings fixes are tried again whatever came before.
+                let repeats = failure.cause.isCappedAtLaunch
+                if repeats { metadata.processing.recordAttempt(for: stage) }
+                let usedAllLaunches =
+                    repeats && metadata.processing.attemptCount(for: stage) >= Self.maxAttemptsPerStage
                 // Coded from the error as thrown. Categorising it first would
                 // file every unrecognised failure under one local case.
                 let code = DiagnosticCode(describing: error)
                 diagnostics.record(
                     .processingStageFailed(
-                        stage: stage, attempt: metadata.processing.attemptCount(for: stage),
+                        stage: stage, attempt: attempts,
                         code: code, retryable: failure.isRetryable
                     ),
                     session: session, job: job
                 )
                 // The code rides with the failure, so a diagnostic report
                 // names the category without reading the message.
-                metadata.processing.recordFailure(
-                    ProcessingFailure(
-                        stage: stage,
-                        message: failure.userMessage,
-                        isRetryable: failure.isRetryable,
-                        occurredAt: clock.now,
-                        code: code
-                    ),
-                    at: clock.now
+                //
+                // `isRetryable` is whether this run tries the stage again, and
+                // `cause` is what another attempt would change. Only a cause
+                // that repeats the same result is capped: once its attempts
+                // are used the message says Pipit stopped, because nothing
+                // starts the stage again until the person presses Retry. Any
+                // other cause is tried again at the next launch.
+                let retriesNow =
+                    failure.isRetryable && attempts < Self.maxAttemptsPerStage && !usedAllLaunches
+                let outcome: FailureOutcome =
+                    retriesNow ? .retryingNow : (usedAllLaunches ? .stopped : .retryAtLaunch)
+                let recorded = ProcessingFailure(
+                    stage: stage,
+                    message: failure.message(outcome: outcome),
+                    isRetryable: failure.isRetryable,
+                    occurredAt: clock.now,
+                    code: code,
+                    cause: failure.cause
                 )
+                metadata.processing.recordFailure(recorded, at: clock.now)
                 try? persist(metadata, to: store)
                 Log.processing.error(
                     "stage \(stage.rawValue, privacy: .public) failed: \(failure.logSafeDescription, privacy: .public)"
                 )
                 report(metadata, chunks: nil)
 
-                // A rate limit or a server error usually clears on its own, and the
-                // failure message tells the user Pipit will try again. Attempts
-                // are bounded so a persistent outage stops asking.
-                let attempts = metadata.processing.attemptCount(for: stage)
-                if failure.isRetryable, attempts < Self.maxAttemptsPerStage {
+                // A rate limit or a server error usually clears on its own, so the
+                // stage is tried again here while attempts remain. Attempts are
+                // bounded so a persistent outage stops asking.
+                if retriesNow {
                     // The slot goes back first. A rate limit can ask for five
                     // minutes, and holding the one heavy-job slot through it
                     // kept a meeting that had just finished recording waiting
@@ -781,7 +836,7 @@ public actor ProcessingPipeline {
                     metadata.processing.advance(to: stage, at: clock.now)
                     continue
                 }
-                onFailure(metadata.id, failure)
+                onFailure(metadata.id, recorded)
                 // Nothing else will read the decoded working copies now.
                 scratch.discard(meetingID: metadata.id)
                 _ = discardIfGone(metadata.id, store: store)
@@ -1019,6 +1074,10 @@ public actor ProcessingPipeline {
         return Self.retryDelaysSeconds[index]
     }
 
+    private func notePaidResponse(_ meetingID: String) {
+        paidResponses.insert(meetingID)
+    }
+
     /// Retries a failed meeting from the stage that failed.
     ///
     /// A meeting already in flight is left alone: rewriting its stage from here
@@ -1044,9 +1103,12 @@ public actor ProcessingPipeline {
         if metadata.source == .imported, stage == .finalizing {
             throw ProcessingError.localProcessingFailed(
                 reason: "The imported file could not be read to the end. Import it again.",
-                retryable: false
+                retryable: false, cause: .sameResultEachTime
             )
         }
+        // The person asked, so the stage gets its attempts again. Past the cap
+        // it had one, and a failure that repeats stopped after a single try.
+        metadata.processing.clearAttempts(for: stage)
         metadata.processing.advance(to: stage, at: clock.now)
         try? persist(metadata, to: found.store)
         await process(meetingID: meetingID)
@@ -1074,8 +1136,9 @@ public actor ProcessingPipeline {
     /// The files that are replaced are copied under `backups` first. This
     /// validates and backs up, then marks the meeting and hands it to `process`,
     /// which does the work as a resumable `transcribing` stage. A crash or a
-    /// failure leaves the meeting waiting at that stage with the marker set, and
-    /// the launch sweep or Retry finishes it. Until the new microphone is
+    /// failure leaves the meeting waiting at that stage with the marker set. A
+    /// quit is finished by the launch sweep. A failure is finished by the sweep
+    /// while attempts remain and by Retry after that. Until the new microphone is
     /// transcribed the meeting reads the old transcript.
     public func redoMicrophone(meetingID: String, backups: URL) async throws {
         guard !hasUnfinishedTrim(meetingID) else { throw MicrophoneRedoError.busy }
@@ -1258,6 +1321,7 @@ public actor ProcessingPipeline {
         for summary in repository.listMeetings() {
             guard summary.processingState != .complete else { continue }
             guard summary.processingState != .recording else { continue }
+            if isWaitingForRetry(meetingID: summary.id, includingMerged: false) { continue }
             await process(meetingID: summary.id)
         }
         // Meetings folded into an earlier one are hidden from the listing, and
@@ -1265,8 +1329,17 @@ public actor ProcessingPipeline {
         // recorded: without this a quit or a crash part-way through left the
         // second half of a dropped call untranscribed with nothing to resume it.
         for meetingID in repository.mergedMeetingIDs() {
+            if isWaitingForRetry(meetingID: meetingID, includingMerged: true) { continue }
             await process(meetingID: meetingID)
         }
+    }
+
+    /// Whether a failed meeting has used every attempt, so the launch sweep
+    /// leaves it for the Retry button. Without this, each launch gave it one
+    /// more attempt, without limit.
+    private func isWaitingForRetry(meetingID: String, includingMerged: Bool) -> Bool {
+        repository.findMeeting(id: meetingID, includingMerged: includingMerged)?
+            .metadata.processing.isOutOfAttempts ?? false
     }
 
     // MARK: - stages
@@ -1524,8 +1597,9 @@ public actor ProcessingPipeline {
                     // A local engine is one process on one Neural Engine, so
                     // its chunks go one at a time; the cloud takes three.
                     concurrency: transcriber.isLocal ? 1 : nil
-                ) { url, _ in
+                ) { [meetingID = metadata.id] url, _ in
                     let output = try await transcriber.transcribe(audio: url, progress: { _ in })
+                    if !transcriber.isLocal { await self.notePaidResponse(meetingID) }
                     return output
                 }
             } else {
@@ -1581,9 +1655,8 @@ public actor ProcessingPipeline {
                 "aligner unavailable: \(logSafeDescription(error), privacy: .public)"
             )
             throw ProcessingError.localProcessingFailed(
-                reason: "The timing model could not be downloaded, so the transcript's "
-                    + "word timings are missing. The words are saved.",
-                retryable: true
+                reason: Self.timingModelDownloadFailure,
+                retryable: true, cause: .clearsByWaiting
             )
         }
 
@@ -1696,6 +1769,7 @@ public actor ProcessingPipeline {
                     title: title, fraction: fraction, detail: nil
                 ))
         }
+        if !backend.isLocal { notePaidResponse(meetingID) }
 
         let textOnly = output.segments.isEmpty && !output.text.isEmpty
         try Self.requireTranscribedOrSilent(
@@ -1703,7 +1777,7 @@ public actor ProcessingPipeline {
         )
         let looping = try Self.dropIfLooping(
             response: output, chunkID: chunkID, purpose: .words,
-            isLastAttempt: metadata.processing.attemptCount(for: .transcribing)
+            isLastAttempt: metadata.processing.attemptCount(for: .transcribing) + 1
                 >= Self.maxAttemptsPerStage,
             scope: .wholeTrack
         )
@@ -1729,7 +1803,7 @@ public actor ProcessingPipeline {
     /// ordinary conversation. Recording that as a finished chunk lost 47% of one
     /// meeting's words and still reported `complete`, so an empty answer for
     /// audible audio fails the stage instead: the stage retries, and a meeting
-    /// that keeps coming back empty is left failed and retryable. A muted
+    /// that keeps coming back empty is left failed, for Retry. A muted
     /// microphone transcribes to nothing legitimately and must not fail forever,
     /// so the level of the audio that was sent decides between the two.
     public static func requireTranscribedOrSilent(
@@ -1796,8 +1870,8 @@ public actor ProcessingPipeline {
     /// arrives as a single chunk, so dropping it records the meeting as
     /// nothing: enrichment returns early on an empty transcript and the meeting
     /// completes with an empty transcript.md, reported as success. A whole
-    /// track therefore fails on every attempt and is left retryable, with its
-    /// audio untouched for a later run or a different backend.
+    /// track therefore fails on every attempt and is left failed, with its
+    /// audio untouched for a Retry or a different backend.
     ///
     /// - Returns: true when the chunk is to be recorded as nothing.
     public static func dropIfLooping(
@@ -1919,8 +1993,9 @@ public actor ProcessingPipeline {
         try await runChunks(
             store: store, metadata: &metadata, track: track, location: location,
             model: backend.identifier, purpose: purpose
-        ) { url, _ in
+        ) { [meetingID = metadata.id] url, _ in
             let output = try await backend.diarize(audio: url, progress: { _ in })
+            if !backend.isLocal { await self.notePaidResponse(meetingID) }
             return TranscriptionOutput(
                 segments: output.segments, text: "", rawBody: output.rawBody
             )
@@ -2001,6 +2076,7 @@ public actor ProcessingPipeline {
                     title: title, fraction: fraction, detail: nil
                 ))
         }
+        if !backend.isLocal { notePaidResponse(meetingID) }
 
         let leadIn = timeline.leadIn(track: track)
         let runID = diarization.nextRunID(track: track)
@@ -2564,7 +2640,7 @@ public actor ProcessingPipeline {
         // Read before the group, because the attempt count belongs to the stage
         // and the group must not reach into the metadata being written here.
         let lastAttempt =
-            metadata.processing.attemptCount(for: .transcribing)
+            metadata.processing.attemptCount(for: .transcribing) + 1
             >= Self.maxAttemptsPerStage
         try await withThrowingTaskGroup(of: (PreparedChunk, TranscriptionOutput).self) { group in
             var nextIndex = 0
@@ -3267,6 +3343,7 @@ public actor ProcessingPipeline {
             ),
             model: settings.models.metadata
         )
+        notePaidResponse(metadata.id)
 
         // Dismissals are the user's, so a re-run keeps them rather than
         // offering a name they have already turned down.
@@ -3522,6 +3599,7 @@ public actor ProcessingPipeline {
         }
         guard let request else { return .nothingToSummarize }
         let enrichment = try await reasoner.enrich(request, model: settings.models.metadata)
+        notePaidResponse(metadata.id)
         // Linked under another recording while the request was in flight: the
         // conversation writes the summary, from every recording, and this
         // answer covers only some of them.
@@ -5074,12 +5152,23 @@ public actor ProcessingPipeline {
     /// OpenAI and whose retryable flag is true. A fully local user with no key
     /// was told Pipit could not reach a service they never configured, and a
     /// deterministic local failure was retried three times with backoff.
-    public static func processingError(from error: any Error) -> ProcessingError {
+    public static func processingError(
+        from error: any Error, afterPaidResponse: Bool = false
+    ) -> ProcessingError {
         if let processing = error as? ProcessingError { return processing }
         if error is CancellationError { return .cancelled }
         if let local = error as? any LocalProcessingFailure {
             return .localProcessingFailed(
-                reason: local.userMessage, retryable: local.isRetryable
+                reason: local.userMessage, retryable: local.isRetryable, cause: local.cause
+            )
+        }
+        // A download that lost its connection. Left to the fallback below it
+        // read as a fault on this Mac that another attempt repeats, and a
+        // meeting offline for three launches was stranded.
+        if error is URLError || (error as NSError).domain == NSURLErrorDomain {
+            return .localProcessingFailed(
+                reason: "A download Pipit needs did not finish.", retryable: true,
+                cause: .clearsByWaiting
             )
         }
         if error is VoiceEnrollmentRejection {
@@ -5092,11 +5181,18 @@ public actor ProcessingPipeline {
         // reaches the user cannot name a cause, so the one thing that can is
         // written to the log: without it a failed meeting says only that it
         // failed, and there is nothing to work from.
+        //
+        // Every cloud failure is a ProcessingError by now, so what reaches
+        // here is local work (a storage write, a model), which costs nothing to
+        // run again, and the next launch tries it. Not after a paid response in
+        // the same attempt: another launch would send the request again and
+        // pay again, so the failure counts as a repeat.
         Log.processing.error(
             "unrecognised processing failure: \(logSafeDescription(error), privacy: .public)"
         )
         return .localProcessingFailed(
-            reason: "Processing this meeting on this Mac failed.", retryable: true
+            reason: "Processing this meeting on this Mac failed.", retryable: true,
+            cause: afterPaidResponse ? .sameResultEachTime : .clearsByWaiting
         )
     }
 

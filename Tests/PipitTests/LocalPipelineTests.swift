@@ -660,6 +660,10 @@ struct LocalPipelineTests {
             metadata.processing.lastFailure?.isRetryable == true,
             "and the meeting can be transcribed again"
         )
+        #expect(
+            metadata.processing.isOutOfAttempts,
+            "every attempt is used, so the launch sweep leaves it for the Retry button"
+        )
         let raw = try meeting.store.readRawTranscript()
         #expect(
             raw.chunks.allSatisfy { !($0.segments.isEmpty && ($0.text ?? "").isEmpty) },
@@ -712,6 +716,14 @@ struct LocalPipelineTests {
         #expect(
             metadata.processing.lastFailure?.isRetryable == true,
             "and the download can be tried again"
+        )
+        #expect(
+            !metadata.processing.isOutOfAttempts,
+            "a download that failed for want of a network is tried again at the next launch"
+        )
+        #expect(
+            metadata.processing.lastFailure?.message.contains("next time it opens") == true,
+            "and the message says so"
         )
 
         // The words are safe, so a retry aligns them rather than
