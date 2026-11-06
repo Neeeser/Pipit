@@ -28,11 +28,9 @@ struct ProcessingSettingsPane: View {
             }
             Section("Speaker recognition") {
                 speakerToggle("Recognize known voices", keyPath: \.recognizeKnownVoices)
-                speakerToggle("Remember recurring unnamed voices", keyPath: \.rememberRecurringVoices)
-                speakerToggle("Learn my voice automatically", keyPath: \.learnMyVoice)
-                speakerToggle("Learn from confirmed speaker corrections", keyPath: \.learnFromCorrections)
-                Text("Voice profiles stay on this Mac.")
-                    .font(.caption).foregroundStyle(.secondary)
+                speakerToggle("Remember unnamed voices", keyPath: \.rememberRecurringVoices)
+                speakerToggle("Learn my voice", keyPath: \.learnMyVoice)
+                speakerToggle("Learn from corrections", keyPath: \.learnFromCorrections)
             }
             modelsOnDiskSection
         }
@@ -83,11 +81,10 @@ struct ProcessingSettingsPane: View {
                     }
                 )
             ) {
-                cloudChoice("gpt-4o-transcribe-diarize", "Returns the words and who said them.")
+                cloudChoice("gpt-4o-transcribe-diarize", "Includes speakers")
                 cloudChoice(
                     "gpt-transcribe",
-                    "Strongest on clear recordings and takes vocabulary hints. Word timings "
-                        + "come from a 600 MB aligner on this Mac."
+                    "Takes vocabulary hints. Needs a 600 MB download."
                 )
                 Text("Custom…").tag(Self.customModelTag)
             }
@@ -108,7 +105,7 @@ struct ProcessingSettingsPane: View {
             }
             if AIModelSettings.transcriptionTiming(for: current) == .text, isPreset {
                 TextField(
-                    "Vocabulary hints: names and jargon, comma separated",
+                    "Vocabulary hints, comma separated",
                     text: Binding(
                         get: { runtime.settings.models.vocabularyHints },
                         set: { newValue in
@@ -118,8 +115,6 @@ struct ProcessingSettingsPane: View {
                         }
                     )
                 )
-                Text("Sent with each request.")
-                    .font(.caption).foregroundStyle(.secondary)
             }
         }
     }
@@ -134,7 +129,7 @@ struct ProcessingSettingsPane: View {
 
     /// Everything installed or needed, with the one control set that changes it.
     private var modelsOnDiskSection: some View {
-        Section("Models on this Mac") {
+        Section("Models") {
             ForEach(visibleUnits, id: \.rawValue) { unit in
                 LabeledContent(Self.unitName(unit)) {
                     HStack(spacing: 8) {
@@ -164,7 +159,7 @@ struct ProcessingSettingsPane: View {
                 }
             case .outdated:
                 Label(
-                    "Downloaded by an older build. Re-download to match this one.",
+                    "Out of date",
                     systemImage: "arrow.triangle.2.circlepath"
                 )
                 .font(.caption).foregroundStyle(.secondary)
@@ -194,18 +189,18 @@ struct ProcessingSettingsPane: View {
     }
 
     private func unitStatus(_ unit: LocalModelUnit) -> String {
-        if let bytes = installedBytes(unit) { return "Installed, \(Self.megabytes(bytes))" }
+        if let bytes = installedBytes(unit) { return "\(Self.megabytes(bytes))" }
         if case .downloading = runtime.localModelState, requiredUnits.contains(unit) {
             return "Downloading"
         }
-        return "Not installed, about \(Self.megabytes(unit.approximateBytes))"
+        return "Not installed"
     }
 
     private var downloadLabel: String {
         let missing = requiredUnits.reduce(Int64(0)) { total, unit in
             installedBytes(unit) == nil ? total + unit.approximateBytes : total
         }
-        return "Download about \(Self.megabytes(missing))"
+        return "Download \(Self.megabytes(missing))"
     }
 
     static func unitName(_ unit: LocalModelUnit) -> String {
@@ -285,16 +280,14 @@ struct LocalModelChoicePicker: View {
     private static func blurb(_ model: LocalTranscriptionModel) -> String {
         switch model {
         case .apple:
-            "Comes with your Mac. Nothing to download."
+            "Built in to your Mac"
         case .parakeet:
-            "The most accurate engine. Word timings built in, 25 languages, "
-                + "about 50x realtime. 460 MB."
+            "Most accurate. 25 languages. 460 MB"
         case .cohere:
             // Rendered only on installs that already have it selected.
-            "Slower and larger than Parakeet, with no accuracy advantage. "
-                + "2.1 GB plus a 600 MB aligner."
+            "Slower and larger than Parakeet. 2.1 GB plus 600 MB"
         case .whisper:
-            "The previous engine. 624 MB."
+            "Previous engine. 624 MB"
         case .canary:
             // Never rendered: not offered. Here because the switch is
             // exhaustive.

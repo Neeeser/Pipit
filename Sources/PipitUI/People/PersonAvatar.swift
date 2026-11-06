@@ -108,7 +108,7 @@ struct SpeakerFace: View {
                         .foregroundStyle(tint)
                 }
             }
-            .accessibilityLabel(name.isEmpty ? "Unnamed voice" : name)
+            .accessibilityLabel(name.isEmpty ? "Unnamed person" : name)
     }
 
     private var tint: Color { PersonTint.color(identity: identityID, name: name) }

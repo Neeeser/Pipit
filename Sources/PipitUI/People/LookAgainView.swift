@@ -21,19 +21,12 @@ struct LookAgainView: View {
         VStack(alignment: .leading, spacing: 0) {
             header
             if state.scanning {
-                Text("Scoring unnamed voices…")
+                Text("Finding matches…")
                     .font(.callout)
                     .foregroundStyle(.secondary)
                     .padding(18)
             } else if state.matches.isEmpty {
-                Text(
-                    "Naming a speaker on a meeting, or reading a few sentences aloud in "
-                        + "Settings, gives the next pass more to match against."
-                )
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                .padding(.horizontal, 18)
-                .padding(.bottom, 18)
+                EmptyView()
             } else {
                 list
             }
@@ -47,14 +40,10 @@ struct LookAgainView: View {
         VStack(alignment: .leading, spacing: 5) {
             Text(title).font(.title3.weight(.semibold))
             if !state.matches.isEmpty {
-                Text(
-                    "Confirming a match gives that voice the name in every meeting it was "
-                        + "heard in, and its audio joins that person's voice profile. Nothing "
-                        + "changes until you confirm."
-                )
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                .fixedSize(horizontal: false, vertical: true)
+                Text("Confirming applies the name to every meeting this voice was heard in.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
             }
         }
         .padding(.horizontal, 18)
@@ -63,12 +52,12 @@ struct LookAgainView: View {
     }
 
     private var title: String {
-        if state.scanning { return "Looking again" }
+        if state.scanning { return "Finding Matches" }
         let count = state.matches.count
-        if count == 0 { return "No unnamed voice matches a profile" }
+        if count == 0 { return "No matches" }
         return count == 1
-            ? "One unnamed voice matches a profile"
-            : "\(count) unnamed voices match a profile"
+            ? "1 match"
+            : "\(count) matches"
     }
 
     private var list: some View {
@@ -102,7 +91,7 @@ struct LookAgainView: View {
                 // are offered, so a band on every row would read the same on
                 // every row; the score and the gap under it are the evidence.
                 Button("Confirm") { Task { await model.confirmMatch(row) } }
-                Button("Not this") { model.dismissMatch(row) }
+                Button("Not a Match") { model.dismissMatch(row) }
             }
             Text(reason(row))
                 .font(.caption2)
@@ -144,7 +133,7 @@ struct LookAgainView: View {
                 .foregroundStyle(
                     model.player.playing == appearance.meetingID ? Color.accentColor : .secondary
                 )
-                .help("Hear this voice")
+                .help("Play sample")
             }
         }
     }
@@ -191,12 +180,6 @@ struct LookAgainView: View {
         if let appearance = row.heardIn.first {
             parts.append("\(appearance.title) (\(Format.day(appearance.startedAt)))")
         }
-        if row.profileCameLater, let began = row.matchProfileBegan {
-            parts.append(
-                "\(row.match.resolvedName)'s voice profile begins on \(Format.day(began)), "
-                    + "after this meeting was processed"
-            )
-        }
         if let forgotten = row.forgottenAt {
             let days = Int(forgotten.timeIntervalSinceNow / 86_400)
             parts.append(
@@ -219,8 +202,8 @@ struct LookAgainView: View {
                 Text("\(row.voice.resolvedName) is \(name)").font(.callout)
                 Text(
                     row.heardIn.count == 1
-                        ? "One meeting now names them."
-                        : "\(row.heardIn.count) meetings now name them."
+                        ? "1 meeting updated"
+                        : "\(row.heardIn.count) meetings updated"
                 )
                 .font(.caption2)
                 .foregroundStyle(.secondary)
@@ -236,7 +219,7 @@ struct LookAgainView: View {
         HStack(spacing: 10) {
             Text(
                 state.scored == 1
-                    ? "1 voice scored" : "\(state.scored) voices scored"
+                    ? "1 checked" : "\(state.scored) checked"
             )
             .font(.caption)
             .foregroundStyle(.secondary)

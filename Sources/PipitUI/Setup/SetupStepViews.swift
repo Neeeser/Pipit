@@ -76,8 +76,8 @@ struct BackendStep: View {
                     set: { model.chooseBackend($0) }
                 )
             ) {
-                choice(.local, "On this Mac", "Processing runs on this Mac.")
-                choice(.openAI, "OpenAI", "Processing runs in the cloud. Needs an OpenAI API key.")
+                choice(.local, "On this Mac", nil)
+                choice(.openAI, "OpenAI", "Needs an OpenAI API key")
             }
             .labelsHidden()
             .pickerStyle(.radioGroup)
@@ -93,11 +93,13 @@ struct BackendStep: View {
     }
 
     private func choice(
-        _ tag: ProcessingBackendChoice, _ title: String, _ blurb: String
+        _ tag: ProcessingBackendChoice, _ title: String, _ blurb: String?
     ) -> some View {
         VStack(alignment: .leading, spacing: 1) {
             Text(title)
-            Text(blurb).font(.caption).foregroundStyle(.secondary)
+            if let blurb {
+                Text(blurb).font(.caption).foregroundStyle(.secondary)
+            }
         }
         .tag(tag)
     }
@@ -117,7 +119,7 @@ struct OpenAIKeyField: View {
                 .textFieldStyle(.roundedBorder)
                 .frame(maxWidth: 380)
             HStack(spacing: 10) {
-                Button(model.hasKeyOnDisk && model.apiKey.isEmpty ? "Check saved key" : "Save and check") {
+                Button(model.hasKeyOnDisk && model.apiKey.isEmpty ? "Check Saved Key" : "Save and Check") {
                     Task { await model.saveAndVerifyKey() }
                 }
                 .disabled(
@@ -126,14 +128,12 @@ struct OpenAIKeyField: View {
                 keyStateLabel
             }
             if model.mayAcceptUnverifiedKey {
-                Button("Continue anyway") { model.acceptUnverifiedKey() }
+                Button("Continue Anyway") { model.acceptUnverifiedKey() }
                     .buttonStyle(.link)
                 if let caption = model.keyState.unverifiedCaption {
                     Text(caption).font(.caption).foregroundStyle(.secondary)
                 }
             }
-            Text("Stored in the macOS keychain.")
-                .font(.caption).foregroundStyle(.secondary)
         }
     }
 
@@ -145,7 +145,7 @@ struct OpenAIKeyField: View {
         case .checking:
             ProgressView().controlSize(.small)
         case .verified:
-            Label("The key works", systemImage: "checkmark.circle.fill")
+            Label("Key works", systemImage: "checkmark.circle.fill")
                 .foregroundStyle(.green).font(.caption)
         case .rejected(let message):
             Label(message, systemImage: "xmark.circle.fill")
@@ -167,8 +167,7 @@ struct ModelsStep: View {
         VStack(alignment: .leading, spacing: 18) {
             StepHeader(
                 eyebrow: "Required",
-                title: "Speech models",
-                message: bodyText
+                title: "Speech models"
             )
 
             if runtime.settings.processing.usesLocalTranscription {
@@ -194,15 +193,6 @@ struct ModelsStep: View {
         }
     }
 
-    /// The cloud path is not download-free: the diarizer is required in every
-    /// configuration because voice memory embeds a cloud diarizer's intervals
-    /// locally, and gpt-transcribe returns no timings, so the aligner computes
-    /// them here. The line says so before the download list does.
-    private var bodyText: String? {
-        if runtime.settings.processing.usesLocalTranscription { return nil }
-        return "Speaker recognition and word timing still run on this Mac."
-    }
-
     private var units: [LocalModelUnit] {
         LocalModelUnit.allCases.filter { model.snapshot.requiredUnits.contains($0) }
     }
@@ -213,10 +203,10 @@ struct ModelsStep: View {
 
     private func status(_ unit: LocalModelUnit) -> String {
         if let bytes = runtime.localModelState.present.bytes(for: unit) {
-            return "Installed, \(ProcessingSettingsPane.megabytes(bytes))"
+            return ProcessingSettingsPane.megabytes(bytes)
         }
         if runtime.localModelState.isBusy { return "Downloading" }
-        return "About \(ProcessingSettingsPane.megabytes(unit.approximateBytes))"
+        return ProcessingSettingsPane.megabytes(unit.approximateBytes)
     }
 
     @ViewBuilder
@@ -226,13 +216,11 @@ struct ModelsStep: View {
             VStack(alignment: .leading, spacing: 4) {
                 ProgressView(value: fraction)
                 Text(detail).font(.caption).foregroundStyle(.secondary)
-                Text("Models keep downloading in the background.")
-                    .font(.caption).foregroundStyle(.secondary)
             }
         case .failed(let message, _):
             Label(message, systemImage: "exclamationmark.triangle.fill")
                 .foregroundStyle(.orange).font(.caption)
-            Button("Try again") { Task { await model.startModelDownload() } }
+            Button("Try Again") { Task { await model.startModelDownload() } }
         case .notInstalled:
             Button(downloadLabel) { Task { await model.startModelDownload() } }
                 .buttonStyle(.borderedProminent)
@@ -244,7 +232,7 @@ struct ModelsStep: View {
 
     private var downloadLabel: String {
         let missing = model.snapshot.missingUnits.reduce(Int64(0)) { $0 + $1.approximateBytes }
-        return "Download about \(ProcessingSettingsPane.megabytes(missing))"
+        return "Download \(ProcessingSettingsPane.megabytes(missing))"
     }
 }
 
@@ -311,8 +299,8 @@ struct PermissionStep: View {
 
     private var waitingText: String {
         kind.isGrantedByPrompt
-            ? "Waiting for you to allow it"
-            : "Waiting for you to switch \(ApplicationIdentity.name) on"
+            ? "Waiting for permission"
+            : "Waiting for permission"
     }
 
     private var actionLabel: String {
@@ -320,7 +308,7 @@ struct PermissionStep: View {
         // Not the pane name. On macOS 27 that reads "Open Device Control and Data
         // Access settings", which is a button wider than the illustration above
         // it. The picture already says which pane opens.
-        return "Open System Settings"
+        return "Open System Settings…"
     }
 }
 
@@ -368,8 +356,7 @@ struct AIFeaturesStep: View {
         VStack(alignment: .leading, spacing: 18) {
             StepHeader(
                 eyebrow: "Optional",
-                title: "AI Features",
-                message: "OpenAI writes a title, summary, and notes for each meeting and suggests speaker names."
+                title: "AI Features"
             )
             OpenAIKeyField(model: model)
             Divider()
@@ -395,8 +382,7 @@ struct FirefoxStep: View {
         VStack(alignment: .leading, spacing: 18) {
             StepHeader(
                 eyebrow: "Optional",
-                title: "Firefox add-on",
-                message: "Improves meeting detection in Firefox."
+                title: "Firefox add-on"
             )
 
             HStack(spacing: 8) {
@@ -433,10 +419,8 @@ struct FinishStep: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 18) {
             StepHeader(
-                title: model.canFinish ? "Ready to record" : "Something is still missing",
-                message: model.canFinish
-                    ? "Pipit starts recording when it notices a meeting."
-                    : "Finish the steps marked red on the left."
+                title: model.canFinish ? "Ready to record" : "Setup incomplete",
+                message: model.canFinish ? "Pipit starts recording when it detects a meeting." : nil
             )
 
             if !model.canFinish {
@@ -456,20 +440,18 @@ struct FinishStep: View {
 
             VStack(alignment: .leading, spacing: 8) {
                 Toggle("Show in Dock", isOn: model.setting(\.showsDockIcon))
-                Text("Off keeps Pipit in the menu bar only.")
-                    .font(.caption).foregroundStyle(.secondary)
                 Toggle("Launch at login", isOn: model.setting(\.launchAtLogin))
             }
 
             Divider()
 
             VStack(alignment: .leading, spacing: 6) {
-                Text("Meetings are saved to").font(.body.weight(.medium))
+                Text("Meetings folder").font(.body.weight(.medium))
                 Text(model.storagePath).font(.callout).foregroundStyle(.secondary)
                     .textSelection(.enabled)
                 HStack {
-                    Button("Choose folder…") { model.chooseStorage() }
-                    Button("Reveal in Finder") {
+                    Button("Choose Folder…") { model.chooseStorage() }
+                    Button("Show in Finder") {
                         NSWorkspace.shared.open(model.runtime.settings.storageRoot)
                     }
                 }
@@ -477,7 +459,7 @@ struct FinishStep: View {
 
             if model.runtime.localModelState.isBusy {
                 Label(
-                    "Models are still downloading. Meetings recorded before they arrive are processed after.",
+                    "Models are downloading",
                     systemImage: "arrow.down.circle"
                 )
                 .font(.caption).foregroundStyle(.secondary)

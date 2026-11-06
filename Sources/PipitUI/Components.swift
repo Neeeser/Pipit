@@ -150,9 +150,9 @@ struct PermissionRow: View {
                 // Requesting first is what adds Pipit to the list in System
                 // Settings. Without it the pane opens on a list the app is not in
                 // and there is nothing to switch on.
-                Button("Enable in System Settings") { Task { await onRequest() } }
+                Button("Enable in System Settings…") { Task { await onRequest() } }
             } else {
-                Button("Open System Settings") { onOpenSettings() }
+                Button("Open System Settings…") { onOpenSettings() }
             }
         }
     }

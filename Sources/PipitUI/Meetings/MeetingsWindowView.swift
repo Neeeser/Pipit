@@ -11,6 +11,8 @@ import SwiftUI
 public struct MeetingsWindowView: View {
     let model: MeetingsWindowModel
 
+    @FocusState private var searchFocused: Bool
+
     public init(model: MeetingsWindowModel) {
         self.model = model
     }
@@ -21,24 +23,30 @@ public struct MeetingsWindowView: View {
     static let sidebarMargin: CGFloat = 10
 
     public var body: some View {
-        // Each pane runs under the transparent title bar on its own: the split
-        // view hosts every pane separately, and an inset on the split view
-        // alone left both panes below it.
-        HSplitView {
+        // The system split view, so the sidebar is the standard floating panel
+        // with its own material, and the detail's commands go in the window's
+        // toolbar. Each pane draws its own top edge, so there is no pair of
+        // hand-drawn lines to keep level across the two.
+        NavigationSplitView {
             sidebar
-                .ignoresSafeArea(.container, edges: .top)
-                .frame(minWidth: Self.sidebarMinWidth, idealWidth: 272, maxWidth: 380)
-            // Without the priority the split view opened every window with the
-            // sidebar at its widest, taking a third of a quarter-screen window
-            // from the transcript. With it the sidebar opens at its narrowest
-            // and the transcript gets the rest.
+                .navigationSplitViewColumnWidth(min: Self.sidebarMinWidth, ideal: 272, max: 380)
+        } detail: {
             detail
-                .ignoresSafeArea(.container, edges: .top)
                 .frame(minWidth: 460)
-                .layoutPriority(1)
         }
+        // The meeting's own title heads the pane, so the window's would only
+        // repeat "Meetings" beside the tabs.
+        .toolbar(removing: .title)
+        // The search field, not the meeting's title, takes the keys when the
+        // window opens: typing should find a meeting rather than rename one.
+        .defaultFocus($searchFocused, true)
         .frame(minWidth: 900, minHeight: 560)
-        .task { await model.reload() }
+        .task {
+            // Set as well as defaulted: without a key window the split view
+            // still handed the first key view to the title field.
+            searchFocused = true
+            await model.reload()
+        }
         .alert(
             model.pendingTrash?.title ?? "",
             isPresented: Binding(
@@ -88,8 +96,6 @@ public struct MeetingsWindowView: View {
         // offer both want it, and it walks every row the filter holds.
         let counts = model.sourceCounts
         return VStack(spacing: 0) {
-            // Holds the window buttons.
-            MeetingsTitleBar()
             VStack(spacing: 8) {
                 HStack(spacing: 8) {
                     searchField
@@ -104,7 +110,6 @@ public struct MeetingsWindowView: View {
             }
             .padding(.horizontal, Self.sidebarMargin)
             .padding(.bottom, Self.sidebarMargin)
-            Divider()
             // From the counts already in hand. `model.suggestedSource` walks
             // the rows again for them, and this runs on every keystroke.
             if let suggested = MeetingsDirectoryFilter.offeredSource(
@@ -178,7 +183,7 @@ public struct MeetingsWindowView: View {
                 if folders.isEmpty {
                     emptyFolderList
                 } else {
-                    Text("Folders · \(folders.count)")
+                    Text("Folders")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                         .padding(.horizontal, 10)
@@ -195,17 +200,7 @@ public struct MeetingsWindowView: View {
 
     @ViewBuilder private var emptyFolderList: some View {
         VStack(alignment: .leading, spacing: 4) {
-            if model.query.isEmpty {
-                Text("No folders yet")
-                Text(
-                    "A folder is an ordinary directory under Meetings/Folders. Right-click a "
-                        + "meeting on the timeline to file it into a new one."
-                )
-                .foregroundStyle(.secondary)
-            } else {
-                Text("No match")
-                Text("Folder names and what they are for.").foregroundStyle(.secondary)
-            }
+            Text(model.query.isEmpty ? "No folders" : "No match").foregroundStyle(.secondary)
         }
         .font(.callout)
         .padding(12)
@@ -218,12 +213,12 @@ public struct MeetingsWindowView: View {
                 .foregroundStyle(.secondary)
             if let held = model.sourceFilter { sourceToken(held) }
             TextField(
-                model.sourceFilter.map { "Search \($0.listName)" }
-                    ?? "Search titles, people, words",
+                model.sourceFilter.map { "Search \($0.listName)" } ?? "Search",
                 text: model.text(\.query)
             )
             .textFieldStyle(.plain)
             .font(.system(size: 12))
+            .focused($searchFocused)
             .onSubmit { model.takeSuggestedSource() }
             // Backspace on an empty field drops the token, the way it does in
             // every other field that holds one.
@@ -245,11 +240,7 @@ public struct MeetingsWindowView: View {
         .frame(height: 22)
         .background(RoundedRectangle(cornerRadius: 6).fill(.background))
         .overlay(RoundedRectangle(cornerRadius: 6).stroke(.quaternary))
-        .help(
-            model.searchesTranscripts
-                ? "Searches titles, notes, speaker names and every word of every transcript"
-                : "Searches titles, notes and speaker names. The transcripts are still being read"
-        )
+        .help(model.searchesTranscripts ? "Titles, notes, people and transcripts" : "Titles, notes and people")
     }
 
     /// The source being held, kept in the search field rather than beside it.
@@ -273,7 +264,7 @@ public struct MeetingsWindowView: View {
             .fixedSize()
         }
         .buttonStyle(.plain)
-        .help("Showing \(source.displayName) only. Click to drop it.")
+        .help("Show all sources")
     }
 
     /// Every source the archive holds, with a count each.
@@ -349,7 +340,7 @@ public struct MeetingsWindowView: View {
         .buttonStyle(.plain)
         .padding(.horizontal, 10)
         .padding(.top, 8)
-        .help("Show only \(source.displayName). Return takes it.")
+        .help("Show only \(source.displayName)")
     }
 
     private func list(_ sections: [MeetingsSection]) -> some View {
@@ -357,7 +348,7 @@ public struct MeetingsWindowView: View {
             LazyVStack(alignment: .leading, spacing: 0) {
                 if sections.isEmpty { emptyList }
                 ForEach(sections) { section in
-                    Text("\(section.title) · \(section.rows.count)")
+                    Text(section.title)
                         .font(.caption)
                         .foregroundStyle(.secondary)
                         .padding(.horizontal, 10)
@@ -373,37 +364,17 @@ public struct MeetingsWindowView: View {
     @ViewBuilder private var emptyList: some View {
         VStack(alignment: .leading, spacing: 4) {
             if model.isLoading {
-                Text("Reading the archive…")
+                Text("Loading…")
             } else if model.rows.isEmpty {
                 Text("No meetings yet")
-                Text(
-                    "Pipit starts recording when it sees a call. You can also import a "
-                        + "recording from the menu bar."
-                )
-                .foregroundStyle(.secondary)
             } else if !model.query.isEmpty {
                 Text("No match")
-                Text(
-                    model.searchesTranscripts
-                        ? "Search covers titles, notes, speaker names and every word of every "
-                            + "transcript."
-                        : "Search covers titles, notes and speaker names. The transcripts are "
-                            + "still being read."
-                )
-                .foregroundStyle(.secondary)
             } else if let source = model.sourceFilter {
                 Text("No \(source.listName) meetings")
-                Text("Clear the source filter to see the rest.")
-                    .foregroundStyle(.secondary)
             } else if model.filter == .archived {
                 Text("Nothing archived")
-                Text(
-                    "Right-click a meeting to archive it. It leaves this list and its folder "
-                        + "stays where it is."
-                )
-                .foregroundStyle(.secondary)
             } else {
-                Text("Nothing under this filter").foregroundStyle(.secondary)
+                Text("No meetings")
             }
         }
         .font(.callout)
@@ -432,7 +403,7 @@ public struct MeetingsWindowView: View {
                         .font(.caption)
                 }
                 .buttonStyle(.link)
-                .help("Every meeting is an ordinary folder. Opening it changes nothing.")
+                .help("Show the meetings folder in Finder")
             }
         }
         .padding(.horizontal, 10)
@@ -479,18 +450,13 @@ public struct MeetingsWindowView: View {
         let showsFolder = model.selection.isEmpty && model.openFolderRow != nil
         if model.selection.count <= 1, !showsFolder, let detail = model.detail {
             MeetingDetailView(model: model, detail: detail)
+        } else if model.selection.count > 1 {
+            MeetingsSelectionView(model: model)
+        } else if showsFolder, let folder = model.openFolderRow {
+            FolderDetailView(model: model, row: folder)
         } else {
-            VStack(spacing: 0) {
-                MeetingsTitleBar()
-                if model.selection.count > 1 {
-                    MeetingsSelectionView(model: model)
-                } else if showsFolder, let folder = model.openFolderRow {
-                    FolderDetailView(model: model, row: folder)
-                } else {
-                    Text("Select a meeting").font(.title3)
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
-                }
-            }
+            Text("No Meeting Selected").font(.title3).foregroundStyle(.secondary)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
     }
 }
@@ -567,21 +533,21 @@ struct MeetingRowView: View {
     @ViewBuilder private var menu: some View {
         let targets = model.contextTargets(for: row)
         let many = targets.count > 1
-        Button(many ? "Reveal \(targets.count) in Finder" : "Reveal in Finder") {
+        Button("Show in Finder") {
             model.revealTargets(targets)
         }
-        Button(many ? "Rebuild \(targets.count) transcripts" : "Rebuild transcript") {
+        Button(many ? "Rebuild \(targets.count) Transcripts" : "Rebuild Transcript") {
             model.rebuildTargets(targets)
         }
         if many {
             let plan = model.mergePlan(for: targets)
-            Button("Merge \(plan.canMerge ? plan.combineIDs.count + 1 : targets.count) meetings") {
+            Button("Merge \(plan.canMerge ? plan.combineIDs.count + 1 : targets.count) Meetings") {
                 model.merge(targets)
             }
             .disabled(!plan.canMerge)
         }
         Divider()
-        Menu(many ? "Move \(targets.count) to Folder" : "Move to Folder") {
+        Menu("Move to Folder") {
             ForEach(model.folderRows) { folder in
                 Button {
                     Task { await model.file(targets, in: folder.name) }
@@ -606,11 +572,11 @@ struct MeetingRowView: View {
         }
         Divider()
         if targets.allSatisfy(\.isArchived) {
-            Button(many ? "Put \(targets.count) back" : "Put back") {
+            Button("Put Back") {
                 model.setArchived(false, targets)
             }
         } else {
-            Button(many ? "Archive \(targets.count) meetings" : "Archive") {
+            Button("Archive") {
                 model.setArchived(true, targets)
             }
         }
@@ -619,7 +585,7 @@ struct MeetingRowView: View {
         // those is how a row becomes permanent. A recording in progress is
         // refused by the runtime, and the alert says which meeting and why.
         Button(
-            many ? "Move \(targets.count) meetings to Trash…" : "Move to Trash…",
+            "Move to Trash…",
             role: .destructive
         ) {
             model.confirmTrash(targets)
@@ -716,96 +682,81 @@ struct MeetingsFilterPicker: View {
     }
 }
 
-/// What a multiple selection can be told to do.
-///
-/// The same panel the People window shows, because the question is the same:
-/// several rows are selected, so what applies to all of them.
+/// What several selected meetings can be told to do: a count, the length,
+/// and one row of buttons, centred in the pane the way Finder and Mail show a
+/// multiple selection, so a full-screen window looks the same as a small one.
 struct MeetingsSelectionView: View {
     let model: MeetingsWindowModel
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 16) {
-                VStack(alignment: .leading, spacing: 5) {
-                    Text("\(model.selection.count) meetings selected")
-                        .font(.title3.weight(.semibold))
-                    Text(names).font(.caption).foregroundStyle(.secondary)
-                }
-
-                if unnamedCount > 0 {
-                    SectionCard(
-                        title: "\(unnamedCount) \(unnamedCount == 1 ? "voice" : "voices") nobody has named",
-                        subtitle: "Also listed in People under Unnamed voices."
-                    ) {
-                        Text(
-                            "Open a meeting to name a voice. A voice heard in several meetings is named in all of them."
-                        )
-                        .font(.callout)
-                    }
-                }
-
-                SectionCard(
-                    title: "Act on all \(model.selection.count)",
-                    subtitle: "Rebuilds from the saved model output."
-                ) {
-                    HStack(spacing: 8) {
-                        Button("Reveal in Finder") { model.revealSelection() }
-                        Button("Rebuild transcripts") { model.rebuildSelection() }
-                        Menu("Move to Folder") {
-                            ForEach(model.folderRows) { folder in
-                                Button(folder.name) {
-                                    Task { await model.file(model.selectedRows, in: folder.name) }
-                                }
-                            }
-                            if !model.folderRows.isEmpty { Divider() }
-                            Button("New Folder…") {
-                                model.pendingNewFolder = NewFolderRequest(
-                                    filing: model.selectedRows.map(\.id)
-                                )
-                            }
-                            Button("Remove from Folder") {
-                                Task { await model.file(model.selectedRows, in: nil) }
-                            }
-                        }
-                        .fixedSize()
-                        if model.selectedRows.allSatisfy(\.isArchived) {
-                            Button("Put back") { model.setArchived(false, model.selectedRows) }
-                        } else {
-                            Button("Archive") { model.setArchived(true, model.selectedRows) }
-                        }
-                        Button("Move to Trash…", role: .destructive) {
-                            model.confirmTrash(model.selectedRows)
-                        }
-                        Spacer()
-                    }
-                }
-
-                SectionCard(
-                    title: "\(Format.shortDuration(duration)) of audio",
-                    subtitle: "Under the meetings folder, one folder per meeting."
-                ) {
-                    VStack(alignment: .leading, spacing: 4) {
-                        ForEach(model.selectedRows.prefix(8)) { row in
-                            Text(row.summary.directory.lastPathComponent)
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                                .lineLimit(1)
-                        }
-                    }
-                }
-                Spacer(minLength: 0)
+        let rows = model.selectedRows
+        let plan = model.mergePlan(for: rows)
+        VStack(spacing: 16) {
+            stack
+            VStack(spacing: 4) {
+                Text("\(rows.count) meetings").font(.title2.weight(.semibold))
+                Text(detailLine).font(.callout).foregroundStyle(.secondary)
             }
-            .padding(18)
-            .frame(maxWidth: .infinity, alignment: .leading)
+            HStack(spacing: 8) {
+                Button("Merge") { model.merge(rows) }
+                    .buttonStyle(.borderedProminent)
+                    .disabled(!plan.canMerge)
+                    .help(plan.canMerge ? "Merge into one meeting" : "These meetings can't be merged")
+                Menu("Move to Folder") {
+                    ForEach(model.folderRows) { folder in
+                        Button(folder.name) { Task { await model.file(rows, in: folder.name) } }
+                    }
+                    if !model.folderRows.isEmpty { Divider() }
+                    Button("New Folder…") {
+                        model.pendingNewFolder = NewFolderRequest(filing: rows.map(\.id))
+                    }
+                    if rows.contains(where: { $0.summary.folderName != nil }) {
+                        Button("Remove from Folder") { Task { await model.file(rows, in: nil) } }
+                    }
+                }
+                .fixedSize()
+                if rows.allSatisfy(\.isArchived) {
+                    Button("Put Back") { model.setArchived(false, rows) }
+                } else {
+                    Button("Archive") { model.setArchived(true, rows) }
+                }
+                Button("Move to Trash…", role: .destructive) { model.confirmTrash(rows) }
+            }
+            .controlSize(.large)
         }
+        .padding(24)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
-    private var names: String {
-        let titles = model.selectedRows.prefix(6).map(\.title).joined(separator: ", ")
-        let extra = model.selection.count - min(6, model.selection.count)
-        return extra > 0 ? "\(titles), and \(extra) more" : titles
+    /// Three cards fanned behind each other, the way Finder and Mail draw a
+    /// selection of several items.
+    private var stack: some View {
+        ZStack {
+            card.rotationEffect(.degrees(8)).offset(x: 6, y: -6).opacity(0.55)
+            card.rotationEffect(.degrees(-5)).offset(x: -4, y: -2).opacity(0.8)
+            card.overlay {
+                Image(systemName: "waveform").font(.system(size: 22, weight: .medium))
+                    .foregroundStyle(Color.accentColor)
+            }
+        }
+        .frame(width: 84, height: 76)
+        .accessibilityHidden(true)
     }
 
-    private var unnamedCount: Int { model.selectedRows.reduce(0) { $0 + $1.unnamedCount } }
-    private var duration: Double { PipitRuntime.totalDuration(of: model.selectedRows) }
+    private var card: some View {
+        RoundedRectangle(cornerRadius: 13, style: .continuous)
+            .fill(Color(nsColor: .controlBackgroundColor))
+            .overlay(RoundedRectangle(cornerRadius: 13, style: .continuous).stroke(.quaternary))
+            .shadow(color: .black.opacity(0.08), radius: 3, y: 1)
+            .frame(width: 54, height: 54)
+    }
+
+    /// The length, and the unnamed people when there are any, which is the
+    /// work a selection usually still holds.
+    private var detailLine: String {
+        var parts = [Format.shortDuration(PipitRuntime.totalDuration(of: model.selectedRows))]
+        let unnamed = model.selectedRows.reduce(0) { $0 + $1.unnamedCount }
+        if unnamed > 0 { parts.append("\(unnamed) unnamed \(unnamed == 1 ? "person" : "people")") }
+        return parts.joined(separator: " · ")
+    }
 }

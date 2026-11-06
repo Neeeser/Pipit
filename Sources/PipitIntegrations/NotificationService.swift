@@ -75,7 +75,7 @@ public struct NotificationService: Sendable {
             identifier: Category.meetingSaved.rawValue,
             actions: [
                 UNNotificationAction(
-                    identifier: Action.reveal.rawValue, title: "Reveal in Finder", options: [.foreground]
+                    identifier: Action.reveal.rawValue, title: "Show in Finder", options: [.foreground]
                 )
             ],
             intentIdentifiers: []
@@ -124,7 +124,7 @@ public struct NotificationService: Sendable {
     public func recordingStarted(provider: MeetingProvider, title: String?) {
         post(
             title: "Recording \(provider.displayName)",
-            body: title ?? "Pipit is capturing this meeting.",
+            body: title ?? "Recording started",
             category: .recordingStarted
         )
     }
@@ -140,8 +140,8 @@ public struct NotificationService: Sendable {
 
     public func askToKeep(applicationName: String, meetingID: String) {
         post(
-            title: "This looks like a meeting",
-            body: "Pipit started recording \(applicationName). Keep it?",
+            title: "Keep this recording?",
+            body: "Recording \(applicationName)",
             category: .keepRecording,
             userInfo: ["meetingID": meetingID]
         )
@@ -152,7 +152,7 @@ public struct NotificationService: Sendable {
     public func readyToReview(title: String, meetingID: String) {
         post(
             title: "Transcript ready",
-            body: "\(title) is transcribed. Open it to name the speakers and check the title.",
+            body: title,
             category: .readyToReview,
             userInfo: ["meetingID": meetingID]
         )
@@ -167,7 +167,7 @@ public struct NotificationService: Sendable {
     public func crashReportOffer(incident: String) {
         post(
             title: "Pipit quit unexpectedly",
-            body: "Review a problem report before sending it.",
+            body: "Review the problem report",
             category: .crashReport,
             userInfo: ["crashIncident": incident]
         )
@@ -177,7 +177,7 @@ public struct NotificationService: Sendable {
     /// so it says what happens next.
     public func processingProblem(message: String, meetingID: String) {
         post(
-            title: "Processing needs attention",
+            title: "Processing problem",
             body: message,
             category: .processingProblem,
             userInfo: ["meetingID": meetingID]

@@ -39,8 +39,9 @@ struct TrimBarRenderTests {
         let trims: [(String, ClosedRange<Double>?)] = [("idle", nil), ("trimming", 9...41)]
         for (name, trim) in trims {
             for (look, appearance) in [("dark", NSAppearance.Name.darkAqua), ("light", .aqua)] {
+                detail.trimDraft = trim
                 let host = NSHostingView(
-                    rootView: MeetingPlayerBar(detail: detail, roomy: false, trim: trim)
+                    rootView: MeetingPlayerBar(detail: detail, roomy: false)
                         .frame(width: 900)
                         .background(Color(nsColor: .windowBackgroundColor)))
                 host.appearance = NSAppearance(named: appearance)
@@ -114,5 +115,37 @@ struct TrimBarRenderTests {
         // A handle cannot take a whole recording with it.
         let clamped = MeetingReviewModel.cuts(parts: two, keepFrom: 75, to: 100)
         #expect(clamped.isEmpty, "the start cannot leave the first recording, and there is nothing else to cut")
+    }
+
+    @Test("a dragged handle snaps onto the playhead within a few points of it, and not further")
+    func aHandleSnapsOntoThePlayhead() {
+        // 600 points for 600 seconds: one point is one second.
+        let near = TrimBracket.snapped(103, toPlayhead: 100, duration: 600, width: 600)
+        #expect(near == 100, "3 points away snaps")
+        let far = TrimBracket.snapped(110, toPlayhead: 100, duration: 600, width: 600)
+        #expect(far == nil, "10 points away does not")
+        let zoomedOut = TrimBracket.snapped(103, toPlayhead: 100, duration: 6_000, width: 600)
+        #expect(zoomedOut == 100, "30 seconds is under a point on a long meeting")
+    }
+
+    @Test("I and O set the start and end at the playhead, within the limits")
+    func anEdgeMovesToThePlayhead() throws {
+        let root = try TestPaths.makeTemporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let detail = try detail(root: root)
+        detail.beginTrimming()
+        let draft = try #require(detail.trimDraft)
+        #expect(draft.lowerBound == 0)
+
+        detail.moveTrimEdge(.start, to: 12)
+        #expect(detail.trimDraft?.lowerBound == 12)
+        detail.moveTrimEdge(.end, to: 40)
+        #expect(detail.trimDraft?.upperBound == 40)
+        // The start cannot pass the end, less the shortest stretch Trim keeps.
+        detail.moveTrimEdge(.start, to: 45)
+        #expect(detail.trimDraft?.lowerBound == 40 - MeetingTrim.shortestKept)
+
+        detail.cancelTrimming()
+        #expect(detail.trimDraft == nil)
     }
 }

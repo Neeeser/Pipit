@@ -122,7 +122,7 @@ public final class ReportProblemModel {
         case .willRetry:
             isSent = true
             holdsIdentity = false
-            status = "Pipit will send the report when it can."
+            status = "Queued to send."
         case .rejected, .failed:
             // The sender dropped the secret with the report. Another try
             // goes under a new identity, which the preview shows.

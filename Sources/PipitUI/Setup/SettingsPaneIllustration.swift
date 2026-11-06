@@ -185,7 +185,7 @@ struct AppDragChip: View {
     var body: some View {
         HStack(spacing: 8) {
             ApplicationIcon(size: 26)
-            Text("drag \(ApplicationIdentity.name) from here or from the picture above")
+            Text("Drag \(ApplicationIdentity.name) from here")
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
@@ -194,7 +194,6 @@ struct AppDragChip: View {
         .padding(.horizontal, 6)
         .contentShape(Rectangle())
         .applicationDrag()
-        .help("Drag this into the list in System Settings to add \(ApplicationIdentity.name).")
         .accessibilityLabel("Drag \(ApplicationIdentity.name) into the System Settings list")
     }
 }

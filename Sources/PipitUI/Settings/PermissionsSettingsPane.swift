@@ -17,7 +17,7 @@ struct PermissionsSettingsPane: View {
                 }
             }
             Section {
-                Button("Re-check Everything") { Task { await model.refresh() } }
+                Button("Check Again") { Task { await model.refresh() } }
             }
         }
         .formStyle(.grouped)

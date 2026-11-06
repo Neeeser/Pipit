@@ -12,12 +12,12 @@ struct RecordingSettingsPane: View {
 
     var body: some View {
         Form {
-            Section("Providers") {
+            Section("Record automatically") {
                 providerRow("Slack Huddles", keyPath: \.slack)
                 providerRow("Google Meet", keyPath: \.googleMeet)
                 providerRow("Zoom", keyPath: \.zoom)
                 providerRow("FaceTime", keyPath: \.faceTime)
-                providerRow("Unknown calls", keyPath: \.unknownCalls)
+                providerRow("Other calls", keyPath: \.unknownCalls)
             }
             Section("Live transcript") {
                 Toggle("Transcribe during meetings", isOn: liveBinding(\.isEnabled))
@@ -29,25 +29,21 @@ struct RecordingSettingsPane: View {
                     }
                     .disabled(!runtime.settings.live.isEnabled)
                 }
-                Toggle("Open the live window when recording starts", isOn: liveBinding(\.opensWithRecording))
+                Toggle("Open live window when recording starts", isOn: liveBinding(\.opensWithRecording))
                     .disabled(!runtime.settings.live.isEnabled)
-                Toggle("Hide the live window when sharing your screen", isOn: liveBinding(\.hiddenFromScreenSharing))
+                Toggle("Hide live window when sharing screen", isOn: liveBinding(\.hiddenFromScreenSharing))
             }
             Section("Ending a meeting") {
                 waitRow(
-                    "Pause recording after the call disappears",
+                    "Pause after the call ends",
                     choices: Self.endGraceChoices,
                     keyPath: \.meetingEndGraceSeconds
                 )
-                Text("How long the call has to be gone before recording pauses.")
-                    .font(.caption).foregroundStyle(.secondary)
                 waitRow(
-                    "Wait for a rejoin before saving",
+                    "Wait for rejoin before saving",
                     choices: Self.reconnectWindowChoices,
                     keyPath: \.meetingReconnectWindowSeconds
                 )
-                Text("Rejoining within this window continues the same meeting.")
-                    .font(.caption).foregroundStyle(.secondary)
             }
             Section("Applications") {
                 appList(

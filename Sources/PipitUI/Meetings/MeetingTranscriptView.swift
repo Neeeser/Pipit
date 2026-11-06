@@ -9,26 +9,32 @@ struct MeetingTranscriptView: View {
     let model: MeetingsWindowModel
     let detail: MeetingReviewModel
 
+    /// Between one speaker's turn and the next, and above the first.
+    static let turnSpacing: CGFloat = 22
+
     var body: some View {
         if detail.combinedLines.isEmpty {
             waiting
         } else {
             ScrollViewReader { proxy in
                 ScrollView {
-                    VStack(alignment: .leading, spacing: 12) {
+                    VStack(alignment: .leading, spacing: Self.turnSpacing) {
                         if detail.isSplitRecording { continuationNotice }
                         // Lazy because a long meeting is thousands of lines and each
                         // one carries a menu.
-                        LazyVStack(alignment: .leading, spacing: 14) {
+                        LazyVStack(alignment: .leading, spacing: Self.turnSpacing) {
                             ForEach(CombinedLineBlock.blocks(from: detail.combinedLines)) { block in
                                 blockView(block).id(block.id)
                             }
                         }
                     }
-                    .padding(.horizontal, 20)
+                    // The same room above the first turn as between turns. With
+                    // none, the first speaker's name sat on the line above it.
+                    .padding(.top, Self.turnSpacing)
+                    .padding(.horizontal, 24)
                     .padding(.bottom, 20)
-                    .frame(maxWidth: 680, alignment: .leading)
-                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .frame(maxWidth: MeetingDetailView.columnWidth, alignment: .leading)
+                    .frame(maxWidth: .infinity)
                 }
                 .overlay(alignment: .topTrailing) {
                     if detail.isSearching || detail.navigation != nil {
@@ -137,17 +143,17 @@ struct MeetingTranscriptView: View {
             Image(systemName: "arrow.triangle.branch").foregroundStyle(.secondary)
             // Parts come from a rejoined call or from the person merging
             // meetings, so the notice does not say which.
-            Text("Recorded in \(detail.recordings.count) parts, shown in order.")
+            Text("\(detail.recordings.count) parts")
                 .font(.caption)
                 .foregroundStyle(.secondary)
             Spacer()
             ForEach(detail.recordings.dropFirst(), id: \.id) { recording in
-                Button("Separate part \(index(of: recording) + 1)") {
+                Button("Separate Part \(index(of: recording) + 1)") {
                     model.separate(recording.id)
                 }
                 .buttonStyle(.link)
                 .font(.caption)
-                .help("Keeps both recordings and undoes the link between them")
+                .help("Split this part into its own meeting")
             }
         }
     }

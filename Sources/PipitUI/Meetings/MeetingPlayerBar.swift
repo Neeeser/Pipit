@@ -20,15 +20,10 @@ struct MeetingPlayerBar: View {
     @AppStorage("MeetingPlayerLanes") private var lanesChoice = ""
     @State private var hover: CGFloat?
     @State private var lanesHover: CGFloat?
-    /// The kept stretch while the bar is in trim mode; nil otherwise.
-    @State private var trim: ClosedRange<Double>?
     @State private var confirmingTrim = false
 
-    init(detail: MeetingReviewModel, roomy: Bool, trim: ClosedRange<Double>? = nil) {
-        self.detail = detail
-        self.roomy = roomy
-        _trim = State(initialValue: trim)
-    }
+    /// The kept stretch while the bar is in trim mode; nil otherwise.
+    private var trim: ClosedRange<Double>? { detail.trimDraft }
 
     private var playback: MeetingPlaybackModel { detail.playback }
 
@@ -62,11 +57,14 @@ struct MeetingPlayerBar: View {
                     )
                     .overlay {
                         TrimBracket(
-                            start: Binding(get: { trim.lowerBound }, set: { self.trim = $0...trim.upperBound }),
-                            end: Binding(get: { trim.upperBound }, set: { self.trim = trim.lowerBound...$0 }),
+                            start: Binding(
+                                get: { trim.lowerBound }, set: { detail.moveTrimEdge(.start, to: $0) }),
+                            end: Binding(get: { trim.upperBound }, set: { detail.moveTrimEdge(.end, to: $0) }),
                             duration: playback.timeline.duration,
                             startLimits: limits.start, endLimits: limits.end,
-                            scrub: { playback.seek(to: $0) }
+                            playhead: playback.position,
+                            scrub: { playback.seek(to: $0) },
+                            timecode: timecode
                         )
                     }
                 } else if lanesShown {
@@ -92,16 +90,14 @@ struct MeetingPlayerBar: View {
         .alert(trimQuestion, isPresented: $confirmingTrim) {
             Button("Trim", role: .destructive) {
                 if let trim { detail.trim(keepFrom: trim.lowerBound, to: trim.upperBound) }
-                trim = nil
+                detail.cancelTrimming()
             }
             Button("Cancel", role: .cancel) {}
         } message: {
-            Text(
-                "The audio and transcript outside this range are deleted. "
-                    + "Your notes are kept. You can't undo this.")
+            Text("Deletes the audio and transcript outside this range. You can't undo this.")
         }
         .onChange(of: detail.canTrim) { _, canTrim in
-            if !canTrim { trim = nil }
+            if !canTrim { detail.cancelTrimming() }
         }
     }
 
@@ -143,7 +139,7 @@ struct MeetingPlayerBar: View {
                 .foregroundStyle(.secondary)
             } else if detail.canTrim {
                 Button {
-                    startTrimming()
+                    detail.beginTrimming()
                 } label: {
                     Label("Trim", systemImage: "scissors")
                 }
@@ -163,16 +159,12 @@ struct MeetingPlayerBar: View {
         }
     }
 
+    /// Only Cancel and Trim. The handles set the range: dragged, snapped to
+    /// the playhead, or moved there with I and O, and the time of a handle
+    /// shows above it while it moves.
     private func trimControls(_ range: ClosedRange<Double>) -> some View {
         HStack(spacing: Self.spacing) {
-            Text("Keep \(timecode(range.lowerBound))–\(timecode(range.upperBound))")
-                .monospacedDigit()
-                .foregroundStyle(.secondary)
-            Button("Start here") { moveTrim(start: playback.position) }
-                .help("Keep from where playback is")
-            Button("End here") { moveTrim(end: playback.position) }
-                .help("Keep up to where playback is")
-            Button("Cancel") { trim = nil }
+            Button("Cancel") { detail.cancelTrimming() }
                 .keyboardShortcut(.cancelAction)
             Button("Trim…") { confirmingTrim = true }
                 .buttonStyle(PillButtonStyle(prominent: true))
@@ -185,30 +177,6 @@ struct MeetingPlayerBar: View {
     private var trimQuestion: String {
         guard let trim else { return "Trim this meeting?" }
         return "Trim this meeting to \(timecode(trim.lowerBound))–\(timecode(trim.upperBound))?"
-    }
-
-    private func startTrimming() {
-        guard let limits = detail.trimLimits else { return }
-        detail.trimMessage = nil
-        playback.pause()
-        trim = limits.start.lowerBound...limits.end.upperBound
-    }
-
-    /// Moves one end of the kept stretch, never past the other end or out of
-    /// the part that end belongs to.
-    private func moveTrim(start: Double? = nil, end: Double? = nil) {
-        guard let trim, let limits = detail.trimLimits else { return }
-        let shortest = MeetingTrim.shortestKept
-        var lower = trim.lowerBound
-        var upper = trim.upperBound
-        if let start {
-            lower = min(max(start, limits.start.lowerBound), min(limits.start.upperBound, upper - shortest))
-        }
-        if let end {
-            upper = max(min(end, limits.end.upperBound), max(limits.end.lowerBound, lower + shortest))
-        }
-        guard upper > lower else { return }
-        self.trim = lower...upper
     }
 
     private func removesSomething(_ range: ClosedRange<Double>) -> Bool {

@@ -213,7 +213,7 @@ struct LiveTranscriptView: View {
                     .foregroundStyle(.secondary)
                     .frame(width: 22, height: 22)
                     .background(Color.primary.opacity(0.05), in: RoundedRectangle(cornerRadius: 6))
-                    .help("Hidden when you share your screen")
+                    .help("Hidden when sharing screen")
             }
             IconButton(symbol: "arrow.down.right.and.arrow.up.left", help: "Shrink to one line") {
                 setTucked(true)
@@ -241,14 +241,14 @@ struct LiveTranscriptView: View {
     @ViewBuilder private var content: some View {
         switch model.state {
         case .off:
-            message("Live transcript is off. Turn it on in Settings, under Recording.")
+            message("Live transcript is off. Turn it on in Recording settings.")
         case .unavailable(let reason):
             message(reason)
         case .idle:
-            message("The transcript appears here while a meeting records.")
+            message("Transcript appears during a meeting")
         default:
             if model.transcript.lines.isEmpty {
-                message(model.state == .ended ? "Nothing was heard." : "Listening")
+                message(model.state == .ended ? "No speech" : "Listening")
             } else {
                 transcript
             }

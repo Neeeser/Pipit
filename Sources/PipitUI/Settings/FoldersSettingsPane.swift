@@ -15,9 +15,9 @@ struct FoldersSettingsPane: View {
     var body: some View {
         Form {
             Section("Suggestions") {
-                Toggle("Suggest a folder when a meeting finishes", isOn: binding(\.suggestFolders))
+                Toggle("Suggest a folder after each meeting", isOn: binding(\.suggestFolders))
                 Picker(
-                    "How far a suggestion may reach",
+                    "Suggest for",
                     selection: Binding(
                         get: { runtime.settings.enrichment.folderReach },
                         set: { newValue in
@@ -28,35 +28,27 @@ struct FoldersSettingsPane: View {
                     )
                 ) {
                     ForEach(SuggestionReach.allCases) { reach in
-                        VStack(alignment: .leading, spacing: 1) {
-                            Text(reach.label)
-                            Text(reach.detail).font(.caption).foregroundStyle(.secondary)
-                        }
-                        .tag(reach)
+                        Text(reach.label).tag(reach)
                     }
                 }
                 .pickerStyle(.radioGroup)
                 .disabled(!runtime.settings.enrichment.suggestFolders)
                 Toggle(
-                    "Notice recurring meetings and offer a rule",
+                    "Offer rules for recurring meetings",
                     isOn: binding(\.noticesRecurringMeetings)
                 )
-                Text("A recurring meeting is recognized from its calendar series, or a repeated title and time slot.")
-                    .font(.caption).foregroundStyle(.secondary)
             }
 
             Section("Filing") {
                 Toggle(
-                    "Let a folder file its own matches without asking",
+                    "File matching meetings automatically",
                     isOn: binding(\.filesMatchingMeetings)
                 )
-                Text("Off stops every folder from filing on its own.")
-                    .font(.caption).foregroundStyle(.secondary)
             }
 
             Section("Folders") {
                 if folders.isEmpty {
-                    Text("No folders yet. Right-click a meeting in the Meetings window to file it.")
+                    Text("No folders")
                         .font(.callout).foregroundStyle(.secondary)
                 } else {
                     ForEach(folders) { folder in
@@ -64,20 +56,9 @@ struct FoldersSettingsPane: View {
                     }
                 }
                 HStack {
-                    Text("Folders are made and renamed in the Meetings window.")
-                        .font(.caption).foregroundStyle(.secondary)
                     Spacer()
-                    Button("Reveal in Finder") { runtime.revealArchive() }
+                    Button("Show in Finder") { runtime.revealArchive() }
                 }
-            }
-
-            Section("On disk") {
-                Label(
-                    "Filed meetings live in Meetings/Folders/<name>. Everything else stays "
-                        + "under Meetings/<year>/<month>.",
-                    systemImage: "folder"
-                )
-                .font(.caption)
             }
         }
         .formStyle(.grouped)
@@ -91,7 +72,7 @@ struct FoldersSettingsPane: View {
                 .frame(width: 16)
             VStack(alignment: .leading, spacing: 2) {
                 Text(folder.name).font(.body.weight(.medium))
-                Text(folder.rule.isEmpty ? "No rule, filed by hand" : FolderRuleSummary.text(folder.rule))
+                Text(folder.rule.isEmpty ? "No rule" : FolderRuleSummary.text(folder.rule))
                     .font(.caption)
                     .foregroundStyle(folder.rule.isEmpty ? .tertiary : .secondary)
                     .lineLimit(2)
@@ -114,8 +95,8 @@ struct FoldersSettingsPane: View {
             .disabled(folder.rule.isEmpty || !runtime.settings.enrichment.filesMatchingMeetings)
             .help(
                 folder.rule.isEmpty
-                    ? "This folder has no rule, so there is nothing for it to file."
-                    : "Files matching meetings here without asking."
+                    ? "Needs a rule"
+                    : "File matching meetings automatically"
             )
         }
     }

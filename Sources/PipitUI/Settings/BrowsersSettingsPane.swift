@@ -50,9 +50,9 @@ struct BrowsersSettingsPane: View {
                 )
                 if safariState.offersSetUp {
                     HStack(spacing: 10) {
-                        Button("Turn on in Safari") { SafariAddOn.openSettings() }
+                        Button("Turn On in Safari…") { SafariAddOn.openSettings() }
                             .buttonStyle(.borderedProminent)
-                        Text("Then allow it on your meeting sites")
+                        Text("Then allow it on meeting sites")
                             .font(.caption).foregroundStyle(.tertiary)
                     }
                 }
@@ -71,7 +71,7 @@ struct BrowsersSettingsPane: View {
                 }
                 if addOnState.offersUpdate {
                     if let version = runtime.status.firefoxAddOnVersion {
-                        Text("Firefox has add-on \(version).")
+                        Text("Add-on version \(version)")
                             .font(.caption).foregroundStyle(.secondary)
                     }
                     FirefoxAddOnInstallButton(prepareRelay: { model.installHost() }, role: .update)
@@ -95,11 +95,11 @@ struct BrowsersSettingsPane: View {
                     statusColor: chromeState.color
                 )
                 if chromeState.offersSetUp {
-                    Button("Set up the add-on") { model.setUpChromeAddOn() }
+                    Button("Set Up Add-on") { model.setUpChromeAddOn() }
                         .buttonStyle(.borderedProminent)
                     Text(
-                        "Open the browser's Extensions page, turn on Developer mode, "
-                            + "choose Load unpacked, and pick the folder Pipit shows."
+                        "In Extensions, turn on Developer mode, choose Load unpacked, "
+                            + "and pick the folder Pipit shows."
                     )
                     .font(.caption).foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
@@ -130,7 +130,7 @@ struct BrowsersSettingsPane: View {
             }
         }
         HStack {
-            Button("Repair connection") { model.installHost() }
+            Button("Repair Connection") { model.installHost() }
             if addOnState.isInstalled, FirefoxAddOn.bundledAddOn != nil {
                 FirefoxAddOnInstallButton(
                     prepareRelay: { model.installHost() }, role: .reinstall
@@ -139,7 +139,7 @@ struct BrowsersSettingsPane: View {
         }
         if let rejected = model.sensorStatus?.rejectedConnections, rejected > 0 {
             Label(
-                "\(rejected) connection\(rejected == 1 ? "" : "s") refused.",
+                "\(rejected) \(rejected == 1 ? "connection" : "connections") refused",
                 systemImage: "shield.lefthalf.filled"
             )
             .font(.caption)

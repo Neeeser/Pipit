@@ -29,20 +29,17 @@ struct MeetingSummaryTab: View {
                     legacy
                 }
                 if detail.metadata?.hadOtherAudibleTabs == true {
-                    SectionCard(title: "Another tab was playing audio", subtitle: nil) {
-                        Text(
-                            "A browser tab other than the meeting was audible during this "
-                                + "recording, so the meeting track may hold that audio as well."
-                        )
-                        .font(.callout)
+                    SectionCard(title: "Another tab played audio", subtitle: nil) {
+                        Text("The recording may include it.").font(.callout)
                     }
                 }
                 Spacer(minLength: 0)
             }
-            .padding(.horizontal, 20)
+            .padding(.horizontal, 24)
             .padding(.bottom, 24)
-            .frame(maxWidth: 860, alignment: .leading)
-            .frame(maxWidth: .infinity, alignment: .leading)
+            // The same centred column as the title and the transcript.
+            .frame(maxWidth: MeetingDetailView.columnWidth, alignment: .leading)
+            .frame(maxWidth: .infinity)
             .summaryWidth()
         }
     }

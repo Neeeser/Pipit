@@ -82,7 +82,7 @@ public struct PeopleDirectoryView: View {
     private var sidebar: some View {
         VStack(spacing: 0) {
             VStack(spacing: 8) {
-                TextField("Search name, organization, notes", text: model.text(\.query))
+                TextField("Search", text: model.text(\.query))
                     .textFieldStyle(.roundedBorder)
                 Picker(
                     "",
@@ -109,8 +109,8 @@ public struct PeopleDirectoryView: View {
                 if model.visibleCount == 0 {
                     Text(
                         model.entries.isEmpty
-                            ? "Nobody yet. Naming a speaker on a meeting creates them here."
-                            : "No match."
+                            ? "No people"
+                            : "No matches"
                     )
                     .font(.callout)
                     .foregroundStyle(.secondary)
@@ -180,16 +180,16 @@ public struct PeopleDirectoryView: View {
             // The row the microphone track built and the row Slack named are
             // one person. Merging them is what puts the mic-track voice and the
             // platform's name on one profile.
-            Button("This is also you") { Task { await model.makeYou(entry) } }
+            Button("This Is Me") { Task { await model.makeYou(entry) } }
             Divider()
         }
-        Button("Set organization…") { model.beginSetOrganization(targets) }
+        Button("Set Organization…") { model.beginSetOrganization(targets) }
         if targets.count == 1 {
-            Button("Forget learned voice…") { model.confirmForgetVoice(of: entry) }
+            Button("Forget Voice…") { model.confirmForgetVoice(of: entry) }
                 .disabled(targets[0].profile == .none)
         }
         if targets.count == 2 {
-            Button("Merge into one person") { Task { await model.merge(targets) } }
+            Button("Merge People") { Task { await model.merge(targets) } }
         }
         Divider()
         Button(
@@ -223,22 +223,25 @@ public struct PeopleDirectoryView: View {
                 .foregroundStyle(.secondary)
             Spacer()
             Menu {
-                Button("Set organization…") { model.beginSetOrganization() }
+                Button("Set Organization…") { model.beginSetOrganization() }
                     .disabled(model.selection.isEmpty)
-                Button("Merge into one person") { Task { await model.mergeSelection() } }
+                Button("Merge People") { Task { await model.mergeSelection() } }
                     .disabled(!model.canMerge)
                 // Above the deletions on purpose. The voices a purge takes are
                 // the ones this offers to name, so the chance to keep one comes
                 // before the way to throw it away.
-                Button("Look again for matches…") {
+                Button("Find Matches…") {
                     Task { await model.lookAgainForMatches() }
                 }
                 Divider()
-                Button("Delete \(model.purgeCandidates.count) unnamed voices heard once…") {
+                Button(
+                    "Delete \(model.purgeCandidates.count) Unnamed "
+                        + "\(model.purgeCandidates.count == 1 ? "Person" : "People") Heard Once…"
+                ) {
                     model.confirmPurge()
                 }
                 .disabled(model.purgeCandidates.isEmpty)
-                Button("Delete selected", role: .destructive) { model.confirmDeleteSelection() }
+                Button("Delete Selected", role: .destructive) { model.confirmDeleteSelection() }
                     .disabled(model.selection.isEmpty)
             } label: {
                 Label("Actions", systemImage: "ellipsis.circle")
@@ -311,13 +314,13 @@ struct PeopleSelectionSummary: View {
             .font(.callout)
             .foregroundStyle(.secondary)
             HStack(spacing: 8) {
-                Button("Set organization…") { model.beginSetOrganization() }
-                Button("Merge into one person") { Task { await model.mergeSelection() } }
+                Button("Set Organization…") { model.beginSetOrganization() }
+                Button("Merge People") { Task { await model.mergeSelection() } }
                     .disabled(!model.canMerge)
                 Button("Delete", role: .destructive) { model.confirmDeleteSelection() }
             }
             if model.selection.count != 2 {
-                Text("Merging joins exactly two voices, so select two.")
+                Text("Select two people to merge")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }

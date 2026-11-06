@@ -487,6 +487,12 @@ public final class WindowManager {
                 detail.playback.toggle()
                 return nil
             }
+            // I and O set the trim's start and end at the playhead, as in
+            // Final Cut, under the same rule as Space: not while typing.
+            if detail.trimDraft != nil, let edge = Self.trimEdge(for: event, modifiers: modifiers, in: window) {
+                detail.moveTrimEdge(edge, to: detail.playback.position)
+                return nil
+            }
             guard model.tab == .transcript else { return event }
             if modifiers == .command, event.charactersIgnoringModifiers == "f" {
                 detail.beginSearch()
@@ -521,6 +527,23 @@ public final class WindowManager {
             return text.isFieldEditor && text.string.isEmpty
         }
         return true
+    }
+
+    /// The trim edge a plain I or O moves, unless focus is somewhere typing.
+    private static func trimEdge(
+        for event: NSEvent, modifiers: NSEvent.ModifierFlags, in window: NSWindow
+    ) -> MeetingReviewModel.TrimEdge? {
+        guard modifiers.isDisjoint(with: [.command, .option, .control, .shift]) else { return nil }
+        if let text = window.firstResponder as? NSTextView, text.isEditable,
+            !(text.isFieldEditor && text.string.isEmpty)
+        {
+            return nil
+        }
+        switch event.charactersIgnoringModifiers?.lowercased() {
+        case "i": return .start
+        case "o": return .end
+        default: return nil
+        }
     }
 
     /// Where a finished recording lands.
@@ -649,8 +672,8 @@ public final class WindowManager {
         provisionalPromptID = nil
     }
 
-    /// The meetings window, its content running under a transparent title bar
-    /// so the tabs and Copy transcript take no row of their own.
+    /// The meetings window: a system split view whose detail puts the tabs and
+    /// the meeting's commands in the window's toolbar.
     ///
     /// The style is set before the saved frame is restored. Set after, the
     /// change kept the restored frame's content size and moved the window down
@@ -659,19 +682,14 @@ public final class WindowManager {
         content: some View, autosaveName: String = "PipitMeetings"
     ) -> NSWindow {
         let controller = NSHostingController(rootView: AnyView(content))
-        // Left on, SwiftUI keeps managing the window's title and drew
+        // Toolbars only. Left to manage the title as well, SwiftUI drew
         // "Meetings" over the tabs despite the hidden title.
-        controller.sceneBridgingOptions = []
+        controller.sceneBridgingOptions = [.toolbars]
         let window = NSWindow(contentViewController: controller)
         window.title = "Meetings"
         window.styleMask = [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView]
-        window.titlebarAppearsTransparent = true
         window.titleVisibility = .hidden
-        // An empty compact toolbar makes the title bar 40 points tall with the
-        // window buttons centred in it, so the 24 point controls drawn there
-        // get the same room above as below.
-        window.toolbar = NSToolbar(identifier: autosaveName)
-        window.toolbarStyle = .unifiedCompact
+        window.toolbarStyle = .unified
         window.setContentSize(NSSize(width: 1_120, height: 720))
         window.isReleasedWhenClosed = false
         window.center()
@@ -806,7 +824,7 @@ public final class PermissionNoticeModel {
         if kind.isGrantedByPrompt, status(for: kind).state == .notDetermined {
             return "Allow \(kind.title)"
         }
-        return "Open System Settings"
+        return "Open System Settings…"
     }
 }
 
@@ -835,10 +853,6 @@ struct PermissionNoticeView: View {
                     Text(notice.title).font(.headline)
                     Text(notice.body).font(.callout).foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
-                    if notice.recordingContinues {
-                        Text("Recording continues while this is open.")
-                            .font(.caption).foregroundStyle(.tertiary)
-                    }
                 }
             }
             if let kind = notice.single, kind.acceptsDroppedApplication {
@@ -890,12 +904,9 @@ struct ProvisionalPromptView: View {
         VStack(alignment: .leading, spacing: 14) {
             Text("Pipit is recording \(prompt.applicationName)")
                 .font(.headline)
-            Text(
-                "It took the microphone and is playing audio, which usually means a "
-                    + "call. Recording continues while you decide."
-            )
-            .font(.callout)
-            .foregroundStyle(.secondary)
+            Text("Looks like a call.")
+                .font(.callout)
+                .foregroundStyle(.secondary)
             if let title = prompt.title {
                 Text(title).font(.callout)
             }

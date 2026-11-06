@@ -184,13 +184,13 @@ public final class TranscriptTextView: NSTextView {
             let parts = selectedRanges(selection)
             guard !parts.isEmpty else { return menu }
             action = .assign(parts: parts)
-            title = "Assign selection to"
+            title = "Assign to"
         } else {
             let point = convert(event.locationInWindow, from: nil)
             let index = characterIndexForInsertion(at: point)
             guard let boundary = nearestBoundary(to: index) else { return menu }
             action = .split(atSeconds: boundary.startSeconds, utteranceID: boundary.utteranceID)
-            title = "Split here, and this speaker is"
+            title = "Split Here and Assign to"
         }
 
         let item = NSMenuItem(title: title, action: nil, keyEquivalent: "")

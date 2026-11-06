@@ -34,17 +34,40 @@ enum SettingsPane: String, CaseIterable, Identifiable {
         }
     }
 
+    /// The groups the sidebar shows, the way System Settings separates its
+    /// panes: what Pipit does, where it works, and the tools behind it.
+    static let groups: [[SettingsPane]] = [
+        [.general, .recording, .processing, .aiFeatures],
+        [.browsers, .folders, .storage, .permissions],
+        [.agents, .diagnostics],
+    ]
+
+    /// The tile behind the pane's symbol in the sidebar.
+    var tint: Color {
+        switch self {
+        case .general, .storage: .gray
+        case .recording: .red
+        case .processing: .indigo
+        case .aiFeatures: .purple
+        case .browsers: .blue
+        case .folders: .teal
+        case .permissions: .green
+        case .agents: Color(white: 0.3)
+        case .diagnostics: .orange
+        }
+    }
+
     var symbol: String {
         switch self {
-        case .general: "gearshape"
-        case .recording: "record.circle"
-        case .processing: "waveform.badge.magnifyingglass"
+        case .general: "gearshape.fill"
+        case .recording: "record.circle.fill"
+        case .processing: "waveform"
         case .aiFeatures: "sparkles"
         case .browsers: "globe"
-        case .folders: "folder.badge.gearshape"
-        case .storage: "internaldrive"
-        case .permissions: "lock.shield"
-        case .agents: "terminal"
+        case .folders: "folder.fill"
+        case .storage: "internaldrive.fill"
+        case .permissions: "hand.raised.fill"
+        case .agents: "terminal.fill"
         case .diagnostics: "stethoscope"
         }
     }
@@ -61,11 +84,19 @@ public struct SettingsView: View {
 
     public var body: some View {
         NavigationSplitView {
-            List(
-                SettingsPane.allCases,
-                selection: Binding(get: { model.pane }, set: { model.pane = $0 })
-            ) { entry in
-                Label(entry.title, systemImage: entry.symbol).tag(entry)
+            List(selection: Binding(get: { model.pane }, set: { model.pane = $0 })) {
+                ForEach(SettingsPane.groups, id: \.self) { group in
+                    Section {
+                        ForEach(group) { entry in
+                            Label {
+                                Text(entry.title)
+                            } icon: {
+                                SettingsPaneIcon(pane: entry)
+                            }
+                            .tag(entry)
+                        }
+                    }
+                }
             }
             .navigationSplitViewColumnWidth(min: 170, ideal: 180, max: 220)
         } detail: {
@@ -90,5 +121,19 @@ public struct SettingsView: View {
         case .agents: AgentsSettingsPane(agents: model.agents)
         case .diagnostics: DiagnosticsSettingsPane(model: model)
         }
+    }
+}
+
+/// A pane's symbol in white on a rounded tile of its colour, as System
+/// Settings draws its sidebar.
+struct SettingsPaneIcon: View {
+    let pane: SettingsPane
+
+    var body: some View {
+        Image(systemName: pane.symbol)
+            .font(.system(size: 11, weight: .semibold))
+            .foregroundStyle(.white)
+            .frame(width: 20, height: 20)
+            .background(RoundedRectangle(cornerRadius: 5, style: .continuous).fill(pane.tint.gradient))
     }
 }

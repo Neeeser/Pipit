@@ -30,7 +30,8 @@ struct DiagnosticsSettingsPane: View {
 
     var body: some View {
         Form {
-            Section("Diagnostics") {
+            // No heading: the pane's own title already says Diagnostics.
+            Section {
                 LabeledContent("Contains") { Text("App events and errors") }
                 LabeledContent("Kept for") { Text("Up to 14 days") }
                 LabeledContent("Size") { Text(usedBytes.map(Self.size) ?? "Calculating…") }
@@ -39,6 +40,7 @@ struct DiagnosticsSettingsPane: View {
                         .font(.caption).foregroundStyle(.secondary).textSelection(.enabled)
                 }
                 HStack {
+                    Spacer()
                     Button("Show in Finder") { showInFinder() }
                     Button("Export Diagnostics…") { export() }
                         .disabled(isExporting)
@@ -69,8 +71,10 @@ struct DiagnosticsSettingsPane: View {
             }
             // Last, beside the sent reports it can also forget.
             Section {
-                Button("Clear Diagnostics…") { isConfirmingClear = true }
-                    .disabled(isClearing || diagnostics.layout == nil)
+                LabeledContent("Diagnostics on this Mac") {
+                    Button("Clear Diagnostics…") { isConfirmingClear = true }
+                        .disabled(isClearing || diagnostics.layout == nil)
+                }
             }
         }
         .formStyle(.grouped)
@@ -84,7 +88,7 @@ struct DiagnosticsSettingsPane: View {
                 receipts.isEmpty
                     ? "Deletes the event log and crash summaries."
                     : "Deletes the event log and crash summaries. Forgetting sent reports also deletes "
-                        + "their deletion codes from this Mac."
+                        + "their deletion codes."
             )
         }
         .confirmationDialog(
@@ -164,7 +168,7 @@ struct DiagnosticsSettingsPane: View {
             case .noSecret:
                 notice = Notice(reportID: receipt.reportID, text: "This Mac no longer has the deletion code.")
             case .failed:
-                notice = Notice(reportID: receipt.reportID, text: "The server could not be reached. Try again later.")
+                notice = Notice(reportID: receipt.reportID, text: "Could not reach the server. Try again later.")
             }
         }
     }
@@ -293,17 +297,16 @@ struct AutomaticSharingSheet: View {
             Text("Share diagnostics automatically?").font(.headline)
             VStack(alignment: .leading, spacing: 10) {
                 Label(
-                    "After Pipit quits unexpectedly: the crash summary and recent app events.",
+                    "After a crash: the crash summary and recent app events",
                     systemImage: "exclamationmark.triangle"
                 )
-                Label("Once a day: the app events since the last report.", systemImage: "calendar")
+                Label("Daily: app events since the last report", systemImage: "calendar")
                 Label(
-                    "With each report: the app and macOS versions, the Mac model, and Pipit's settings "
-                        + "and permissions.",
+                    "With each report: app and macOS versions, Mac model, Pipit settings and permissions",
                     systemImage: "info.circle"
                 )
                 Label(
-                    "Reports are kept on Pipit's server for 90 days. Delete any of them from Sent reports.",
+                    "Kept on Pipit's server for 90 days. Delete reports under Sent reports.",
                     systemImage: "trash"
                 )
             }

@@ -140,12 +140,12 @@ public enum FirefoxAddOnState: Equatable {
     /// what the transport is doing.
     var detail: String {
         switch self {
-        case .reporting, .installed: "Meeting detection in Firefox is on."
-        case .newer: "Meeting detection in Firefox is on. The add-on is newer than this Pipit."
-        case .outdated: "This version of Pipit needs a newer add-on."
-        case .connecting: "Waiting for Firefox to connect."
-        case .unknown, .missing: "Improves meeting detection in Firefox."
-        case .unavailable: "This build has no add-on to install."
+        case .reporting, .installed: "Meeting detection in Firefox is on"
+        case .newer: "Meeting detection in Firefox is on"
+        case .outdated: "Needs a newer add-on"
+        case .connecting: "Waiting for Firefox"
+        case .unknown, .missing: "Improves meeting detection in Firefox"
+        case .unavailable: "No add-on in this build"
         }
     }
 
@@ -177,13 +177,13 @@ struct FirefoxAddOnCheck: View {
             VStack(alignment: .leading, spacing: 6) {
                 switch access {
                 case .notAsked, .allowed:
-                    Button("Check Firefox for the add-on") { check() }
-                    Text("macOS asks once to let Pipit read Firefox's add-on list.")
+                    Button("Check Firefox for Add-on") { check() }
+                    Text("macOS asks for permission once")
                         .font(.caption).foregroundStyle(.secondary)
                 case .blocked:
                     Label("macOS blocked the check.", systemImage: "exclamationmark.triangle.fill")
                         .font(.caption).foregroundStyle(.orange)
-                    Button("Try again") { check() }
+                    Button("Try Again") { check() }
                         .buttonStyle(.link)
                 }
             }
@@ -214,20 +214,18 @@ struct FirefoxAddOnInstallButton: View {
             HStack(spacing: 10) {
                 switch role {
                 case .reinstall:
-                    Button("Reinstall add-on") { install() }
+                    Button("Reinstall Add-on") { install() }
                         .disabled(!FirefoxAddOn.isFirefoxInstalled)
                 case .install, .update:
-                    Button(role == .update ? "Update the Firefox add-on" : "Install the Firefox add-on") {
+                    Button(role == .update ? "Update Firefox Add-on" : "Install Firefox Add-on") {
                         install()
                     }
                     .buttonStyle(.borderedProminent)
                     .disabled(!FirefoxAddOn.isFirefoxInstalled)
-                    Text("Firefox asks you to confirm")
-                        .font(.caption).foregroundStyle(.tertiary)
                 }
             }
             if launchFailed {
-                Text("Firefox did not open. Open it and try again.")
+                Text("Firefox did not open. Try again.")
                     .font(.caption).foregroundStyle(.orange)
                     .fixedSize(horizontal: false, vertical: true)
             }

@@ -11,7 +11,7 @@ struct AgentsSettingsPane: View {
         Form {
             Section("Command line") {
                 AgentIntegrationRow(
-                    symbol: "terminal", title: "pipit command", path: agents.commandPath,
+                    symbol: "terminal", title: "pipit Command", path: agents.commandPath,
                     state: agents.commandState, canInstall: agents.canInstallCommand,
                     install: { agents.installCommand() }, remove: { agents.removeCommand() }
                 )
@@ -28,8 +28,6 @@ struct AgentsSettingsPane: View {
                 if agents.skills.isEmpty {
                     Text("No agents found").foregroundStyle(.secondary)
                 }
-                Text("Agents read your meetings as files and send what they read to their own model.")
-                    .font(.caption).foregroundStyle(.secondary)
             }
             Section("Other agents") {
                 HStack {
