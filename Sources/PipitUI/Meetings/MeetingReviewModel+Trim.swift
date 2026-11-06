@@ -25,6 +25,43 @@ extension MeetingReviewModel {
         return (first.start...first.end, last.start...last.end)
     }
 
+    /// Which end of the kept stretch an edit moves.
+    public enum TrimEdge: Sendable {
+        case start
+        case end
+    }
+
+    /// Puts the bar in trim mode with the whole meeting kept and playback
+    /// paused, so the person hears nothing move while they place the handles.
+    public func beginTrimming() {
+        guard let limits = trimLimits else { return }
+        trimMessage = nil
+        playback.pause()
+        trimDraft = limits.start.lowerBound...limits.end.upperBound
+    }
+
+    public func cancelTrimming() {
+        trimDraft = nil
+    }
+
+    /// Moves one end of the kept stretch to `seconds` on the playback
+    /// timeline, never past the other end less the shortest stretch Trim
+    /// keeps, and never out of the recording that end belongs to.
+    public func moveTrimEdge(_ edge: TrimEdge, to seconds: Double) {
+        guard let draft = trimDraft, let limits = trimLimits else { return }
+        let shortest = MeetingTrim.shortestKept
+        var lower = draft.lowerBound
+        var upper = draft.upperBound
+        switch edge {
+        case .start:
+            lower = min(max(seconds, limits.start.lowerBound), min(limits.start.upperBound, upper - shortest))
+        case .end:
+            upper = max(min(seconds, limits.end.upperBound), max(limits.end.lowerBound, lower + shortest))
+        }
+        guard upper > lower else { return }
+        trimDraft = lower...upper
+    }
+
     /// The cut for each recording that a trim from `start` to `end` on the
     /// playback timeline changes. Playback seconds within a part are seconds
     /// on that recording's own timeline, which is what Trim measures in. Only

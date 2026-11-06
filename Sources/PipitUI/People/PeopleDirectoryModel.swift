@@ -101,24 +101,22 @@ public final class PeopleDirectoryModel {
             switch kind {
             case .forgetVoice: "Forget \(subject)'s voice?"
             case .delete: targets.count == 1 ? "Delete \(subject)?" : "Delete \(targets.count) people?"
-            case .purge: "Delete \(targets.count) unnamed voice\(targets.count == 1 ? "" : "s")?"
+            case .purge: "Delete \(targets.count) unnamed \(targets.count == 1 ? "person" : "people")?"
             }
         }
 
         public var message: String {
             switch kind {
             case .forgetVoice:
-                "Past transcripts keep the name. Pipit will not recognise this "
-                    + "voice again until someone confirms it on a new recording."
+                "Past transcripts keep the name. Pipit stops recognizing this voice until you confirm it again."
             case .delete, .purge:
-                "The name and every recording of \(targets.count == 1 ? "this voice" : "these voices") "
-                    + "are removed. This cannot be undone."
+                "Removes \(targets.count == 1 ? "the name and voice" : "the names and voices"). This cannot be undone."
             }
         }
 
         public var confirmLabel: String {
             switch kind {
-            case .forgetVoice: "Forget voice"
+            case .forgetVoice: "Forget Voice"
             case .delete, .purge: "Delete"
             }
         }

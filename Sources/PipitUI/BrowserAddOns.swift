@@ -70,9 +70,9 @@ public enum BrowserAddOnState: Equatable {
     /// The line under the title, naming the browsers the card covers.
     func detail(browsers: String) -> String {
         switch self {
-        case .on: "Meeting detection in \(browsers) is on."
-        case .off: "Improves meeting detection in \(browsers)."
-        case .unavailable: "This build has no add-on to install."
+        case .on: "Meeting detection in \(browsers) is on"
+        case .off: "Improves meeting detection in \(browsers)"
+        case .unavailable: "No add-on in this build"
         }
     }
 }

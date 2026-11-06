@@ -148,6 +148,18 @@ extension EnvironmentValues {
     }
 }
 
+private struct SummaryInPanelKey: EnvironmentKey {
+    static let defaultValue = false
+}
+
+extension EnvironmentValues {
+    /// Whether the summary is drawn in the panel beside the transcript.
+    var summaryInPanel: Bool {
+        get { self[SummaryInPanelKey.self] }
+        set { self[SummaryInPanelKey.self] = newValue }
+    }
+}
+
 extension View {
     /// Reads the width this view gets and tells the views inside it whether
     /// that is room for columns.

@@ -49,7 +49,7 @@ struct ProviderSettingsRows: View {
             CustomEndpointRows(model: model)
         }
         if model.runtime.settings.models.metadata.isEmpty, model.provider != .ollama || model.ollamaIsRunning {
-            Text("Choose a model to write titles, summaries and notes.")
+            Text("Choose a model")
                 .font(.caption).foregroundStyle(.orange)
         }
     }
@@ -70,16 +70,15 @@ struct ProviderKeyRows: View {
 
     var body: some View {
         SecureField("API key", text: model.text(\.apiKey), prompt: Text(model.provider.keyPlaceholder))
+        // The result on the left and the buttons on the right of the row,
+        // as System Settings places the actions on a field.
         HStack {
-            Button("Save") { model.saveKey() }.disabled(model.apiKey.isEmpty)
+            testStatus
+            Spacer()
+            Button("Remove") { model.removeKey() }.disabled(!model.hasStoredKey)
             Button("Test Connection") { Task { await model.testConnection() } }
                 .disabled((needsKey && !model.hasStoredKey && model.apiKey.isEmpty) || needsModelToTest)
-            Button("Remove") { model.removeKey() }.disabled(!model.hasStoredKey)
-            testStatus
-        }
-        if model.provider.acceptsKey {
-            Text("Stored in the macOS keychain.")
-                .font(.caption).foregroundStyle(.secondary)
+            Button("Save") { model.saveKey() }.disabled(model.apiKey.isEmpty)
         }
     }
 
@@ -258,17 +257,17 @@ struct OllamaRows: View {
         if let status = model.ollamaStatus {
             switch status {
             case .notInstalled:
-                statusRow("Ollama isn't installed on this Mac", color: .secondary) {
+                statusRow("Ollama not installed", color: .secondary) {
                     if let url = Self.downloadURL { Link("Get Ollama", destination: url) }
                     checkAgain
                 }
             case .installedNotRunning:
-                statusRow("Ollama isn't running", color: .orange) {
+                statusRow("Ollama not running", color: .orange) {
                     if model.canOpenOllama { Button("Open Ollama") { model.openOllama() } }
                     checkAgain
                 }
             case .running(let models):
-                statusRow("Ollama is running", color: .green) { checkAgain }
+                statusRow("Ollama running", color: .green) { checkAgain }
                 modelChoice(models)
                 ContextWindowRow(model: model)
             }
@@ -322,8 +321,6 @@ struct OllamaRows: View {
                 }
             }
             .pickerStyle(.radioGroup)
-            Text("Install more with `ollama pull <name>`")
-                .font(.caption).foregroundStyle(.secondary)
         }
     }
 
@@ -409,13 +406,12 @@ struct ContextWindowRow: View {
                 Text(ContextWindow.label(sizes.last ?? current)).font(.caption)
             }
             .disabled(sizes.count < 2)
-            Text(
-                "Fits \(ContextWindow.fitDescription(context: current)) of meeting. "
-                    + "Longer meetings are processed in parts."
-            )
-            .font(.caption).foregroundStyle(.secondary)
-            Text(model.provider == .custom ? "Match what the server is set to." : "A larger window uses more memory.")
+            Text("Fits \(ContextWindow.fitDescription(context: current)) of meeting")
                 .font(.caption).foregroundStyle(.secondary)
+            if model.provider == .custom {
+                Text("Match the server's setting")
+                    .font(.caption).foregroundStyle(.secondary)
+            }
         }
     }
 }

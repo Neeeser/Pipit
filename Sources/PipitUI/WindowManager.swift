@@ -125,12 +125,12 @@ public final class WindowManager {
         model.onOpenPeople = { [weak self] in self?.showPeople() }
         model.onCheckForUpdates = checkForUpdates
         settingsModel = model
-        let window = makeWindow(
+        let window = Self.makeSplitWindow(
             title: "Pipit Settings",
             size: NSSize(width: 720, height: 560),
-            content: SettingsView(model: model)
+            content: SettingsView(model: model),
+            autosaveName: "PipitSettings"
         )
-        window.setFrameAutosaveName("PipitSettings")
         settingsWindow = window
         present(window)
     }
@@ -271,12 +271,12 @@ public final class WindowManager {
             self?.showMeetings(select: meetingID)
         }
         peopleModel = model
-        let window = makeWindow(
+        let window = Self.makeSplitWindow(
             title: "People",
             size: NSSize(width: 900, height: 600),
-            content: PeopleDirectoryView(model: model)
+            content: PeopleDirectoryView(model: model),
+            autosaveName: "PipitPeople"
         )
-        window.setFrameAutosaveName("PipitPeople")
         peopleWindow = window
         present(window)
     }
@@ -312,7 +312,7 @@ public final class WindowManager {
         let model = SetupModel(runtime: runtime)
         model.landing = landing
         setupModel = model
-        let window = makeWindow(
+        let window = Self.makeSplitWindow(
             title: "Pipit Setup",
             size: NSSize(width: 760, height: 580),
             content: SetupWizardView(
@@ -487,6 +487,12 @@ public final class WindowManager {
                 detail.playback.toggle()
                 return nil
             }
+            // I and O set the trim's start and end at the playhead, as in
+            // Final Cut, under the same rule as Space: not while typing.
+            if detail.trimDraft != nil, let edge = Self.trimEdge(for: event, modifiers: modifiers, in: window) {
+                detail.moveTrimEdge(edge, to: detail.playback.position)
+                return nil
+            }
             guard model.tab == .transcript else { return event }
             if modifiers == .command, event.charactersIgnoringModifiers == "f" {
                 detail.beginSearch()
@@ -521,6 +527,23 @@ public final class WindowManager {
             return text.isFieldEditor && text.string.isEmpty
         }
         return true
+    }
+
+    /// The trim edge a plain I or O moves, unless focus is somewhere typing.
+    private static func trimEdge(
+        for event: NSEvent, modifiers: NSEvent.ModifierFlags, in window: NSWindow
+    ) -> MeetingReviewModel.TrimEdge? {
+        guard modifiers.isDisjoint(with: [.command, .option, .control, .shift]) else { return nil }
+        if let text = window.firstResponder as? NSTextView, text.isEditable,
+            !(text.isFieldEditor && text.string.isEmpty)
+        {
+            return nil
+        }
+        switch event.charactersIgnoringModifiers?.lowercased() {
+        case "i": return .start
+        case "o": return .end
+        default: return nil
+        }
     }
 
     /// Where a finished recording lands.
@@ -649,33 +672,56 @@ public final class WindowManager {
         provisionalPromptID = nil
     }
 
-    /// The meetings window, its content running under a transparent title bar
-    /// so the tabs and Copy transcript take no row of their own.
+    /// The meetings window: a system split view whose detail puts the tabs and
+    /// the meeting's commands in the window's toolbar.
+    static func makeMeetingsWindow(
+        content: some View, autosaveName: String = "PipitMeetings"
+    ) -> NSWindow {
+        makeSplitWindow(
+            title: "Meetings", size: NSSize(width: 1_120, height: 720), content: content,
+            autosaveName: autosaveName
+        )
+    }
+
+    /// A window built around a system split view, the way the Meetings,
+    /// People, Settings and Setup windows are: the sidebar floats inside the
+    /// frame with the window buttons on it, and the window's toolbar runs
+    /// along the top of the detail.
+    ///
+    /// SwiftUI manages the toolbar only. Left to manage the title as well, it
+    /// drew "Meetings" over the tabs despite the hidden title. The sidebar
+    /// reaches the top only while the detail puts an item in the toolbar;
+    /// without one the window buttons sit on a strip of their own above it.
     ///
     /// The style is set before the saved frame is restored. Set after, the
     /// change kept the restored frame's content size and moved the window down
     /// by a title bar on every launch.
-    static func makeMeetingsWindow(
-        content: some View, autosaveName: String = "PipitMeetings"
+    static func makeSplitWindow(
+        title: String, size: NSSize, content: some View, autosaveName: String? = nil
     ) -> NSWindow {
         let controller = NSHostingController(rootView: AnyView(content))
-        // Left on, SwiftUI keeps managing the window's title and drew
-        // "Meetings" over the tabs despite the hidden title.
-        controller.sceneBridgingOptions = []
-        let window = NSWindow(contentViewController: controller)
-        window.title = "Meetings"
+        controller.sceneBridgingOptions = [.toolbars]
+        let window: NSWindow
+        if #available(macOS 26.0, *) {
+            window = SmallCornerWindow(contentViewController: controller)
+        } else {
+            window = NSWindow(contentViewController: controller)
+        }
+        window.title = title
         window.styleMask = [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView]
-        window.titlebarAppearsTransparent = true
         window.titleVisibility = .hidden
-        // An empty compact toolbar makes the title bar 40 points tall with the
-        // window buttons centred in it, so the 24 point controls drawn there
-        // get the same room above as below.
-        window.toolbar = NSToolbar(identifier: autosaveName)
-        window.toolbarStyle = .unifiedCompact
-        window.setContentSize(NSSize(width: 1_120, height: 720))
+        if #available(macOS 26.0, *) {
+            // Otherwise the toolbar strip keeps the titlebar's grey over the
+            // detail pane, a band across the top that the pane's background
+            // does not reach. macOS 26 blurs content scrolled under the
+            // toolbar itself; earlier versions need the titlebar to do it.
+            window.titlebarAppearsTransparent = true
+        }
+        window.toolbarStyle = .unified
+        window.setContentSize(size)
         window.isReleasedWhenClosed = false
         window.center()
-        window.setFrameAutosaveName(autosaveName)
+        if let autosaveName { window.setFrameAutosaveName(autosaveName) }
         return window
     }
 
@@ -806,7 +852,7 @@ public final class PermissionNoticeModel {
         if kind.isGrantedByPrompt, status(for: kind).state == .notDetermined {
             return "Allow \(kind.title)"
         }
-        return "Open System Settings"
+        return "Open System Settings…"
     }
 }
 
@@ -835,10 +881,6 @@ struct PermissionNoticeView: View {
                     Text(notice.title).font(.headline)
                     Text(notice.body).font(.callout).foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
-                    if notice.recordingContinues {
-                        Text("Recording continues while this is open.")
-                            .font(.caption).foregroundStyle(.tertiary)
-                    }
                 }
             }
             if let kind = notice.single, kind.acceptsDroppedApplication {
@@ -890,12 +932,9 @@ struct ProvisionalPromptView: View {
         VStack(alignment: .leading, spacing: 14) {
             Text("Pipit is recording \(prompt.applicationName)")
                 .font(.headline)
-            Text(
-                "It took the microphone and is playing audio, which usually means a "
-                    + "call. Recording continues while you decide."
-            )
-            .font(.callout)
-            .foregroundStyle(.secondary)
+            Text("Looks like a call.")
+                .font(.callout)
+                .foregroundStyle(.secondary)
             if let title = prompt.title {
                 Text(title).font(.callout)
             }
@@ -911,4 +950,19 @@ struct ProvisionalPromptView: View {
         .padding(20)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
     }
+}
+
+/// A window with the corner macOS 26 gives a window without a toolbar.
+///
+/// macOS 26 rounds a window with a toolbar much more than one without, so the
+/// split-view windows looked rounder than the other windows beside them.
+/// AppKit reads the radius from the private `_cornerRadius`; a release that
+/// stops reading it draws the system's corner, and nothing else changes.
+@available(macOS 26.0, *)
+final class SmallCornerWindow: NSWindow {
+    /// The radius macOS 26 draws on a window without a toolbar, matched by
+    /// measuring the two side by side.
+    static let cornerRadius: CGFloat = 16
+
+    @objc(_cornerRadius) private var smallCornerRadius: CGFloat { Self.cornerRadius }
 }

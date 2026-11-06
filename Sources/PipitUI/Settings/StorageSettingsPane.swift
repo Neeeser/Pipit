@@ -15,16 +15,16 @@ struct StorageSettingsPane: View {
                     .font(.callout).textSelection(.enabled)
                 HStack {
                     Button("Choose Folder…") { model.chooseStorage() }
-                    Button("Reveal in Finder") {
+                    Button("Show in Finder") {
                         NSWorkspace.shared.open(runtime.settings.storageRoot)
                     }
                 }
             }
-            Section("Meetings on disk") {
+            Section("Disk space") {
                 if let usage = model.archiveUsage {
                     Text(Self.summary(usage))
                     if let free = usage.freeBytes {
-                        Text("\(Self.size(free)) free on this Mac")
+                        Text("\(Self.size(free)) free")
                             .font(.caption).foregroundStyle(.secondary)
                     }
                 } else {
@@ -41,22 +41,17 @@ struct StorageSettingsPane: View {
                     LabeledContent("People") {
                         Text("\(statistics.namedPeople) named, \(statistics.recurringVoices) unnamed")
                     }
-                    LabeledContent("Embeddings") { Text("\(statistics.embeddings)") }
-                    LabeledContent("Database") {
+                    LabeledContent("Size") {
                         Text("\(max(1, statistics.storageBytes / 1_024)) KB")
                     }
-                    Text("Stored on this Mac.")
-                        .font(.caption).foregroundStyle(.secondary)
                 }
             }
             Section("Speech models") {
-                LabeledContent("Installed") { Text(Self.size(model.installedModelBytes)) }
+                LabeledContent("Size") { Text(Self.size(model.installedModelBytes)) }
                 if let path = runtime.models?.locations.root.path {
                     Text(path)
                         .font(.caption).foregroundStyle(.secondary).textSelection(.enabled)
                 }
-                Text("Chosen and downloaded on the Processing page.")
-                    .font(.caption).foregroundStyle(.secondary)
             }
         }
         .formStyle(.grouped)

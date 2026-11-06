@@ -24,7 +24,7 @@ struct UpdateWindowView: View {
             case .installed, .upToDate:
                 steps
             case .failed:
-                Text(model.errorText ?? "The update could not be installed.")
+                Text(model.errorText ?? "Could not install the update.")
                     .font(.callout)
                     .fixedSize(horizontal: false, vertical: true)
             case .idle:
@@ -58,7 +58,7 @@ struct UpdateWindowView: View {
         case .installing: "Installing Pipit \(model.offer?.version ?? "")"
         case .installed: "Pipit \(model.runningVersion) is installed"
         case .upToDate: "Pipit is up to date"
-        case .failed: "The update did not finish"
+        case .failed: "Update failed"
         case .idle: ""
         }
     }
@@ -66,14 +66,12 @@ struct UpdateWindowView: View {
     private var subtitle: String {
         switch model.phase {
         case .found, .downloading, .extracting, .readyToInstall, .installing:
-            model.addOnStepPending
-                ? "You have \(model.runningVersion). Two parts update together."
-                : "You have \(model.runningVersion)."
-        case .installed: "One more step. Update the Firefox add-on."
+            "You have \(model.runningVersion)"
+        case .installed: "Update the Firefox add-on"
         case .upToDate:
             model.addOnStepPending
-                ? "Pipit \(model.runningVersion) is the newest version. The Firefox add-on is behind it."
-                : "Pipit \(model.runningVersion) is the newest version."
+                ? "Version \(model.runningVersion). The Firefox add-on needs updating."
+                : "Version \(model.runningVersion)"
         case .checking, .failed, .idle: "Version \(model.runningVersion)"
         }
     }
@@ -117,13 +115,13 @@ struct UpdateWindowView: View {
         if model.phase == .installed { return "\(model.runningVersion) installed" }
         let version = model.offer?.version ?? ""
         let size = model.offer.map { Self.bytes($0.contentLength) } ?? ""
-        return "\(model.runningVersion) to \(version), \(size). Pipit restarts."
+        return "\(model.runningVersion) to \(version), \(size)"
     }
 
     private var addOnStepDetail: String {
         switch model.phase {
-        case .installed, .upToDate: "Update the add-on."
-        default: "Updated after the restart. Firefox asks you to confirm."
+        case .installed, .upToDate: "Needs updating"
+        default: "Updates after restart"
         }
     }
 
@@ -160,7 +158,7 @@ struct UpdateWindowView: View {
             Text("What changed").font(.caption.weight(.semibold)).foregroundStyle(.secondary)
             if let notes = model.notes {
                 if notes.isEmpty {
-                    Text("No notes for this release.").font(.callout).foregroundStyle(.secondary)
+                    Text("No notes").font(.callout).foregroundStyle(.secondary)
                 } else {
                     ScrollView {
                         VStack(alignment: .leading, spacing: 8) {
@@ -185,7 +183,7 @@ struct UpdateWindowView: View {
                     .frame(height: min(max(notesHeight, 20), 220))
                 }
             } else if model.notesUnavailable {
-                Text("The notes could not be loaded. They are on the release page.")
+                Text("Could not load notes")
                     .font(.callout).foregroundStyle(.secondary)
             } else {
                 ProgressView().controlSize(.small)
@@ -203,7 +201,7 @@ struct UpdateWindowView: View {
         switch model.phase {
         case .downloading: "Downloading…"
         case .extracting: "Unpacking…"
-        case .installing: "Installing… Pipit restarts in a moment."
+        case .installing: "Installing…"
         default: nil
         }
     }
@@ -250,10 +248,6 @@ struct UpdateWindowView: View {
                     .buttonStyle(.borderedProminent)
                     .keyboardShortcut(.defaultAction)
             case .installed, .upToDate:
-                if model.addOnStepPending {
-                    Text("This closes on its own once the add-on reconnects.")
-                        .font(.caption).foregroundStyle(.tertiary)
-                }
                 Spacer()
                 Button(model.addOnStepPending ? "Later" : "OK") { model.acknowledge() }
                     .keyboardShortcut(model.addOnStepPending ? .cancelAction : .defaultAction)

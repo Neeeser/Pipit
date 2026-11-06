@@ -529,6 +529,10 @@ public final class MeetingReviewModel {
     public var isRedoingMicrophone = false
     public var isTrimming = false
     public var trimMessage: String?
+    /// The stretch to keep while the player bar is in trim mode; nil otherwise.
+    /// Held here rather than in the bar so the window's key monitor can move
+    /// an edge with I and O while the sidebar's search field has focus.
+    public var trimDraft: ClosedRange<Double>?
     /// Why the last attempt to redo the microphone did not start.
     public var microphoneRedoMessage: String?
     /// Corrections and splits on the user's own lines, across every recording

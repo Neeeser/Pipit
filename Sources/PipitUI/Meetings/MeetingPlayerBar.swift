@@ -1,44 +1,35 @@
 import PipitCore
 import SwiftUI
 
-/// The meeting's recording, docked at the bottom of the pane.
+/// The meeting's recording, in a card at the bottom of the pane.
 ///
 /// Outside the tabs, so it stays put while the summary or the notes are read
-/// against what is playing. Closed, one lane between the controls holds every
-/// speaker in their own colour. The Lanes button opens a lane per speaker
-/// above the controls, across the whole bar, with a time ruler over them and
-/// each speaker's talk time at the end. The open lanes are then the thing to
-/// click or drag, so the single lane goes, and the lanes get the width it and
-/// the controls beside it held.
+/// against what is playing. One strip between the controls holds every
+/// speaker's turns in their own colour. The Lanes button opens a lane per
+/// speaker above the controls, across the whole bar, with a time ruler over
+/// them and each speaker's talk time at the end. The open lanes are then the
+/// thing to click or drag, so the single strip goes, and the lanes get the
+/// width it and the controls beside it held.
 struct MeetingPlayerBar: View {
     let detail: MeetingReviewModel
-    /// Whether the pane is tall enough for the lanes to start open.
-    let roomy: Bool
 
-    /// The person's own choice, kept across meetings and launches. Empty
-    /// until they press Lanes, and then the pane's height decides.
+    /// The person's choice, kept across meetings and launches. The lanes stay
+    /// closed until they open them.
     @AppStorage("MeetingPlayerLanes") private var lanesChoice = ""
+
+    /// The height of the closed card. The sidebar's footer matches it, so the
+    /// two meet in one line across the window.
+    static let cardHeight: CGFloat = 48
     @State private var hover: CGFloat?
     @State private var lanesHover: CGFloat?
-    /// The kept stretch while the bar is in trim mode; nil otherwise.
-    @State private var trim: ClosedRange<Double>?
     @State private var confirmingTrim = false
 
-    init(detail: MeetingReviewModel, roomy: Bool, trim: ClosedRange<Double>? = nil) {
-        self.detail = detail
-        self.roomy = roomy
-        _trim = State(initialValue: trim)
-    }
+    /// The kept stretch while the bar is in trim mode; nil otherwise.
+    private var trim: ClosedRange<Double>? { detail.trimDraft }
 
     private var playback: MeetingPlaybackModel { detail.playback }
 
-    private var lanesShown: Bool {
-        switch lanesChoice {
-        case "open": true
-        case "closed": false
-        default: roomy
-        }
-    }
+    private var lanesShown: Bool { lanesChoice == "open" }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -62,11 +53,14 @@ struct MeetingPlayerBar: View {
                     )
                     .overlay {
                         TrimBracket(
-                            start: Binding(get: { trim.lowerBound }, set: { self.trim = $0...trim.upperBound }),
-                            end: Binding(get: { trim.upperBound }, set: { self.trim = trim.lowerBound...$0 }),
+                            start: Binding(
+                                get: { trim.lowerBound }, set: { detail.moveTrimEdge(.start, to: $0) }),
+                            end: Binding(get: { trim.upperBound }, set: { detail.moveTrimEdge(.end, to: $0) }),
                             duration: playback.timeline.duration,
                             startLimits: limits.start, endLimits: limits.end,
-                            scrub: { playback.seek(to: $0) }
+                            playhead: playback.position,
+                            scrub: { playback.seek(to: $0) },
+                            timecode: timecode
                         )
                     }
                 } else if lanesShown {
@@ -84,24 +78,22 @@ struct MeetingPlayerBar: View {
                     playerControls
                 }
             }
-            .frame(height: 46)
+            .frame(height: Self.cardHeight)
         }
         .controlSize(.small)
         .padding(.horizontal, 16)
-        .background(Color.primary.opacity(0.025))
+        .playerCard()
         .alert(trimQuestion, isPresented: $confirmingTrim) {
             Button("Trim", role: .destructive) {
                 if let trim { detail.trim(keepFrom: trim.lowerBound, to: trim.upperBound) }
-                trim = nil
+                detail.cancelTrimming()
             }
             Button("Cancel", role: .cancel) {}
         } message: {
-            Text(
-                "The audio and transcript outside this range are deleted. "
-                    + "Your notes are kept. You can't undo this.")
+            Text("Deletes the audio and transcript outside this range. You can't undo this.")
         }
         .onChange(of: detail.canTrim) { _, canTrim in
-            if !canTrim { trim = nil }
+            if !canTrim { detail.cancelTrimming() }
         }
     }
 
@@ -116,23 +108,22 @@ struct MeetingPlayerBar: View {
             Button {
                 playback.follows.toggle()
             } label: {
-                Label("Follow", systemImage: "text.line.first.and.arrowtriangle.forward")
+                icon("text.alignleft")
             }
-            .buttonStyle(PillButtonStyle(prominent: playback.follows))
+            // Blue while on, the way a toolbar toggle shows its state.
+            .buttonStyle(PillButtonStyle(tint: playback.follows ? .accentColor : nil))
+            .accessibilityLabel("Follow")
             .accessibilityAddTraits(playback.follows ? .isSelected : [])
             .help("Keep the transcript on what is playing")
 
-            // A button rather than a toggle, with an arrow that says
-            // which way the lanes will move.
             Button {
                 lanesChoice = lanesShown ? "closed" : "open"
             } label: {
-                HStack(spacing: 4) {
-                    Text("Lanes")
-                    Image(systemName: lanesShown ? "chevron.down" : "chevron.up")
-                        .font(.system(size: 8, weight: .bold))
-                }
+                icon("person.2.wave.2")
             }
+            .buttonStyle(PillButtonStyle(tint: lanesShown ? .accentColor : nil))
+            .accessibilityLabel("Lanes")
+            .accessibilityAddTraits(lanesShown ? .isSelected : [])
             .help(lanesShown ? "Hide the lane for each speaker" : "Show a lane for each speaker")
 
             if detail.isTrimming {
@@ -143,10 +134,11 @@ struct MeetingPlayerBar: View {
                 .foregroundStyle(.secondary)
             } else if detail.canTrim {
                 Button {
-                    startTrimming()
+                    detail.beginTrimming()
                 } label: {
-                    Label("Trim", systemImage: "scissors")
+                    icon("scissors")
                 }
+                .accessibilityLabel("Trim")
                 .help("Remove the start or end of this meeting")
             }
         }
@@ -163,16 +155,12 @@ struct MeetingPlayerBar: View {
         }
     }
 
+    /// Only Cancel and Trim. The handles set the range: dragged, snapped to
+    /// the playhead, or moved there with I and O, and the time of a handle
+    /// shows above it while it moves.
     private func trimControls(_ range: ClosedRange<Double>) -> some View {
         HStack(spacing: Self.spacing) {
-            Text("Keep \(timecode(range.lowerBound))–\(timecode(range.upperBound))")
-                .monospacedDigit()
-                .foregroundStyle(.secondary)
-            Button("Start here") { moveTrim(start: playback.position) }
-                .help("Keep from where playback is")
-            Button("End here") { moveTrim(end: playback.position) }
-                .help("Keep up to where playback is")
-            Button("Cancel") { trim = nil }
+            Button("Cancel") { detail.cancelTrimming() }
                 .keyboardShortcut(.cancelAction)
             Button("Trim…") { confirmingTrim = true }
                 .buttonStyle(PillButtonStyle(prominent: true))
@@ -182,33 +170,16 @@ struct MeetingPlayerBar: View {
         .fixedSize()
     }
 
+    /// An icon-only pill. The name goes to the tooltip and VoiceOver.
+    private func icon(_ symbol: String) -> some View {
+        Image(systemName: symbol)
+            .font(.system(size: 12))
+            .frame(minWidth: 14)
+    }
+
     private var trimQuestion: String {
         guard let trim else { return "Trim this meeting?" }
         return "Trim this meeting to \(timecode(trim.lowerBound))–\(timecode(trim.upperBound))?"
-    }
-
-    private func startTrimming() {
-        guard let limits = detail.trimLimits else { return }
-        detail.trimMessage = nil
-        playback.pause()
-        trim = limits.start.lowerBound...limits.end.upperBound
-    }
-
-    /// Moves one end of the kept stretch, never past the other end or out of
-    /// the part that end belongs to.
-    private func moveTrim(start: Double? = nil, end: Double? = nil) {
-        guard let trim, let limits = detail.trimLimits else { return }
-        let shortest = MeetingTrim.shortestKept
-        var lower = trim.lowerBound
-        var upper = trim.upperBound
-        if let start {
-            lower = min(max(start, limits.start.lowerBound), min(limits.start.upperBound, upper - shortest))
-        }
-        if let end {
-            upper = max(min(end, limits.end.upperBound), max(limits.end.lowerBound, lower + shortest))
-        }
-        guard upper > lower else { return }
-        self.trim = lower...upper
     }
 
     private func removesSomething(_ range: ClosedRange<Double>) -> Bool {
@@ -291,8 +262,8 @@ struct MeetingPlayerPlaceholder: View {
             Text("Preparing audio…").font(.caption).foregroundStyle(.secondary)
         }
         .padding(.horizontal, 20)
-        .padding(.vertical, 10)
-        .background(Color.primary.opacity(0.025))
+        .frame(height: MeetingPlayerBar.cardHeight)
+        .playerCard()
     }
 }
 
@@ -604,5 +575,18 @@ struct LaneRuler: View {
         let steps: [Double] = [30, 60, 120, 300, 600, 900, 1_800, 3_600, 7_200]
         let fits = steps.first { CGFloat($0 / duration) * width >= minimumSpacing }
         return fits ?? steps[steps.count - 1]
+    }
+}
+
+extension View {
+    /// A rounded card floating over the page like the sidebar and the summary
+    /// panel, with the same gap to the window's edges. A bar docked edge to
+    /// edge met the side of the floating sidebar in a straight cut, with its
+    /// top line at a different height from the sidebar's footer line.
+    fileprivate func playerCard() -> some View {
+        let shape = RoundedRectangle(cornerRadius: 14, style: .continuous)
+        return background(Color.primary.opacity(0.025), in: shape)
+            .overlay(shape.stroke(.separator))
+            .padding([.horizontal, .bottom], 8)
     }
 }

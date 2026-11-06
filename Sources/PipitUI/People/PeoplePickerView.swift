@@ -55,7 +55,7 @@ public struct PeoplePickerView: View {
             search
             Divider()
             if sections.isEmpty {
-                Text(people.isEmpty ? "Nobody yet." : "No match.")
+                Text(people.isEmpty ? "No people" : "No matches")
                     .font(.callout)
                     .foregroundStyle(.secondary)
                     .padding(.horizontal, 12)
@@ -182,7 +182,7 @@ public struct PeoplePickerView: View {
             } label: {
                 Label(
                     trimmedQuery.isEmpty
-                        ? "Type a name to add someone" : "New person “\(trimmedQuery)”",
+                        ? "Type a name to add" : "New person “\(trimmedQuery)”",
                     systemImage: "plus"
                 )
                 .font(.callout)

@@ -150,9 +150,9 @@ struct PermissionRow: View {
                 // Requesting first is what adds Pipit to the list in System
                 // Settings. Without it the pane opens on a list the app is not in
                 // and there is nothing to switch on.
-                Button("Enable in System Settings") { Task { await onRequest() } }
+                Button("Enable in System Settings…") { Task { await onRequest() } }
             } else {
-                Button("Open System Settings") { onOpenSettings() }
+                Button("Open System Settings…") { onOpenSettings() }
             }
         }
     }
@@ -210,5 +210,77 @@ struct PillButtonStyle: ButtonStyle {
     private var fill: Color {
         if prominent { return .accentColor }
         return tint?.opacity(0.18) ?? Color.primary.opacity(0.1)
+    }
+}
+
+extension View {
+    /// The search field at the top of a sidebar, as the Meetings and People
+    /// windows draw it: a magnifying glass and the field on a faint rounded
+    /// fill, with no border.
+    func sidebarSearchField() -> some View {
+        padding(.horizontal, 8)
+            .frame(height: 28)
+            .background(RoundedRectangle(cornerRadius: 8, style: .continuous).fill(Color.primary.opacity(0.06)))
+    }
+}
+
+extension View {
+    /// The window's name in bold at the leading end of the toolbar, where
+    /// System Settings shows the name of its pane.
+    ///
+    /// Also what gives a split-view window its look: with no item in the
+    /// detail's toolbar, the window buttons sit on a strip above the sidebar
+    /// and a line runs under the toolbar.
+    func toolbarTitle(_ title: String) -> some View {
+        toolbar {
+            if #available(macOS 26.0, *) {
+                ToolbarItem(placement: .navigation) { ToolbarTitleText(title: title) }
+                    .sharedBackgroundVisibility(.hidden)
+            } else {
+                ToolbarItem(placement: .navigation) { ToolbarTitleText(title: title) }
+            }
+        }
+    }
+
+    /// The plain page colour behind a split-view window's detail pane, white
+    /// or near black, up under the toolbar. The window's own colour takes a
+    /// tint from the desktop picture, and grouped forms fill themselves with
+    /// it, so without this the pane beside a meeting's transcript and the
+    /// panes of the other windows each came out a different grey.
+    func detailBackground() -> some View {
+        scrollContentBackground(.hidden)
+            .background(Color(nsColor: .textBackgroundColor))
+    }
+
+    /// A solid grey behind a split-view window's sidebar. The system sidebar
+    /// is see-through glass while its window is in front and turns opaque
+    /// only once the window falls behind, so the same window changed colour
+    /// whenever it was focused.
+    func sidebarBackground() -> some View {
+        scrollContentBackground(.hidden)
+            .background(Color.panel)
+    }
+}
+
+extension Color {
+    /// The fill of the panels that float over the page: the sidebar and the
+    /// summary beside the transcript.
+    static let panel = Color(
+        nsColor: NSColor(name: "PipitPanel") { appearance in
+            appearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
+                ? NSColor(srgbRed: 44 / 255, green: 44 / 255, blue: 46 / 255, alpha: 1)
+                : NSColor(srgbRed: 242 / 255, green: 242 / 255, blue: 245 / 255, alpha: 1)
+        }
+    )
+}
+
+private struct ToolbarTitleText: View {
+    let title: String
+
+    var body: some View {
+        Text(title)
+            .font(.system(size: 15, weight: .bold))
+            .fixedSize()
+            .padding(.leading, 4)
     }
 }

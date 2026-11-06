@@ -730,17 +730,9 @@ public final class MeetingsWindowModel {
         }
 
         public var message: String {
-            if folderCount == 1 {
-                return "The folder \(folders.first ?? "") and everything in it, the audio "
-                    + "included, is moved to the Trash rather than deleted."
-            }
-            if targets.count == 1 {
-                return "This call was recorded in \(folderCount) folders. All of them and "
-                    + "everything in them, the audio included, are moved to the Trash rather "
-                    + "than deleted."
-            }
-            return "\(folderCount) meeting folders and everything in them, the audio included, "
-                + "are moved to the Trash rather than deleted."
+            if folderCount == 1 { return "Moves the meeting's folder and its audio to the Trash." }
+            if targets.count == 1 { return "Moves the meeting's \(folderCount) folders and their audio to the Trash." }
+            return "Moves \(folderCount) meeting folders and their audio to the Trash."
         }
     }
 

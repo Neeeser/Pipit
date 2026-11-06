@@ -10,11 +10,7 @@ struct GeneralSettingsPane: View {
             Section {
                 Toggle("Launch at login", isOn: model.binding(\.launchAtLogin))
                 Toggle("Show notifications", isOn: model.binding(\.showNotifications))
-                VStack(alignment: .leading, spacing: 2) {
-                    Toggle("Show in Dock", isOn: model.binding(\.showsDockIcon))
-                    Text("Off keeps Pipit in the menu bar only.")
-                        .font(.caption).foregroundStyle(.secondary)
-                }
+                Toggle("Show in Dock", isOn: model.binding(\.showsDockIcon))
                 Toggle(
                     "Pause automatic detection",
                     isOn: Binding(
@@ -23,13 +19,14 @@ struct GeneralSettingsPane: View {
                     )
                 )
             }
+            // The button on the right of the row it belongs to, the way System
+            // Settings lays out an action beside what it acts on.
             Section("Updates") {
-                Button("Check for Updates…") { model.checkForUpdates() }
-                    .disabled(!model.canCheckForUpdates)
-                Toggle("Beta updates", isOn: model.binding(\.receivesBetaUpdates))
-                if let version = AboutInfo.current.versionLine {
-                    Text(version).font(.caption).foregroundStyle(.secondary)
+                LabeledContent(AboutInfo.current.versionLine ?? "Pipit") {
+                    Button("Check for Updates…") { model.checkForUpdates() }
+                        .disabled(!model.canCheckForUpdates)
                 }
+                Toggle("Beta updates", isOn: model.binding(\.receivesBetaUpdates))
             }
             // Nothing here says who you are. Naming yourself is a rename and
             // saying an existing row is you is a merge, and People owns both.
@@ -38,7 +35,9 @@ struct GeneralSettingsPane: View {
             // the answer. It is labelled deterministically whatever the row
             // ends up called.
             Section("People") {
-                Button("Manage people…") { model.openPeople() }
+                LabeledContent("Names and voices") {
+                    Button("Manage People…") { model.openPeople() }
+                }
             }
         }
         .formStyle(.grouped)

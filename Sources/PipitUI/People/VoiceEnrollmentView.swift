@@ -84,7 +84,7 @@ public final class VoiceEnrollmentModel {
             return
         }
         guard let url = await runtime.newEnrollmentRecording() else {
-            phase = .failed("There is nowhere to write the recording.")
+            phase = .failed("Could not save the recording.")
             return
         }
         // A reading that already finished or failed starts from zero. One that
@@ -129,7 +129,7 @@ public final class VoiceEnrollmentModel {
         }
         phase = .working
         guard let reading = await joinedReading() else {
-            phase = .failed("The takes could not be put together.")
+            phase = .failed("Could not save the recording.")
             return
         }
         do {
@@ -196,9 +196,9 @@ public final class VoiceEnrollmentModel {
     static func message(for error: SpokenEnrollmentError) -> String {
         switch error {
         case .modelsUnavailable:
-            "The speech models are not installed yet, so the recording cannot be read."
+            "Speech models are not installed yet."
         case .noSingleVoice:
-            "Pipit heard either no speech or more than one voice. Record again somewhere quiet."
+            "Heard no speech or more than one voice. Record again somewhere quiet."
         case .noLocalUser:
             "Choose which person in People is you first."
         case .rejected(.tooLittleSpeech(let seconds, let required)):
@@ -235,14 +235,10 @@ public struct VoiceEnrollmentView: View {
     private var header: some View {
         VStack(alignment: .leading, spacing: 4) {
             Text("Learn my voice").font(.title3)
-            Text(
-                "Read these out loud at your normal pace. The recording becomes a voice "
-                    + "profile, which is how Pipit recognises you on a recording with no "
-                    + "microphone track of its own: an in-person meeting, or an imported file."
-            )
-            .font(.callout)
-            .foregroundStyle(.secondary)
-            .fixedSize(horizontal: false, vertical: true)
+            Text("Read these out loud at your normal pace.")
+                .font(.callout)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
         }
     }
 
@@ -279,13 +275,6 @@ public struct VoiceEnrollmentView: View {
                                 .fixedSize(horizontal: false, vertical: true)
                         }
                     }
-                    Text(
-                        "Talking is not reading, and the profile is matched against meetings, "
-                            + "where you talk."
-                    )
-                    .font(.caption)
-                    .foregroundStyle(.tertiary)
-                    .padding(.leading, 26)
                 }
             }
             .padding(12)
@@ -297,30 +286,26 @@ public struct VoiceEnrollmentView: View {
     @ViewBuilder private var state: some View {
         switch model.phase {
         case .idle:
-            Text("Recording starts when you press Start.")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                .frame(height: 44, alignment: .topLeading)
+            Color.clear.frame(height: 44)
         case .reading:
             meter(
                 caption: model.hasEnough
-                    ? "That is enough. Press Done, or keep going to make it stronger."
-                    : "Keep reading. Pauses do not count towards the bar."
+                    ? "Enough. Press Done, or keep reading."
+                    : "Keep reading"
             )
         case .working:
             HStack(spacing: 8) {
                 ProgressView().controlSize(.small)
-                Text("Reading the recording…").font(.callout).foregroundStyle(.secondary)
+                Text("Processing…").font(.callout).foregroundStyle(.secondary)
             }
             .frame(height: 44, alignment: .topLeading)
         case .short(let remaining):
             meter(
-                caption: "About \(Int(remaining)) more seconds of speech. "
-                    + "Press Keep reading and carry on where you left off."
+                caption: "About \(Int(remaining)) more seconds of speech needed"
             )
-        case .finished(let status):
+        case .finished:
             Label(
-                "Your voice profile holds \(status.summary.lowercased()).",
+                "Voice saved",
                 systemImage: "checkmark.circle.fill"
             )
             .foregroundStyle(.green)
@@ -363,7 +348,7 @@ public struct VoiceEnrollmentView: View {
             Spacer()
             switch model.phase {
             case .idle, .failed:
-                Button("Start reading") { Task { await model.start() } }
+                Button("Start Reading") { Task { await model.start() } }
                     .keyboardShortcut(.defaultAction)
             case .reading:
                 Button("Done") { Task { await model.finish() } }
@@ -371,10 +356,10 @@ public struct VoiceEnrollmentView: View {
             case .working:
                 Button("Done") {}.disabled(true)
             case .short:
-                Button("Keep reading") { Task { await model.start() } }
+                Button("Keep Reading") { Task { await model.start() } }
                     .keyboardShortcut(.defaultAction)
             case .finished:
-                Button("Read again") { Task { await model.start() } }
+                Button("Read Again") { Task { await model.start() } }
             }
         }
     }

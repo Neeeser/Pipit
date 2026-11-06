@@ -9,17 +9,32 @@ import SwiftUI
 /// changing who said what is one click away from any line rather than a scroll
 /// back to a card at the top.
 ///
-/// Laid out for a window a quarter of the screen in size: the tabs share the
-/// title bar line, the header is two lines, and the recording is docked at the
-/// bottom, so the transcript gets most of the height.
+/// Laid out for a window a quarter of the screen in size: the tabs sit in the
+/// toolbar, and the recording is docked at the bottom, so the transcript gets
+/// most of the height. The title, speakers and words share one reading column
+/// centred in the pane. Where the pane is wide enough for the column and the
+/// summary side by side, the summary moves into a panel beside the transcript
+/// and the tabs go.
 public struct MeetingDetailView: View {
     let model: MeetingsWindowModel
     let detail: MeetingReviewModel
     /// Confirms a copy for two seconds, because the clipboard says nothing.
     @State private var copied = false
     @State private var confirmingMicrophoneRedo = false
-    /// Whether the pane is tall enough to open the speaker lanes by default.
-    @State private var roomy = false
+    /// Whether the pane is wide enough for the summary panel.
+    @State private var wide = false
+    /// The person's choice to hide the summary panel, kept across launches.
+    @AppStorage("MeetingSummaryPanelHidden") private var panelHidden = false
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    /// About 75 characters of body text, plus the column's margins.
+    /// Nonisolated because the geometry closure that compares the pane's width
+    /// against them is not on the main actor.
+    nonisolated static let columnWidth: CGFloat = 760
+    nonisolated static let panelWidth: CGFloat = 400
+    private static let columnMargin: CGFloat = 28
+
+    private var showsPanel: Bool { wide && !panelHidden }
 
     public init(model: MeetingsWindowModel, detail: MeetingReviewModel) {
         self.model = model
@@ -28,9 +43,6 @@ public struct MeetingDetailView: View {
 
     public var body: some View {
         VStack(spacing: 0) {
-            titleBar
-            Divider()
-            header
             // The folder can go away under an open pane: a meeting deleted in
             // the Finder, or one folded into another. Everything on screen is
             // then the last read rather than what is on disk, and nothing else
@@ -66,28 +78,41 @@ public struct MeetingDetailView: View {
                 folderSuggestionBar(folder)
                 Divider()
             }
-            speakerStrip
-            if let receipt = model.receipt, receipt.meetingID == detail.meetingID {
-                receiptBar(receipt.text)
+            HStack(alignment: .top, spacing: 0) {
+                VStack(spacing: 0) {
+                    column {
+                        VStack(alignment: .leading, spacing: 0) {
+                            header
+                            speakerStrip
+                        }
+                    }
+                    if let receipt = model.receipt, receipt.meetingID == detail.meetingID {
+                        receiptBar(receipt.text)
+                    }
+                    content
+                }
+                if showsPanel { summaryPanel }
             }
-            Divider()
-            content
-            // Docked at the bottom, outside the tabs, so the recording keeps
+            // At the bottom, outside the tabs, so the recording keeps
             // playing and stays in reach whichever of them is open, without
             // pushing the transcript down.
             if detail.playback.hasAudio {
-                Divider()
-                MeetingPlayerBar(detail: detail, roomy: roomy)
+                MeetingPlayerBar(detail: detail)
             } else if isPreparingAudio {
-                Divider()
                 MeetingPlayerPlaceholder()
             }
         }
-        .background(Color(nsColor: .textBackgroundColor))
+        .detailBackground()
+        .toolbar { toolbarContent }
         .onGeometryChange(for: Bool.self) {
-            $0.size.height >= 760
+            $0.size.width >= Self.columnWidth + Self.panelWidth + 16
         } action: {
-            roomy = $0
+            wide = $0
+        }
+        // The transcript is what fills the pane beside the panel, so Command-F
+        // and the rest of the transcript's keys act on it.
+        .onChange(of: showsPanel, initial: true) { _, shown in
+            if shown { model.tab = .transcript }
         }
         .onDisappear { detail.playback.pause() }
         .confirmationDialog(
@@ -119,23 +144,31 @@ public struct MeetingDetailView: View {
         }
     }
 
-    // MARK: - title bar
+    // MARK: - toolbar
 
-    /// The tabs and the meeting's commands, on the line the window buttons
-    /// use.
-    private var titleBar: some View {
-        MeetingsTitleBar {
-            Spacer(minLength: 0)
-            Picker("", selection: Binding(get: { model.tab }, set: { model.tab = $0 })) {
-                ForEach(MeetingDetailTab.allCases) { Text($0.label).tag($0) }
+    /// The tabs in the middle and the meeting's commands at the trailing end.
+    /// With the summary panel open there is nothing to switch between, so the
+    /// tabs go and a button shows or hides the panel.
+    @ToolbarContentBuilder private var toolbarContent: some ToolbarContent {
+        if !showsPanel {
+            ToolbarItem(placement: .principal) {
+                Picker("View", selection: Binding(get: { model.tab }, set: { model.tab = $0 })) {
+                    ForEach(MeetingDetailTab.allCases) { Text($0.label).tag($0) }
+                }
+                .pickerStyle(.segmented)
+                .labelsHidden()
+                .fixedSize()
             }
-            .pickerStyle(.segmented)
-            .labelsHidden()
-            .fixedSize()
-            Spacer(minLength: 0)
+        } else if #available(macOS 26.0, *) {
+            // With nothing in the middle the commands would sit at the
+            // leading edge, beside the sidebar.
+            ToolbarSpacer(.flexible)
+        }
+        ToolbarItemGroup(placement: .automatic) {
             revealButton
             copyTranscriptButton
             moreMenu
+            if wide { panelButton }
         }
     }
 
@@ -145,10 +178,43 @@ public struct MeetingDetailView: View {
         Button {
             detail.reveal()
         } label: {
-            Label("Show in Finder", systemImage: "folder").labelStyle(.iconOnly)
+            Label("Show in Finder", systemImage: "folder")
         }
-        .buttonStyle(PillButtonStyle())
-        .help("Show this meeting's folder in Finder")
+        .help("Show in Finder")
+    }
+
+    private var panelButton: some View {
+        Button {
+            // Slid in from the trailing edge as the transcript makes room,
+            // the way a system inspector opens, rather than appearing at once.
+            withAnimation(reduceMotion ? nil : .smooth(duration: 0.3)) { panelHidden.toggle() }
+        } label: {
+            Label(panelHidden ? "Show Summary" : "Hide Summary", systemImage: "sidebar.right")
+        }
+        .help(panelHidden ? "Show Summary" : "Hide Summary")
+    }
+
+    /// The meeting's title, speakers and words, at a width that reads well,
+    /// centred in whatever room the pane has.
+    private func column(@ViewBuilder _ content: () -> some View) -> some View {
+        content()
+            .padding(.horizontal, Self.columnMargin)
+            .frame(maxWidth: Self.columnWidth, alignment: .leading)
+            .frame(maxWidth: .infinity)
+    }
+
+    /// The Summary tab, beside the transcript, in a panel of its own.
+    private var summaryPanel: some View {
+        MeetingSummaryTab(model: model, detail: detail, inPanel: true)
+            .frame(width: Self.panelWidth)
+            .frame(maxHeight: .infinity)
+            // The same solid fill as the sidebar on the other side, so the
+            // two read as a pair around the transcript.
+            .background(Color.panel)
+            .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+            .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).stroke(.separator))
+            .padding([.trailing, .bottom], 8)
+            .transition(.move(edge: .trailing).combined(with: .opacity))
     }
 
     /// The commands used now and then: rebuilding the files, and working the
@@ -156,10 +222,10 @@ public struct MeetingDetailView: View {
     private var moreMenu: some View {
         Menu {
             if detail.transcript != nil {
-                Button("Rebuild transcript") { model.rebuildFocusedMeeting() }
+                Button("Rebuild Transcript") { model.rebuildFocusedMeeting() }
             }
             if detail.transcript != nil, detail.canRedoMicrophone {
-                Button("Remove echo") { requestMicrophoneRedo() }
+                Button("Remove Echo") { requestMicrophoneRedo() }
             }
             if detail.transcript != nil { Divider() }
             // Only where somebody is still unnamed. With nobody to name it has
@@ -171,23 +237,16 @@ public struct MeetingDetailView: View {
             Menu("Re-analyze speakers") { reanalyzeItems }
                 .disabled(detail.isReanalyzing)
         } label: {
-            Label("More actions", systemImage: "ellipsis")
-                .labelStyle(.iconOnly)
+            Label("More", systemImage: "ellipsis")
         }
-        .menuStyle(.button)
-        .buttonStyle(PillButtonStyle())
         .menuIndicator(.hidden)
-        .fixedSize()
         .help("More")
-        .accessibilityLabel("More actions")
     }
 
     // MARK: - header
 
-    /// The title, with the folder, an unfinished state and a suggested title
-    /// on the same line. Where and when the meeting was is in the title's
-    /// help: the sidebar row beside it already prints it, and a line of its
-    /// own under the title was most of what made the top of the pane crowded.
+    /// The title, with an unfinished state and a suggested title on the same
+    /// line, and the folder, the day and the length under it.
     private var header: some View {
         VStack(alignment: .leading, spacing: 0) {
             // A hidden copy of the title sets the field's width, so what
@@ -195,13 +254,12 @@ public struct MeetingDetailView: View {
             // is longer than the room left.
             HStack(spacing: 8) {
                 Text(detail.title.isEmpty ? "Title" : detail.title)
-                    .font(.title2.weight(.semibold))
+                    .font(.title.weight(.bold))
                     .lineLimit(1)
                     .padding(.trailing, 6)
                     .hidden()
                     .overlay(alignment: .leading) { titleField }
                     .help(aboutMeeting)
-                folderMenu
                 // A finished meeting says nothing by being finished.
                 if let state = detail.metadata?.processing.state, state != .complete {
                     StageBadge(state: state)
@@ -211,6 +269,18 @@ public struct MeetingDetailView: View {
                 }
                 Spacer(minLength: 0)
             }
+            HStack(spacing: 8) {
+                folderMenu
+                if let metadata = detail.metadata {
+                    Text(
+                        "\(Format.day(metadata.startedAt)) · \(Format.shortDuration(metadata.durationSeconds))"
+                    )
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+                }
+            }
+            .padding(.top, 6)
 
             if let warnings = detail.metadata?.captureWarnings, !warnings.isEmpty {
                 // What went wrong while this was recorded, kept with the
@@ -231,25 +301,21 @@ public struct MeetingDetailView: View {
                 // The other side came back through the speakers into the
                 // microphone and the pass could not take it all out, so some
                 // of their words may be shown as the user's.
-                Label(
-                    "Sound from the speakers stayed in the microphone.",
-                    systemImage: "speaker.wave.2.fill"
-                )
-                .font(.caption)
-                .foregroundStyle(.orange)
-                .help("Some of the other side's words may appear under your name.")
-                .padding(.top, 4)
+                Label("Echo in your microphone", systemImage: "speaker.wave.2.fill")
+                    .font(.caption)
+                    .foregroundStyle(.orange)
+                    .help("Some of the other side's words may appear under your name.")
+                    .padding(.top, 4)
             }
         }
-        .padding(.horizontal, 20)
-        .padding(.top, 10)
-        .padding(.bottom, 8)
+        .padding(.top, 8)
+        .padding(.bottom, 12)
     }
 
     private var titleField: some View {
         TextField("Title", text: detail.titleBinding())
             .textFieldStyle(.plain)
-            .font(.title2.weight(.semibold))
+            .font(.title.weight(.bold))
             .onSubmit { detail.save() }
     }
 
@@ -275,9 +341,7 @@ public struct MeetingDetailView: View {
             )
         }
         if detail.isSplitRecording {
-            lines.append(
-                "Recorded in \(detail.recordings.count) parts, shown in order."
-            )
+            lines.append("\(detail.recordings.count) parts")
         }
         return lines.joined(separator: "\n")
     }
@@ -315,8 +379,7 @@ public struct MeetingDetailView: View {
     private var missingKeyBar: some View {
         HStack(spacing: 8) {
             Image(systemName: "exclamationmark.circle.fill").foregroundStyle(.orange)
-            Text("No model is set up, so summary, notes and speaker suggestions were skipped")
-                .font(.callout)
+            Text("No summary without a model").font(.callout)
             Spacer(minLength: 8)
             Button("Open Settings") { model.openSettings() }
         }
@@ -358,7 +421,7 @@ public struct MeetingDetailView: View {
         } label: {
             HStack(spacing: 4) {
                 Image(systemName: "folder.fill").font(.system(size: 9))
-                Text(current ?? "Not in a folder")
+                Text(current ?? "No Folder")
                 Image(systemName: "chevron.down").font(.system(size: 7, weight: .bold))
             }
         }
@@ -370,7 +433,7 @@ public struct MeetingDetailView: View {
         .controlSize(.small)
         .menuIndicator(.hidden)
         .fixedSize()
-        .help("Filing a meeting moves its folder on disk. Nothing inside it is rewritten.")
+        .help("Folder")
     }
 
     private func file(in folder: String?) {
@@ -470,15 +533,14 @@ public struct MeetingDetailView: View {
                 SuggestionPills(model: model, detail: detail)
             }
         }
-        .padding(.horizontal, 20)
-        .padding(.bottom, 10)
+        .padding(.bottom, 4)
     }
 
     private var waitingText: String {
         switch detail.metadata?.processing.state {
-        case .some(.complete): "Nobody was identified in this recording."
-        case .some(.failed): "Processing stopped before speakers were worked out."
-        default: "Speakers appear when the transcript lands. The audio is already on disk."
+        case .some(.complete): "No speakers found"
+        case .some(.failed): "No speakers"
+        default: "Transcribing…"
         }
     }
 
@@ -490,12 +552,12 @@ public struct MeetingDetailView: View {
     /// Re-clusters the audio on this Mac. Next to Suggest names in the menu,
     /// which reads the words and sends them away instead.
     @ViewBuilder private var reanalyzeItems: some View {
-        Button("Run with the count Pipit picks") {
+        Button("Automatic") {
             detail.reanalyzeCount = ""
             detail.reanalyzeSpeakers()
         }
         .disabled(!detail.localModelsReady)
-        Menu("Run with a set count") {
+        Menu("Number of Speakers") {
             ForEach(2...8, id: \.self) { count in
                 Button("\(count) speakers") {
                     detail.reanalyzeCount = "\(count)"
@@ -507,10 +569,8 @@ public struct MeetingDetailView: View {
         Divider()
         Text(
             detail.localModelsReady
-                ? "The words are not transcribed again. Names on whole speakers are cleared, "
-                    + "because the clusters they name no longer exist. Corrections to single "
-                    + "lines are kept."
-                : "Runs on this Mac. Download the speech models in Settings to use it."
+                ? "Clears speaker names. Keeps line corrections."
+                : "Download the speech models in Settings first."
         )
     }
 
@@ -530,18 +590,17 @@ public struct MeetingDetailView: View {
                 copied = false
             }
         } label: {
-            Label(copied ? "Copied" : "Copy", systemImage: copied ? "checkmark" : "doc.on.doc")
+            Label(copied ? "Copied" : "Copy Transcript", systemImage: copied ? "checkmark" : "doc.on.doc")
         }
-        .buttonStyle(PillButtonStyle(prominent: true))
         .disabled(detail.transcript == nil)
-        .help("Copy transcript: the whole transcript.md as it stands on disk.")
+        .help("Copy Transcript")
     }
 
     @ViewBuilder private var content: some View {
-        switch model.tab {
-        case .transcript: MeetingTranscriptView(model: model, detail: detail)
-        // Room under the divider the tab row used to provide.
-        case .summary: MeetingSummaryTab(model: model, detail: detail).contentMargins(.top, 14, for: .scrollContent)
+        if model.tab == .summary, !showsPanel {
+            MeetingSummaryTab(model: model, detail: detail).contentMargins(.top, 8, for: .scrollContent)
+        } else {
+            MeetingTranscriptView(model: model, detail: detail)
         }
     }
 }
@@ -611,7 +670,7 @@ struct SuggestionPills: View {
                 Image(systemName: "text.bubble")
                     .font(.caption)
                     .foregroundStyle(Color.accentColor)
-                Text("Heard in the conversation")
+                Text("Suggested names")
                     .font(.caption)
                     .foregroundStyle(.secondary)
                 Spacer(minLength: 8)
@@ -665,7 +724,7 @@ struct SuggestionPills: View {
                         .background(Circle().fill(Color.primary.opacity(0.07)))
                 }
                 .buttonStyle(.plain)
-                .help("Not this. The name is not offered again.")
+                .help("Dismiss")
             }
             .padding(.leading, 2)
         }

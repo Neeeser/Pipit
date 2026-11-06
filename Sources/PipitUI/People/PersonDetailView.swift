@@ -19,7 +19,8 @@ struct PersonDetailView: View {
                 notes
                 actions
             }
-            .padding(18)
+            .padding(.horizontal, 28)
+            .padding(.vertical, 20)
             .frame(maxWidth: .infinity, alignment: .leading)
         }
     }
@@ -35,10 +36,10 @@ struct PersonDetailView: View {
 
             VStack(alignment: .leading, spacing: 6) {
                 TextField(
-                    entry.identity.kind == .anonymous ? "Name this voice" : "Name",
+                    "Name",
                     text: model.text(\.nameDraft)
                 )
-                .font(.title3)
+                .font(.title.weight(.bold))
                 .textFieldStyle(.plain)
                 .onSubmit { Task { await model.commitName() } }
 
@@ -61,21 +62,12 @@ struct PersonDetailView: View {
                     // else's voice can be read into the microphone.
                     if entry.identity.isLocalUser {
                         Button("Learn my voice…") { model.startVoiceEnrollment() }
-                            .help("Read a few sentences so Pipit knows your voice")
                     }
                     if entry.identity.hasAvatar {
-                        Button("Remove picture") { Task { await model.removeAvatar() } }
+                        Button("Remove Picture") { Task { await model.removeAvatar() } }
                     }
                 }
                 .padding(.top, 2)
-                if entry.identity.kind == .anonymous {
-                    Text(
-                        "Every meeting this voice appeared in will show the name. Nothing is "
-                            + "transcribed or analysed again."
-                    )
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                }
             }
         }
     }
@@ -129,12 +121,8 @@ struct PersonDetailView: View {
                             .buttonStyle(.plain)
                             .font(.caption)
                             .foregroundStyle(.secondary)
-                            .help("This account stops naming this person. Their voice and name stay.")
                     }
                 }
-                Text("Meetings name this person from these accounts automatically.")
-                    .font(.caption)
-                    .foregroundStyle(.tertiary)
             }
         }
     }
@@ -160,14 +148,14 @@ struct PersonDetailView: View {
         VStack(alignment: .leading, spacing: 6) {
             Text("Meetings").font(.caption).foregroundStyle(.secondary)
             if model.loadingAppearances {
-                Text("Reading the archive…")
+                Text("Loading…")
                     .font(.caption)
                     .foregroundStyle(.tertiary)
             } else if model.appearances.isEmpty {
                 Text(
                     entry.meetingCount == 0
-                        ? "Not heard in a meeting yet."
-                        : "The recordings this voice was heard in are no longer on disk."
+                        ? "None"
+                        : "Recordings no longer available"
                 )
                 .font(.caption)
                 .foregroundStyle(.secondary)
@@ -204,7 +192,7 @@ struct PersonDetailView: View {
                 .foregroundStyle(
                     model.player.playing == appearance.meetingID ? Color.accentColor : .secondary
                 )
-                .help("Hear this person in this meeting")
+                .help("Play sample")
             }
             Image(systemName: "chevron.right")
                 .font(.caption2)
@@ -215,13 +203,13 @@ struct PersonDetailView: View {
         .contentShape(Rectangle())
         .background(RoundedRectangle(cornerRadius: 6).fill(.quaternary.opacity(0.35)))
         .onTapGesture { model.openMeeting(appearance) }
-        .help("Open this meeting")
+        .help("Open meeting")
     }
 
     private var speechDetail: String? {
         let seconds = entry.profile.speechSeconds
         guard seconds > 0 else { return nil }
-        return "\(Int(seconds / 60)) min of confirmed speech"
+        return "\(Int(seconds / 60)) min of speech"
     }
 
     private func statBox(_ label: String, _ value: String, detail: String?) -> some View {
@@ -239,12 +227,7 @@ struct PersonDetailView: View {
 
     private var notes: some View {
         VStack(alignment: .leading, spacing: 6) {
-            HStack(spacing: 6) {
-                Text("Notes").font(.caption).foregroundStyle(.secondary)
-                Text("written into the transcript of every meeting they are in")
-                    .font(.caption2)
-                    .foregroundStyle(.tertiary)
-            }
+            Text("Notes").font(.caption).foregroundStyle(.secondary)
             TextEditor(
                 text: Binding(
                     get: { model.notesDraft },
@@ -263,7 +246,7 @@ struct PersonDetailView: View {
 
     private var actions: some View {
         HStack(spacing: 8) {
-            Button("Forget learned voice") { model.confirmForgetVoice() }
+            Button("Forget Voice") { model.confirmForgetVoice() }
                 .disabled(entry.profile == .none)
             Button("Delete", role: .destructive) { model.confirmDeleteSelection() }
             Spacer()

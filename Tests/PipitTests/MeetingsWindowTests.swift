@@ -2116,7 +2116,7 @@ struct MeetingsWindowTests {
         }
         #expect(pending.title.contains("Weekly sync"), "got \(pending.title)")
         #expect(
-            pending.message.contains("moved to the Trash rather than deleted"),
+            pending.message.contains("to the Trash"),
             "the warning says where the files go. got \(pending.message)"
         )
         #expect(pending.folderCount == 2)

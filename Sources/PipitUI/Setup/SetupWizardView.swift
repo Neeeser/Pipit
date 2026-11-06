@@ -21,18 +21,27 @@ public struct SetupWizardView: View {
     }
 
     public var body: some View {
-        HStack(spacing: 0) {
+        // The system split view, so the steps sit in the same floating
+        // sidebar as Settings and the Meetings window. The sidebar cannot be
+        // hidden: it is how far through setup the person is.
+        NavigationSplitView {
+            // Wide enough that no step name wraps onto a second line.
             rail
-            Divider()
+                .sidebarBackground()
+                .frame(minWidth: 210)
+                .navigationSplitViewColumnWidth(220)
+                .toolbar(removing: .sidebarToggle)
+        } detail: {
             VStack(alignment: .leading, spacing: 0) {
                 ScrollView {
                     SetupStepContent(model: model)
                         .padding(24)
                         .frame(maxWidth: .infinity, alignment: .leading)
                 }
-                Divider()
                 footer.padding(.horizontal, 24).padding(.vertical, 14)
             }
+            .toolbarTitle("Setup")
+            .detailBackground()
         }
         .frame(minWidth: 720, minHeight: 540)
         .task { await model.begin() }
@@ -43,17 +52,13 @@ public struct SetupWizardView: View {
 
     private var rail: some View {
         VStack(alignment: .leading, spacing: 2) {
-            Text("Setup")
-                .font(.caption).foregroundStyle(.tertiary)
-                .padding(.horizontal, 10).padding(.bottom, 6)
             ForEach(model.steps) { step in
                 railRow(step)
             }
             Spacer()
         }
-        .padding(.vertical, 16)
-        .frame(width: 186, alignment: .leading)
-        .background(.quaternary.opacity(0.25))
+        .padding(.vertical, 8)
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     private func railRow(_ step: SetupStep) -> some View {
@@ -146,7 +151,7 @@ public struct SetupWizardView: View {
         case .optionalPermissions, .aiFeatures, .firefox:
             // Available, deliberately not the accent colour. Skipping is a real
             // choice and connecting is the better one.
-            Button(hasDoneOptionalWork ? "Continue" : "Skip for now") { model.advance() }
+            Button(hasDoneOptionalWork ? "Continue" : "Skip") { model.advance() }
                 .buttonStyle(hasDoneOptionalWork ? AnyButtonStyle(.borderedProminent) : AnyButtonStyle(.link))
                 .keyboardShortcut(.defaultAction)
         }

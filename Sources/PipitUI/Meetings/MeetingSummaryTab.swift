@@ -10,6 +10,9 @@ import SwiftUI
 struct MeetingSummaryTab: View {
     let model: MeetingsWindowModel
     let detail: MeetingReviewModel
+    /// Drawn in the panel beside the transcript: a heading of its own, and
+    /// the transcript's size of type so the narrow panel holds more.
+    var inPanel = false
     @State private var copiedTimeline = false
     @State private var copiedActions = false
 
@@ -20,7 +23,10 @@ struct MeetingSummaryTab: View {
 
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 28) {
+            VStack(alignment: .leading, spacing: inPanel ? 18 : 28) {
+                if inPanel {
+                    Text("Summary").font(.system(size: 15, weight: .bold))
+                }
                 if let suggestion = detail.continuationSuggestion { continuationCard(suggestion) }
                 if detail.summaryIsOutOfDate { outOfDateNotice }
                 if let structure = detail.generatedSummary, !structure.isEmpty {
@@ -29,20 +35,19 @@ struct MeetingSummaryTab: View {
                     legacy
                 }
                 if detail.metadata?.hadOtherAudibleTabs == true {
-                    SectionCard(title: "Another tab was playing audio", subtitle: nil) {
-                        Text(
-                            "A browser tab other than the meeting was audible during this "
-                                + "recording, so the meeting track may hold that audio as well."
-                        )
-                        .font(.callout)
+                    SectionCard(title: "Another tab played audio", subtitle: nil) {
+                        Text("The recording may include it.").font(.callout)
                     }
                 }
                 Spacer(minLength: 0)
             }
-            .padding(.horizontal, 20)
+            .environment(\.summaryInPanel, inPanel)
+            .padding(.horizontal, inPanel ? 20 : 24)
+            .padding(.top, inPanel ? 18 : 0)
             .padding(.bottom, 24)
-            .frame(maxWidth: 860, alignment: .leading)
-            .frame(maxWidth: .infinity, alignment: .leading)
+            // The same centred column as the title and the transcript.
+            .frame(maxWidth: MeetingDetailView.columnWidth, alignment: .leading)
+            .frame(maxWidth: .infinity)
             .summaryWidth()
         }
     }
@@ -50,8 +55,8 @@ struct MeetingSummaryTab: View {
     @ViewBuilder private func structured(_ structure: GeneratedSummary) -> some View {
         if !structure.overview.isEmpty {
             Text(structure.overview)
-                .font(.system(size: 15))
-                .lineSpacing(3)
+                .font(.system(size: inPanel ? 13 : 15))
+                .lineSpacing(inPanel ? 2 : 3)
                 .textSelection(.enabled)
                 .frame(maxWidth: 640, alignment: .leading)
         }
@@ -199,6 +204,7 @@ struct SummaryTimeline: View {
     let topics: [GeneratedSummary.Topic]
     let notes: [MeetingNoteEntry]
     let detail: MeetingReviewModel
+    @Environment(\.summaryInPanel) private var inPanel
 
     /// The notes typed while each topic was being discussed: from the moment
     /// it started until the next one did. A note before the first topic goes
@@ -219,7 +225,7 @@ struct SummaryTimeline: View {
         VStack(alignment: .leading, spacing: 0) {
             ForEach(Array(topics.enumerated()), id: \.offset) { index, topic in
                 TimelineRow(time: topic.at, detail: detail) {
-                    Text(topic.title).font(.system(size: 14, weight: .semibold))
+                    Text(topic.title).font(.system(size: inPanel ? 13 : 14, weight: .semibold))
                 } content: {
                     ForEach(Array(topic.points.enumerated()), id: \.offset) { _, point in
                         HStack(alignment: .firstTextBaseline, spacing: 7) {
@@ -248,35 +254,40 @@ struct SummaryTimeline: View {
     }
 }
 
-/// A timeline entry: its time in a column of its own when the tab is wide, so
-/// the entries read as a timeline, and beside the title when it is not.
+/// A timeline entry: its time in a column of its own, with a line down beside
+/// the entries so they read as a timeline. Only a narrow Summary tab puts the
+/// time beside the title instead. The panel beside the transcript keeps the
+/// column, in less room.
 private struct TimelineRow<Title: View, Content: View>: View {
     let time: Double?
     let detail: MeetingReviewModel
     @ViewBuilder var title: Title
     @ViewBuilder var content: Content
     @Environment(\.summaryIsWide) private var wide
+    @Environment(\.summaryInPanel) private var inPanel
+
+    private var timeColumn: Bool { wide || inPanel }
 
     var body: some View {
-        HStack(alignment: .top, spacing: 16) {
-            if wide {
+        HStack(alignment: .top, spacing: inPanel ? 10 : 16) {
+            if timeColumn {
                 Group {
                     if let time { SummaryTimeChip(seconds: time, detail: detail) } else { Color.clear }
                 }
-                .frame(width: 64, height: 16, alignment: .trailing)
+                .frame(width: inPanel ? 56 : 64, height: 16, alignment: .trailing)
                 .padding(.top, 1)
             }
             VStack(alignment: .leading, spacing: 6) {
                 HStack(alignment: .firstTextBaseline, spacing: 8) {
                     title
-                    if !wide, let time { SummaryTimeChip(seconds: time, detail: detail) }
+                    if !timeColumn, let time { SummaryTimeChip(seconds: time, detail: detail) }
                 }
                 content
             }
             .textSelection(.enabled)
-            .padding(.leading, wide ? 14 : 0)
+            .padding(.leading, timeColumn ? (inPanel ? 12 : 14) : 0)
             .overlay(alignment: .leading) {
-                if wide { Rectangle().fill(.quaternary).frame(width: 1) }
+                if timeColumn { Rectangle().fill(.quaternary).frame(width: 1) }
             }
         }
         .padding(.bottom, 18)

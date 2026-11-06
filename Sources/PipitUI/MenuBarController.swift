@@ -473,7 +473,7 @@ public final class MenuBarController: NSObject, NSMenuDelegate {
         menu.addItem(Self.informationItem("  \(title)"))
         menu.addItem(
             Self.informationItem(
-                "  Paused. Ends in 90 seconds unless the meeting comes back."))
+                "  Paused. Ending in 90 seconds."))
 
         menu.addItem(.separator())
         let stop = NSMenuItem(title: "End Meeting Now", action: #selector(stopRecording), keyEquivalent: "")
@@ -565,10 +565,9 @@ public final class MenuBarController: NSObject, NSMenuDelegate {
 
     @objc private func addNote() {
         let alert = NSAlert()
-        alert.messageText = "Add a note to this meeting"
-        alert.informativeText = "Saved with the meeting."
+        alert.messageText = "Add Note"
         let field = NSTextField(frame: NSRect(x: 0, y: 0, width: 320, height: 24))
-        field.placeholderString = "Decision, action item, or context"
+        field.placeholderString = "Note"
         alert.accessoryView = field
         alert.addButton(withTitle: "Add")
         alert.addButton(withTitle: "Cancel")
@@ -584,7 +583,6 @@ public final class MenuBarController: NSObject, NSMenuDelegate {
         panel.allowsMultipleSelection = false
         panel.canChooseDirectories = false
         panel.allowedContentTypes = [.audio, .movie, .mpeg4Movie, .mp3, .wav, .aiff]
-        panel.message = "Choose a recording to import."
         panel.prompt = "Import"
         NSApp.activate(ignoringOtherApps: true)
         guard panel.runModal() == .OK, let url = panel.url else { return }
@@ -597,8 +595,8 @@ public final class MenuBarController: NSObject, NSMenuDelegate {
                 _ = try await runtime.importRecording(from: url)
             } catch {
                 let alert = NSAlert()
-                alert.messageText = "Pipit could not import that file"
-                alert.informativeText = "\(url.lastPathComponent) could not be decoded."
+                alert.messageText = "Could not import file"
+                alert.informativeText = "\(url.lastPathComponent) is not a supported recording."
                 alert.runModal()
             }
         }
