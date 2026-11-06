@@ -46,6 +46,10 @@ public struct Participant: Codable, Sendable, Equatable, Identifiable {
 public struct TitleCandidates: Codable, Sendable, Equatable {
     public var human: String?
     public var provider: String?
+    /// The provider title was read from the people in the meeting, or guessed
+    /// before anyone was known, so a later reading may replace it. Nil for every
+    /// other origin, and for metadata saved before this existed.
+    public var providerIsProvisional: Bool?
     public var calendar: String?
     /// What an imported recording's file was called, without its extension.
     ///
@@ -70,6 +74,19 @@ public struct TitleCandidates: Codable, Sendable, Equatable {
         self.window = window
         self.ai = ai
         self.timestampFallback = timestampFallback
+    }
+
+    /// Records what the meeting client reports. The first title fills the empty
+    /// slot. After that only a title that itself came from the people in the
+    /// meeting, or a guess, is replaced, and only by a different reading. A title from a
+    /// window or a meeting client, and one a person typed (`human`, a separate
+    /// slot), is left alone.
+    public mutating func applyProvider(title: String?, origin: ProviderTitleOrigin) {
+        guard let title else { return }
+        if provider == nil || (providerIsProvisional == true && provider != title) {
+            provider = title
+            providerIsProvisional = origin == .provider ? nil : true
+        }
     }
 
     /// The order titles are trusted in.

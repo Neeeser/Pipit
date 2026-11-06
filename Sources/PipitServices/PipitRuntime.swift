@@ -309,6 +309,7 @@ public final class PipitRuntime {
         )
         detectionEngine = DetectionEngine(clock: clock, diagnostics: diagnostics, delegate: relay)
         detectionEngine.updateGenericConfiguration(loaded.genericDetectorConfiguration)
+        detectionEngine.updateLocalUserName(loaded.localUserName)
 
         // Release builds read the key from the keychain only. A process
         // environment is readable by any same-user process.
@@ -942,6 +943,7 @@ public final class PipitRuntime {
         // call in progress.
         sessionController.configuration = newSettings.sessionConfiguration
         detectionEngine.updateGenericConfiguration(newSettings.genericDetectorConfiguration)
+        detectionEngine.updateLocalUserName(newSettings.localUserName)
         status.detectionPaused = newSettings.providers.detectionPaused
         // A different model choice changes which units count as installed. On
         // the ordered chain rather than a bare task: two quick changes as
@@ -1779,9 +1781,7 @@ public final class PipitRuntime {
     private func applyEvidence(_ evidence: ProviderEvidence) {
         guard let meeting = currentMeeting else { return }
         let updated = try? meeting.store.updateMetadata { metadata in
-            if let title = evidence.title, metadata.titles.provider == nil {
-                metadata.titles.provider = title
-            }
+            metadata.titles.applyProvider(title: evidence.title, origin: evidence.titleOrigin)
             if let meetingID = evidence.meetingID { metadata.providerMeetingID = meetingID }
             if let url = evidence.url { metadata.meetingURL = url }
             if let tabs = evidence.otherAudibleTabs, tabs > 0 { metadata.hadOtherAudibleTabs = true }

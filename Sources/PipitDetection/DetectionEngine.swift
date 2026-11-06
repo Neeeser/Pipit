@@ -189,6 +189,15 @@ public final class DetectionEngine: @unchecked Sendable {
         lock.unlock()
     }
 
+    /// The name the huddle roster is matched against when Slack marks no tile
+    /// as the local user's.
+    public func updateLocalUserName(_ name: String) {
+        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        lock.lock()
+        slackDetector.localNames = trimmed.isEmpty ? [] : [trimmed]
+        lock.unlock()
+    }
+
     /// Idempotent: a second call replaces the timer rather than orphaning it.
     public func start() {
         stop()
@@ -403,6 +412,7 @@ public final class DetectionEngine: @unchecked Sendable {
                     confidence: slackConfidence,
                     source: .accessibility,
                     title: slackDetector.conversationTitle,
+                    titleOrigin: slackDetector.titleOrigin,
                     muted: slackDetector.isMuted,
                     applicationBundleID: configuration.slackBundleIdentifier,
                     audioBundlePrefixes: configuration.slackAudioPrefixes

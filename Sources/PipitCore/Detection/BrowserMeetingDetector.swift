@@ -20,6 +20,15 @@ public enum EvidenceSource: String, Sendable, Codable {
     case manual
 }
 
+/// Where a provider's title was read from. A title taken from the people in a
+/// meeting may be corrected when the people change, and so may a guess made
+/// before anyone was known. One a window or meeting client stated may not.
+public enum ProviderTitleOrigin: String, Sendable, Codable {
+    case provider
+    case participants
+    case provisional
+}
+
 /// What one detector currently believes.
 public struct ProviderEvidence: Sendable, Equatable {
     public var provider: MeetingProvider
@@ -28,6 +37,7 @@ public struct ProviderEvidence: Sendable, Equatable {
     public var meetingID: String?
     public var url: String?
     public var title: String?
+    public var titleOrigin: ProviderTitleOrigin
     public var muted: Bool?
     public var otherAudibleTabs: Int?
     public var browser: BrowserKind?
@@ -42,6 +52,7 @@ public struct ProviderEvidence: Sendable, Equatable {
         meetingID: String? = nil,
         url: String? = nil,
         title: String? = nil,
+        titleOrigin: ProviderTitleOrigin = .provider,
         muted: Bool? = nil,
         otherAudibleTabs: Int? = nil,
         browser: BrowserKind? = nil,
@@ -54,6 +65,7 @@ public struct ProviderEvidence: Sendable, Equatable {
         self.meetingID = meetingID
         self.url = url
         self.title = title
+        self.titleOrigin = titleOrigin
         self.muted = muted
         self.otherAudibleTabs = otherAudibleTabs
         self.browser = browser
