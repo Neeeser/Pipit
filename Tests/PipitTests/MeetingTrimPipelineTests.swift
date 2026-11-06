@@ -6,7 +6,7 @@ import Testing
 
 /// Trim through the processing pipeline: what a person reads afterwards, and
 /// what is finished when something stops part way.
-@Suite("MeetingTrimPipeline")
+@Suite("MeetingTrimPipeline", .tags(.slow))
 struct MeetingTrimPipelineTests {
     private static var settings: AppSettings {
         var settings = AppSettings()
