@@ -91,6 +91,21 @@ done
 cp "$REPO_ROOT/Assets/Pipit/About/pipit-bird.png" "$APP_DIR/Contents/Resources/"
 cp "$REPO_ROOT/Assets/Pipit/About/pipit-bird@2x.png" "$APP_DIR/Contents/Resources/"
 
+# SwiftPM's link records the deployment target as the SDK version, and AppKit
+# draws an app linked against an SDK older than macOS 26 in the old design: a
+# full-height sidebar and a toolbar band in place of the floating sidebar and
+# glass toolbar. Record the SDK the build compiled against instead. vtool drops
+# the linker's ad-hoc signature, which the signing step below replaces.
+SDK_VERSION="$(xcrun --show-sdk-version)"
+MIN_VERSION="$(/usr/libexec/PlistBuddy -c "Print :LSMinimumSystemVersion" "$REPO_ROOT/App/Info.plist")"
+for exe in "$APP_DIR/Contents/MacOS/Pipit" "$APP_DIR/Contents/MacOS/pipit-nativehost" \
+    "$APP_DIR/Contents/MacOS/pipit-cli" "$APPEX/Contents/MacOS/PipitSafariExtension"; do
+    xcrun vtool -set-build-version macos "$MIN_VERSION" "$SDK_VERSION" -replace -output "$exe" "$exe" 2>/dev/null
+    stamped="$(xcrun vtool -show-build "$exe" | awk '$1 == "sdk" { print $2 }')"
+    [ "$stamped" = "$SDK_VERSION" ] || { echo "$exe records SDK $stamped, expected $SDK_VERSION" >&2; exit 1; }
+done
+echo "==> recorded SDK $SDK_VERSION, minimum macOS $MIN_VERSION"
+
 # The two version keys and the commit are the only keys the build stamps.
 # Everything else in the bundle plist is what App/Info.plist says.
 cp "$REPO_ROOT/App/Info.plist" "$APP_DIR/Contents/Info.plist"
