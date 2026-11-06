@@ -247,10 +247,22 @@ public struct TrackArchiveExporter: Sendable {
     /// read from the source at the archive sample rate.
     @discardableResult
     public func export(location: TrackAudioLocation, to destination: URL) throws -> Int64 {
+        try export(location: location, from: 0, to: nil, destination: destination)
+    }
+
+    /// Exports the stretch from `start` to `end` seconds of the track, or to
+    /// its end when `end` is nil. Trim uses this to rewrite an archive with
+    /// only the audio the person kept.
+    @discardableResult
+    public func export(
+        location: TrackAudioLocation, from start: Double, to end: Double?, destination: URL
+    ) throws -> Int64 {
         let stream = TrackAudioStream(
             segments: location.segments, segmentsDirectory: location.directory, format: readFormat
         )
-        let duration = stream.durationSeconds
+        let from = max(0, start)
+        let to = min(end ?? stream.durationSeconds, stream.durationSeconds)
+        let duration = to - from
         guard duration > 0 else { return 0 }
 
         let outputSettings: [String: Any] = [
@@ -278,7 +290,7 @@ public struct TrackArchiveExporter: Sendable {
         // must not run past it.
         let totalFrames = Int64((duration * settings.sampleRate).rounded())
         var written: Int64 = 0
-        try stream.forEachBuffer(from: 0, to: duration) { buffer, _ in
+        try stream.forEachBuffer(from: from, to: to) { buffer, _ in
             let remaining = totalFrames - written
             guard remaining > 0 else { return false }
             if Int64(buffer.frameLength) > remaining {

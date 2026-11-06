@@ -20,6 +20,15 @@ struct MeetingPlayerBar: View {
     @AppStorage("MeetingPlayerLanes") private var lanesChoice = ""
     @State private var hover: CGFloat?
     @State private var lanesHover: CGFloat?
+    /// The kept stretch while the bar is in trim mode; nil otherwise.
+    @State private var trim: ClosedRange<Double>?
+    @State private var confirmingTrim = false
+
+    init(detail: MeetingReviewModel, roomy: Bool, trim: ClosedRange<Double>? = nil) {
+        self.detail = detail
+        self.roomy = roomy
+        _trim = State(initialValue: trim)
+    }
 
     private var playback: MeetingPlaybackModel { detail.playback }
 
@@ -33,7 +42,7 @@ struct MeetingPlayerBar: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            if lanesShown {
+            if lanesShown, trim == nil {
                 OpenSpeakerLanes(
                     playback: playback, tint: tint(for:), talkSeconds: talkSeconds(_:), hover: $lanesHover
                 )
@@ -46,7 +55,21 @@ struct MeetingPlayerBar: View {
                 }
                 .fixedSize()
 
-                if lanesShown {
+                if let trim, let limits = detail.trimLimits {
+                    SpeakerLanesPlot(
+                        playback: playback, tint: tint(for:), hover: $hover,
+                        height: Self.trimStripHeight, combined: true
+                    )
+                    .overlay {
+                        TrimBracket(
+                            start: Binding(get: { trim.lowerBound }, set: { self.trim = $0...trim.upperBound }),
+                            end: Binding(get: { trim.upperBound }, set: { self.trim = trim.lowerBound...$0 }),
+                            duration: playback.timeline.duration,
+                            startLimits: limits.start, endLimits: limits.end,
+                            scrub: { playback.seek(to: $0) }
+                        )
+                    }
+                } else if lanesShown {
                     Spacer(minLength: 0)
                 } else {
                     SpeakerLanesPlot(
@@ -55,41 +78,146 @@ struct MeetingPlayerBar: View {
                     )
                 }
 
-                HStack(spacing: Self.spacing) {
-                    Button(rateLabel) { playback.cycleRate() }
-                        .monospacedDigit()
-                        .help("Playback speed")
-
-                    Button {
-                        playback.follows.toggle()
-                    } label: {
-                        Label("Follow", systemImage: "text.line.first.and.arrowtriangle.forward")
-                    }
-                    .buttonStyle(PillButtonStyle(prominent: playback.follows))
-                    .accessibilityAddTraits(playback.follows ? .isSelected : [])
-                    .help("Keep the transcript on what is playing")
-
-                    // A button rather than a toggle, with an arrow that says
-                    // which way the lanes will move.
-                    Button {
-                        lanesChoice = lanesShown ? "closed" : "open"
-                    } label: {
-                        HStack(spacing: 4) {
-                            Text("Lanes")
-                            Image(systemName: lanesShown ? "chevron.down" : "chevron.up")
-                                .font(.system(size: 8, weight: .bold))
-                        }
-                    }
-                    .help(lanesShown ? "Hide the lane for each speaker" : "Show a lane for each speaker")
+                if let trim {
+                    trimControls(trim)
+                } else {
+                    playerControls
                 }
-                .buttonStyle(PillButtonStyle())
-                .fixedSize()
             }
             .frame(height: 46)
         }
         .controlSize(.small)
         .padding(.horizontal, 16)
         .background(Color.primary.opacity(0.025))
+        .alert(trimQuestion, isPresented: $confirmingTrim) {
+            Button("Trim", role: .destructive) {
+                if let trim { detail.trim(keepFrom: trim.lowerBound, to: trim.upperBound) }
+                trim = nil
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text(
+                "The audio and transcript outside this range are deleted. "
+                    + "Your notes are kept. You can't undo this.")
+        }
+        .onChange(of: detail.canTrim) { _, canTrim in
+            if !canTrim { trim = nil }
+        }
+    }
+
+    private static let trimStripHeight: CGFloat = 24
+
+    private var playerControls: some View {
+        HStack(spacing: Self.spacing) {
+            Button(rateLabel) { playback.cycleRate() }
+                .monospacedDigit()
+                .help("Playback speed")
+
+            Button {
+                playback.follows.toggle()
+            } label: {
+                Label("Follow", systemImage: "text.line.first.and.arrowtriangle.forward")
+            }
+            .buttonStyle(PillButtonStyle(prominent: playback.follows))
+            .accessibilityAddTraits(playback.follows ? .isSelected : [])
+            .help("Keep the transcript on what is playing")
+
+            // A button rather than a toggle, with an arrow that says
+            // which way the lanes will move.
+            Button {
+                lanesChoice = lanesShown ? "closed" : "open"
+            } label: {
+                HStack(spacing: 4) {
+                    Text("Lanes")
+                    Image(systemName: lanesShown ? "chevron.down" : "chevron.up")
+                        .font(.system(size: 8, weight: .bold))
+                }
+            }
+            .help(lanesShown ? "Hide the lane for each speaker" : "Show a lane for each speaker")
+
+            if detail.isTrimming {
+                HStack(spacing: 5) {
+                    ProgressView().controlSize(.mini)
+                    Text("Trimming")
+                }
+                .foregroundStyle(.secondary)
+            } else if detail.canTrim {
+                Button {
+                    startTrimming()
+                } label: {
+                    Label("Trim", systemImage: "scissors")
+                }
+                .help("Remove the start or end of this meeting")
+            }
+        }
+        .buttonStyle(PillButtonStyle())
+        .fixedSize()
+        .overlay(alignment: .bottomTrailing) {
+            if let message = detail.trimMessage {
+                Text(message)
+                    .font(.caption)
+                    .foregroundStyle(.red)
+                    .fixedSize()
+                    .offset(y: 14)
+            }
+        }
+    }
+
+    private func trimControls(_ range: ClosedRange<Double>) -> some View {
+        HStack(spacing: Self.spacing) {
+            Text("Keep \(timecode(range.lowerBound))–\(timecode(range.upperBound))")
+                .monospacedDigit()
+                .foregroundStyle(.secondary)
+            Button("Start here") { moveTrim(start: playback.position) }
+                .help("Keep from where playback is")
+            Button("End here") { moveTrim(end: playback.position) }
+                .help("Keep up to where playback is")
+            Button("Cancel") { trim = nil }
+                .keyboardShortcut(.cancelAction)
+            Button("Trim…") { confirmingTrim = true }
+                .buttonStyle(PillButtonStyle(prominent: true))
+                .disabled(!removesSomething(range))
+        }
+        .buttonStyle(PillButtonStyle())
+        .fixedSize()
+    }
+
+    private var trimQuestion: String {
+        guard let trim else { return "Trim this meeting?" }
+        return "Trim this meeting to \(timecode(trim.lowerBound))–\(timecode(trim.upperBound))?"
+    }
+
+    private func startTrimming() {
+        guard let limits = detail.trimLimits else { return }
+        detail.trimMessage = nil
+        playback.pause()
+        trim = limits.start.lowerBound...limits.end.upperBound
+    }
+
+    /// Moves one end of the kept stretch, never past the other end or out of
+    /// the part that end belongs to.
+    private func moveTrim(start: Double? = nil, end: Double? = nil) {
+        guard let trim, let limits = detail.trimLimits else { return }
+        let shortest = MeetingTrim.shortestKept
+        var lower = trim.lowerBound
+        var upper = trim.upperBound
+        if let start {
+            lower = min(max(start, limits.start.lowerBound), min(limits.start.upperBound, upper - shortest))
+        }
+        if let end {
+            upper = max(min(end, limits.end.upperBound), max(limits.end.lowerBound, lower + shortest))
+        }
+        guard upper > lower else { return }
+        self.trim = lower...upper
+    }
+
+    private func removesSomething(_ range: ClosedRange<Double>) -> Bool {
+        range.lowerBound > MeetingTrim.tolerance
+            || playback.timeline.duration - range.upperBound > MeetingTrim.tolerance
+    }
+
+    private func timecode(_ position: Double) -> String {
+        TranscriptRenderer().timecode(playback.timeline.timelineSeconds(at: position))
     }
 
     private static let spacing: CGFloat = 12

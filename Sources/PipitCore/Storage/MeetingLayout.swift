@@ -22,6 +22,12 @@ public struct MeetingLayout: Sendable, Equatable {
     /// manifest is the durable record of the recording timeline.
     public var manifest: URL { raw.appendingPathComponent("manifest.jsonl") }
     public var metadata: URL { raw.appendingPathComponent("metadata.json") }
+    /// Present while a trim writes its replacements, before the journal exists.
+    public var trimStaging: URL { raw.appendingPathComponent("trim.staging") }
+    /// Voice-memory adjustments a trim could not make yet. See `TrimVoiceAdjustment`.
+    public var trimVoicePending: URL { raw.appendingPathComponent("trim.voice.json") }
+    /// Present only while a trim is being swapped in. See `TrimJournal`.
+    public var trimJournal: URL { raw.appendingPathComponent("trim.journal.json") }
     public var rawTranscript: URL { raw.appendingPathComponent("transcript.raw.json") }
     /// Who spoke when, as the diarizer produced it. Immutable, and separate from
     /// the words because the two come from independently chosen backends and

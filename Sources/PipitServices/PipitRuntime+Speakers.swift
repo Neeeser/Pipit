@@ -932,6 +932,13 @@ extension PipitRuntime {
     ) {
         guard let recording = repository.findMeeting(id: recordingID, includingMerged: true)
         else { return }
+        // Left alone while a trim is replacing the file, so the change would
+        // be written over or lost. Said in the log; the suggestion shows
+        // again until the dismissal is made once the trim is done.
+        guard !recording.store.trimIsChangingFiles else {
+            Log.app.notice("suggestion update skipped while the meeting is being trimmed")
+            return
+        }
         var set = recording.store.readSpeakerSuggestions()
         body(&set)
         do {

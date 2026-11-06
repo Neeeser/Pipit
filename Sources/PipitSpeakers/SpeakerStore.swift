@@ -746,6 +746,80 @@ public actor SpeakerStore {
         return affected
     }
 
+    /// Moves the voice memory with a trim of one meeting.
+    ///
+    /// Evidence is recorded as spans of the meeting's own seconds, on the
+    /// assumption that source audio never moves. A trim moves it: the kept
+    /// stretch starts at zero afterwards, and the audio outside it is deleted.
+    /// So the removed stretch is retracted first, by the same path a
+    /// correction takes, which drops a vector that no longer stands on enough
+    /// audio and rebuilds the profiles it fed. Then what is left is moved by
+    /// the start of the cut, and spans wholly in the removed stretch go.
+    ///
+    /// `end` is nil when everything after `start` is kept.
+    ///
+    /// A second call with the same `trimID` does nothing: the shift is recorded
+    /// with the change, and moving the spans again would be wrong.
+    public func trimEvidence(
+        meetingID: String, trimID: String, keepingFrom start: Double, to end: Double?,
+        clusterSeconds: [String: Double]? = nil, now: Date = Date()
+    ) throws {
+        try database.run(
+            "CREATE TABLE IF NOT EXISTS trim_applied(meeting_id TEXT NOT NULL, trim_id TEXT NOT NULL,"
+                + " PRIMARY KEY(meeting_id, trim_id))"
+        )
+        var applied = false
+        try database.query(
+            "SELECT 1 FROM trim_applied WHERE meeting_id = ? AND trim_id = ?", [.text(meetingID), .text(trimID)]
+        ) { _ in applied = true }
+        guard !applied else { return }
+        let beyondAnyRecording = 1_000_000.0
+        var removed: [AudioSpan] = []
+        if start > 0 { removed.append(AudioSpan(start: 0, end: start)) }
+        if let end { removed.append(AudioSpan(start: end, end: beyondAnyRecording)) }
+        guard !removed.isEmpty else { return }
+        for track in CaptureTrack.allCases {
+            try retractEvidence(
+                VoiceEvidenceRetraction(meetingID: meetingID, track: track, spans: removed),
+                keepingClaimant: false, now: now
+            )
+        }
+        let keptEnd = end ?? beyondAnyRecording
+        let rows = "(SELECT id FROM voice_evidence WHERE meeting_id = ?)"
+        try database.transaction {
+            // Recorded in the transaction that shifts, so the two happen
+            // together or not at all, and a repeat of this trim finds it.
+            try database.run(
+                "INSERT INTO trim_applied(meeting_id, trim_id) VALUES(?, ?)", [.text(meetingID), .text(trimID)]
+            )
+            // A speaker heard only in the removed stretch has no occurrence in
+            // this meeting any more, and one heard partly in it has less speech.
+            for (cluster, seconds) in (clusterSeconds ?? [:]).sorted(by: { $0.key < $1.key }) {
+                if seconds > 0 {
+                    try database.run(
+                        "UPDATE speaker_occurrence SET speech_seconds = ? WHERE meeting_id = ? AND cluster_id = ?",
+                        [.double(seconds), .text(meetingID), .text(cluster)]
+                    )
+                } else {
+                    try database.run(
+                        "DELETE FROM speaker_occurrence WHERE meeting_id = ? AND cluster_id = ?",
+                        [.text(meetingID), .text(cluster)]
+                    )
+                }
+            }
+            try database.run(
+                "DELETE FROM voice_evidence_span WHERE evidence_id IN \(rows)"
+                    + " AND (end_time <= ? OR start_time >= ?)",
+                [.text(meetingID), .double(start), .double(keptEnd)]
+            )
+            try database.run(
+                "UPDATE voice_evidence_span SET start_time = MAX(start_time, ?) - ?,"
+                    + " end_time = MIN(end_time, ?) - ? WHERE evidence_id IN \(rows)",
+                [.double(start), .double(start), .double(keptEnd), .double(start), .text(meetingID)]
+            )
+        }
+    }
+
     /// Takes back everything one track of one meeting taught.
     ///
     /// For the case where the claim a whole track rests on is withdrawn rather

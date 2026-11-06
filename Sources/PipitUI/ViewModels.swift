@@ -527,6 +527,8 @@ public final class MeetingReviewModel {
     public var reanalyzeCount = ""
     public var isReanalyzing = false
     public var isRedoingMicrophone = false
+    public var isTrimming = false
+    public var trimMessage: String?
     /// Why the last attempt to redo the microphone did not start.
     public var microphoneRedoMessage: String?
     /// Corrections and splits on the user's own lines, across every recording

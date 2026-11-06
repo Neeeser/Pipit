@@ -373,6 +373,9 @@ public struct MeetingMetadata: Codable, Sendable, Equatable, Identifiable {
     /// stays where it is. Archiving changes which list a meeting is in and
     /// nothing else.
     public var archivedAt: Date?
+    /// When this meeting was last cut to a range. A trimmed meeting keeps its
+    /// place: processing it again does not file it by rules written since.
+    public var trimmedAt: Date?
     /// The folder this meeting is filed in, which is also the directory holding
     /// it. Nil for a meeting still under `Meetings/YYYY/MM`. The path is the
     /// truth and this is the record of it, so a folder renamed in Finder is
@@ -436,6 +439,7 @@ public struct MeetingMetadata: Codable, Sendable, Equatable, Identifiable {
         self.cleaningOutcome = nil
         self.microphoneRedoRequestedAt = nil
         self.archivedAt = nil
+        self.trimmedAt = nil
         self.folderName = nil
         self.folderSuggestionDeclined = nil
         self.removedFromFolders = nil

@@ -77,7 +77,8 @@ body. The notes a person reads in the app are the version's section of
   `AudioObjectSetPropertyData` stays out of the app. `AudioUnitSetProperty` on
   Pipit's own audio unit is process-local and allowed.
 - Treat source audio, manifests, raw model output, and imported originals as
-  immutable after they are written.
+  immutable after they are written. The one exception is Trim, which cuts them
+  to the range the person keeps after they confirm.
 - Keep meeting content out of logs. Log identifiers, counts, durations, states,
   and typed error categories.
 - Store API keys in Keychain. Never commit keys, recordings, or benchmark audio.

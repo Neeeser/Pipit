@@ -571,7 +571,9 @@ public actor ProcessingPipeline {
         var metadata = found.metadata
         let store = found.store
         let settings = settingsProvider()
-        let redoingMicrophone = metadata.microphoneRedoRequestedAt != nil
+        // A meeting that was redone or trimmed has long had its title and its
+        // folder, and is not filed again by rules written since.
+        let refilesFolder = metadata.microphoneRedoRequestedAt == nil && metadata.trimmedAt == nil
         // The recording's own session, from its manifest, so a failure here can
         // be read beside the capture events of the same call. Nil for a
         // meeting recorded before diagnostics existed.
@@ -883,11 +885,11 @@ public actor ProcessingPipeline {
         // something else is in the folder too: a re-analysis queued on the job
         // slot captured this folder's paths before it started waiting.
         //
-        // Not after redoing the microphone, which is a request to change one
-        // track of a meeting that has long had its title and its folder.
+        // Not after redoing the microphone or after a trim, which are requests
+        // to change a meeting that has long had its title and its folder.
         // Filing it now would apply rules written since to a meeting the user
         // never asked to move.
-        if !heldByOthers(meetingID, besidesSelf: true), !redoingMicrophone {
+        if !heldByOthers(meetingID, besidesSelf: true), refilesFolder {
             // Before the rename: filing changes which directory the meeting is
             // in, and renaming works inside whichever that turns out to be.
             await placeInFolder(metadata: metadata, settings: settings)
@@ -1139,6 +1141,7 @@ public actor ProcessingPipeline {
     /// while attempts remain and by Retry after that. Until the new microphone is
     /// transcribed the meeting reads the old transcript.
     public func redoMicrophone(meetingID: String, backups: URL) async throws {
+        guard !hasUnfinishedTrim(meetingID) else { throw MicrophoneRedoError.busy }
         guard let found = repository.findMeeting(id: meetingID, includingMerged: true) else {
             throw StorageError.meetingNotFound(id: meetingID)
         }
@@ -3707,6 +3710,13 @@ public actor ProcessingPipeline {
     /// re-renders the Markdown. Makes no API call. Used after an assembly
     /// improvement, so a meeting processed under the old rules picks them up.
     public func rebuildTranscript(meetingID: String) async throws {
+        guard !hasUnfinishedTrim(meetingID) else { throw TrimError.inProgress }
+        try await rebuildTranscriptAfterTrim(meetingID: meetingID)
+    }
+
+    /// The rebuild itself, without the refusal a trim in progress earns it:
+    /// finishing the trim is what calls it.
+    private func rebuildTranscriptAfterTrim(meetingID: String) async throws {
         guard let found = repository.findMeeting(id: meetingID, includingMerged: true) else {
             throw StorageError.meetingNotFound(id: meetingID)
         }
@@ -3742,6 +3752,259 @@ public actor ProcessingPipeline {
         try await rerenderMarkdown(store: found.store, metadata: found.metadata)
     }
 
+    /// What came of a trim. The cut itself and what follows it are reported
+    /// apart: once the files are swapped the meeting is trimmed, and a failure
+    /// to rebuild its transcript does not undo that.
+    public struct TrimOutcome: Sendable, Equatable {
+        /// Why the meeting was not trimmed, or not fully: nil when the files
+        /// are cut and the record is written.
+        public var failure: TrimError?
+        /// The meeting is trimmed, and the transcript could not be rebuilt
+        /// from what is left.
+        public var transcriptNotRebuilt: Bool
+
+        public init(failure: TrimError? = nil, transcriptNotRebuilt: Bool = false) {
+            self.failure = failure
+            self.transcriptNotRebuilt = transcriptNotRebuilt
+        }
+    }
+
+    /// Cuts a finished meeting down to the range the person kept, then writes
+    /// its transcript, summary and mixdown again from what is left.
+    ///
+    /// Holds the job slot and the folder from the first file swapped to the end
+    /// of the voice-memory step, so no stage and no queued job reads or writes
+    /// a meeting halfway through being cut. `backups` is where redoing the
+    /// microphone copies files to; what it holds of this meeting goes too.
+    public func trim(meetingID: String, to range: TrimRange, backups: URL? = nil) async -> TrimOutcome {
+        guard !running.contains(meetingID),
+            let found = repository.findMeeting(id: meetingID, includingMerged: true)
+        else { return TrimOutcome(failure: .notFinished) }
+        if FileManager.default.fileExists(atPath: found.store.layout.trimJournal.path) {
+            // An earlier trim stopped part way. It is finished here, and the
+            // range chosen against the meeting as it was is not applied.
+            var outcome = await finishInterruptedTrim(found, backups: backups)
+            if outcome.failure == nil { outcome.failure = .interrupted }
+            return outcome
+        }
+        await beginTrimWork(meetingID)
+        let result = Result { try MeetingTrimmer().trim(store: found.store, to: range, at: clock.now) }
+        if case .failure(let error) = result {
+            let failure = (error as? TrimError) ?? .filesNotWritten
+            Log.processing.error("trim failed: \(failure.logSafeDescription, privacy: .public)")
+            // A swap that stopped part way is finished now, not at the next
+            // launch, so the meeting is not left half cut meanwhile.
+            guard FileManager.default.fileExists(atPath: found.store.layout.trimJournal.path) else {
+                endTrimWork(meetingID)
+                return TrimOutcome(failure: failure)
+            }
+        } else {
+            Log.processing.info(
+                "trimmed meeting=\(found.metadata.logIdentifier, privacy: .public) kept=\(range.seconds, privacy: .public)s"
+            )
+        }
+        return await carryOutTrim(found, backups: backups)
+    }
+
+    /// Finishes every trim that was interrupted, at launch, removes what a trim
+    /// that stopped earlier left beside the files, and makes the voice-memory
+    /// adjustments a trim could not make when it ran. A meeting is either
+    /// trimmed completely or not at all.
+    public func finishInterruptedTrims(backups: URL? = nil) async {
+        let ids = repository.listMeetings().map(\.id) + repository.mergedMeetingIDs()
+        for id in ids {
+            guard let found = repository.findMeeting(id: id, includingMerged: true) else { continue }
+            // A stat each: the journal, the marker a trim leaves while staging,
+            // and the parked voice adjustments.
+            if FileManager.default.fileExists(atPath: found.store.layout.trimJournal.path) {
+                _ = await finishInterruptedTrim(found, backups: backups)
+            } else if FileManager.default.fileExists(atPath: found.store.layout.trimStaging.path) {
+                MeetingTrimmer.removeLeftovers(layout: found.store.layout)
+            }
+            await applyPendingVoiceAdjustments(found.store, meetingID: id)
+        }
+    }
+
+    /// Refuses an edit to a meeting's speakers while a trim is still changing
+    /// its files or moving the voice memory, and while the memory owes it an
+    /// adjustment that cannot be made. After that the files are where they
+    /// will stay, and an edit is safe even though processing is not finished.
+    ///
+    /// Parked adjustments are tried first, so they do not refuse an edit
+    /// that the memory, now reachable, can already take. With no voice memory
+    /// at all there is no evidence to record against moved times, and nothing
+    /// to wait for.
+    private func requireNoTrimPending(_ meetingID: String) async throws {
+        guard let found = repository.findMeeting(id: meetingID, includingMerged: true) else { return }
+        if found.store.trimIsChangingFiles { throw TrimError.inProgress }
+        guard backends.speakers != nil else { return }
+        if await !applyPendingVoiceAdjustments(found.store, meetingID: meetingID) {
+            throw TrimError.voicePending
+        }
+        // Applying them is a wait, and a trim may have started in it.
+        if found.store.trimIsChangingFiles { throw TrimError.inProgress }
+    }
+
+    /// Whether a trim of this meeting stopped part way and has not been
+    /// finished, which every other change to its files waits out.
+    private func hasUnfinishedTrim(_ meetingID: String) -> Bool {
+        guard let found = repository.findMeeting(id: meetingID, includingMerged: true) else { return false }
+        return FileManager.default.fileExists(atPath: found.store.layout.trimJournal.path)
+    }
+
+    /// Takes the meeting, its folder and the job slot for the length of a
+    /// trim's swap and voice step.
+    private func beginTrimWork(_ meetingID: String) async {
+        running.insert(meetingID)
+        holdFolder(meetingID)
+        // Like every job: not while a call is being recorded.
+        await waitForSlot()
+    }
+
+    /// Called with a stage name as a trim passes it: "swapped" with the slot
+    /// and folder still held, and "settling" after its marker is gone. A test
+    /// waits in it to put another job beside the trim.
+    private var trimCheckpoint: (@Sendable (String) async -> Void)?
+
+    public func setTrimCheckpoint(_ body: (@Sendable (String) async -> Void)?) {
+        trimCheckpoint = body
+    }
+
+    private func endTrimWork(_ meetingID: String) {
+        running.remove(meetingID)
+        releaseFolder(meetingID)
+        jobLock.release()
+    }
+
+    private func finishInterruptedTrim(
+        _ found: (metadata: MeetingMetadata, store: MeetingStore), backups: URL?
+    ) async -> TrimOutcome {
+        guard !running.contains(found.metadata.id) else { return TrimOutcome() }
+        await beginTrimWork(found.metadata.id)
+        return await carryOutTrim(found, backups: backups)
+    }
+
+    /// Carries a trim from wherever it stopped to the end: the swap, the voice
+    /// memory, the backups, the transcript and processing. Each step is
+    /// recorded as it completes, so a second interruption resumes after it.
+    /// Expects the meeting taken with `beginTrimWork` and releases it itself.
+    ///
+    /// The slot and the folder are kept through the voice step. That step is
+    /// recorded in the voice database as well, and a job queued behind the
+    /// trim, a launch sweep or a second click on Trim must not meet it half
+    /// done or record evidence the shift would then move again.
+    private func carryOutTrim(
+        _ found: (metadata: MeetingMetadata, store: MeetingStore), backups: URL?
+    ) async -> TrimOutcome {
+        let store = found.store
+        let meetingID = found.metadata.id
+        var held = true
+        func release() {
+            guard held else { return }
+            held = false
+            endTrimWork(meetingID)
+        }
+        defer { release() }
+
+        var finished: TrimJournal?
+        do {
+            finished = try MeetingTrimmer().finishInterrupted(store: store)
+        } catch {
+            Log.processing.error("trim not finished: \(logSafeDescription(error), privacy: .public)")
+        }
+        guard var journal = finished, journal.swapped else { return TrimOutcome(failure: .filesNotWritten) }
+
+        // What was decoded from the old audio, and what redoing the
+        // microphone copied from it, both hold the removed stretch.
+        scratch.discard(meetingID: meetingID)
+        if let backups {
+            try? FileManager.default.removeItem(at: backups.appendingPathComponent(meetingID, isDirectory: true))
+        }
+        if !journal.voiceMemoryAdjusted {
+            let adjustment = TrimVoiceAdjustment(
+                trimID: journal.id, start: journal.start, end: journal.end,
+                clusterSeconds: journal.clusterSeconds)
+            if await adjustVoiceMemory(adjustment, meetingID: meetingID, store: store) {
+                journal.voiceMemoryAdjusted = true
+                try? store.writeTrimJournal(journal)
+            }
+        }
+        await trimCheckpoint?("swapped")
+        release()
+
+        var outcome = TrimOutcome()
+        do {
+            try await rebuildTranscriptAfterTrim(meetingID: meetingID)
+        } catch {
+            outcome.transcriptNotRebuilt = true
+            Log.processing.error("transcript not rebuilt after trim: \(logSafeDescription(error), privacy: .public)")
+        }
+        await process(meetingID: meetingID)
+        // Looked up again: the path in hand is the one before any move. The
+        // marker stays until the voice memory has been dealt with, and goes
+        // before the rename, which moves the folder it is in.
+        guard journal.voiceMemoryAdjusted,
+            let current = repository.findMeeting(id: meetingID, includingMerged: true)
+        else { return outcome }
+        current.store.removeTrimJournal()
+        await trimCheckpoint?("settling")
+        // The folder is named for the meeting's start, which has moved. Once,
+        // here, unless a job is in or waiting for the folder: renaming under
+        // it would have it recreate the old path. The launch sweep then does
+        // it.
+        if !heldByOthers(meetingID, besidesSelf: false) { repository.settleFolderName(for: current.metadata) }
+        return outcome
+    }
+
+    /// Moves the voice memory with a trim, or parks the adjustment in the
+    /// meeting folder when the memory cannot be reached, to be made at the
+    /// next launch with the database open. Parked rather than left in the
+    /// journal, which would lock the meeting until then. Earlier parked
+    /// adjustments go first, and a new one that cannot be made parks behind
+    /// them, so they are always made in the order the trims were. Returns
+    /// whether it was done or parked.
+    private func adjustVoiceMemory(
+        _ adjustment: TrimVoiceAdjustment, meetingID: String, store: MeetingStore
+    ) async -> Bool {
+        if await applyPendingVoiceAdjustments(store, meetingID: meetingID), let service = backends.speakers {
+            do {
+                try await service.speakerStore.trimEvidence(
+                    meetingID: meetingID, trimID: adjustment.trimID, keepingFrom: adjustment.start,
+                    to: adjustment.end, clusterSeconds: adjustment.clusterSeconds, now: clock.now)
+                return true
+            } catch {
+                Log.processing.error("voice memory not trimmed: \(logSafeDescription(error), privacy: .public)")
+            }
+        }
+        var pending = store.readPendingVoiceAdjustments()
+        if !pending.contains(where: { $0.trimID == adjustment.trimID }) { pending.append(adjustment) }
+        return (try? store.writePendingVoiceAdjustments(pending)) != nil
+    }
+
+    /// Makes the adjustments parked by trims that ran while the voice memory
+    /// was out of reach, oldest first, each at most once. Returns whether none
+    /// is left.
+    @discardableResult
+    private func applyPendingVoiceAdjustments(_ store: MeetingStore, meetingID: String) async -> Bool {
+        guard FileManager.default.fileExists(atPath: store.layout.trimVoicePending.path) else { return true }
+        let pending = store.readPendingVoiceAdjustments()
+        guard !pending.isEmpty else { return true }
+        guard let service = backends.speakers else { return false }
+        var remaining = pending
+        for adjustment in pending {
+            do {
+                try await service.speakerStore.trimEvidence(
+                    meetingID: meetingID, trimID: adjustment.trimID, keepingFrom: adjustment.start,
+                    to: adjustment.end, clusterSeconds: adjustment.clusterSeconds, now: clock.now)
+                remaining.removeFirst()
+            } catch {
+                break
+            }
+        }
+        try? store.writePendingVoiceAdjustments(remaining)
+        return remaining.isEmpty
+    }
+
     /// Re-renders the transcript after a human speaker correction.
     ///
     /// Changing a name is a side-file edit: raw diarization is untouched and no
@@ -3756,6 +4019,11 @@ public actor ProcessingPipeline {
     public func applySpeakerName(
         _ name: String, to key: String, meetingID: String, identityID: IdentityID? = nil
     ) async throws -> IdentityID? {
+        // The folder is held for the whole edit: an edit writes into it, and the
+        // rename at the end of a trim must not move it out from under one.
+        holdFolder(meetingID)
+        defer { releaseFolder(meetingID) }
+        try await requireNoTrimPending(meetingID)
         guard let found = repository.findMeeting(id: meetingID, includingMerged: true) else {
             throw StorageError.meetingNotFound(id: meetingID)
         }
@@ -3964,6 +4232,11 @@ public actor ProcessingPipeline {
         _ name: String, meetingID: String, track: CaptureTrack, parts: [SpeakerRangePart],
         identityID: IdentityID? = nil
     ) async throws -> IdentityID? {
+        // The folder is held for the whole edit: an edit writes into it, and the
+        // rename at the end of a trim must not move it out from under one.
+        holdFolder(meetingID)
+        defer { releaseFolder(meetingID) }
+        try await requireNoTrimPending(meetingID)
         guard let found = repository.findMeeting(id: meetingID, includingMerged: true) else {
             throw StorageError.meetingNotFound(id: meetingID)
         }
@@ -4095,6 +4368,11 @@ public actor ProcessingPipeline {
     private func correctUtterances(
         _ name: String, utteranceIDs: [String], meetingID: String, identityID: IdentityID?
     ) async throws -> IdentityID? {
+        // The folder is held for the whole edit: an edit writes into it, and the
+        // rename at the end of a trim must not move it out from under one.
+        holdFolder(meetingID)
+        defer { releaseFolder(meetingID) }
+        try await requireNoTrimPending(meetingID)
         guard let found = repository.findMeeting(id: meetingID, includingMerged: true) else {
             throw StorageError.meetingNotFound(id: meetingID)
         }
@@ -4257,6 +4535,9 @@ public actor ProcessingPipeline {
         defer { _ = discardIfGone(meetingID, store: found.store) }
         await waitForSlot()
         defer { jobLock.release() }
+        // A trim that held the slot has changed this meeting's audio and its
+        // times, and is not finished with them yet.
+        guard !hasUnfinishedTrim(meetingID) else { throw TrimError.inProgress }
 
         // Re-read after the wait, as every re-run does: the pre-wait snapshot
         // predates whatever job held the slot.
@@ -4324,6 +4605,7 @@ public actor ProcessingPipeline {
         defer { _ = discardIfGone(meetingID, store: found.store) }
         await waitForSlot()
         defer { jobLock.release() }
+        guard !hasUnfinishedTrim(meetingID) else { throw TrimError.inProgress }
 
         let store = found.store
         var metadata = (try? store.readMetadata()) ?? found.metadata
@@ -4344,6 +4626,7 @@ public actor ProcessingPipeline {
     /// 60-minute meeting instead of about fifteen. The previous result stays on
     /// disk, marked inactive, so the change can be undone.
     public func reanalyzeSpeakers(meetingID: String, speakerCount: Int?) async throws {
+        guard !hasUnfinishedTrim(meetingID) else { throw TrimError.inProgress }
         guard let found = repository.findMeeting(id: meetingID, includingMerged: true) else {
             throw StorageError.meetingNotFound(id: meetingID)
         }
@@ -4357,6 +4640,7 @@ public actor ProcessingPipeline {
         defer { _ = discardIfGone(meetingID, store: found.store) }
         await waitForSlot()
         defer { jobLock.release() }
+        guard !hasUnfinishedTrim(meetingID) else { throw TrimError.inProgress }
         defer { scratch.discard(meetingID: meetingID) }
 
         // Re-read after the wait: the pre-wait snapshot predates whatever job
@@ -4473,6 +4757,7 @@ public actor ProcessingPipeline {
         // but name and waits for the same things.
         await waitForSlot()
         defer { jobLock.release() }
+        guard !hasUnfinishedTrim(meetingID) else { throw TrimError.inProgress }
         defer { scratch.discard(meetingID: meetingID) }
         // Re-read after the wait; see reanalyzeSpeakers.
         var metadata = (try? found.store.readMetadata()) ?? found.metadata
@@ -4723,6 +5008,7 @@ public actor ProcessingPipeline {
         // same things.
         await waitForSlot()
         defer { jobLock.release() }
+        guard !store.trimIsChangingFiles else { return }
         defer { scratch.discard(meetingID: metadata.id) }
 
         // Resolved after the wait, from a fresh read: the job this call queued
@@ -4809,6 +5095,8 @@ public actor ProcessingPipeline {
                     id: meetingID, includingMerged: true
                 )
             else { continue }
+            // Left for later while a trim is working on the files.
+            if found.store.trimIsChangingFiles { continue }
             var speakers = try found.store.readSpeakerMap()
             // Only the cached name is rewritten. The identity link stays as it
             // was written, because reads resolve through the merge tombstone

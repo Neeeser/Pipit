@@ -551,6 +551,9 @@ public final class PipitRuntime {
             await refreshLocalModelState()
             await consolidateVoiceTwins()
             await pruneVoiceMemory()
+            // Before the rest is resumed: a trim that stopped part way has cut
+            // audio under the old record until this finishes it.
+            await pipeline.finishInterruptedTrims(backups: backupsDirectory)
             await pipeline.resumeInterrupted()
             refreshRecentMeetings()
             // After resume, so a meeting that was mid-pipeline is finished
@@ -1198,6 +1201,21 @@ public final class PipitRuntime {
             }
             onProcessingUpdate?(meetingID)
             completion()
+        }
+    }
+
+    /// Cuts a finished meeting to the range the person kept and deletes the
+    /// rest. The person has confirmed it; nothing here can be undone.
+    public func trimMeeting(
+        meetingID: String, to range: TrimRange,
+        completion: @escaping @Sendable @MainActor (ProcessingPipeline.TrimOutcome) -> Void = { _ in }
+    ) {
+        runProcessing { [weak self] in
+            guard let self else { return }
+            let outcome = await pipeline.trim(meetingID: meetingID, to: range, backups: backupsDirectory)
+            refreshRecentMeetings()
+            onProcessingUpdate?(meetingID)
+            completion(outcome)
         }
     }
 
