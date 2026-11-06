@@ -74,6 +74,20 @@ List or filter application tests with:
 The filter matches the Swift type name of a suite or test, not the display
 name in its `@Suite` or `@Test` label.
 
+Suites that run the echo canceller or the full processing pipeline over seconds
+of speech carry the `.slow` tag, written as `@Suite("Name", .tags(.slow))` on
+one line. They make up most of a full run. `./scripts/test.sh --fast` runs every
+other test, and `./scripts/test.sh --slow` runs only the tagged suites.
+`scripts/slow-suites.sh` reads the tag from the sources, because SwiftPM cannot
+select by tag, and fails when a `.slow` is not on a suite line it can read. Tag
+a new suite when its tests take several seconds each.
+
+Pull request CI runs the fast tests, the Xcode project build and the app
+packaging as parallel jobs. It adds the slow suites as a further job when the
+change can reach them, which `scripts/needs-slow-tests.sh` decides from the
+changed paths: anything outside the front ends, documentation and scripts runs
+them. A push to `main` always runs every test.
+
 Run the browser sensor tests after changing `extension/`:
 
 ```sh

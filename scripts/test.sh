@@ -1,10 +1,34 @@
 #!/bin/bash
-# Canonical test run. Usage: scripts/test.sh [--filter Substring] [--list]
+# Canonical test run.
+# Usage: scripts/test.sh [--fast | --slow] [--filter Substring] [--list]
+#
+# With no selector it runs every test. `--slow` runs only the suites tagged
+# `.slow` and `--fast` runs everything else; see scripts/slow-suites.sh.
 set -euo pipefail
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 # shellcheck source=spm-env.sh
 source "$REPO_ROOT/scripts/spm-env.sh"
 cd "$REPO_ROOT"
+# Turn --fast and --slow into the --skip and --filter that swift test takes.
+PIPIT_ARGS=()
+for arg in "$@"; do
+    case "$arg" in
+        --fast | --slow)
+            PIPIT_SLOW_REGEX="$("$REPO_ROOT/scripts/slow-suites.sh" --regex)"
+            if [[ "$PIPIT_SLOW_REGEX" == "(^|\\.)()/" ]]; then
+                echo "test.sh: no suite is tagged .slow" >&2
+                exit 1
+            fi
+            if [[ "$arg" == "--slow" ]]; then
+                PIPIT_ARGS+=(--filter "$PIPIT_SLOW_REGEX")
+            else
+                PIPIT_ARGS+=(--skip "$PIPIT_SLOW_REGEX")
+            fi
+            ;;
+        *) PIPIT_ARGS+=("$arg") ;;
+    esac
+done
+set -- ${PIPIT_ARGS[@]+"${PIPIT_ARGS[@]}"}
 # The suite runs serially. Several tests share temporary directories and
 # process-wide state.
 # `--list` prints the test names. It maps to `swift test --list-tests`, which

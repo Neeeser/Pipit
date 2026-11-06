@@ -8,7 +8,7 @@ import PipitServices
 import Synchronization
 import Testing
 
-@Suite("ProcessingPipeline")
+@Suite("ProcessingPipeline", .tags(.slow))
 struct PipelineTests {
     /// A transcriber that runs one piece of work before it answers, so a test
     /// can make something happen while a stage is in flight.

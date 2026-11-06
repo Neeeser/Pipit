@@ -23,7 +23,7 @@ private final class PassThroughCanceller: EchoCancelling {
 /// that needed 30, recorded the outcome as cleaned, and 249 of 268 lines on
 /// the microphone were the far end's words with nothing on the meeting to
 /// say why.
-@Suite("CleanerReporting")
+@Suite("CleanerReporting", .tags(.slow))
 struct CleanerReportingTests {
     @Test("a cleaned call on speakers records the far end gone from the microphone")
     func aCleanedCallRecordsTheFarEndGone() async throws {

@@ -10,7 +10,7 @@ import Testing
 /// remove. They pin the arithmetic, the classification and the decision on a
 /// call whose timing is known. Numbers on real recordings come from running
 /// the command over them, which no test does.
-@Suite("EchoEval")
+@Suite("EchoEval", .tags(.slow))
 struct EchoEvalTests {
     private static let rate = MicrophoneCleaningFixtures.rate
     /// Seconds of fixture. Long enough that the far end is above the floor in
