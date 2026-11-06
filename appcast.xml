@@ -3,6 +3,18 @@
     <channel>
         <title>Pipit</title>
         <item>
+            <title>0.1.10</title>
+            <pubDate>Fri, 06 Nov 2026 20:23:37 +0000</pubDate>
+            <link>https://github.com/Neeeser/Pipit/releases</link>
+            <sparkle:channel>beta</sparkle:channel>
+            <sparkle:releaseNotesLink>https://github.com/Neeeser/Pipit/releases/tag/v0.1.10</sparkle:releaseNotesLink>
+            <sparkle:version>448</sparkle:version>
+            <sparkle:shortVersionString>0.1.10</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>15.0</sparkle:minimumSystemVersion>
+            <sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements>
+            <enclosure url="https://github.com/Neeeser/Pipit/releases/download/v0.1.10/Pipit-0.1.10.zip" length="63282095" type="application/octet-stream" sparkle:edSignature="tZm0B0MVMnL7eten+XeYsDIiKjaDwung6JIJuqhO+fr696lwE6MAu8qYpY77mqXKMx9MLWK601s6/NXIycN/Bg=="/>
+        </item>
+        <item>
             <title>0.1.9</title>
             <pubDate>Wed, 21 Oct 2026 20:32:39 +0000</pubDate>
             <link>https://github.com/Neeeser/Pipit/releases</link>
@@ -25,18 +37,6 @@
             <sparkle:minimumSystemVersion>15.0</sparkle:minimumSystemVersion>
             <sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements>
             <enclosure url="https://github.com/Neeeser/Pipit/releases/download/v0.1.8/Pipit-0.1.8.zip" length="58902151" type="application/octet-stream" sparkle:edSignature="pkhCHUBb+RN8lPp0AlJeNnPHN+ZQTeKfoljy8AEzPilx6fKe5JBomg3TH+D9/IkSUdMnp8TsUN5BzKCm/Q5nBw=="/>
-        </item>
-        <item>
-            <title>0.1.7</title>
-            <pubDate>Mon, 14 Sep 2026 16:20:14 +0000</pubDate>
-            <link>https://github.com/Neeeser/Pipit/releases</link>
-            <sparkle:channel>beta</sparkle:channel>
-            <sparkle:releaseNotesLink>https://github.com/Neeeser/Pipit/releases/tag/v0.1.7</sparkle:releaseNotesLink>
-            <sparkle:version>359</sparkle:version>
-            <sparkle:shortVersionString>0.1.7</sparkle:shortVersionString>
-            <sparkle:minimumSystemVersion>15.0</sparkle:minimumSystemVersion>
-            <sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements>
-            <enclosure url="https://github.com/Neeeser/Pipit/releases/download/v0.1.7/Pipit-0.1.7.zip" length="57154679" type="application/octet-stream" sparkle:edSignature="EN9Q4NL+Cl+Nw3nY/WDvhNAZ+nCBorUkkv/BU0gdLMsevPY9rWMxGFctF4A+OU86G1YvxNsl0864jIHVzaq6DQ=="/>
         </item>
     </channel>
 </rss>
