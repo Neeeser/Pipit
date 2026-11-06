@@ -128,8 +128,9 @@ struct OpenAIKeyField: View {
             if model.mayAcceptUnverifiedKey {
                 Button("Continue anyway") { model.acceptUnverifiedKey() }
                     .buttonStyle(.link)
-                Text("OpenAI could not be reached. Try again.")
-                    .font(.caption).foregroundStyle(.secondary)
+                if let caption = model.keyState.unverifiedCaption {
+                    Text(caption).font(.caption).foregroundStyle(.secondary)
+                }
             }
             Text("Stored in the macOS keychain.")
                 .font(.caption).foregroundStyle(.secondary)
@@ -149,7 +150,7 @@ struct OpenAIKeyField: View {
         case .rejected(let message):
             Label(message, systemImage: "xmark.circle.fill")
                 .foregroundStyle(.red).font(.caption)
-        case .unreachable(let message):
+        case .unreachable(let message), .modelMissing(let message):
             Label(message, systemImage: "exclamationmark.triangle.fill")
                 .foregroundStyle(.orange).font(.caption)
         }

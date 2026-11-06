@@ -119,13 +119,19 @@ public struct DiagnosticReport: Codable, Sendable, Equatable {
         public var stage: String
         public var code: String
         public var retryable: Bool
+        /// What another attempt would change: `same_result`, `settings` or
+        /// `waiting`. Only `same_result` is capped at launch.
+        public var cause: String
         public var attempts: Int
         public var at: Date
 
-        public init(stage: String, code: String, retryable: Bool, attempts: Int, at: Date) {
+        public init(
+            stage: String, code: String, retryable: Bool, cause: String, attempts: Int, at: Date
+        ) {
             self.stage = stage
             self.code = code
             self.retryable = retryable
+            self.cause = cause
             self.attempts = attempts
             self.at = at
         }

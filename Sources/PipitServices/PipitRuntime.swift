@@ -430,9 +430,9 @@ public final class PipitRuntime {
             onProgress: { [weak relay] progress in
                 Task { @MainActor in relay?.runtimeForCallbacks?.apply(progress) }
             },
-            onFailure: { [weak relay] meetingID, error in
+            onFailure: { [weak relay] meetingID, failure in
                 Task { @MainActor in
-                    relay?.runtimeForCallbacks?.handleProcessingFailure(meetingID, error)
+                    relay?.runtimeForCallbacks?.handleProcessingFailure(meetingID, failure)
                 }
             },
             onSummaryRewritten: { [weak relay] meetingID in
@@ -1054,7 +1054,10 @@ public final class PipitRuntime {
                 message: failure.userMessage,
                 isRetryable: false,
                 occurredAt: clock.now,
-                code: DiagnosticCode(describing: error)
+                code: DiagnosticCode(describing: error),
+                // Neither is started again by the launch sweep: the file has
+                // to be imported again.
+                cause: .sameResultEachTime
             ),
             at: clock.now
         )
@@ -1109,7 +1112,10 @@ public final class PipitRuntime {
                 message: failure.userMessage,
                 isRetryable: false,
                 occurredAt: clock.now,
-                code: DiagnosticCode(describing: error)
+                code: DiagnosticCode(describing: error),
+                // Neither is started again by the launch sweep: the file has
+                // to be imported again.
+                cause: .sameResultEachTime
             ),
             at: clock.now
         )
@@ -2224,10 +2230,10 @@ public final class PipitRuntime {
         onProcessingUpdate?(progress.meetingID)
     }
 
-    func handleProcessingFailure(_ meetingID: String, _ error: ProcessingError) {
+    func handleProcessingFailure(_ meetingID: String, _ failure: ProcessingFailure) {
         processing.removeValue(forKey: meetingID)
         if settings.showNotifications {
-            notifications.processingProblem(error, meetingID: meetingID)
+            notifications.processingProblem(message: failure.message, meetingID: meetingID)
         }
         refreshRecentMeetings()
         onProcessingUpdate?(meetingID)

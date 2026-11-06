@@ -148,6 +148,21 @@ finalizing -> audio_safe -> transcribing -> diarizing
 only after this state. Each later stage records its state and can resume after a
 failure.
 
+A stage that fails is tried again in the same run, up to three attempts in that
+run, when its error is marked retryable: network and service problems, an empty
+or looping transcript, and an unrecognised failure on this Mac. A cancellation,
+a missing key and a failed model install are tried once. The failure also
+records what another attempt would change. A failure that repeats the same
+result (a transcript that loops, a reply that cannot be read, a request the
+service refuses, or any unrecognised failure while enriching, whose paid request
+has already been sent) is counted in the meeting's file, across launches. Once
+three such failures are counted the launch sweep leaves the meeting for the
+Retry button, and Retry gives the stage its attempts back. A failure fixed in
+Settings (a missing key or model) or cleared by waiting (a network outage, a
+download) is started again at every launch and is never counted, so an outage
+neither uses up that cap nor resets it. A success clears the count, and a quit
+during a stage is not counted.
+
 `transcribing` begins by subtracting the far end from the microphone. A call
 taken on speakers puts the far end back into the microphone through the air.
 Pipit records that far end separately through the process tap, and that
@@ -235,7 +250,8 @@ the summary are not touched. Corrections and line cuts on microphone lines are
 removed, because they are anchored to the old words and chunks. Corrections on
 the far end's lines stay. The marker is cleared in the same write that marks
 the meeting complete, so a crash or a failure leaves the old transcript
-readable and the launch sweep or Retry finishes the pass. Voice profiles are
+readable. A quit is finished by the launch sweep, and a failure by the sweep
+or Retry as described above. Voice profiles are
 not re-learned, and enrolments that came from a removed correction are not
 retracted.
 

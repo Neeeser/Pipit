@@ -173,10 +173,12 @@ public struct NotificationService: Sendable {
         )
     }
 
-    public func processingProblem(_ error: ProcessingError, meetingID: String) {
+    /// Posted once the run has stopped trying, with the failure's own message
+    /// so it says what happens next.
+    public func processingProblem(message: String, meetingID: String) {
         post(
             title: "Processing needs attention",
-            body: error.userMessage,
+            body: message,
             category: .processingProblem,
             userInfo: ["meetingID": meetingID]
         )

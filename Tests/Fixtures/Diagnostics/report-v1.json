@@ -97,7 +97,7 @@
     ],
     "storage": {"meetings": 42, "freeDisk": "20-100GB"},
     "recentFailures": [
-      {"stage": "enriching", "code": "language_model.unreachable", "retryable": true, "attempts": 3, "at": "2026-10-20T18:02:11Z"}
+      {"stage": "enriching", "code": "language_model.unreachable", "retryable": true, "cause": "waiting", "attempts": 3, "at": "2026-10-20T18:02:11Z"}
     ],
     "diagnostics": {"eventsDropped": 0, "oldestEvent": "2026-10-07T08:00:00Z", "eventsIncluded": 6, "eventsOmitted": 0}
   },

@@ -345,8 +345,12 @@ struct DiagnosticSnapshotTests {
         let rows = DiagnosticSnapshot.recentFailures([second, ProcessingStatus(), first])
         #expect(
             rows == [
-                .init(stage: "enriching", code: "language_model.unreachable", retryable: true, attempts: 2, at: newer),
-                .init(stage: "finalizing", code: "unknown", retryable: false, attempts: 0, at: older),
+                .init(
+                    stage: "enriching", code: "language_model.unreachable", retryable: true, cause: "waiting",
+                    attempts: 2, at: newer),
+                .init(
+                    stage: "finalizing", code: "unknown", retryable: false, cause: "settings",
+                    attempts: 0, at: older),
             ]
         )
         #expect(DiagnosticSnapshot.recentFailures([first, second], limit: 1).count == 1)

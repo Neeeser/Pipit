@@ -229,6 +229,7 @@ public enum PipelineFixtures {
         speakers: SpeakerRecognitionService?,
         aligner: (any TranscriptAligner)? = nil,
         prepareAligner: (@Sendable () async throws -> Void)? = nil,
+        prepareLocalModels: (@Sendable () async throws -> Void)? = nil,
         singleSpeakerEmbedding: (@Sendable (URL) async throws -> SingleSpeakerSample?)? = nil,
         settings: AppSettings,
         scratchRoot: URL,
@@ -241,6 +242,7 @@ public enum PipelineFixtures {
                 transcription: { _, _ in transcriber },
                 diarization: { _, _ in diarizer },
                 speakers: speakers,
+                prepareLocalModels: prepareLocalModels,
                 aligner: aligner,
                 prepareAligner: prepareAligner,
                 singleSpeakerEmbedding: singleSpeakerEmbedding

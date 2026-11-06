@@ -43,9 +43,16 @@ public struct MeetingDetailView: View {
                 noticeBar(message)
                 Divider()
             }
-            if let failure = detail.metadata?.processing.lastFailure {
-                failureBar(failure)
-                Divider()
+            // Every recording of the call, not only the first: a rejoined part
+            // that failed has its own failure and its own Retry.
+            ForEach(Array(detail.recordings.enumerated()), id: \.element.id) { index, recording in
+                if let failure = recording.processing.lastFailure {
+                    failureBar(
+                        failure, message: recording.processing.failureMessage ?? failure.message,
+                        partNumber: detail.isSplitRecording ? index + 1 : nil,
+                        meetingID: recording.id, isOutOfAttempts: recording.processing.isOutOfAttempts)
+                    Divider()
+                }
             }
             if detail.metadata?.processing.skippedForMissingKey == true {
                 missingKeyBar
@@ -275,16 +282,25 @@ public struct MeetingDetailView: View {
         return lines.joined(separator: "\n")
     }
 
-    private func failureBar(_ failure: ProcessingFailure) -> some View {
+    private func failureBar(
+        _ failure: ProcessingFailure, message: String, partNumber: Int?, meetingID: String,
+        isOutOfAttempts: Bool
+    ) -> some View {
         HStack(spacing: 8) {
             Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(.red)
             VStack(alignment: .leading, spacing: 1) {
-                Text("Processing stopped at \(failure.stage.displayName.lowercased())")
-                    .font(.callout)
-                Text(failure.message).font(.caption).foregroundStyle(.secondary).lineLimit(2)
+                Text(
+                    "\(partNumber.map { "Part \($0): processing" } ?? "Processing") stopped at "
+                        + failure.stage.displayName.lowercased()
+                )
+                .font(.callout)
+                Text(message).font(.caption).foregroundStyle(.secondary).lineLimit(2)
             }
             Spacer(minLength: 8)
-            Button(failure.isRetryable ? "Retry" : "Try again anyway") { detail.retry() }
+            // "Anyway" only where another attempt has already given the same
+            // result every time. A failure waiting or Settings clears is a plain
+            // Retry.
+            Button(isOutOfAttempts ? "Try again anyway" : "Retry") { detail.retry(meetingID: meetingID) }
         }
         .padding(.horizontal, 20)
         .padding(.vertical, 10)
