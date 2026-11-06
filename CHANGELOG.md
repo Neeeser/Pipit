@@ -9,21 +9,21 @@ how a section gets written.
 
 ## 0.1.11
 
-<!-- One or two lines on what this release is, then rewrite the items below for the person updating. Cut fixes to things that were never released. -->
+A redesigned Meetings window, a live transcript during calls, and trimming and merging for your recordings.
 
 ### New
-- Give the transcript most of the Meetings window at a quarter of the screen
-- Give open speaker lanes the full width of the player, with a time ruler and talk time
-- Show the meeting summary as one page: overview, a timeline with your notes, and action items with their moments
-- Merge meetings that were recorded in pieces into one
-- Trim the start or end of a meeting from the player bar
-- Give the Meetings, Settings, People and Setup windows a native Mac look, with the summary beside the transcript in wide windows
+- The Meetings, People, Settings and Setup windows have a new Mac look, with the summary beside the transcript when the window is wide.
+- See what's being said during a call in a live transcript window.
+- The summary is one page: an overview, a timeline of topics with your notes, and action items that jump to their moment.
+- Trim the start or end of a meeting from the player.
+- Merge meetings that were recorded in pieces into one.
+- Open speaker lanes across the full player, with a time ruler and each person's talk time.
 
 ### Fixes
-- Start recording Slack huddles on their own and keep their name when you switch conversations
-- Keep recording a browser call while you work in another tab, and reconnect the browser extension after an update
-- Name a Slack huddle after the person you talked to, not the channel left open
-- Stop a meeting that keeps failing from being retried at every launch
+- Slack huddles start recording on their own, and keep their name when you switch conversations.
+- A Slack huddle is named after the person you talked to, not the channel left open.
+- A browser call keeps recording while you work in another tab, and the browser extension reconnects after an update.
+- A meeting that keeps failing is no longer retried at every launch.
 
 ## 0.1.10
 
