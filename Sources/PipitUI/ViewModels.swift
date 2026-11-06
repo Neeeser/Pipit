@@ -486,6 +486,9 @@ public final class MeetingReviewModel {
     public var metadata: MeetingMetadata?
     public var transcript: CanonicalTranscript?
     public var notes = ""
+    /// Notes from the later recordings, on the conversation's clock. Read-only:
+    /// the Notes tab edits the first recording's file.
+    public private(set) var continuationNotes: [MeetingNoteEntry] = []
     public var title = ""
     public var summary: String?
     /// What enrichment wrote as notes, kept apart from the user's own. Shown on
@@ -641,6 +644,9 @@ public final class MeetingReviewModel {
         let found = (metadata: logical.primary.metadata, store: logical.primary.store)
         recordings = logical.recordings.map(\.metadata)
         combinedLines = logical.combinedTranscript()
+        continuationNotes = logical.continuations.flatMap {
+            MeetingNoteEntry.entries(in: $0.store.readNotes(), startedAt: logical.startedAt)
+        }
         // The same walk over the new lines, kept on the same place where it
         // still exists. A correction renames a block, which is not a reason
         // to lose one's place in the search.

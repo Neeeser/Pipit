@@ -14,7 +14,14 @@ public enum AudioFixtures {
         seconds: Double, sampleRate: Double, channels: AVAudioChannelCount = 1,
         frequency: Double = 440, amplitude: Float = 0.5, toneChannel: Int? = nil
     ) -> AVAudioPCMBuffer {
-        let format = AVAudioFormat(standardFormatWithSampleRate: sampleRate, channels: channels)!
+        // The standard initializer returns nil above two channels, so those get
+        // a discrete layout, as a capture format does.
+        let format =
+            (channels <= 2
+            ? AVAudioFormat(standardFormatWithSampleRate: sampleRate, channels: channels)
+            : AVAudioChannelLayout(
+                layoutTag: kAudioChannelLayoutTag_DiscreteInOrder | AudioChannelLayoutTag(channels)
+            ).map { AVAudioFormat(standardFormatWithSampleRate: sampleRate, channelLayout: $0) })!
         let frames = AVAudioFrameCount(seconds * sampleRate)
         let buffer = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: frames)!
         buffer.frameLength = frames

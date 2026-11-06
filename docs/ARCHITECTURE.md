@@ -546,6 +546,41 @@ A cluster identifier is only meaningful inside one recording. A call that droppe
 and was rejoined is two recordings under one row, and both number their speakers
 from zero, so every correction names the recording it belongs to.
 
+The summary belongs to the conversation, not to a recording. Enrichment for the
+recording a conversation started with reads every recording in time order, with
+each line stamped on the conversation's timeline, which is the one the summary's
+moments are played against (`PlaybackTimeline.position(timelineSeconds:)` maps a
+moment to the recording that holds it). A conversation too long for one OpenAI
+request keeps the start and end of each recording in proportion to its length and
+marks where the middle is left out, so the later ones are not dropped. Every
+recording's notes go in too, on the same timeline. A recording folded into an earlier one skips enrichment, and so does one
+that is linked while its own request is in flight.
+
+Linking or separating recordings, or a continuation finishing, leaves the
+conversation owing a rewrite of its summary. The rewrite asks the model once from
+every recording that has words, writes only the summary, title and description,
+and never changes the processing state, the folder or the calendar link, so a
+failed request is reported and leaves a finished meeting finished. It waits while
+any recording is still being processed, and every job that ends pays what its
+conversation owes, then tells the window to reload. The debt is also written to
+the first recording's metadata (`summaryNeedsRewrite`) and cleared when a rewrite
+is written with no newer debt pending, so a rewrite that could not run, for want
+of a key or because the app quit, is paid at the next launch. Each launch
+marks every conversation of several recordings that has a `summary.md` and no
+`summaryCoversParts` on its first recording, because summaries written before
+rewrites existed were built from the first recording only. A rewrite, or an
+enrichment that read the whole conversation, sets the mark; a link or a
+separation clears it. Launch rewrites run after the other launch work, are not
+announced when they fail, and stop for a conversation whose failure asking again
+cannot fix (`summaryRewriteGivenUp`). The summary tab offers "Write again" for a
+meeting that carries the mark and already has a summary. A rewrite that replaces
+a summary first copies it to the Backups folder and does not run if the copy
+cannot be made. Folder names follow titles as always, so a rewritten title
+renames the folder at the next launch. Separating after
+merging a row that was already a conversation does not restore the earlier
+grouping. `transcript.md` is still written per recording and does not include
+continuations.
+
 ## Reading the archive
 
 The meetings window lists every recording, grouped by when and searched by title,
@@ -695,5 +730,11 @@ has a meeting of its own.
 Pipit accepts sensor connections only from its bundled native host when a browser
 launched that host, or from its own Safari extension inside its bundle. On a
 signed build both must carry Pipit's team and their own signing identifier.
-Sensor evidence is combined with native evidence and cannot end a recording by
-disappearing on its own.
+Sensor evidence is combined with native evidence. It cannot end a recording by
+disappearing on its own, with one exception: a call the add-on reported in a
+background tab, whose tab then ends, closes or goes silent, no longer counts as
+open just because the browser still holds the microphone. A call the add-on
+never reported is kept while the browser holds the microphone, since the add-on
+may not run where that call is. The relay helpers (`pipit-nativehost` and the
+Safari extension) exit when their file is replaced by a newer Pipit, so the
+browser starts the new one.

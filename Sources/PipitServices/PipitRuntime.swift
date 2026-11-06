@@ -166,7 +166,12 @@ public final class PipitRuntime {
     @ObservationIgnored private var permissionWatch: Task<Void, Never>?
 
     @ObservationIgnored public let repository: MeetingRepository
-    @ObservationIgnored public let notifications = NotificationService()
+    @ObservationIgnored public var notifications = NotificationService()
+    /// Conversations whose summary is being written again right now.
+    public private(set) var summariesBeingWritten: Set<String> = []
+    @ObservationIgnored private var recentSummaryProblems: [(error: ProcessingError, at: Date)] = []
+    /// Conversations whose rewrite the person asked for with the button.
+    @ObservationIgnored private var summariesAskedByPerson: Set<String> = []
     @ObservationIgnored public let permissions = PermissionsService()
     /// The OpenAI key, read from the keychain once and held for the process.
     /// Exposed so saving a rotated key updates it without a relaunch.
@@ -304,6 +309,7 @@ public final class PipitRuntime {
         )
         detectionEngine = DetectionEngine(clock: clock, diagnostics: diagnostics, delegate: relay)
         detectionEngine.updateGenericConfiguration(loaded.genericDetectorConfiguration)
+        detectionEngine.updateLocalUserName(loaded.localUserName)
 
         // Release builds read the key from the keychain only. A process
         // environment is readable by any same-user process.
@@ -428,7 +434,31 @@ public final class PipitRuntime {
                 Task { @MainActor in
                     relay?.runtimeForCallbacks?.handleProcessingFailure(meetingID, error)
                 }
-            }
+            },
+            onSummaryRewritten: { [weak relay] meetingID in
+                Task { @MainActor in
+                    relay?.runtimeForCallbacks?.refreshRecentMeetings()
+                    relay?.runtimeForCallbacks?.onProcessingUpdate?(meetingID)
+                }
+            },
+            onSummaryFailure: { [weak relay] meetingID, error in
+                Task { @MainActor in
+                    guard let runtime = relay?.runtimeForCallbacks, runtime.settings.showNotifications
+                    else { return }
+                    runtime.postSummaryProblem(error, meetingID: meetingID)
+                }
+            },
+            onSummaryRewriting: { [weak relay] meetingID, running in
+                Task { @MainActor in
+                    guard let runtime = relay?.runtimeForCallbacks else { return }
+                    if running {
+                        runtime.summariesBeingWritten.insert(meetingID)
+                    } else {
+                        runtime.summariesBeingWritten.remove(meetingID)
+                    }
+                }
+            },
+            summaryBackups: settingsDirectory.appendingPathComponent("Backups", isDirectory: true)
         )
         relay.connect(runtime: self)
         seedStatus(from: loaded)
@@ -534,6 +564,10 @@ public final class PipitRuntime {
             // app quit never re-enters `process`, so this is the only pass that
             // gives its folder the title enrichment produced.
             await pipeline.settleFolderNames()
+            refreshRecentMeetings()
+            // Last, because each rewrite is a request and the launch work above
+            // is what the person is waiting on.
+            await pipeline.payLaunchSummaryRewrites()
             refreshRecentMeetings()
         }
     }
@@ -879,11 +913,16 @@ public final class PipitRuntime {
         // pairing a previous build stored normalizes on the next save.
         newSettings.coupleDiarization()
         let rootChanged = newSettings.storageRootPath != settings.storageRootPath
+        let summaryModelChanged =
+            newSettings.models.metadata != settings.models.metadata
+            || newSettings.models.metadataProvider != settings.models.metadataProvider
         let sharingChanged = newSettings.sharesDiagnosticsAutomatically != settings.sharesDiagnosticsAutomatically
         settings = newSettings
         settingsSnapshot.withLock { $0 = newSettings }
         live.localUserName = newSettings.localUserName
         live.hiddenFromSharing = newSettings.live.hiddenFromScreenSharing
+        // A model that refused a rewrite may accept it from another one.
+        if summaryModelChanged, let pipeline { Task { await pipeline.clearGivenUpSummaryRewrites() } }
         if sharingChanged { automaticSharingDidChange(to: newSettings.sharesDiagnosticsAutomatically) }
         do {
             try settingsStore.save(newSettings)
@@ -907,6 +946,7 @@ public final class PipitRuntime {
         // call in progress.
         sessionController.configuration = newSettings.sessionConfiguration
         detectionEngine.updateGenericConfiguration(newSettings.genericDetectorConfiguration)
+        detectionEngine.updateLocalUserName(newSettings.localUserName)
         status.detectionPaused = newSettings.providers.detectionPaused
         // A different model choice changes which units count as installed. On
         // the ordered chain rather than a bare task: two quick changes as
@@ -1759,9 +1799,7 @@ public final class PipitRuntime {
     private func applyEvidence(_ evidence: ProviderEvidence) {
         guard let meeting = currentMeeting else { return }
         let updated = try? meeting.store.updateMetadata { metadata in
-            if let title = evidence.title, metadata.titles.provider == nil {
-                metadata.titles.provider = title
-            }
+            metadata.titles.applyProvider(title: evidence.title, origin: evidence.titleOrigin)
             if let meetingID = evidence.meetingID { metadata.providerMeetingID = meetingID }
             if let url = evidence.url { metadata.meetingURL = url }
             if let tabs = evidence.otherAudibleTabs, tabs > 0 { metadata.hadOtherAudibleTabs = true }
@@ -1948,8 +1986,8 @@ public final class PipitRuntime {
 
     /// Links one recording to the conversation an earlier one started.
     ///
-    /// Both directories stay exactly as they are: two files gain a pointer at
-    /// each other and nothing else changes. The second recording is the only
+    /// The link changes two files, which gain a pointer at each other, and
+    /// moves nothing. The second recording is the only
     /// copy of the second half of the call, so it keeps its own segments,
     /// manifest, raw transcription, raw diarization and speaker map, and stays
     /// reachable under its own identifier.
@@ -1959,28 +1997,123 @@ public final class PipitRuntime {
     /// the link became a subtraction; a subtraction that goes wrong reports a
     /// duration no file on disk supports. The combined figure is derived when it
     /// is read.
-    public func combine(meetingID: String, into earlierID: String, reason: String) {
+    ///
+    /// The conversation's summary is written again afterwards, from every
+    /// recording, unless `rewritingSummary` is false. A caller that links
+    /// several recordings in a row passes false and asks once at the end with
+    /// `refreshConversationSummary`, so one merge is one request.
+    @discardableResult
+    public func combine(
+        meetingID: String, into earlierID: String, reason: String, rewritingSummary: Bool = true
+    ) -> Bool {
         guard let later = repository.findMeeting(id: meetingID),
             repository.findMeeting(id: earlierID) != nil
-        else { return }
+        else { return false }
         // A chain would make the earlier recording both a continuation and the
         // start of one, and `logicalMeeting` would resolve past it.
         guard let target = repository.logicalMeeting(id: earlierID),
             target.id != meetingID
-        else { return }
-        _ = try? later.store.updateMetadata { metadata in
-            metadata.mergedIntoMeetingID = target.id
-            metadata.possibleContinuationOf = nil
-            metadata.possibleContinuationReason = nil
+        else { return false }
+        // The later recording may still be processing, and its run ends by
+        // moving its folder to a name that carries the title. A store resolved
+        // before that move reads a folder that is no longer there, so each write
+        // resolves the recording again, and the link is refused when it cannot land.
+        //
+        // Ordered so that a failure part-way shows a recording twice rather than
+        // not at all: the earlier recording lists the later one first, and the
+        // later recording stops being a row of its own last.
+        let carried =
+            repository.findMeeting(id: meetingID, includingMerged: true)?
+            .metadata.absorbedMeetingIDs ?? later.metadata.absorbedMeetingIDs
+        // A recording that already holds continuations of its own hands them to
+        // the target, so no recording is ever linked through another one.
+        guard
+            updateLinked(
+                target.id,
+                { metadata in
+                    for id in [meetingID] + carried where !metadata.absorbedMeetingIDs.contains(id) {
+                        metadata.absorbedMeetingIDs.append(id)
+                    }
+                    // In the write that links, so a quit right after cannot lose
+                    // the rewrite this link owes.
+                    metadata.summaryNeedsRewrite = true
+                    metadata.summaryCoversParts = nil
+                })
+        else { return false }
+        for childID in carried {
+            updateLinked(childID, { $0.mergedIntoMeetingID = target.id })
         }
-        _ = try? target.primary.store.updateMetadata { metadata in
-            if !metadata.absorbedMeetingIDs.contains(meetingID) {
-                metadata.absorbedMeetingIDs.append(meetingID)
-            }
+        // From here the conversation lists the later recording, so its summary is
+        // behind whether or not the pointer below lands, and the caller is told
+        // so even when it does not.
+        let pointed = updateLinked(
+            meetingID,
+            {
+                $0.absorbedMeetingIDs = []
+                $0.mergedIntoMeetingID = target.id
+                $0.possibleContinuationOf = nil
+                $0.possibleContinuationReason = nil
+            })
+        if pointed {
+            Log.app.info("combined a meeting into an earlier one: \(reason, privacy: .public)")
         }
-        Log.app.info("combined a meeting into an earlier one: \(reason, privacy: .public)")
         refreshRecentMeetings()
         onProcessingUpdate?(target.id)
+        if rewritingSummary { refreshConversationSummary(meetingID: target.id) }
+        return true
+    }
+
+    /// One notification for a burst of failed rewrites. Separating a part asks for
+    /// two rewrites, and both fail the same way when the model is out of reach.
+    ///
+    /// A repeat of the same failure inside a minute is left out, whichever meeting
+    /// it was for, and a different failure still posts. A failure of the rewrite
+    /// the person just asked for always posts.
+    func postSummaryProblem(_ error: ProcessingError, meetingID: String) {
+        let now = clock.now
+        recentSummaryProblems.removeAll { now.timeIntervalSince($0.at) >= 60 }
+        if !summariesAskedByPerson.contains(meetingID),
+            recentSummaryProblems.contains(where: { $0.error == error })
+        {
+            return
+        }
+        recentSummaryProblems.append((error, now))
+        notifications.summaryProblem(error, meetingID: meetingID)
+    }
+
+    /// Updates one recording's metadata through a store resolved now, once more
+    /// if the first write finds the folder gone.
+    @discardableResult
+    private func updateLinked(
+        _ meetingID: String, _ body: @escaping (inout MeetingMetadata) -> Void
+    ) -> Bool {
+        for _ in 0..<2 {
+            guard let found = repository.findMeeting(id: meetingID, includingMerged: true)
+            else { continue }
+            if (try? found.store.updateMetadata(body)) != nil { return true }
+        }
+        Log.app.error("link between recordings not written")
+        return false
+    }
+
+    /// Writes a finished conversation's summary again from all of its
+    /// recordings. While one of them is still processing the rewrite waits and
+    /// is asked again when that recording finishes.
+    public func refreshConversationSummary(
+        meetingID: String, askedByPerson: Bool = false,
+        completion: @escaping @Sendable @MainActor () -> Void = {}
+    ) {
+        if askedByPerson { summariesAskedByPerson.insert(meetingID) }
+        runProcessing { [weak self] in
+            guard let self else { return completion() }
+            await pipeline.refreshConversationSummary(meetingID: meetingID)
+            // After the failure callback, which was queued first.
+            await Task.yield()
+            summariesAskedByPerson.remove(meetingID)
+            onProcessingUpdate?(meetingID)
+            refreshRecentMeetings()
+            completion()
+        }
     }
 
     /// Separates a recording from the conversation it was linked to.
@@ -1999,11 +2132,17 @@ public final class PipitRuntime {
         if let parent = repository.findMeeting(id: parentID, includingMerged: true) {
             _ = try? parent.store.updateMetadata { metadata in
                 metadata.absorbedMeetingIDs.removeAll { $0 == meetingID }
+                metadata.summaryNeedsRewrite = true
+                metadata.summaryCoversParts = nil
             }
         }
         Log.app.info("separated a continuation from the meeting it was linked to")
         refreshRecentMeetings()
         onProcessingUpdate?(parentID)
+        // Both halves, since each now stands on its own: the conversation lost
+        // a part, and the part never had a summary of its own while it was one.
+        refreshConversationSummary(meetingID: parentID)
+        refreshConversationSummary(meetingID: meetingID)
     }
 
     /// Declines a suggested continuation, so it is not offered again.

@@ -175,6 +175,15 @@ public final class MeetingPlaybackModel {
         play()
     }
 
+    /// Plays from a moment on the conversation's clock, which is what the
+    /// summary's moments are on.
+    public func play(timelineSeconds: Double) {
+        guard let target = timeline.position(timelineSeconds: timelineSeconds) else { return }
+        follows = true
+        seek(to: target)
+        play()
+    }
+
     public func cycleRate() {
         let next = Self.rates.firstIndex(of: rate).map { ($0 + 1) % Self.rates.count } ?? 0
         rate = Self.rates[next]

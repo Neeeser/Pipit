@@ -201,6 +201,53 @@ public enum ProcessingError: LogSafeError, Equatable {
     }
 }
 
+extension ProcessingError {
+    /// A refusal of this one request, which asking again will not change: it is
+    /// too large, or the server rejected it. A garbled answer is not one, and a
+    /// later ask can get a good one.
+    public var isRefusal: Bool {
+        switch self {
+        case .requestTooLarge: true
+        case .languageModel(_, let failure):
+            if case .rejected = failure { true } else { false }
+        default: false
+        }
+    }
+
+    /// The key or the model is the problem, so every other request would fail
+    /// the same way. Nothing is given up for it: changing the key or the model
+    /// is the fix, and every conversation is still owed its rewrite.
+    public var isAccessProblem: Bool {
+        switch self {
+        case .authenticationFailed: true
+        case .languageModel(_, let failure):
+            switch failure {
+            case .authenticationFailed, .modelNotFound: true
+            default: false
+            }
+        default: false
+        }
+    }
+
+    /// What a summary that could not be written says: the problem, stated
+    /// plainly, and where to try again. No promise that Pipit will retry, since
+    /// a rewrite that failed is tried again by the person, from the meeting.
+    public var summaryProblemMessage: String {
+        let problem: String
+        switch self {
+        case .authenticationFailed: problem = "OpenAI rejected the API key."
+        case .rateLimited: problem = "OpenAI is rate limiting requests."
+        case .serverError: problem = "OpenAI returned a server error."
+        case .transport: problem = "Pipit could not reach OpenAI."
+        case .malformedResponse: problem = "OpenAI returned an unexpected response."
+        case .missingAPIKey: problem = "There is no OpenAI API key."
+        case .languageModel(let provider, let failure): problem = failure.statement(provider: provider) + "."
+        default: problem = "The summary could not be written."
+        }
+        return problem + " Open the meeting to write the summary again."
+    }
+}
+
 /// How a request to a model that writes about the meeting went wrong.
 public enum LanguageModelFailure: Equatable, Sendable {
     case authenticationFailed

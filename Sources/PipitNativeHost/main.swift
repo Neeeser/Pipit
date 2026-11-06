@@ -1,5 +1,6 @@
 import Foundation
 import PipitCore
+import os
 
 // Pipit's native messaging host for Firefox and the Chromium browsers.
 //
@@ -13,7 +14,10 @@ import PipitCore
 // and the browser side is told so, which is exactly the behaviour that lets
 // Pipit fall back to native detection.
 
-let hostVersion = "1.2.1"
+/// Read before anything else runs, so a file swapped during start-up is noticed.
+let startedFrom = FileIdentity(path: Bundle.main.executablePath ?? CommandLine.arguments[0])
+
+let hostVersion = "1.3.0"
 
 /// Reads the browser's length-prefixed messages from standard input.
 struct BrowserMessageReader {
@@ -98,6 +102,41 @@ replyToBrowser(["type": "ready", "connected": connection.isConnected, "hostVersi
 // own reconnect backoff and costs one poll of a socket.
 let watchdog = connection.startWatching(every: .seconds(2))
 
+/// Messages that reached Pipit, read again by the replacement check below.
+let relayedCount = OSAllocatedUnfairLock(initialState: 0)
+
+// Installing a new Pipit replaces this file while the browser keeps this
+// process running, and Pipit refuses a relay whose running code no longer
+// matches the file on disk. Exiting closes the browser's port; the add-on
+// reconnects and the browser starts the new file.
+//
+// Built in a nonisolated function: a closure formed in top-level code belongs
+// to the main actor, and this one runs on its own queue.
+nonisolated func exitWhenReplaced(
+    startedFrom: FileIdentity?, executablePath: String, connection: SensorAppConnection, browser: BrowserKind,
+    diagnostics: DiagnosticLog, relayedCount: OSAllocatedUnfairLock<Int>
+) -> DispatchSourceTimer? {
+    guard let startedFrom else { return nil }
+    let timer = DispatchSource.makeTimerSource(queue: DispatchQueue(label: "com.pipit.sensor-host.replaced"))
+    timer.schedule(deadline: .now() + .seconds(2), repeating: .seconds(2))
+    timer.setEventHandler {
+        guard startedFrom.isReplaced(at: executablePath) else { return }
+        connection.send(.goodbye(browser: browser))
+        connection.disconnect()
+        diagnostics.record(.nativeHostExited(reason: .replaced, relayed: relayedCount.withLock { $0 }))
+        diagnostics.flush(timeout: 1)
+        exit(0)
+    }
+    timer.resume()
+    return timer
+}
+
+let replacementCheck = exitWhenReplaced(
+    startedFrom: startedFrom,
+    executablePath: Bundle.main.executablePath ?? CommandLine.arguments[0],
+    connection: connection, browser: browser, diagnostics: diagnostics, relayedCount: relayedCount
+)
+
 /// Relays until the browser closes the pipe. Returns how many messages reached
 /// Pipit, and whether the input ended on something that was not a message.
 func relayMessages() -> (relayed: Int, endedOnError: Bool) {
@@ -110,6 +149,7 @@ func relayMessages() -> (relayed: Int, endedOnError: Bool) {
         let delivered = connection.deliver(message)
         if delivered {
             relayed += 1
+            relayedCount.withLock { $0 += 1 }
         } else {
             // Merged by the log while Pipit stays away.
             recordUnreachable(connection)

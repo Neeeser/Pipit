@@ -186,9 +186,15 @@ public final class SegmentWriter: Sendable {
 
     /// Closes the open segment and starts a new one at `format`. Used when the
     /// device changes underneath capture, so a format change never corrupts a file.
+    /// Does nothing when the writer is already at that sample rate and channel count.
     public func changeFormat(_ format: AVAudioFormat, reason: String) {
         queue.sync { [self] in
             let previous = state.withLock { $0.format }
+            // Already at this format, as after a mismatch rotation: closing
+            // would leave a short or empty segment between two identical ones.
+            if previous.sampleRate == format.sampleRate, previous.channelCount == format.channelCount {
+                return
+            }
             closeSegment(reason: reason)
             recordFormatChange(from: previous, to: format, reason: reason)
             state.withLock { $0.format = format }

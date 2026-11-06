@@ -123,7 +123,7 @@ it does not match.
 | `browser.message_unparsable` | `browser` |
 | `nativehost.started` | `browser` |
 | `nativehost.app_unreachable` | `code` |
-| `nativehost.exited` | `reason` (`browser_closed`, `app_closed`, `error`), `relayed` |
+| `nativehost.exited` | `reason` (`browser_closed`, `app_closed`, `replaced`, `error`), `relayed` |
 | `diagnostics.dropped` | `count` (events lost to a full queue or a failed write) |
 | `report.sent` | `kind` (`user`, `crash`, `automatic`), `bytes`, `outcome` (`accepted`, `replayed`, `rejected`, `failed`), `status` (HTTP status, when there was one) |
 

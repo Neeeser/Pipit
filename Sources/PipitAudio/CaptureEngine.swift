@@ -334,25 +334,13 @@ public final class CaptureEngine: Sendable {
         // The writer holds this closure and the engine holds the writer, so
         // the reference back has to be weak or the pair never deallocates.
         let engine = WeakEngine(self)
-        let micFormat =
+        // Fallbacks for an empty ring. Read here so the coordinators' locks are
+        // not taken inside the engine's.
+        let micFallback =
             format(from: micCoordinator.activeFormat)
-            ?? AVAudioFormat(standardFormatWithSampleRate: 48_000, channels: 1)!
+            ?? CaptureFormat.make(sampleRate: 48_000, channelCount: 1)!
+        let remoteFallback = capturesRemote ? format(from: remoteCoordinator.activeFormat) : nil
         let (micBase, remoteBase) = state.withLock { ($0.micLastSegmentIndex, $0.remoteLastSegmentIndex) }
-        let micWriter = SegmentWriter(
-            track: .mic, layout: layout, manifest: manifest, format: micFormat,
-            segmentSeconds: segmentSeconds, clock: clock,
-            firstSegmentIndex: micBase + 1,
-            onFailure: { error in engine.value?.handleWriteFailure(error, track: .mic) }
-        )
-        var remoteWriter: SegmentWriter?
-        if capturesRemote, let remoteFormat = format(from: remoteCoordinator.activeFormat) {
-            remoteWriter = SegmentWriter(
-                track: .remote, layout: layout, manifest: manifest, format: remoteFormat,
-                segmentSeconds: segmentSeconds, clock: clock,
-                firstSegmentIndex: remoteBase + 1,
-                onFailure: { error in engine.value?.handleWriteFailure(error, track: .remote) }
-            )
-        }
 
         // The ring is drained and handed to the writer queues inside the same
         // locked region that flips the mode, so a live buffer can never be
@@ -363,11 +351,38 @@ public final class CaptureEngine: Sendable {
             pending = state.pendingEvents
             state.pendingEvents = []
             state.layout = layout
+
+            // A writer opens at the format of the first packet it is given. The
+            // ring's oldest audio can predate a rebuild that changed the
+            // format, and the ring keeps evicting until it is drained, so the
+            // format is read from the drained packets and not before. The
+            // writer only queues its file open here, which takes no engine lock.
+            let micPackets = self.micPreRoll.drain()
+            let micWriter = SegmentWriter(
+                track: .mic, layout: layout, manifest: manifest,
+                format: Self.openingFormat(of: micPackets) ?? micFallback,
+                segmentSeconds: self.segmentSeconds, clock: self.clock,
+                firstSegmentIndex: micBase + 1,
+                onFailure: { error in engine.value?.handleWriteFailure(error, track: .mic) }
+            )
+            // Drained whenever the session captures the far end, so a ring left
+            // behind by a tap with no usable format now is not flushed later,
+            // out of order.
+            let remotePackets = capturesRemote ? self.remotePreRoll.drain() : []
+            var remoteWriter: SegmentWriter?
+            if let remoteFormat = Self.openingFormat(of: remotePackets) ?? remoteFallback {
+                remoteWriter = SegmentWriter(
+                    track: .remote, layout: layout, manifest: manifest,
+                    format: remoteFormat,
+                    segmentSeconds: self.segmentSeconds, clock: self.clock,
+                    firstSegmentIndex: remoteBase + 1,
+                    onFailure: { error in engine.value?.handleWriteFailure(error, track: .remote) }
+                )
+            }
             state.micWriter = micWriter
             state.remoteWriter = remoteWriter
 
             var summaries: [(CaptureTrack, Int64, Double, Double?)] = []
-            let micPackets = self.micPreRoll.drain()
             if !micPackets.isEmpty {
                 var frames: Int64 = 0
                 var seconds: Double = 0
@@ -388,7 +403,6 @@ public final class CaptureEngine: Sendable {
                 summaries.append((.mic, frames, seconds, earliest))
             }
             if let remoteWriter {
-                let remotePackets = self.remotePreRoll.drain()
                 if !remotePackets.isEmpty {
                     var frames: Int64 = 0
                     var seconds: Double = 0
@@ -654,11 +668,18 @@ public final class CaptureEngine: Sendable {
         return highest
     }
 
+    /// The format of the first packet, when it names a sample rate and channels.
+    private static func openingFormat(of packets: [AudioBufferPacket]) -> AVAudioFormat? {
+        guard let format = packets.first?.buffer.format,
+            format.sampleRate > 0, format.channelCount > 0
+        else { return nil }
+        return format
+    }
+
     private func format(from descriptor: AudioFormatDescriptor?) -> AVAudioFormat? {
         guard let descriptor, descriptor.isUsable else { return nil }
-        return AVAudioFormat(
-            standardFormatWithSampleRate: descriptor.sampleRate,
-            channels: AVAudioChannelCount(descriptor.channelCount)
+        return CaptureFormat.make(
+            sampleRate: descriptor.sampleRate, channelCount: descriptor.channelCount
         )
     }
 
