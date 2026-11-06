@@ -23,7 +23,9 @@ jobs:
     if: ${{ !(github.event_name == 'workflow_dispatch' && inputs.notarize) }}
     name: Build and test
     runs-on: macos-15
-    timeout-minutes: 45
+    # The job's median is about 40 minutes and slow hosted runners pushed it
+    # past 45 with no test failing, so 45 cancelled passing runs.
+    timeout-minutes: 90
     env:
       # Every swift build and the test run compile with -warnings-as-errors.
       # scripts/spm-env.sh reads this variable. A local build leaves it unset.
