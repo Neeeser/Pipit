@@ -24,6 +24,9 @@ public struct NotificationService: Sendable {
         case keepRecording = "keep_recording"
         case captureProblem = "capture_problem"
         case processingProblem = "processing_problem"
+        /// A summary that could not be written again. No Retry action: the
+        /// summary tab has the button for that.
+        case summaryProblem = "summary_problem"
         case readyToReview = "ready_to_review"
         case crashReport = "crash_report"
     }
@@ -43,7 +46,13 @@ public struct NotificationService: Sendable {
         NotificationSupport.isAvailable ? .current() : nil
     }
 
-    public init() {}
+    /// Told about every notification before it is delivered, so a test can see
+    /// what was posted where the system would deliver nothing.
+    private var observer: (@Sendable (Category, [String: String]) -> Void)?
+
+    public init(observer: (@Sendable (Category, [String: String]) -> Void)? = nil) {
+        self.observer = observer
+    }
 
     /// Registers the actionable categories. Actionable notifications need a
     /// Developer ID signature; under ad-hoc signing this is accepted and then
@@ -95,6 +104,7 @@ public struct NotificationService: Sendable {
     public func post(
         title: String, body: String, category: Category, userInfo: [String: String] = [:]
     ) {
+        observer?(category, userInfo)
         let content = UNMutableNotificationContent()
         content.title = title
         content.body = body
@@ -168,6 +178,15 @@ public struct NotificationService: Sendable {
             title: "Processing needs attention",
             body: error.userMessage,
             category: .processingProblem,
+            userInfo: ["meetingID": meetingID]
+        )
+    }
+
+    public func summaryProblem(_ error: ProcessingError, meetingID: String) {
+        post(
+            title: "Summary not updated",
+            body: error.summaryProblemMessage,
+            category: .summaryProblem,
             userInfo: ["meetingID": meetingID]
         )
     }

@@ -135,12 +135,11 @@ struct MeetingTranscriptView: View {
     private var continuationNotice: some View {
         HStack(spacing: 8) {
             Image(systemName: "arrow.triangle.branch").foregroundStyle(.secondary)
-            Text(
-                "Recorded in \(detail.recordings.count) parts, shown in order. "
-                    + "The call dropped and was rejoined."
-            )
-            .font(.caption)
-            .foregroundStyle(.secondary)
+            // Parts come from a rejoined call or from the person merging
+            // meetings, so the notice does not say which.
+            Text("Recorded in \(detail.recordings.count) parts, shown in order.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
             Spacer()
             ForEach(detail.recordings.dropFirst(), id: \.id) { recording in
                 Button("Separate part \(index(of: recording) + 1)") {

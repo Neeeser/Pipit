@@ -47,6 +47,28 @@ public actor ProcessingPipeline {
     /// and the tail of the run, which is the only point where the meeting's
     /// directory may safely be moved.
     private var pendingFolderCandidates: [String: [ModelFolderCandidate]] = [:]
+    /// Conversations, by the identifier of their first recording, whose summary
+    /// has to be written again because recordings were linked, separated or
+    /// finished since it was written.
+    ///
+    /// A debt rather than a request, because the conversation is often busy
+    /// when it is incurred: a recording is still processing, or the summary
+    /// being written was asked before the link was made. It is paid when
+    /// nothing in the conversation is running, and every job that ends looks
+    /// here for the conversation it belonged to.
+    private var summaryRewritesOwed: Set<String> = []
+    /// Conversations a rewrite is running for, so one loop pays the debt and a
+    /// second caller only adds to it.
+    private var summaryRewriting: Set<String> = []
+    /// Debts the launch pass raised and nobody asked for, so a failure paying
+    /// them is logged and not announced, however much later they are paid. A
+    /// person's own ask removes the conversation from here.
+    private var quietSummaryDebts: Set<String> = []
+    /// Set when a launch rewrite found the key or the model refused.
+    private var launchPassBlocked = false
+    /// Bumped whenever a debt is recorded, so a request can tell whether one
+    /// arrived while it was in flight.
+    private var summaryDebtGeneration: [String: Int] = [:]
     /// The cloud client. Still the only thing that writes titles, summaries and
     /// textual speaker suggestions, and still optional in every configuration.
     private let backend: any AIBackend
@@ -61,6 +83,18 @@ public actor ProcessingPipeline {
     private let settingsProvider: @Sendable () -> AppSettings
     private let onProgress: @Sendable (Progress) -> Void
     private let onFailure: @Sendable (String, ProcessingError) -> Void
+    /// Called with a conversation's identifier whenever a rewrite changed what
+    /// is on disk for it. A rewrite is paid after the job that ended, where no
+    /// progress report follows, so a window that is open needs telling.
+    private let onSummaryRewritten: @Sendable (String) -> Void
+    /// A rewrite that failed, apart from `onFailure`: that one offers Retry,
+    /// which on a finished meeting runs no rewrite and can file or rename its
+    /// folder. The summary tab's own button is how a rewrite is tried again.
+    private let onSummaryFailure: @Sendable (String, ProcessingError) -> Void
+    /// A rewrite started (true) or ended (false), so a button can wait for it.
+    private let onSummaryRewriting: @Sendable (String, Bool) -> Void
+    /// Where the summary a rewrite replaces is copied first.
+    private let summaryBackups: URL?
     private let calendar: CalendarService?
     private let diagnostics: DiagnosticLog
     private let wait: @Sendable (TimeInterval) async -> Void
@@ -157,6 +191,10 @@ public actor ProcessingPipeline {
         settingsProvider: @escaping @Sendable () -> AppSettings,
         onProgress: @escaping @Sendable (Progress) -> Void = { _ in },
         onFailure: @escaping @Sendable (String, ProcessingError) -> Void = { _, _ in },
+        onSummaryRewritten: @escaping @Sendable (String) -> Void = { _ in },
+        onSummaryFailure: @escaping @Sendable (String, ProcessingError) -> Void = { _, _ in },
+        onSummaryRewriting: @escaping @Sendable (String, Bool) -> Void = { _, _ in },
+        summaryBackups: URL? = nil,
         wait: @escaping @Sendable (TimeInterval) async -> Void = { seconds in
             try? await Task.sleep(nanoseconds: UInt64(seconds * 1_000_000_000))
         },
@@ -183,6 +221,10 @@ public actor ProcessingPipeline {
         self.settingsProvider = settingsProvider
         self.onProgress = onProgress
         self.onFailure = onFailure
+        self.onSummaryRewritten = onSummaryRewritten
+        self.onSummaryFailure = onSummaryFailure
+        self.onSummaryRewriting = onSummaryRewriting
+        self.summaryBackups = summaryBackups
         self.wait = wait
         self.chunking = chunking
     }
@@ -251,6 +293,256 @@ public actor ProcessingPipeline {
     /// Runs or resumes a meeting. Safe to call repeatedly; a meeting already in
     /// flight is left alone.
     public func process(meetingID: String) async {
+        await runStages(meetingID: meetingID)
+        await payRewriteOwed(afterJobOn: meetingID)
+    }
+
+    /// After a job on one recording lets go of the job slot, which the rewrite
+    /// needs, pays what its conversation owes. Asked of the conversation the
+    /// recording belongs to, whichever recording it was, and by every kind of
+    /// job that holds a recording in `running`.
+    private func payRewriteOwed(afterJobOn meetingID: String) async {
+        if let conversation = repository.logicalMeeting(id: meetingID),
+            summaryRewritesOwed.contains(conversation.id)
+        {
+            await payOwedSummaryRewrite(of: conversation.id)
+        }
+    }
+
+    /// Pays the rewrites the last run left owing, once the rest of the launch
+    /// work is done, and marks every conversation of several recordings that has
+    /// a summary and no record that the summary covers its parts: before
+    /// summaries were rewritten, each was built from the first recording only.
+    /// A rewrite, or an enrichment of the whole conversation, records that it
+    /// covers them on the first recording, so a conversation is marked once.
+    ///
+    /// Reads the one listing the launch already makes. A failure here is only
+    /// logged: nobody asked for these.
+    public func payLaunchSummaryRewrites() async {
+        var owing: [String] = []
+        for summary in repository.listMeetings() {
+            var owed = summary.summaryNeedsRewrite
+            if !owed, summary.recordingCount > 1, !summary.summaryCoversParts,
+                FileManager.default.fileExists(
+                    atPath: MeetingLayout(root: summary.directory).summary.path)
+            {
+                let store = MeetingStore(layout: MeetingLayout(root: summary.directory))
+                owed = (try? store.updateMetadata { $0.summaryNeedsRewrite = true }) != nil
+            }
+            // A rewrite that failed for good is left to the person.
+            if owed, !summary.summaryRewriteGivenUp { owing.append(summary.id) }
+        }
+        launchPassBlocked = false
+        for id in owing {
+            await refreshConversationSummary(meetingID: id, announcingFailure: false)
+            if launchPassBlocked { break }
+        }
+    }
+
+    /// Lets launches ask again for the rewrites given up on, once the model they
+    /// were refused by has been changed.
+    public func clearGivenUpSummaryRewrites() {
+        for summary in repository.listMeetings() where summary.summaryRewriteGivenUp {
+            let store = MeetingStore(layout: MeetingLayout(root: summary.directory))
+            _ = try? store.updateMetadata { $0.summaryRewriteGivenUp = nil }
+        }
+    }
+
+    /// Records that a conversation's summary is behind its recordings, in memory
+    /// for this run and on the first recording for the next one.
+    private func markSummaryOwed(_ conversationID: String, clearingGivenUp: Bool = true) {
+        summaryRewritesOwed.insert(conversationID)
+        summaryDebtGeneration[conversationID, default: 0] += 1
+        if let found = repository.findMeeting(id: conversationID, includingMerged: true) {
+            _ = try? found.store.updateMetadata {
+                $0.summaryNeedsRewrite = true
+                $0.summaryCoversParts = nil
+                if clearingGivenUp { $0.summaryRewriteGivenUp = nil }
+            }
+        }
+    }
+
+    /// Writes the summary, title and timeline of a conversation again from
+    /// every recording in it that has words.
+    ///
+    /// Linking recordings changes the metadata and nothing else, so the summary
+    /// written for the first recording stopped where that recording ended. This
+    /// asks the model once, writes only the summary, title and description, and
+    /// leaves the processing state and the calendar link alone, the way
+    /// `generateEnrichment` does for a button. It does not file the meeting. A
+    /// changed title renames the folder at the next launch, as any title does.
+    /// A failed request is reported and leaves the meeting as it was.
+    ///
+    /// While a recording of the conversation is still processing nothing is
+    /// asked: the conversation owes a rewrite, paid when that recording ends.
+    public func refreshConversationSummary(
+        meetingID: String, announcingFailure: Bool = true
+    ) async {
+        guard let conversation = repository.logicalMeeting(id: meetingID) else { return }
+        if announcingFailure {
+            quietSummaryDebts.remove(conversation.id)
+        } else if !summaryRewritesOwed.contains(conversation.id) {
+            quietSummaryDebts.insert(conversation.id)
+        }
+        markSummaryOwed(conversation.id, clearingGivenUp: announcingFailure)
+        await payOwedSummaryRewrite(of: conversation.id)
+    }
+
+    /// Whether any recording of the conversation is being worked on, now or
+    /// before it settles.
+    private func isBusy(_ conversation: LogicalMeeting) -> Bool {
+        conversation.recordings.contains {
+            running.contains($0.metadata.id)
+                || ($0.metadata.processing.state != .complete && $0.metadata.processing.state != .failed)
+        }
+    }
+
+    private func payOwedSummaryRewrite(of conversationID: String) async {
+        guard summaryRewriting.insert(conversationID).inserted else { return }
+        defer { summaryRewriting.remove(conversationID) }
+        while summaryRewritesOwed.contains(conversationID) {
+            guard let conversation = repository.logicalMeeting(id: conversationID),
+                conversation.id == conversationID
+            else {
+                // Linked under another conversation since, which owes its own.
+                summaryRewritesOwed.remove(conversationID)
+                return
+            }
+            guard !isBusy(conversation) else { return }
+            summaryRewritesOwed.remove(conversationID)
+            let settings = settingsProvider()
+            // Nothing to write without a model; checked before the slot is
+            // taken, so a Mac with no key never queues behind a transcription.
+            guard settings.enrichment.wantsAnything, !settings.models.metadata.isEmpty,
+                await languageModels(settings).isConfigured()
+            else {
+                // Said on the meeting, the way a missing key is for any other
+                // skipped stage, so the pane explains why nothing happened.
+                var metadata = conversation.primary.metadata
+                await recordMissingKey(&metadata, settings: settings)
+                let missing = metadata.processing.skippedForMissingKey
+                // Only a change is written and announced: a launch pays many.
+                if missing != conversation.primary.metadata.processing.skippedForMissingKey {
+                    _ = try? conversation.primary.store.updateMetadata {
+                        $0.processing.skippedForMissingKey = missing
+                    }
+                    onSummaryRewritten(conversationID)
+                }
+                quietSummaryDebts.remove(conversationID)
+                continue
+            }
+            await rewriteSummary(of: conversation, settings: settings)
+        }
+    }
+
+    private func rewriteSummary(of conversation: LogicalMeeting, settings: AppSettings) async {
+        let id = conversation.id
+        onSummaryRewriting(id, true)
+        defer { onSummaryRewriting(id, false) }
+        let backups = summaryBackups
+        holdFolder(id)
+        defer { releaseFolder(id) }
+        defer { if !summaryRewritesOwed.contains(id) { quietSummaryDebts.remove(id) } }
+        await waitForSlot()
+        defer { jobLock.release() }
+
+        // Read again after the wait, which is as long as whatever held the slot,
+        // and nothing was asked in the meantime. Something may have started.
+        guard let current = repository.logicalMeeting(id: id), current.id == id, !isBusy(current)
+        else {
+            summaryRewritesOwed.insert(id)
+            return
+        }
+        // The store as it is now, not as it was before the model was checked: a
+        // move to a folder in that time left the old path behind. The folder is
+        // held from here on, so this one stays right.
+        let store = current.primary.store
+        defer { _ = discardIfGone(id, store: store) }
+        if discardIfGone(id, store: store) { return }
+        var metadata = (try? store.readMetadata()) ?? current.primary.metadata
+        // A description is only ever written by this stage, so the one on file
+        // is an earlier answer about the first recording and is replaced.
+        metadata.descriptionText = nil
+        let outcome: EnrichmentOutcome
+        do {
+            outcome = try await runEnrichment(
+                store: store, metadata: &metadata, settings: settings, asksForFolders: false,
+                beforeWriting: { [clock] in
+                    // A summary a person edited by hand is replaced; keep the
+                    // copy where the other redo features keep theirs. A copy that
+                    // cannot be made stops the rewrite, since the old text would
+                    // be gone.
+                    guard let backups else { return }
+                    let folder = Reprocessing.backupDirectory(
+                        under: backups, meetingID: id, at: clock.now)
+                    try Reprocessing.backUp(
+                        store: store, files: [store.layout.summary, store.layout.structuredSummary],
+                        to: folder)
+                })
+        } catch {
+            pendingFolderCandidates.removeValue(forKey: id)
+            Log.processing.error(
+                "summary rewrite failed: \(logSafeDescription(error), privacy: .public)"
+            )
+            failRewrite(id, store: store, error: error)
+            return
+        }
+        // Filing is for a meeting being processed. The person merged or
+        // separated recordings; they did not ask for the meeting to move.
+        pendingFolderCandidates.removeValue(forKey: id)
+        guard outcome != .skipped else { return }
+        do {
+            // Not `finish`: that looks up the calendar for a meeting that has
+            // none and would rename an old meeting and add people to it. And not
+            // `persist`, which writes back the processing state read before the
+            // request: a retry started meanwhile must keep its newer one.
+            let title = metadata.titles.ai
+            let description = metadata.descriptionText
+            // Read at the write, not before the request: a link made while the
+            // model was answering is owed a rewrite of its own, and clearing the
+            // flag here would lose it if the app quit before that one ran.
+            let stillOwed = summaryRewritesOwed.contains(id)
+            let wrote = outcome == .wrote
+            let written = try store.updateMetadata { current in
+                if wrote {
+                    current.titles.ai = title
+                    if let description { current.descriptionText = description }
+                }
+                if !stillOwed {
+                    current.summaryNeedsRewrite = nil
+                    current.summaryRewriteGivenUp = nil
+                    // Nothing to summarize is also settled: the same answer every time.
+                    if outcome != .skipped { current.summaryCoversParts = true }
+                }
+                if wrote { current.processing.skippedForMissingKey = false }
+            }
+            if wrote { try await writeTranscriptMarkdown(store: store, metadata: written) }
+        } catch {
+            Log.processing.error(
+                "summary rewrite not saved: \(logSafeDescription(error), privacy: .public)"
+            )
+            failRewrite(id, store: store, error: error)
+        }
+        // No progress report: a report of a complete meeting is what posts the
+        // "ready" notification, and nothing here was processed.
+        onSummaryRewritten(id)
+    }
+
+    /// A rewrite that did not work: reported unless the debt is one nobody asked
+    /// for, and given up on for later launches when asking again cannot help.
+    private func failRewrite(_ id: String, store: MeetingStore, error: any Error) {
+        let failure = Self.processingError(from: error)
+        if failure.isRefusal {
+            _ = try? store.updateMetadata { $0.summaryRewriteGivenUp = true }
+            onSummaryRewritten(id)
+        }
+        // A launch that finds the key or the model refused stops asking for the
+        // rest, which would all fail the same way, and leaves them owed.
+        if failure.isAccessProblem, quietSummaryDebts.contains(id) { launchPassBlocked = true }
+        if !quietSummaryDebts.contains(id) { onSummaryFailure(id, failure) }
+    }
+
+    private func runStages(meetingID: String) async {
         guard !running.contains(meetingID) else { return }
         // includingMerged, because a reconnected meeting is folded into the
         // earlier one and hidden from the archive listing while its own segments
@@ -389,15 +681,41 @@ public actor ProcessingPipeline {
                     // through Rebuild Transcript for the first and not at all for
                     // the second. The words are already on disk; the archive gets
                     // written either way and the failure is still reported.
+                    // A recording folded into an earlier one does not write a
+                    // summary of its own: the conversation has one, written from
+                    // all of its recordings. Read again from disk because the
+                    // link can be made while this job runs.
+                    let continuationOf = (try? store.readMetadata())?.mergedIntoMeetingID
                     var enrichmentFailure: (any Error)?
-                    do {
-                        try await runEnrichment(store: store, metadata: &metadata, settings: settings)
-                    } catch {
-                        enrichmentFailure = error
+                    if continuationOf == nil {
+                        let debts = summaryDebtGeneration[metadata.id, default: 0]
+                        do {
+                            let outcome = try await runEnrichment(
+                                store: store, metadata: &metadata, settings: settings)
+                            // The request read every recording the conversation had,
+                            // so a debt recorded before it was sent is paid by it
+                            // and a second request would repeat it.
+                            if outcome == .wrote, summaryDebtGeneration[metadata.id, default: 0] == debts {
+                                summaryRewritesOwed.remove(metadata.id)
+                                quietSummaryDebts.remove(metadata.id)
+                                _ = try? store.updateMetadata {
+                                    $0.summaryNeedsRewrite = nil
+                                    $0.summaryRewriteGivenUp = nil
+                                    $0.summaryCoversParts = true
+                                }
+                            }
+                        } catch {
+                            enrichmentFailure = error
+                        }
                     }
                     try await finish(store: store, metadata: &metadata, settings: settings)
                     if let enrichmentFailure { throw enrichmentFailure }
                     metadata.processing.advance(to: .complete, at: clock.now)
+                    // Read once more, because a link made while the request was in
+                    // flight also leaves this recording with no summary of its own.
+                    if let parent = (try? store.readMetadata())?.mergedIntoMeetingID {
+                        markSummaryOwed(repository.logicalMeeting(id: parent)?.id ?? parent)
+                    }
                     // The decoded working copies are derived from audio that is
                     // never modified, so they are thrown away as soon as the
                     // meeting stops needing them.
@@ -623,6 +941,13 @@ public actor ProcessingPipeline {
     /// it was a writer nothing could stop, and a meeting trashed in the middle
     /// of the launch sweep came back holding audio and no metadata.
     public func compactAudio(meetingID: String) async {
+        await compactJob(meetingID: meetingID)
+        // The job holds the recording in `running`, which a rewrite waits out,
+        // and nothing else asks again when it ends.
+        await payRewriteOwed(afterJobOn: meetingID)
+    }
+
+    private func compactJob(meetingID: String) async {
         guard let found = repository.findMeeting(id: meetingID, includingMerged: true) else { return }
         guard AudioCompactor.hasWork(store: found.store, metadata: found.metadata) else { return }
         guard !running.contains(meetingID) else { return }
@@ -3029,23 +3354,175 @@ public actor ProcessingPipeline {
         )
     }
 
+    /// Joins the lines of a conversation, and when they are longer than the limit
+    /// keeps the start and the end of each recording's lines, in proportion to
+    /// how much it said, and drops the middle. A conversation is cut across
+    /// every recording instead of losing the last ones whole, and each recording
+    /// still shows how it opened and how it ended. A single cut at the limit
+    /// would summarize only the first recordings.
+    ///
+    /// The chunked path in `ChunkedLanguageModel` reads everything and is used
+    /// for the providers that have it. OpenAI reads one bounded request, which
+    /// is the case this exists for, and the other providers still have the
+    /// larger limit applied here.
+    private static let omission = "[The rest of this recording is left out here.]"
+
+    private static func evenlyCut(_ lines: [(recordingID: String, text: String)], limit: Int) -> String {
+        let total = lines.reduce(0) { $0 + $1.text.count + 1 }
+        guard total > limit else { return lines.map(\.text).joined(separator: "\n") }
+        var indices: [String: [Int]] = [:]
+        for (index, line) in lines.enumerated() { indices[line.recordingID, default: []].append(index) }
+        var kept: [Int: String] = [:]
+        for (_, own) in indices {
+            let size = own.reduce(0) { $0 + lines[$1].text.count + 1 }
+            let budget = limit * size / total
+            if size <= budget {
+                for index in own { kept[index] = lines[index].text }
+                continue
+            }
+            var used = 0
+            var head = 0
+            while head < own.count, used + lines[own[head]].text.count + 1 <= budget / 2 {
+                used += lines[own[head]].text.count + 1
+                head += 1
+            }
+            var tail = own.count
+            while tail > head, used + lines[own[tail - 1]].text.count + 1 <= budget {
+                used += lines[own[tail - 1]].text.count + 1
+                tail -= 1
+            }
+            for index in own[..<head] + own[tail...] { kept[index] = lines[index].text }
+            // Said where the middle went, so a reader of the request does not
+            // take the two ends for one unbroken stretch.
+            if head < own.count, tail > head {
+                if tail < own.count {
+                    kept[own[tail]] = omission + "\n" + lines[own[tail]].text
+                } else if head > 0 {
+                    kept[own[head - 1]] = lines[own[head - 1]].text + "\n" + omission
+                }
+            }
+            // A recording is never cut to nothing: its first line is kept as
+            // far as its share reaches.
+            if head == 0, tail == own.count, budget > 0 {
+                kept[own[0]] = String(lines[own[0]].text.prefix(budget))
+            }
+        }
+        return kept.keys.sorted().compactMap { kept[$0] }.joined(separator: "\n")
+    }
+
+    /// Every recording's notes, each stamped on the conversation's timeline like
+    /// the transcript lines. A note carries the wall-clock time it was typed, so
+    /// one written during a later recording lands at its place in the
+    /// conversation. Nil when nobody wrote any.
+    private static func conversationNotes(_ conversation: LogicalMeeting) -> String? {
+        let renderer = TranscriptRenderer()
+        var timed: [MeetingNoteEntry] = []
+        var untimed: [String] = []
+        for recording in conversation.recordings {
+            for entry in MeetingNoteEntry.entries(
+                in: recording.store.readNotes(), startedAt: conversation.startedAt)
+            {
+                if entry.at != nil { timed.append(entry) } else { untimed.append(entry.text) }
+            }
+        }
+        timed.sort { ($0.at ?? 0) < ($1.at ?? 0) }
+        let lines = untimed + timed.map { "[\(renderer.timecode($0.at ?? 0))] \($0.text)" }
+        return lines.isEmpty ? nil : lines.joined(separator: "\n")
+    }
+
+    /// What enrichment asks about a conversation that was recorded more than
+    /// once: every recording's words in the order the conversation happened.
+    ///
+    /// Each line is stamped on the conversation's timeline, the one the summary
+    /// tab and the player seek on, so a moment the model returns lands on the
+    /// recording that holds it. The duration is the length of that timeline,
+    /// which includes the gaps between recordings, so a moment in a late
+    /// recording is not discarded as past the end. Notes are every
+    /// recording's, stamped on the same timeline.
+    public static func enrichmentRequest(
+        conversation: LogicalMeeting, metadata: MeetingMetadata, settings: AppSettings,
+        folders: [EnrichmentFolder]
+    ) throws -> EnrichmentRequest? {
+        guard conversation.isSplit else {
+            return try enrichmentRequest(
+                store: conversation.primary.store, metadata: metadata, settings: settings,
+                folders: folders)
+        }
+        let lines = conversation.combinedTranscript()
+        guard !lines.isEmpty else { return nil }
+        let renderer = TranscriptRenderer()
+        let text = evenlyCut(
+            lines.map { line in
+                (
+                    recordingID: line.recordingID,
+                    text:
+                        "[\(renderer.timecode(line.timelineStart))] \(line.speakerName): \(line.utterance.text)"
+                )
+            }, limit: transcriptLimit(settings, openAI: 120_000))
+        var participants: [String] = []
+        for recording in conversation.recordings {
+            let speakers = (try? recording.store.readSpeakerMap()) ?? SpeakerMap()
+            for name in speakers.entries.values.map(\.displayName) where !participants.contains(name) {
+                participants.append(name)
+            }
+        }
+        let timelineEnd = conversation.recordings.map {
+            $0.metadata.startedAt.timeIntervalSince(conversation.startedAt) + $0.metadata.durationSeconds
+        }.max()
+        return EnrichmentRequest(
+            transcript: text,
+            humanNotes: conversationNotes(conversation),
+            participants: participants,
+            provider: metadata.provider,
+            durationSeconds: max(conversation.durationSeconds, timelineEnd ?? 0),
+            wantsTitle: settings.enrichment.generateTitle,
+            wantsDescription: settings.enrichment.generateDescription,
+            wantsSummary: settings.enrichment.generateSummary,
+            wantsNotes: settings.enrichment.generateNotes,
+            folders: folders,
+            startedAt: metadata.startedAt
+        )
+    }
+
+    private enum EnrichmentOutcome {
+        /// The model answered and the answer was applied.
+        case wrote
+        /// There are no words to summarize, so nothing can ever be asked.
+        case nothingToSummarize
+        /// Not asked, or the answer was not applied: no key, a setting that is
+        /// off, or the recording was linked under another one meanwhile.
+        case skipped
+    }
+
+    @discardableResult
     private func runEnrichment(
-        store: MeetingStore, metadata: inout MeetingMetadata, settings: AppSettings
-    ) async throws {
-        guard settings.enrichment.wantsAnything else { return }
-        guard !settings.models.metadata.isEmpty else { return }
+        store: MeetingStore, metadata: inout MeetingMetadata, settings: AppSettings,
+        asksForFolders: Bool = true, beforeWriting: (() throws -> Void)? = nil
+    ) async throws -> EnrichmentOutcome {
+        guard settings.enrichment.wantsAnything else { return .skipped }
+        guard !settings.models.metadata.isEmpty else { return .skipped }
         // Same reason as the speaker suggestion above: titles and summaries are
         // the one part of Pipit that needs the cloud, and wanting them by
         // default must not fail a meeting for someone who runs everything here.
         let reasoner = languageModels(settings)
-        guard await reasoner.isConfigured() else { return }
-        guard
-            let request = try Self.enrichmentRequest(
-                store: store, metadata: metadata, settings: settings,
-                folders: folderCatalogue(for: metadata, settings: settings)
-            )
-        else { return }
+        guard await reasoner.isConfigured() else { return .skipped }
+        let folders = asksForFolders ? folderCatalogue(for: metadata, settings: settings) : []
+        // Read through the conversation, so a recording that has continuations
+        // is summarized as one meeting rather than up to where it ended.
+        let request: EnrichmentRequest?
+        if let conversation = repository.logicalMeeting(id: metadata.id), conversation.id == metadata.id {
+            request = try Self.enrichmentRequest(
+                conversation: conversation, metadata: metadata, settings: settings, folders: folders)
+        } else {
+            request = try Self.enrichmentRequest(
+                store: store, metadata: metadata, settings: settings, folders: folders)
+        }
+        guard let request else { return .nothingToSummarize }
         let enrichment = try await reasoner.enrich(request, model: settings.models.metadata)
+        // Linked under another recording while the request was in flight: the
+        // conversation writes the summary, from every recording, and this
+        // answer covers only some of them.
+        if (try? store.readMetadata())?.mergedIntoMeetingID != nil { return .skipped }
         pendingFolderCandidates[metadata.id] = enrichment.folderCandidates
 
         // A human title always wins; the AI title only fills an empty slot.
@@ -3061,12 +3538,14 @@ public actor ProcessingPipeline {
         )
         if !document.isEmpty {
             // Written to summary.md, never to notes.md: the user's notes are theirs.
+            try beforeWriting?()
             if let structure = enrichment.generatedSummary {
                 try store.writeSummary(document.markdown, structure: structure)
             } else {
                 try store.writeSummary(document.markdown)
             }
         }
+        return .wrote
     }
 
     /// Renders `transcript.md` from what is on disk now.
@@ -3711,7 +4190,8 @@ public actor ProcessingPipeline {
         // title is the one field enrichment overwrites rather than fills.
         // Where the slot is empty this run fills it, which is the point.
         let existingTitle = metadata.titles.ai?.trimmingCharacters(in: .whitespacesAndNewlines)
-        try await runEnrichment(store: store, metadata: &metadata, settings: settings)
+        let debts = summaryDebtGeneration[meetingID, default: 0]
+        let wrote = try await runEnrichment(store: store, metadata: &metadata, settings: settings) == .wrote
         if let existingTitle, !existingTitle.isEmpty { metadata.titles.ai = existingTitle }
         // The notice is why the user pressed the button. Leaving it up after
         // the button worked says the key is still missing on a meeting that
@@ -3724,6 +4204,19 @@ public actor ProcessingPipeline {
         // it. Neither is a summary, and neither is what the button offered.
         try await writeTranscriptMarkdown(store: store, metadata: metadata)
         try persist(metadata, to: store)
+        // A summary written from every recording is what a rewrite owed.
+        // Unless a newer debt is pending, as in `rewriteSummary`.
+        // A debt taken off the list by a payer waiting for the slot is still a
+        // debt, so the count is compared as well as the list.
+        if wrote, !summaryRewritesOwed.contains(meetingID),
+            summaryDebtGeneration[meetingID, default: 0] == debts
+        {
+            _ = try? store.updateMetadata {
+                $0.summaryNeedsRewrite = nil
+                $0.summaryRewriteGivenUp = nil
+                $0.summaryCoversParts = true
+            }
+        }
         report(metadata, chunks: nil)
         // Before the rename, not only in the defer below. The writes above
         // recreate the folder, so a meeting trashed during the request has a

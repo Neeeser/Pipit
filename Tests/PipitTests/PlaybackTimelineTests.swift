@@ -64,6 +64,20 @@ struct PlaybackTimelineTests {
         #expect(Self.split.position(recordingID: "rec-x", seconds: 10) == nil, "no audio, no position")
     }
 
+    @Test("a moment on the conversation's clock maps to a playback position")
+    func timelineMomentMapsToPosition() {
+        #expect(Self.split.position(timelineSeconds: 30) == 30)
+        #expect(Self.split.position(timelineSeconds: 195) == 75, "15 seconds into the part that began at 3:00")
+        #expect(Self.split.position(timelineSeconds: 100) == 60, "the gap lands where the next part begins")
+        #expect(Self.split.position(timelineSeconds: 900) == 100, "past the end is the end")
+        #expect(Self.split.position(timelineSeconds: -4) == 0)
+        #expect(PlaybackTimeline().position(timelineSeconds: 10) == nil)
+        for position in [0.0, 25, 59, 60, 75, 99] {
+            let clock = Self.split.timelineSeconds(at: position)
+            #expect(Self.split.position(timelineSeconds: clock) == position, "round trip at \(position)")
+        }
+    }
+
     @Test("a recording with no audio takes no room")
     func emptySourceTakesNoRoom() {
         let timeline = PlaybackTimeline([

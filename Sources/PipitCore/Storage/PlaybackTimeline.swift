@@ -92,6 +92,23 @@ public struct PlaybackTimeline: Sendable, Equatable {
         return parts[located.part].timelineOffset + located.seconds
     }
 
+    /// The playback position of a moment on the conversation's clock, the
+    /// inverse of `timelineSeconds(at:)`.
+    ///
+    /// A summary's moments are on that clock. A moment inside a part lands in
+    /// that part's audio; one in the gap before a part is not on any recording,
+    /// so it lands where the next part begins; one past the end lands at the end.
+    /// Nil when there is no audio to play.
+    public func position(timelineSeconds time: Double) -> Double? {
+        guard !parts.isEmpty else { return nil }
+        guard let index = parts.lastIndex(where: { $0.timelineOffset <= time }) else { return 0 }
+        let part = parts[index]
+        if time <= part.timelineOffset + part.duration {
+            return part.start + (time - part.timelineOffset)
+        }
+        return index + 1 < parts.count ? parts[index + 1].start : duration
+    }
+
     /// The conversation's clock at the end of the last part.
     public var timelineDuration: Double {
         guard let last = parts.last else { return 0 }
