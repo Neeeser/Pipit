@@ -150,9 +150,16 @@ public struct RefusingEmbeddingExtractor: SpeakerEmbeddingExtractor {
 /// A finished recording on disk, and the pipelines that process one.
 public enum PipelineFixtures {
     /// Builds a finished two-track recording on disk, ready for processing.
+    ///
+    /// The echo canceller has already been answered for it by default, so the
+    /// pipeline reads the microphone as recorded and does not run the canceller
+    /// over these tones. That pass takes seconds of CPU per meeting and is what
+    /// made the pipeline suites slow, while almost none of their tests are
+    /// about it. A test of the cleaning stage passes `cleaning: .notYetRun`.
     public static func makeRecordedMeeting(
         root: URL, source: MeetingSource = .googleMeet, seconds: Double = 6,
-        remoteStartOffset: Double = 0, amplitude: Float = 0.5
+        remoteStartOffset: Double = 0, amplitude: Float = 0.5,
+        cleaning: FixtureCleaning = .alreadyDecided
     ) throws -> (metadata: MeetingMetadata, store: MeetingStore, repository: MeetingRepository) {
         let repository = MeetingRepository(root: root)
         let started = Date(timeIntervalSince1970: 1_787_070_000)
@@ -207,8 +214,21 @@ public enum PipelineFixtures {
             )
         ]
         metadata.processing = ProcessingStatus(state: .audioSafe, updatedAt: started)
+        if cleaning == .alreadyDecided {
+            // What the cleaner records when it keeps the recording, or finds
+            // no far end to subtract.
+            metadata.cleaningOutcome = source.capturesRemoteAudio ? .bypassedNoEchoPath : .skippedOneTrack
+        }
         try created.store.writeMetadata(metadata)
         return (metadata, created.store, repository)
+    }
+
+    /// Whether a fixture meeting still has the echo canceller ahead of it.
+    public enum FixtureCleaning: Sendable {
+        /// The canceller has already kept the recording, so processing skips it.
+        case alreadyDecided
+        /// No outcome is recorded, so processing runs the real canceller.
+        case notYetRun
     }
 
     public static func makePipeline(

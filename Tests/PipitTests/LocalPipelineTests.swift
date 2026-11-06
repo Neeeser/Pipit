@@ -3377,7 +3377,7 @@ struct LocalPipelineTests {
         // they would have had before any of this existed.
         let root = try TestPaths.makeTemporaryDirectory()
         defer { try? FileManager.default.removeItem(at: root) }
-        let meeting = try PipelineFixtures.makeRecordedMeeting(root: root, seconds: 6)
+        let meeting = try PipelineFixtures.makeRecordedMeeting(root: root, seconds: 6, cleaning: .notYetRun)
 
         // The cleaned track's own directory, taken away from the writer
         // after the recording is safely in the segments. Nothing else
