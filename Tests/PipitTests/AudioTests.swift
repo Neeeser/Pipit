@@ -1,9 +1,10 @@
 import AVFoundation
 import Foundation
-import PipitAudio
 import PipitCore
 import PipitServices
 import Testing
+
+@testable import PipitAudio
 
 /// Real audio through the real writers and readers. These use AVFoundation but no
 /// audio hardware, so they run anywhere.
@@ -122,6 +123,68 @@ struct AudioTests {
             VoiceEnrollmentRecorder.speechSeconds(
                 in: AudioFixtures.makeTone(seconds: 0.5, sampleRate: 48_000, amplitude: 0.001)
             ) == 0, "a room nobody is talking in fills no bar")
+    }
+
+    @Test("a three-channel microphone opens its first segment at three channels")
+    func threeChannelMicrophoneOpensFirstSegmentAtThreeChannels() async throws {
+        let root = try TestPaths.makeTemporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let layout = MeetingLayout(root: root)
+        try FileManager.default.createDirectory(
+            at: layout.segments, withIntermediateDirectories: true
+        )
+        let manifest = try ManifestWriter(url: layout.manifest)
+        let format = try #require(CaptureFormat.make(sampleRate: 48_000, channelCount: 3))
+        let writer = SegmentWriter(
+            track: .mic, layout: layout, manifest: manifest, format: format, segmentSeconds: 60
+        )
+        let buffer = try #require(AVAudioPCMBuffer(pcmFormat: format, frameCapacity: 4_800))
+        buffer.frameLength = 4_800
+        writer.enqueueSynchronously(AudioBufferPacket(buffer: buffer, hostTime: 100))
+        writer.finish(reason: "test")
+        manifest.close()
+
+        let segments = try ManifestReader.timeline(contentsOf: layout.manifest).segments(track: .mic)
+        #expect(segments.count == 1, "one segment, got \(segments.count)")
+        #expect(segments.first?.format.channelCount == 3)
+        #expect(segments.first?.frameCount == 4_800)
+        #expect(!segments.contains { $0.closeReason == "buffer_format_mismatch" })
+    }
+
+    @Test("a format change to the format the writer is already at opens no segment")
+    func aFormatChangeToTheFormatTheWriterIsAlreadyAtOpensNoSegment() throws {
+        // A buffer at a new rate rotates the segment itself. The coordinator
+        // then reports the same change, and closing again left a short or
+        // empty segment between two at one format.
+        let root = try TestPaths.makeTemporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let layout = MeetingLayout(root: root)
+        try FileManager.default.createDirectory(
+            at: layout.segments, withIntermediateDirectories: true
+        )
+        let manifest = try ManifestWriter(url: layout.manifest)
+        let first = try #require(AVAudioFormat(standardFormatWithSampleRate: 48_000, channels: 1))
+        let second = try #require(AVAudioFormat(standardFormatWithSampleRate: 44_100, channels: 1))
+        let writer = SegmentWriter(
+            track: .mic, layout: layout, manifest: manifest, format: first, segmentSeconds: 60
+        )
+        let buffer = try #require(AVAudioPCMBuffer(pcmFormat: second, frameCapacity: 4_410))
+        buffer.frameLength = 4_410
+        writer.enqueueSynchronously(AudioBufferPacket(buffer: buffer, hostTime: 100))
+        writer.changeFormat(second, reason: "config_change")
+        writer.finish(reason: "test")
+        manifest.close()
+
+        let segments = try ManifestReader.timeline(contentsOf: layout.manifest).segments(track: .mic)
+        #expect(segments.count == 2, "the empty first segment and the 44.1 kHz one, got \(segments.count)")
+        #expect(segments.last?.frameCount == 4_410)
+    }
+
+    @Test("an empty file is lost audio only when the manifest recorded frames in it")
+    func anEmptyFileIsLostAudioOnlyWhenTheManifestRecordedFrames() {
+        #expect(!TrackAudioReader.emptyFileLosesAudio(manifestFrameCount: 0))
+        #expect(!TrackAudioReader.emptyFileLosesAudio(manifestFrameCount: nil))
+        #expect(TrackAudioReader.emptyFileLosesAudio(manifestFrameCount: 4_800))
     }
 
     @Test("segments rotate, close cleanly and report per-segment duration")
