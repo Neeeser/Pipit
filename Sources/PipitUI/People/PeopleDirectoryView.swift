@@ -19,9 +19,9 @@ public struct PeopleDirectoryView: View {
         // The system split view, as in the Meetings and Settings windows, so
         // the list is the standard floating sidebar.
         NavigationSplitView {
-            sidebar.navigationSplitViewColumnWidth(min: 240, ideal: 264, max: 360)
+            sidebar.sidebarBackground().navigationSplitViewColumnWidth(min: 240, ideal: 264, max: 360)
         } detail: {
-            detail.frame(minWidth: 380).toolbarTitle("People")
+            detail.frame(minWidth: 380).toolbarTitle("People").detailBackground()
         }
         .frame(minWidth: 820, minHeight: 520)
         // The search field takes the keys when the window opens, so typing

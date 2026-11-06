@@ -98,12 +98,14 @@ public struct SettingsView: View {
                     }
                 }
             }
+            .sidebarBackground()
             .navigationSplitViewColumnWidth(min: 190, ideal: 212, max: 240)
         } detail: {
             detail
                 .frame(minWidth: 520, maxWidth: .infinity, maxHeight: .infinity)
                 // The name of the pane, as System Settings shows it.
                 .toolbarTitle(pane.title)
+                .detailBackground()
         }
         .frame(minWidth: 740, minHeight: 520)
     }

@@ -27,6 +27,7 @@ public struct SetupWizardView: View {
         NavigationSplitView {
             // Wide enough that no step name wraps onto a second line.
             rail
+                .sidebarBackground()
                 .frame(minWidth: 210)
                 .navigationSplitViewColumnWidth(220)
                 .toolbar(removing: .sidebarToggle)
@@ -40,6 +41,7 @@ public struct SetupWizardView: View {
                 footer.padding(.horizontal, 24).padding(.vertical, 14)
             }
             .toolbarTitle("Setup")
+            .detailBackground()
         }
         .frame(minWidth: 720, minHeight: 540)
         .task { await model.begin() }

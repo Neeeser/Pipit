@@ -111,13 +111,15 @@ struct MeetingsWindowRenderTests {
     private static let looks: [(String, NSAppearance.Name)] = [("dark", .darkAqua), ("light", .aqua)]
 
     /// Lays a view out in a window built the way the app builds its
-    /// split-view windows, and writes it to `PIPIT_RENDER_DIR` when that is set.
+    /// split-view windows, and writes it to `PIPIT_RENDER_DIR` when that is
+    /// set, or else to `folder` when one is given. Returns the file written.
     ///
     /// A window rather than a bare hosting view: a split view's panes draw
     /// nothing offscreen without one.
+    @discardableResult
     private func render(
-        _ content: some View, size: CGSize, appearance: NSAppearance.Name, name: String
-    ) async throws {
+        _ content: some View, size: CGSize, appearance: NSAppearance.Name, name: String, folder: URL? = nil
+    ) async throws -> URL? {
         let window = WindowManager.makeSplitWindow(
             title: "Render", size: size, content: content, autosaveName: "PipitRenderTest"
         )
@@ -129,24 +131,28 @@ struct MeetingsWindowRenderTests {
         window.hasShadow = false
         window.orderFrontRegardless()
         defer { window.close() }
-        guard let view = window.contentView else { return }
+        guard let view = window.contentView else { return nil }
         view.layoutSubtreeIfNeeded()
         view.displayIfNeeded()
         try await Task.sleep(for: .milliseconds(400))
         view.layoutSubtreeIfNeeded()
         view.displayIfNeeded()
         #expect(view.fittingSize.width > 0, "\(name) did not lay out")
-        guard let output = ProcessInfo.processInfo.environment["PIPIT_RENDER_DIR"].map({ URL(fileURLWithPath: $0) })
-        else { return }
+        guard
+            let output = ProcessInfo.processInfo.environment["PIPIT_RENDER_DIR"].map({ URL(fileURLWithPath: $0) })
+                ?? folder
+        else { return nil }
         try FileManager.default.createDirectory(at: output, withIntermediateDirectories: true)
         // From the window server rather than `cacheDisplay`, which draws the
         // columns of a SwiftUI split view and its sidebar material as blank.
         // `-o` leaves out the shadow, so the file is the window alone.
         let capture = Process()
         capture.executableURL = URL(fileURLWithPath: "/usr/sbin/screencapture")
-        capture.arguments = ["-x", "-o", "-l\(window.windowNumber)", output.appendingPathComponent("\(name).png").path]
+        let file = output.appendingPathComponent("\(name).png")
+        capture.arguments = ["-x", "-o", "-l\(window.windowNumber)", file.path]
         try capture.run()
         capture.waitUntilExit()
+        return file
     }
 
     @Test("the window lays out with one meeting open and with several selected")
@@ -291,6 +297,39 @@ struct MeetingsWindowRenderTests {
         #expect(editor?.string != "Beta check-in", "the title field holds the keys")
     }
 
+    /// The player bar's fill once reached under the floating sidebar and
+    /// showed in the gap below it and beside it, so the sidebar looked laid
+    /// on top of the bar. The gap should be the page colour all the way down.
+    @Test("the player bar's fill stays out of the gap around the sidebar")
+    func playerBarStaysBesideTheSidebar() async throws {
+        let root = try TestPaths.makeTemporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        NSApplication.shared.setActivationPolicy(.prohibited)
+        let built = try makeArchive(root: root)
+        let model = MeetingsWindowModel(runtime: built.runtime)
+        await model.reload()
+        model.select(built.open, extending: false)
+        for _ in 0..<40 where model.detail?.playback.hasAudio != true {
+            try await Task.sleep(for: .milliseconds(50))
+        }
+        for (look, appearance) in Self.looks {
+            let file = try await render(
+                MeetingsWindowView(model: model), size: CGSize(width: 900, height: 640), appearance: appearance,
+                name: "gap-\(look)", folder: root)
+            let image = try #require(file.flatMap { NSImage(contentsOf: $0) })
+            let bitmap = try #require(image.representations.first as? NSBitmapImageRep)
+            let scale = CGFloat(bitmap.pixelsWide) / 900
+            // Half way into the gap left of the sidebar: once beside the
+            // transcript, once beside the player bar, clear of the corner.
+            let x = Int(4 * scale)
+            let besideTranscript = try #require(bitmap.colorAt(x: x, y: Int(320 * scale)))
+            let besideBar = try #require(bitmap.colorAt(x: x, y: Int((640 - 40) * scale)))
+            #expect(
+                besideBar.isClose(to: besideTranscript),
+                "\(look): the gap beside the bar is \(besideBar), beside the transcript \(besideTranscript)")
+        }
+    }
+
     /// macOS 26 rounds a window with a toolbar much more than one without,
     /// and the split-view windows looked rounder than the windows beside them.
     @Test("the split-view windows keep the corner of a window without a toolbar")
@@ -302,5 +341,31 @@ struct MeetingsWindowRenderTests {
         defer { window.close() }
         #expect(window is SmallCornerWindow)
         #expect(window.value(forKey: "_cornerRadius") as? CGFloat == SmallCornerWindow.cornerRadius)
+    }
+
+    /// On screen, macOS 26 filled the toolbar strip above the content with
+    /// the titlebar's own grey, so the top of each window showed a band the
+    /// content's background did not reach. The test process never draws that
+    /// band, so this checks the setting that keeps it away.
+    @Test("the split-view windows draw no titlebar band above the content")
+    func splitWindowsHaveNoTitlebarBand() throws {
+        guard #available(macOS 26.0, *) else { return }
+        let window = WindowManager.makeSplitWindow(
+            title: "Band", size: NSSize(width: 400, height: 300), content: Text("")
+        )
+        defer { window.close() }
+        #expect(window.titlebarAppearsTransparent)
+    }
+}
+
+extension NSColor {
+    /// Equal to within a step of each channel, which the window server's
+    /// colour matching can move.
+    fileprivate func isClose(to other: NSColor) -> Bool {
+        guard let mine = usingColorSpace(.sRGB), let theirs = other.usingColorSpace(.sRGB) else { return false }
+        let step: CGFloat = 1.5 / 255
+        return abs(mine.redComponent - theirs.redComponent) <= step
+            && abs(mine.greenComponent - theirs.greenComponent) <= step
+            && abs(mine.blueComponent - theirs.blueComponent) <= step
     }
 }

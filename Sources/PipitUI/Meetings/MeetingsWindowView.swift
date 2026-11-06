@@ -29,6 +29,7 @@ public struct MeetingsWindowView: View {
         // hand-drawn lines to keep level across the two.
         NavigationSplitView {
             sidebar
+                .sidebarBackground()
                 .navigationSplitViewColumnWidth(min: Self.sidebarMinWidth, ideal: 288, max: 380)
         } detail: {
             detail
@@ -404,7 +405,10 @@ public struct MeetingsWindowView: View {
             }
         }
         .padding(.horizontal, 10)
-        .padding(.vertical, 7)
+        // Level with the player card beside it: both stand the same height
+        // above the window's bottom edge, so the line over the footer and the
+        // top of the card meet in one line across the window.
+        .frame(height: MeetingPlayerBar.cardHeight - 1)
     }
 
     private func footerText(visible: Int) -> String {

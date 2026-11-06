@@ -254,35 +254,40 @@ struct SummaryTimeline: View {
     }
 }
 
-/// A timeline entry: its time in a column of its own when the tab is wide, so
-/// the entries read as a timeline, and beside the title when it is not.
+/// A timeline entry: its time in a column of its own, with a line down beside
+/// the entries so they read as a timeline. Only a narrow Summary tab puts the
+/// time beside the title instead. The panel beside the transcript keeps the
+/// column, in less room.
 private struct TimelineRow<Title: View, Content: View>: View {
     let time: Double?
     let detail: MeetingReviewModel
     @ViewBuilder var title: Title
     @ViewBuilder var content: Content
     @Environment(\.summaryIsWide) private var wide
+    @Environment(\.summaryInPanel) private var inPanel
+
+    private var timeColumn: Bool { wide || inPanel }
 
     var body: some View {
-        HStack(alignment: .top, spacing: 16) {
-            if wide {
+        HStack(alignment: .top, spacing: inPanel ? 10 : 16) {
+            if timeColumn {
                 Group {
                     if let time { SummaryTimeChip(seconds: time, detail: detail) } else { Color.clear }
                 }
-                .frame(width: 64, height: 16, alignment: .trailing)
+                .frame(width: inPanel ? 56 : 64, height: 16, alignment: .trailing)
                 .padding(.top, 1)
             }
             VStack(alignment: .leading, spacing: 6) {
                 HStack(alignment: .firstTextBaseline, spacing: 8) {
                     title
-                    if !wide, let time { SummaryTimeChip(seconds: time, detail: detail) }
+                    if !timeColumn, let time { SummaryTimeChip(seconds: time, detail: detail) }
                 }
                 content
             }
             .textSelection(.enabled)
-            .padding(.leading, wide ? 14 : 0)
+            .padding(.leading, timeColumn ? (inPanel ? 12 : 14) : 0)
             .overlay(alignment: .leading) {
-                if wide { Rectangle().fill(.quaternary).frame(width: 1) }
+                if timeColumn { Rectangle().fill(.quaternary).frame(width: 1) }
             }
         }
         .padding(.bottom, 18)

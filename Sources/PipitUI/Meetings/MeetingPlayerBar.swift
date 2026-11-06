@@ -1,7 +1,7 @@
 import PipitCore
 import SwiftUI
 
-/// The meeting's recording, docked at the bottom of the pane.
+/// The meeting's recording, in a card at the bottom of the pane.
 ///
 /// Outside the tabs, so it stays put while the summary or the notes are read
 /// against what is playing. One strip between the controls holds every
@@ -16,6 +16,10 @@ struct MeetingPlayerBar: View {
     /// The person's choice, kept across meetings and launches. The lanes stay
     /// closed until they open them.
     @AppStorage("MeetingPlayerLanes") private var lanesChoice = ""
+
+    /// The height of the closed card. The sidebar's footer matches it, so the
+    /// two meet in one line across the window.
+    static let cardHeight: CGFloat = 48
     @State private var hover: CGFloat?
     @State private var lanesHover: CGFloat?
     @State private var confirmingTrim = false
@@ -74,11 +78,11 @@ struct MeetingPlayerBar: View {
                     playerControls
                 }
             }
-            .frame(height: 56)
+            .frame(height: Self.cardHeight)
         }
         .controlSize(.small)
         .padding(.horizontal, 16)
-        .background(Color.primary.opacity(0.025))
+        .playerCard()
         .alert(trimQuestion, isPresented: $confirmingTrim) {
             Button("Trim", role: .destructive) {
                 if let trim { detail.trim(keepFrom: trim.lowerBound, to: trim.upperBound) }
@@ -258,8 +262,8 @@ struct MeetingPlayerPlaceholder: View {
             Text("Preparing audio…").font(.caption).foregroundStyle(.secondary)
         }
         .padding(.horizontal, 20)
-        .padding(.vertical, 10)
-        .background(Color.primary.opacity(0.025))
+        .frame(height: MeetingPlayerBar.cardHeight)
+        .playerCard()
     }
 }
 
@@ -571,5 +575,18 @@ struct LaneRuler: View {
         let steps: [Double] = [30, 60, 120, 300, 600, 900, 1_800, 3_600, 7_200]
         let fits = steps.first { CGFloat($0 / duration) * width >= minimumSpacing }
         return fits ?? steps[steps.count - 1]
+    }
+}
+
+extension View {
+    /// A rounded card floating over the page like the sidebar and the summary
+    /// panel, with the same gap to the window's edges. A bar docked edge to
+    /// edge met the side of the floating sidebar in a straight cut, with its
+    /// top line at a different height from the sidebar's footer line.
+    fileprivate func playerCard() -> some View {
+        let shape = RoundedRectangle(cornerRadius: 14, style: .continuous)
+        return background(Color.primary.opacity(0.025), in: shape)
+            .overlay(shape.stroke(.separator))
+            .padding([.horizontal, .bottom], 8)
     }
 }

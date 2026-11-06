@@ -710,6 +710,13 @@ public final class WindowManager {
         window.title = title
         window.styleMask = [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView]
         window.titleVisibility = .hidden
+        if #available(macOS 26.0, *) {
+            // Otherwise the toolbar strip keeps the titlebar's grey over the
+            // detail pane, a band across the top that the pane's background
+            // does not reach. macOS 26 blurs content scrolled under the
+            // toolbar itself; earlier versions need the titlebar to do it.
+            window.titlebarAppearsTransparent = true
+        }
         window.toolbarStyle = .unified
         window.setContentSize(size)
         window.isReleasedWhenClosed = false

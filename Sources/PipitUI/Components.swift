@@ -241,6 +241,37 @@ extension View {
             }
         }
     }
+
+    /// The plain page colour behind a split-view window's detail pane, white
+    /// or near black, up under the toolbar. The window's own colour takes a
+    /// tint from the desktop picture, and grouped forms fill themselves with
+    /// it, so without this the pane beside a meeting's transcript and the
+    /// panes of the other windows each came out a different grey.
+    func detailBackground() -> some View {
+        scrollContentBackground(.hidden)
+            .background(Color(nsColor: .textBackgroundColor))
+    }
+
+    /// A solid grey behind a split-view window's sidebar. The system sidebar
+    /// is see-through glass while its window is in front and turns opaque
+    /// only once the window falls behind, so the same window changed colour
+    /// whenever it was focused.
+    func sidebarBackground() -> some View {
+        scrollContentBackground(.hidden)
+            .background(Color.panel)
+    }
+}
+
+extension Color {
+    /// The fill of the panels that float over the page: the sidebar and the
+    /// summary beside the transcript.
+    static let panel = Color(
+        nsColor: NSColor(name: "PipitPanel") { appearance in
+            appearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
+                ? NSColor(srgbRed: 44 / 255, green: 44 / 255, blue: 46 / 255, alpha: 1)
+                : NSColor(srgbRed: 242 / 255, green: 242 / 255, blue: 245 / 255, alpha: 1)
+        }
+    )
 }
 
 private struct ToolbarTitleText: View {

@@ -25,11 +25,12 @@ public struct MeetingDetailView: View {
     @State private var wide = false
     /// The person's choice to hide the summary panel, kept across launches.
     @AppStorage("MeetingSummaryPanelHidden") private var panelHidden = false
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     /// About 75 characters of body text, plus the column's margins.
     static let columnWidth: CGFloat = 760
     static let panelWidth: CGFloat = 400
-    private static let columnMargin: CGFloat = 24
+    private static let columnMargin: CGFloat = 28
 
     private var showsPanel: Bool { wide && !panelHidden }
 
@@ -90,18 +91,16 @@ public struct MeetingDetailView: View {
                 }
                 if showsPanel { summaryPanel }
             }
-            // Docked at the bottom, outside the tabs, so the recording keeps
+            // At the bottom, outside the tabs, so the recording keeps
             // playing and stays in reach whichever of them is open, without
             // pushing the transcript down.
             if detail.playback.hasAudio {
-                Divider()
                 MeetingPlayerBar(detail: detail)
             } else if isPreparingAudio {
-                Divider()
                 MeetingPlayerPlaceholder()
             }
         }
-        .background(Color(nsColor: .textBackgroundColor))
+        .detailBackground()
         .toolbar { toolbarContent }
         .onGeometryChange(for: Bool.self) {
             $0.size.width >= Self.columnWidth + Self.panelWidth + 16
@@ -184,7 +183,9 @@ public struct MeetingDetailView: View {
 
     private var panelButton: some View {
         Button {
-            panelHidden.toggle()
+            // Slid in from the trailing edge as the transcript makes room,
+            // the way a system inspector opens, rather than appearing at once.
+            withAnimation(reduceMotion ? nil : .smooth(duration: 0.3)) { panelHidden.toggle() }
         } label: {
             Label(panelHidden ? "Show Summary" : "Hide Summary", systemImage: "sidebar.right")
         }
@@ -205,12 +206,13 @@ public struct MeetingDetailView: View {
         MeetingSummaryTab(model: model, detail: detail, inPanel: true)
             .frame(width: Self.panelWidth)
             .frame(maxHeight: .infinity)
-            // The same faint fill as the sidebar on the other side, so the
+            // The same solid fill as the sidebar on the other side, so the
             // two read as a pair around the transcript.
-            .background(Color.primary.opacity(0.05))
+            .background(Color.panel)
             .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
             .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).stroke(.separator))
             .padding([.trailing, .bottom], 8)
+            .transition(.move(edge: .trailing).combined(with: .opacity))
     }
 
     /// The commands used now and then: rebuilding the files, and working the
