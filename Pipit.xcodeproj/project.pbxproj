@@ -82,7 +82,7 @@
 		2D7A38581127B6E94CAC574A /* pipit-idle.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = "pipit-idle.png"; sourceTree = "<group>"; };
 		37155903C8D9E58F149C8AEE /* Pipit.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = Pipit.entitlements; sourceTree = "<group>"; };
 		47809F16D1A04B353EA7AD4F /* pipit-paused.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = "pipit-paused.png"; sourceTree = "<group>"; };
-		7ED7F41263ABAE0F91455AE0 /* fix-150-trim */ = {isa = PBXFileReference; lastKnownFileType = folder; name = "fix-150-trim"; path = .; sourceTree = SOURCE_ROOT; };
+		5A55CF2CAF20888B64676DF9 /* pipit-integration-options-39e1d3 */ = {isa = PBXFileReference; lastKnownFileType = folder; name = "pipit-integration-options-39e1d3"; path = .; sourceTree = SOURCE_ROOT; };
 		7FA445934522AB5AC18F6DB8 /* main.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = main.swift; sourceTree = "<group>"; };
 		80CADB95C82DE44384D66658 /* pipit-recording@2x.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = "pipit-recording@2x.png"; sourceTree = "<group>"; };
 		957D0D58BA4B90F5ED74BA3D /* main.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = main.swift; sourceTree = "<group>"; };
@@ -243,7 +243,7 @@
 		C3F5AEB0AE40EB2D5EE6807D /* Packages */ = {
 			isa = PBXGroup;
 			children = (
-				7ED7F41263ABAE0F91455AE0 /* fix-150-trim */,
+				5A55CF2CAF20888B64676DF9 /* pipit-integration-options-39e1d3 */,
 			);
 			name = Packages;
 			sourceTree = "<group>";
@@ -503,7 +503,7 @@
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				MARKETING_VERSION = 0.1.10;
+				MARKETING_VERSION = 0.1.11;
 				PRODUCT_BUNDLE_IDENTIFIER = com.pipit.app;
 				PRODUCT_NAME = Pipit;
 				SDKROOT = macosx;
@@ -524,7 +524,7 @@
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				MARKETING_VERSION = 0.1.10;
+				MARKETING_VERSION = 0.1.11;
 				PRODUCT_BUNDLE_IDENTIFIER = com.pipit.app;
 				PRODUCT_NAME = Pipit;
 				SDKROOT = macosx;
