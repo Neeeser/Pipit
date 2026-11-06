@@ -38,14 +38,14 @@ The extension suite covers event ordering, stale tab state, provider detection,
 and manifest generation.
 
 GitHub Actions runs both suites on every push to `main`. A pull request runs the
-browser suite and the application tests that are not tagged `.slow`, and runs
-the slow suites too when its changed paths can reach them
-(`scripts/needs-slow-tests.sh`). The jobs run side by side: lint and the fast
+browser suite and the application tests that are not tagged `.slow`. The slow
+suites run for it in the `Slow tests` workflow when its changed paths can reach
+them (`scripts/needs-slow-tests.sh`); that check does not block the merge. The jobs run side by side: lint and the fast
 tests, the slow tests, the Xcode project build, and the packaging job that
 builds the release configuration, assembles the application bundle, verifies
 its signature and resources, and archives the debug symbols. A further job
 scans the repository for keys and audio files. The `Build and test` check
-reports the application jobs together; the release workflow reads it for the
+reports the application jobs together, slow suites included on `main`; the release workflow reads it for the
 commit it releases.
 
 ## Notarized browser test build

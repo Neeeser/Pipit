@@ -19,37 +19,13 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  # Pull requests run the fast tests always and the slow suites (tagged .slow,
-  # see scripts/slow-suites.sh) only when a change can reach them. A push to
-  # main and a manual run always run both. The jobs below run side by side and
-  # "Build and test" at the end reports their combined result under the one
-  # name that the main ruleset and the release workflow look for.
-  changes:
-    name: Choose the test set
-    if: ${{ !(github.event_name == 'workflow_dispatch' && inputs.notarize) }}
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
-    outputs:
-      slow: ${{ steps.pick.outputs.slow }}
-    steps:
-      - uses: actions/checkout@v7
-        with:
-          fetch-depth: 0
-
-      - name: Decide whether the slow suites run
-        id: pick
-        env:
-          EVENT: ${{ github.event_name }}
-          BASE_SHA: ${{ github.event.pull_request.base.sha }}
-        run: |
-          if [ "$EVENT" = pull_request ]; then
-            slow="$(git diff --name-only "$BASE_SHA"...HEAD | ./scripts/needs-slow-tests.sh)"
-          else
-            slow=true
-          fi
-          echo "slow suites: $slow"
-          echo "slow=$slow" >> "$GITHUB_OUTPUT"
-
+  # A pull request runs the fast tests, the Xcode project build and the
+  # packaging. The slow suites (tagged .slow, see scripts/slow-suites.sh) run
+  # for a pull request in slow-tests.yml, as a check that does not block the
+  # merge. A push to main and a manual run run them here, and they must pass.
+  # The jobs below run side by side and "Build and test" at the end reports
+  # their combined result under the one name that the main ruleset and the
+  # release workflow look for.
   fast-tests:
     name: Lint and fast tests
     if: ${{ !(github.event_name == 'workflow_dispatch' && inputs.notarize) }}
@@ -90,8 +66,7 @@ jobs:
 
   slow-tests:
     name: Slow tests
-    needs: changes
-    if: ${{ needs.changes.outputs.slow == 'true' }}
+    if: ${{ github.event_name != 'pull_request' && !(github.event_name == 'workflow_dispatch' && inputs.notarize) }}
     runs-on: macos-15
     timeout-minutes: 45
     env:
@@ -212,7 +187,7 @@ jobs:
     # Reports the jobs above under the name the main ruleset requires and the
     # release workflow reads. The slow suites may be skipped on a pull request
     # that cannot reach them; every other run needs them to have passed.
-    needs: [changes, fast-tests, slow-tests, xcode-project, package]
+    needs: [fast-tests, slow-tests, xcode-project, package]
     if: ${{ !cancelled() && !(github.event_name == 'workflow_dispatch' && inputs.notarize) }}
     runs-on: ubuntu-latest
     timeout-minutes: 5
@@ -220,21 +195,20 @@ jobs:
       - name: Check the results
         env:
           EVENT: ${{ github.event_name }}
-          CHANGES: ${{ needs.changes.result }}
           FAST: ${{ needs.fast-tests.result }}
           SLOW: ${{ needs.slow-tests.result }}
           XCODE: ${{ needs.xcode-project.result }}
           PACKAGE: ${{ needs.package.result }}
         run: |
-          echo "changes=$CHANGES fast=$FAST slow=$SLOW xcode=$XCODE package=$PACKAGE"
-          for result in "$CHANGES" "$FAST" "$XCODE" "$PACKAGE"; do
+          echo "fast=$FAST slow=$SLOW xcode=$XCODE package=$PACKAGE"
+          for result in "$FAST" "$XCODE" "$PACKAGE"; do
             [ "$result" = success ] || { echo "a required job did not pass" >&2; exit 1; }
           done
           if [ "$SLOW" = success ]; then
             exit 0
           fi
           if [ "$SLOW" = skipped ] && [ "$EVENT" = pull_request ]; then
-            echo "the slow suites were skipped: the change cannot reach them"
+            echo "the slow suites run separately for a pull request"
             exit 0
           fi
           echo "the slow suites did not pass" >&2

@@ -21,8 +21,9 @@ xcodegen generate
 ```
 
 `scripts/test.sh --fast` skips the suites tagged `.slow` (the echo canceller and
-the processing pipeline), which take most of a full run. Pull request CI runs
-the slow suites only when a change can reach them; a push to `main` runs all.
+the processing pipeline), which take most of a full run. Pull request CI blocks on the
+fast tests; the slow suites run in a separate check that does not block, and
+only when a change can reach them. A push to `main` runs all of them.
 `scripts/lint.sh` checks formatting and SwiftLint rules without changing files.
 `scripts/format.sh` rewrites the sources in place to satisfy that check.
 `xcodegen generate` rewrites `Pipit.xcodeproj` after an edit to `project.yml`,
