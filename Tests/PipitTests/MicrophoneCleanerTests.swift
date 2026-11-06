@@ -17,7 +17,7 @@ import Testing
 /// on speech, and it takes a steady tone for something to remove, so a tone
 /// would measure the wrong thing on both sides: the far end would come down
 /// with no echo path at all, and the user would be taken out with it.
-@Suite("MicrophoneCleaner")
+@Suite("MicrophoneCleaner", .tags(.slow))
 struct MicrophoneCleanerTests {
     /// The second, to a fiftieth of one, at which the user starts talking.
     ///

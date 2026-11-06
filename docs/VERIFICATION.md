@@ -37,10 +37,14 @@ speech and removes a tone as noise.
 The extension suite covers event ordering, stale tab state, provider detection,
 and manifest generation.
 
-GitHub Actions runs both suites on every pull request and push to `main`. CI also
-builds debug and release configurations, assembles the application bundle,
-verifies its signature and resources, and scans the repository for keys and
-audio files.
+A pull request runs the browser suite and, in one macOS job, lint and the
+application tests that are not tagged `.slow`. A push to `main` runs every
+application test in that job, and a second job builds the Xcode project, builds
+the release configuration, assembles the application bundle, verifies its
+signature and resources, and archives the debug symbols. A Linux job scans the
+repository for keys and audio files. The release workflow reads the
+`Build and test` check on the commit it releases, which on `main` covers every
+test.
 
 ## Notarized browser test build
 

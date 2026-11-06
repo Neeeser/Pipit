@@ -130,7 +130,9 @@ the update window.
 ### Merge
 
 Squash-merge the pull request once CI passes. The release workflow starts when
-CI finishes on `main`. Its first job reads `VERSION` on the commit CI tested and
+CI finishes on `main`. A push to `main` runs every test, slow suites included, and
+the `Build and test` check is green only when all of them passed. Its first job
+reads `VERSION` on the commit CI tested and
 stops when the tag `v<version>` already exists, which is the case for every
 merge that is not a release. Otherwise it checks that `CHANGELOG.md` has notes
 for the version and starts the macOS build. CI has already tested that commit,
