@@ -283,7 +283,7 @@ jobs:
 
       - name: Publish the release
         # Pinned to a commit: this job holds the signing identity while it runs.
-        uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64 # v3.0.3
+        uses: softprops/action-gh-release@8a0cd651e5b2365bd640854a3fa5dfc70e4875f3 # v3.0.4
         with:
           # The signed add-on rides along so the Firefox update feed can point
           # at it. Absent when no AMO credentials were configured, which the
