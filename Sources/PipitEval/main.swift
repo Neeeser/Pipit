@@ -209,7 +209,9 @@ func usage() -> Never {
           pipit-eval gate     --meeting MEETING_FOLDER
           pipit-eval echo     --meeting MEETING_FOLDER [--json OUT] [--offset SECONDS]
                                  [--full-id]
-          pipit-eval reanalyze --meeting MEETING_FOLDER [--speakers N]
+          pipit-eval reanalyze --meeting MEETING_FOLDER [--speakers N] [--support DIR]
+                                 # reads that folder's settings and voice memory and
+                                 # writes to them, so point it at a copy
           pipit-eval reprocess --meeting MEETING_FOLDER [--recognize] [--backups DIR]
                                  [--support DIR]   # a copy of the meeting keeps its
                                  # identifier, so point this away from the app's own

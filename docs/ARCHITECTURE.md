@@ -350,6 +350,21 @@ then show the other side's words as the user's. The assembler also drops a
 microphone line that is mostly the far end's own words said at the same
 moment, which is what such a track produces.
 
+That rule needs the far end's words, so it cannot see a far-end voice that
+reached the microphone while the far-end track recorded nothing, which is what
+a process tap delivering digital silence leaves behind. After the far-end
+voices are recognised, `MicrophoneVoiceCheck` judges each microphone line of
+three seconds or more by its voice: the line's embedding is scored against the
+local user's profile and against every far-end cluster of the meeting. A line
+that does not sound like the user and clearly matches a far-end cluster moves
+to that cluster's speaker key; one that clearly is not the user and matches
+nobody becomes unattributed; every other line stays with the user. Nothing is
+removed, and a line a person already moved stays where they put it. The check
+runs after every assembly, so rebuilding the transcript, re-analysing speakers
+and redoing the microphone keep the result. Without a profile for the local
+user, or for lines shorter than three seconds, the microphone is the user's as
+before.
+
 The pass runs once per meeting and records what it decided, whatever it decided.
 A pass that failed is never retried. If the disk fills during it, that meeting is
 never cleaned, and the user keeps the transcript they would have had before the

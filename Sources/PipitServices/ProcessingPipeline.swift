@@ -1261,6 +1261,9 @@ public actor ProcessingPipeline {
         await recordLocalUserOccurrence(
             meetingID: metadata.id, transcript: transcript, speakers: speakers
         )
+        if micHoldsLocalUserAlone(metadata, evidence: evidence) {
+            await checkMicrophoneVoices(store: store, metadata: metadata, settings: settingsProvider())
+        }
         try await rerenderMarkdown(store: store, metadata: metadata)
 
         // The mixdown holds the microphone, so it holds the old one. Replaced
@@ -2749,6 +2752,9 @@ public actor ProcessingPipeline {
                 "voice recognition skipped: \(logSafeDescription(error), privacy: .public)"
             )
         }
+        if micIsLocalUser {
+            await checkMicrophoneVoices(store: store, metadata: metadata, settings: settings)
+        }
         do {
             try await learnLocalUserVoice(store: store, metadata: metadata, settings: settings)
         } catch {
@@ -3124,6 +3130,97 @@ public actor ProcessingPipeline {
                 )
             }
         }
+    }
+
+    /// Moves microphone lines that are not the local user's voice to the
+    /// speaker who said them. `MicrophoneVoiceCheck` holds the rule and the
+    /// measurements behind it.
+    ///
+    /// Runs after the far-end voices are recognised, because those vectors are
+    /// what a leaked line is matched against. Without a profile for the local
+    /// user there is nothing to judge a line by, and every line stays theirs.
+    ///
+    /// Every path that assembles the transcript again calls this after it,
+    /// because assembly files the whole microphone track under the local user
+    /// and would put the moved lines back. A failure is logged and leaves the
+    /// transcript as assembled: the check improves a meeting, and the meeting
+    /// does not depend on it.
+    private func checkMicrophoneVoices(
+        store: MeetingStore, metadata: MeetingMetadata, settings: AppSettings
+    ) async {
+        do {
+            try await moveMicrophoneLinesByVoice(store: store, metadata: metadata, settings: settings)
+        } catch {
+            Log.processing.notice(
+                "microphone voice check skipped: \(logSafeDescription(error), privacy: .public)"
+            )
+        }
+    }
+
+    private func moveMicrophoneLinesByVoice(
+        store: MeetingStore, metadata: MeetingMetadata, settings: AppSettings
+    ) async throws {
+        guard let service = backends.speakers, let extractor = backends.embeddings,
+            let localUserID = settings.processing.localUserIdentityID
+        else { return }
+        let speakerStore = await service.speakerStore
+        guard
+            let own = try await speakerStore.searchableProfiles(model: extractor.model)
+                .first(where: { $0.identity.id == localUserID })?.centroid
+        else { return }
+        var farEnd: [String: [Float]] = [:]
+        for occurrence in try await speakerStore.occurrences(meetingID: metadata.id)
+        where occurrence.track != .mic {
+            if let vector = try await speakerStore.occurrenceEmbedding(
+                meetingID: metadata.id, clusterID: occurrence.clusterID, model: extractor.model)
+            {
+                farEnd[occurrence.clusterID] = vector
+            }
+        }
+
+        guard var transcript = try store.readCanonicalTranscript() else { return }
+        let lines = transcript.utterances.filter {
+            $0.speakerKey == SpeakerLabel.localUser
+                && $0.end - $0.start >= MicrophoneVoiceCheck.minimumSeconds
+        }
+        guard !lines.isEmpty else { return }
+
+        let timeline = try store.readTimeline()
+        let location = store.trackAudioLocation(track: .mic, metadata: metadata, timeline: timeline)
+        guard !location.isEmpty, await localModelsAvailable(),
+            let audio = try scratch.trackAudio(
+                meetingID: metadata.id, track: .mic, segments: location.segments,
+                segmentsDirectory: location.directory
+            )
+        else { return }
+        // Each line is its own interval group, so every vector says which line
+        // it came from. The audio starts at the track's lead-in.
+        let leadIn = timeline.leadIn(track: .mic)
+        let intervals = lines.map {
+            DiarizationInterval(
+                start: max(0, $0.start - leadIn), end: max(0, $0.end - leadIn), clusterID: $0.id)
+        }
+        var vectors: [String: [[Float]]] = [:]
+        for embedding in try await extractor.embed(audio: audio, intervals: intervals) {
+            vectors[embedding.clusterID, default: []].append(embedding.vector)
+        }
+
+        var decisions: [String: MicrophoneVoiceCheck.Decision] = [:]
+        for line in lines {
+            guard let collected = vectors[line.id], !collected.isEmpty else { continue }
+            let vector = VoiceVector.centroid(collected)
+            decisions[line.id] = MicrophoneVoiceCheck.decide(
+                ownScore: VoiceVector.cosine(vector, own),
+                farEnd: farEnd.mapValues { VoiceVector.cosine(vector, $0) }
+            )
+        }
+        let moved = decisions.values.filter { $0 != .keep }.count
+        guard moved > 0 else { return }
+        transcript = MicrophoneVoiceCheck.apply(decisions, to: transcript)
+        try store.writeCanonicalTranscript(transcript)
+        Log.processing.info(
+            "microphone voice check moved \(moved, privacy: .public) of \(lines.count, privacy: .public) lines"
+        )
     }
 
     /// Adds this meeting's microphone audio to the local user's own profile.
@@ -3747,6 +3844,10 @@ public actor ProcessingPipeline {
             generatedAt: clock.now
         )
         try found.store.writeCanonicalTranscript(transcript)
+        if micHoldsLocalUserAlone(found.metadata, evidence: found.store.readSpeechEvidence()) {
+            await checkMicrophoneVoices(
+                store: found.store, metadata: found.metadata, settings: settingsProvider())
+        }
         // Read back rather than rendered from what was just assembled, so the
         // boundaries a person put in the transcript are in the markdown too.
         try await rerenderMarkdown(store: found.store, metadata: found.metadata)
@@ -4737,6 +4838,9 @@ public actor ProcessingPipeline {
         )
         try store.writeCanonicalTranscript(transcript)
         try await recognizeVoices(store: store, metadata: &metadataCopy, settings: settings)
+        if micHoldsLocalUserAlone(metadata, evidence: store.readSpeechEvidence()) {
+            await checkMicrophoneVoices(store: store, metadata: metadataCopy, settings: settings)
+        }
         try await rerenderMarkdown(store: store, metadata: metadataCopy)
 
         // A rename made while this ran was refused, correctly, because the paths

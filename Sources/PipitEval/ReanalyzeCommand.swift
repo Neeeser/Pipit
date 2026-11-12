@@ -73,8 +73,12 @@ enum ReanalyzeCommand {
             return 1
         }
 
+        // The settings and voice memory of this support folder, so a re-analysis
+        // recognises voices and knows who the local user is the way the app
+        // does. Point --support at a copy to keep the real voice memory
+        // untouched.
         let settings: AppSettings = {
-            var value = AppSettings()
+            var value = SettingsStore(directory: applicationSupport).load()
             value.enrichment = EnrichmentSettings(
                 generateTitle: false, generateDescription: false, generateNotes: false,
                 generateSummary: false, suggestSpeakers: false
@@ -90,6 +94,9 @@ enum ReanalyzeCommand {
                 transcription: { _, _ in ParakeetTranscriptionBackend(models: manager) },
                 diarization: { _, _ in FluidAudioDiarizationBackend(models: manager) },
                 embeddings: FluidAudioEmbeddingExtractor(models: manager),
+                speakers: (try? SpeakerStore(
+                    url: SpeakerStore.defaultURL(applicationSupport: applicationSupport)))
+                    .map { SpeakerRecognitionService(store: $0) },
                 voiceActivity: FluidAudioVoiceActivityBackend(models: manager),
                 prepareVoiceActivity: {
                     _ = try await manager.install(units: [.voiceActivity])
