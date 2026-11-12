@@ -584,6 +584,28 @@ public struct SpeakerMap: Codable, Sendable, Equatable {
         return Int(digits)
     }
 
+    /// The generated name of a speaker in one recording of a conversation.
+    ///
+    /// Every recording numbers its own speakers from one, so in a meeting made
+    /// of several recordings "Speaker 1" names a different person in each. The
+    /// chips, the suggestion pills and the transcript lines all read this, and
+    /// the walk behind a chip's arrow matches lines by name, so they must agree.
+    public static func fallbackName(
+        for key: String, recordingIndex: Int, recordingCount: Int
+    ) -> String {
+        let name = fallbackName(for: key)
+        return recordingCount > 1 ? "\(name), part \(recordingIndex + 1)" : name
+    }
+
+    /// The name a line is shown under in one recording of a conversation.
+    public func resolvedName(
+        for utterance: Utterance, recordingIndex: Int, recordingCount: Int
+    ) -> String {
+        assignment(for: utterance)?.displayName
+            ?? Self.fallbackName(
+                for: utterance.speakerKey, recordingIndex: recordingIndex, recordingCount: recordingCount)
+    }
+
     public func resolvedName(for key: String) -> String {
         displayName(for: key) ?? Self.fallbackName(for: key)
     }
