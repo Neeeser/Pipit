@@ -730,6 +730,94 @@ struct SessionControllerTests {
         actions = controller.update(evidence: [joined], now: now, wallClock: wall)
         #expect(actions.contains { if case .commitRecording = $0 { true } else { false } })
     }
+    // MARK: - a browser call that loses its provider
+
+    private static func zoomInSafari() -> ProviderEvidence {
+        ProviderEvidence(
+            provider: .zoom, confidence: .confirmed, source: .native,
+            title: "Zoom meeting", browser: .safari, applicationBundleID: "com.apple.Safari",
+            audioBundlePrefixes: BrowserKind.safari.audioBundlePrefixes
+        )
+    }
+
+    private static func isFinish(_ action: SessionAction) -> Bool {
+        if case .finishRecording = action { true } else { false }
+    }
+
+    private static func isCommit(_ action: SessionAction) -> Bool {
+        if case .commitRecording = action { true } else { false }
+    }
+
+    @Test("a browser call that loses its title but keeps its audio stays one meeting")
+    func aBrowserCallThatLosesItsTitleStaysOneMeeting() async throws {
+        // The Zoom title can leave Safari's window while the call goes on, for
+        // example when the person switches tabs. What is left is Safari's GPU
+        // process holding the microphone, which the generic detector reports
+        // as an unnamed call. Treating that as a different meeting ended the
+        // Zoom recording after two minutes and started a second one.
+        var controller = SessionController()
+        let wall = Date(timeIntervalSince1970: 1_787_070_000)
+        _ = controller.update(evidence: [Self.zoomInSafari()], now: 100, wallClock: wall)
+        #expect(controller.snapshot.state == .recording)
+
+        var now = 100.0
+        var actions: [SessionAction] = []
+        for step in 0..<60 {
+            now += 0.5
+            let confidence: MeetingConfidence = step < 16 ? .candidate : .confirmed
+            let call = Self.genericEvidence(confidence: confidence, bundleIdentifier: "com.apple.WebKit.GPU")
+            actions += controller.update(evidence: [call], now: now, wallClock: wall)
+        }
+        #expect(!actions.contains(where: Self.isFinish), "the Zoom recording must not end")
+        #expect(!actions.contains(where: Self.isCommit), "no second recording starts")
+        #expect(
+            !actions.contains { if case .pauseCapture = $0 { true } else { false } },
+            "the call is still going, so writing must not pause"
+        )
+        #expect(controller.snapshot.state == .recording)
+        #expect(controller.snapshot.provider == .zoom)
+    }
+
+    @Test("an unnamed call in the same browser resumes a paused meeting")
+    func anUnnamedCallInTheSameBrowserResumesAPausedMeeting() async throws {
+        var controller = SessionController()
+        let wall = Date(timeIntervalSince1970: 1_787_070_000)
+        _ = controller.update(evidence: [Self.zoomInSafari()], now: 100, wallClock: wall)
+        var now = 100.0
+        for _ in 0..<20 {
+            now += 0.5
+            _ = controller.update(evidence: [], now: now, wallClock: wall)
+        }
+        #expect(controller.snapshot.state == .reconnecting)
+
+        now += 0.5
+        let call = Self.genericEvidence(confidence: .confirmed, bundleIdentifier: "com.apple.WebKit.GPU")
+        let actions = controller.update(evidence: [call], now: now, wallClock: wall)
+        #expect(!actions.contains(where: Self.isFinish))
+        #expect(!actions.contains(where: Self.isCommit))
+        #expect(actions.contains(.beginRun(reason: "reconnected")))
+        #expect(controller.snapshot.state == .recording)
+        #expect(controller.snapshot.provider == .zoom)
+    }
+
+    @Test("a call in another application still ends a paused browser meeting")
+    func aCallInAnotherApplicationStillEndsAPausedBrowserMeeting() async throws {
+        var controller = SessionController()
+        let wall = Date(timeIntervalSince1970: 1_787_070_000)
+        _ = controller.update(evidence: [Self.zoomInSafari()], now: 100, wallClock: wall)
+        var now = 100.0
+        for _ in 0..<20 {
+            now += 0.5
+            _ = controller.update(evidence: [], now: now, wallClock: wall)
+        }
+        #expect(controller.snapshot.state == .reconnecting)
+
+        now += 0.5
+        let actions = controller.update(
+            evidence: [Self.genericEvidence(confidence: .confirmed)], now: now, wallClock: wall)
+        #expect(actions.contains(where: Self.isFinish))
+        #expect(actions.contains(where: Self.isCommit))
+    }
 }
 
 @Suite("ReconnectMatcher")
