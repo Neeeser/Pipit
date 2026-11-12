@@ -317,6 +317,10 @@ public struct SessionController: Sendable {
             return actions
 
         case .recording:
+            if let best, continuesInSameApplication(best) {
+                pendingEnd = nil
+                return []
+            }
             if let best, best.confidence == .confirmed, !matchesCurrentMeeting(best) {
                 // A different meeting on the same provider is a new meeting, not
                 // a continuation; merging them would produce one directory with
@@ -355,13 +359,12 @@ public struct SessionController: Sendable {
             return []
 
         case .reconnecting:
+            if let best, best.confidence == .confirmed, continuesInSameApplication(best) {
+                return resumeRun(now: now)
+            }
             if let best, best.confidence == .confirmed, matchesCurrentMeeting(best) {
-                snapshot.state = .recording
-                snapshot.runCount += 1
-                reconnectingSince = nil
-                lastConfirmedAt = now
-                var resumed = absorbEvidence(best)
-                resumed.insert(.beginRun(reason: "reconnected"), at: 0)
+                var resumed = resumeRun(now: now)
+                resumed.append(contentsOf: absorbEvidence(best))
                 if !best.audioBundlePrefixes.isEmpty {
                     resumed.append(.retargetCapture(scope: .bundlePrefixes(best.audioBundlePrefixes)))
                 }
@@ -625,6 +628,34 @@ public struct SessionController: Sendable {
             actions.append(.notify(.startedRecording(provider: best.provider, title: titles.resolved)))
         }
         return actions
+    }
+
+    /// Starts the next run of the meeting the reconnect window was holding.
+    private mutating func resumeRun(now: Double) -> [SessionAction] {
+        snapshot.state = .recording
+        snapshot.runCount += 1
+        reconnectingSince = nil
+        lastConfirmedAt = now
+        return [.beginRun(reason: "reconnected")]
+    }
+
+    /// Whether an unnamed call is the current named meeting going on in the
+    /// application already being recorded.
+    ///
+    /// A browser meeting is named from the page, and the page can stop saying
+    /// so while the call continues, for example when the person switches away
+    /// from a Zoom tab in Safari. The generic detector still sees the browser's
+    /// audio process holding the microphone and reports an unnamed call.
+    /// Reading that as a different meeting ended the recording and started a
+    /// second one with nothing linking them. The unnamed call carries nothing
+    /// of its own to absorb, so the meeting keeps its provider and title.
+    private func continuesInSameApplication(_ candidate: ProviderEvidence) -> Bool {
+        guard candidate.provider == .unknown, snapshot.provider != .unknown,
+            candidate.confidence >= .candidate,
+            let application = candidate.applicationBundleID,
+            case .bundlePrefixes(let prefixes) = armedScope
+        else { return false }
+        return prefixes.contains { application.hasPrefix($0) }
     }
 
     private func matchesCurrentMeeting(_ candidate: ProviderEvidence) -> Bool {
