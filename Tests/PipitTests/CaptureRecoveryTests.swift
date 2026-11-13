@@ -1764,6 +1764,28 @@ struct RemoteTapCoordinatorTests {
         #expect(coordinator.warnings() == [], "nothing to tell the user about yet")
     }
 
+    @Test("a tap delivering silence is rebound within seconds, and the warning still waits")
+    func aSilentTapIsReboundWithinSeconds() async throws {
+        // While the tap is dead the far side's voices leak into the cleaned
+        // microphone and are transcribed as the local user. A wait of twenty
+        // seconds before the rebind put two such stretches into one call.
+        let tap = FakeProcessTap()
+        let clock = ManualClock()
+        let delegate = RecordingCaptureDelegate()
+        let coordinator = RemoteTapCoordinator(controller: tap, clock: clock, delegate: delegate)
+        tap.setTargets([makeTarget(pid: 79_590, producing: true)])
+        coordinator.start(scope: .bundlePrefixes(["org.mozilla.firefox"]))
+
+        Self.deliverSilence(to: coordinator, clock: clock, seconds: 4)
+        #expect(delegate.restarts.map(\.reason) == ["silent_while_producing"])
+
+        // A muted call can render zero for tens of seconds, so the user is
+        // told only once the run has lasted as long as it did before.
+        Self.deliverSilence(to: coordinator, clock: clock, seconds: 30)
+        #expect(coordinator.warnings() == [])
+        #expect(tap.bindCount == 2)
+    }
+
     @Test("silence that survives the rebind is degraded and warned about")
     func silenceThatSurvivesTheRebindIsDegradedAndWarnedAbout() async throws {
         let tap = FakeProcessTap()
@@ -1855,12 +1877,12 @@ struct RemoteTapCoordinatorTests {
 
         // The call's audio starts.
         tap.setTargets([makeTarget(pid: 79_590, producing: true)])
-        Self.deliverSilence(to: coordinator, clock: clock, seconds: 15)
+        Self.deliverSilence(to: coordinator, clock: clock, seconds: 2)
         #expect(delegate.restarts == [], "the quiet stretch is not charged against the call")
         #expect(tap.bindCount == 1)
 
         // The window still runs, measured from when output started.
-        Self.deliverSilence(to: coordinator, clock: clock, seconds: 10)
+        Self.deliverSilence(to: coordinator, clock: clock, seconds: 2)
         #expect(delegate.restarts.map(\.reason) == ["silent_while_producing"])
 
         // The application relaunches under a new PID. Its silence is
@@ -1870,7 +1892,7 @@ struct RemoteTapCoordinatorTests {
         coordinator.tick()
         #expect(delegate.restarts.map(\.reason) == ["silent_while_producing", "target_changed"])
 
-        Self.deliverSilence(to: coordinator, clock: clock, seconds: 15)
+        Self.deliverSilence(to: coordinator, clock: clock, seconds: 2)
         #expect(
             delegate.restarts.map(\.reason) == ["silent_while_producing", "target_changed"],
             "the replacement inherited the process it replaced's silence clock"

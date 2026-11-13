@@ -43,8 +43,8 @@ public struct RemoteRecoveryPolicy: Sendable {
     /// only means anything while a target reports output, and `clearSilenceRun`
     /// says what ends it.
     private var silentSince: Double?
-    /// When the tap was rebound because of that run.
-    private var silentRebindAt: Double?
+    /// Whether the tap has been rebound because of that run.
+    private var reboundForSilence = false
     /// Set by `evaluate` when it calls the tap degraded for that run. The
     /// health state and the warning read this one flag, so a poll can never
     /// warn the user about a run it has not yet called degraded.
@@ -78,7 +78,7 @@ public struct RemoteRecoveryPolicy: Sendable {
     /// does the same to that process's replacement.
     private mutating func clearSilenceRun() {
         silentSince = nil
-        silentRebindAt = nil
+        reboundForSilence = false
         silenceDeclared = false
     }
 
@@ -201,12 +201,12 @@ public struct RemoteRecoveryPolicy: Sendable {
         // tap may be reading the wrong stream of the aggregate. Silence that
         // outlives the rebind is a recording losing its far side, and the user
         // is the only one who can do anything about it.
-        if let silentSince, now - silentSince >= thresholds.remoteSilenceTimeout {
-            guard let silentRebindAt else {
-                self.silentRebindAt = now
+        if let silentSince, now - silentSince >= thresholds.remoteSilenceRebindAfter {
+            guard reboundForSilence else {
+                reboundForSilence = true
                 return .bind(.silentWhileProducing)
             }
-            if now - silentRebindAt >= thresholds.remoteSilenceTimeout {
+            if now - silentSince >= thresholds.remoteSilenceTimeout {
                 silenceDeclared = true
                 health = .degraded
                 return .none
