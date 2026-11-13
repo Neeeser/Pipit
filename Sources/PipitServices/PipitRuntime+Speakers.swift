@@ -758,10 +758,8 @@ extension PipitRuntime {
                 // Both halves call their first speaker the same thing, so a
                 // generated name says which half it came from. A name a person
                 // typed stands on its own.
-                let fallback =
-                    recordings.count > 1
-                    ? "\(SpeakerMap.fallbackName(for: key)), part \(index + 1)"
-                    : SpeakerMap.fallbackName(for: key)
+                let fallback = SpeakerMap.fallbackName(
+                    for: key, recordingIndex: index, recordingCount: recordings.count)
                 perKey.append(
                     MeetingSpeakerRow(
                         clusterID: key,
@@ -862,10 +860,8 @@ extension PipitRuntime {
             for suggestion in set.visible(forUnnamed: unnamed) {
                 // The same fallback the speaker chips draw, so a pill and the
                 // chip it points at agree on what that speaker is called.
-                let label =
-                    recordings.count > 1
-                    ? "\(SpeakerMap.fallbackName(for: suggestion.label)), part \(index + 1)"
-                    : SpeakerMap.fallbackName(for: suggestion.label)
+                let label = SpeakerMap.fallbackName(
+                    for: suggestion.label, recordingIndex: index, recordingCount: recordings.count)
                 rows.append(
                     MeetingSuggestionRow(
                         clusterID: suggestion.label,

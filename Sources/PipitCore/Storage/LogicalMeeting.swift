@@ -236,7 +236,7 @@ extension LogicalMeeting {
     /// its own.
     public func combinedTranscript() -> [CombinedLine] {
         var out: [CombinedLine] = []
-        for recording in recordings {
+        for (index, recording) in recordings.enumerated() {
             guard let transcript = (try? recording.store.readCanonicalTranscript()) ?? nil
             else { continue }
             // Already divided by the store, so a piece is named on its own
@@ -249,7 +249,8 @@ extension LogicalMeeting {
                     CombinedLine(
                         recordingID: recording.metadata.id,
                         utterance: utterance,
-                        speakerName: speakers.resolvedName(for: utterance),
+                        speakerName: speakers.resolvedName(
+                            for: utterance, recordingIndex: index, recordingCount: recordings.count),
                         timelineStart: offset + utterance.start,
                         isCorrected: speakers.hasOverride(for: utterance)
                     ))

@@ -98,9 +98,26 @@ struct ReconnectTests {
             "and resolved through its own speaker map, not the first half's"
         )
         #expect(
-            lines[0].speakerName == "Speaker 1",
-            "the same key in the other recording is a different person"
+            lines[0].speakerName == "Speaker 1, part 1",
+            "the same key in the other recording is a different person, so the line says which part"
         )
+    }
+
+    @Test("an unnamed speaker's chip finds its lines in a split meeting")
+    func anUnnamedSpeakersChipFindsItsLinesInASplitMeeting() async throws {
+        // The chip named an unnamed voice "Speaker 1, part 1" while its lines
+        // were named "Speaker 1", and the walk matches on the name, so the
+        // chip's arrow found nothing to step through.
+        let root = try TestPaths.makeTemporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let (repository, first, _) = try Self.makeSplitMeeting(root: root)
+        let logical = try #require(repository.logicalMeeting(id: first))
+        let chipName = SpeakerMap.fallbackName(
+            for: "remote-001_speaker_00", recordingIndex: 0, recordingCount: logical.recordings.count)
+
+        let walk = TranscriptNavigation.speaker(
+            chipName, recordingID: first, in: CombinedLineBlock.blocks(from: logical.combinedTranscript()))
+        #expect(walk.targets.count == 1)
     }
 
     @Test("the folded half is reachable by its own identifier")

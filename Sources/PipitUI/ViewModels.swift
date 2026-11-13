@@ -793,7 +793,10 @@ public final class MeetingReviewModel {
             guard let index = combinedLines.firstIndex(where: { $0.id == line.id }) else { continue }
             combinedLines[index].speakerName =
                 name.isEmpty
-                ? SpeakerMap.fallbackName(for: line.utterance.speakerKey)
+                ? SpeakerMap.fallbackName(
+                    for: line.utterance.speakerKey,
+                    recordingIndex: recordings.firstIndex { $0.id == block.recordingID } ?? 0,
+                    recordingCount: recordings.count)
                 : name
             // Written on the line as well as into `correctedLines`, because a
             // receipt counts the lines the cluster's entry still names. Updating
