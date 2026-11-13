@@ -429,10 +429,17 @@ struct ConversationSummaryRewriteTests {
         let request = try #require(backend.enrichmentRequests.last)
         #expect(
             Self.occurrences(of: "we ship friday", in: request.transcript) == 4, "two tracks in each of two recordings")
+        // Its run over, the continuation's folder moved inside the earlier one.
+        let laterStore = try #require(
+            earlier.repository.findMeeting(id: later.metadata.id, includingMerged: true)
+        ).store
+        #expect(
+            laterStore.layout.root.deletingLastPathComponent().standardizedFileURL
+                == earlier.store.layout.parts.standardizedFileURL)
         #expect(earlier.store.readSummaryDocument().summary == "Covers both halves.")
-        #expect((later.store.readSummaryDocument().summary ?? "").isEmpty)
+        #expect((laterStore.readSummaryDocument().summary ?? "").isEmpty)
         #expect(try earlier.store.readMetadata().processing.state == .complete)
-        #expect(try later.store.readMetadata().processing.state == .complete)
+        #expect(try laterStore.readMetadata().processing.state == .complete)
     }
 
     @Test("a recording linked while its own summary is being written does not keep that summary")

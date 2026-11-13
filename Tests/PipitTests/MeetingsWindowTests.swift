@@ -855,11 +855,20 @@ struct MeetingsWindowTests {
 
         model.dismissSuggestion(row)
 
+        // Linking moves the folded recording's folder inside the first one's,
+        // so it is read from wherever it is now, and nothing may have written
+        // a stray copy at the place it left.
+        let folded = try #require(runtime.repository.findMeeting(id: second.id, includingMerged: true))
         #expect(
-            second.store.readSpeakerSuggestions().dismissedLabels
+            folded.store.readSpeakerSuggestions().dismissedLabels
                 .contains("remote-001_speaker_00"),
             "the dismissal never reached the folded recording's own file"
         )
+        if folded.store.layout.root.standardizedFileURL != second.store.layout.root.standardizedFileURL {
+            #expect(
+                !FileManager.default.fileExists(atPath: second.store.layout.root.path),
+                "a write went to the folder's old place")
+        }
         await model.detail?.reloadSpeakers()
         #expect(
             model.detail?.speakerSuggestions.isEmpty ?? false,

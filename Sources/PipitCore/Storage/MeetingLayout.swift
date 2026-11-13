@@ -61,6 +61,10 @@ public struct MeetingLayout: Sendable, Equatable {
     public var structuredSummary: URL { raw.appendingPathComponent("summary.json") }
     /// The listenable mixdown of both tracks.
     public var recordingAudio: URL { root.appendingPathComponent("recording.m4a") }
+    /// Where the folders of the recordings linked into this one's conversation
+    /// sit, so a meeting made of several recordings is one folder in Finder.
+    public var parts: URL { root.appendingPathComponent(Self.partsFolderName, isDirectory: true) }
+    public static let partsFolderName = "Parts"
     /// Raw API responses, kept verbatim as ground truth for what the model said.
     public var apiResponses: URL { raw.appendingPathComponent("api", isDirectory: true) }
     /// Derived timings for chunks whose model returned text alone. Regenerable

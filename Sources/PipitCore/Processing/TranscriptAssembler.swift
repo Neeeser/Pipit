@@ -978,6 +978,51 @@ public struct TranscriptRenderer: Sendable {
         return lines.joined(separator: "\n")
     }
 
+    /// One document for a conversation made of several recordings.
+    ///
+    /// The lines are the ones the meetings window shows, already in time
+    /// order and named through each recording's own speaker map, with their
+    /// times on the conversation's timeline. A heading marks where each
+    /// recording starts, because the gap between two of them was not recorded.
+    public func markdown(
+        conversation lines: [CombinedLine],
+        parts: [(recordingID: String, startedAt: Date)],
+        title: String,
+        startedAt: Date,
+        durationSeconds: Double,
+        participants: [TranscriptParticipant]
+    ) -> String {
+        var out: [String] = []
+        out.append("# \(title)")
+        out.append("")
+        out.append(
+            "\(startedAt.formatted(date: .long, time: .shortened)) · \(formatDuration(durationSeconds)) · "
+                + "\(parts.count) parts")
+        out.append("")
+        out.append(contentsOf: participantBlock(participants))
+
+        var lastSpeaker: String?
+        var lastRecording: String?
+        for line in lines {
+            if line.recordingID != lastRecording {
+                let index = parts.firstIndex { $0.recordingID == line.recordingID } ?? 0
+                let partStart = index < parts.count ? parts[index].startedAt : startedAt
+                out.append("")
+                out.append("## Part \(index + 1) · \(partStart.formatted(date: .omitted, time: .shortened))")
+                lastRecording = line.recordingID
+                lastSpeaker = nil
+            }
+            if line.speakerName != lastSpeaker {
+                out.append("")
+                out.append("**\(line.speakerName)** · \(timecode(line.timelineStart))")
+                lastSpeaker = line.speakerName
+            }
+            out.append(line.utterance.text)
+        }
+        out.append("")
+        return out.joined(separator: "\n")
+    }
+
     /// Written above the dialogue, because a reader who meets the notes after
     /// the conversation has already decided who everybody is.
     private func participantBlock(_ participants: [TranscriptParticipant]) -> [String] {

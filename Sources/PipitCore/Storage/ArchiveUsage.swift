@@ -33,7 +33,10 @@ extension MeetingRepository {
     public func usage() -> ArchiveUsage {
         var usage = ArchiveUsage(freeBytes: Self.freeBytes(on: archive.root))
         for directory in meetingDirectories() {
-            usage.bytes += Self.allocatedBytes(of: directory)
+            // A part's bytes are already in the walk of the folder it sits in.
+            if !Self.isPartDirectory(directory) {
+                usage.bytes += Self.allocatedBytes(of: directory)
+            }
             guard
                 let metadata = try? MeetingStore(layout: MeetingLayout(root: directory))
                     .readMetadata()

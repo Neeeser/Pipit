@@ -152,6 +152,35 @@ public actor ProcessingPipeline {
         (foldersHeld[meetingID] ?? 0) > (besidesSelf ? 1 : 0)
     }
 
+    /// The recordings whose folders move when this meeting's folder moves:
+    /// the meeting itself and the parts of its conversation, which sit inside
+    /// the folder of the recording it started with.
+    private func movingTogether(_ meetingID: String) -> [String] {
+        let ids = repository.logicalMeeting(id: meetingID)?.recordings.map(\.metadata.id) ?? []
+        return ids.contains(meetingID) ? ids : [meetingID] + ids
+    }
+
+    /// Whether a job is in any folder that moves with this meeting's.
+    private func conversationHeld(_ meetingID: String, besidesSelf: Bool) -> Bool {
+        movingTogether(meetingID).contains { heldByOthers($0, besidesSelf: besidesSelf && $0 == meetingID) }
+    }
+
+    /// Moves linked recordings into the folder of the recording their
+    /// conversation started with, and separated ones back out, skipping any
+    /// recording a job is writing into. `around` limits the work to the
+    /// conversations of those meetings; nil tidies the whole archive.
+    @discardableResult
+    public func tidyConversationFolders(around meetingIDs: [String]? = nil) -> Int {
+        let isHeld: (String) -> Bool = { self.foldersHeld[$0] != nil || self.running.contains($0) }
+        // An if/else rather than Optional.map: passing the actor-bound
+        // closure through map's closure is a sending error under strict
+        // concurrency.
+        if let meetingIDs {
+            return repository.tidyConversationFolders(around: meetingIDs, isHeld: isHeld).count
+        }
+        return repository.tidyConversationFolders(isHeld: isHeld).count
+    }
+
     /// Moves meeting directories, refusing while a job is writing into one.
     ///
     /// The check and the move happen in one step on this actor, so no job can
@@ -165,7 +194,7 @@ public actor ProcessingPipeline {
     public func performFolderChange<T>(
         involving meetingIDs: [String], _ body: @Sendable () throws -> sending T
     ) throws -> sending T {
-        for meetingID in meetingIDs where foldersHeld[meetingID] != nil {
+        for meetingID in meetingIDs.flatMap(movingTogether) where foldersHeld[meetingID] != nil {
             throw MeetingFolderError.meetingIsBusy(meetingID)
         }
         return try body()
@@ -300,6 +329,9 @@ public actor ProcessingPipeline {
     /// flight is left alone.
     public func process(meetingID: String) async {
         await runStages(meetingID: meetingID)
+        // A recording linked while it was still processing could not move
+        // then, and moves now that its run has let go of the folder.
+        tidyConversationFolders(around: [meetingID])
         await payRewriteOwed(afterJobOn: meetingID)
     }
 
@@ -889,7 +921,7 @@ public actor ProcessingPipeline {
         // to change a meeting that has long had its title and its folder.
         // Filing it now would apply rules written since to a meeting the user
         // never asked to move.
-        if !heldByOthers(meetingID, besidesSelf: true), refilesFolder {
+        if !conversationHeld(meetingID, besidesSelf: true), refilesFolder {
             // Before the rename: filing changes which directory the meeting is
             // in, and renaming works inside whichever that turns out to be.
             await placeInFolder(metadata: metadata, settings: settings)
@@ -977,7 +1009,7 @@ public actor ProcessingPipeline {
     /// The entry every caller outside this actor uses. `process` settles its own
     /// meeting from its tail, where it still owns the folder.
     public func settleFolderName(meetingID: String) {
-        guard !heldByOthers(meetingID, besidesSelf: false) else { return }
+        guard !conversationHeld(meetingID, besidesSelf: false) else { return }
         guard let found = repository.findMeeting(id: meetingID, includingMerged: true) else {
             return
         }
@@ -987,7 +1019,7 @@ public actor ProcessingPipeline {
     /// Renames every finished meeting whose folder is out of date with its
     /// title, skipping any a job is writing into.
     public func settleFolderNames() {
-        repository.settleFolderNames { self.heldByOthers($0, besidesSelf: false) }
+        repository.settleFolderNames { self.conversationHeld($0, besidesSelf: false) }
     }
 
     /// Replaces a finished meeting's PCM segments with verified archives.
@@ -3745,6 +3777,38 @@ public actor ProcessingPipeline {
                 durationSeconds: metadata.durationSeconds,
                 participants: await participants(in: speakers)
             ))
+        try await writeConversationMarkdown(containing: metadata.id)
+    }
+
+    /// Writes the whole conversation into the `transcript.md` of the recording
+    /// it started with, when it is made of several recordings.
+    ///
+    /// That folder is the one a person opens, and its parts sit inside it, so
+    /// its transcript reads as the meeting rather than as its first few
+    /// minutes. Each part keeps its own `transcript.md` in its own folder.
+    func writeConversationMarkdown(containing meetingID: String) async throws {
+        guard let conversation = repository.logicalMeeting(id: meetingID), conversation.isSplit
+        else { return }
+        var participants: [TranscriptParticipant] = []
+        for recording in conversation.recordings {
+            guard let speakers = try? recording.store.readSpeakerMap() else { continue }
+            for participant in await self.participants(in: speakers)
+            where !participants.contains(where: { $0.name == participant.name }) {
+                participants.append(participant)
+            }
+        }
+        let primary = conversation.primary
+        try primary.store.writeTranscriptMarkdown(
+            TranscriptRenderer().markdown(
+                conversation: conversation.combinedTranscript(),
+                parts: conversation.recordings.map { ($0.metadata.id, $0.metadata.startedAt) },
+                title: primary.metadata.displayTitle,
+                startedAt: conversation.startedAt,
+                durationSeconds: conversation.durationSeconds,
+                participants: participants.sorted {
+                    $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending
+                }
+            ))
     }
 
     /// Renders the derived files and links the calendar event.
@@ -5235,6 +5299,20 @@ public actor ProcessingPipeline {
         }
     }
 
+    /// Writes the combined transcript of every conversation made of several
+    /// recordings. Run after a launch tidy moved parts into place.
+    public func rerenderConversations() async {
+        for summary in repository.listMeetings() where summary.recordingCount > 1 {
+            do {
+                try await writeConversationMarkdown(containing: summary.id)
+            } catch {
+                Log.processing.notice(
+                    "conversation transcript not written: \(logSafeDescription(error), privacy: .public)"
+                )
+            }
+        }
+    }
+
     /// Waits until heavy work may start, and holds the slot on return.
     ///
     /// The two waits happen in the wrong order to check once: acquiring the
@@ -5325,6 +5403,7 @@ public actor ProcessingPipeline {
                 durationSeconds: metadata.durationSeconds,
                 participants: participants
             ))
+        try await writeConversationMarkdown(containing: metadata.id)
     }
 
     /// Who was in the meeting, with whatever the user has written about them.

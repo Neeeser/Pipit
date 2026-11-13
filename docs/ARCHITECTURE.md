@@ -609,8 +609,21 @@ a summary first copies it to the Backups folder and does not run if the copy
 cannot be made. Folder names follow titles as always, so a rewritten title
 renames the folder at the next launch. Separating after
 merging a row that was already a conversation does not restore the earlier
-grouping. `transcript.md` is still written per recording and does not include
-continuations.
+grouping.
+
+A conversation is one folder on disk. Each linked recording's folder sits in the
+`Parts` folder of the recording the conversation started with, under its own
+name, and a separated one goes back beside that recording.
+`ProcessingPipeline.tidyConversationFolders` makes the moves after a link, after a
+separation, at the end of every processing run and at launch, and only for a
+recording that has finished processing and that no job is writing into, so a
+recording linked while it is still processing moves when its run ends. Anything
+that moves the first recording's folder (a title rename, filing, trash) checks
+every recording of the conversation for a running job, because the parts move
+with it. A part cannot be filed on its own. The first recording's
+`transcript.md` holds the whole conversation in time order, with a heading where
+each recording starts, and each part keeps its own `transcript.md`. The audio is
+still one `recording.m4a` per recording.
 
 ## Reading the archive
 

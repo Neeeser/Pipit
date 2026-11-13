@@ -273,12 +273,13 @@ struct MergeMeetingsTests {
         // own update has arrived.
         await Self.waitUntil {
             runtime.repository.findMeeting(id: ids[0])?.store.readSummaryDocument().summary != nil
-                && updates.count >= 4
+                && updates.count >= 5
         }
 
-        // Two links, the one rewrite telling the window it wrote, and the one ask
-        // for the whole merge returning. Nothing else reports.
-        #expect(updates.count == 4)
+        // Two links, one pass moving both later folders into the first, the one
+        // rewrite telling the window it wrote, and the one ask for the whole
+        // merge returning. Nothing else reports.
+        #expect(updates.count == 5)
         #expect(backend.enrichmentRequests.count == 1)
         #expect(runtime.repository.logicalMeeting(id: ids[0])?.recordings.count == 3)
     }

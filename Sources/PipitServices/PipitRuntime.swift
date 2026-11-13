@@ -169,6 +169,9 @@ public final class PipitRuntime {
     @ObservationIgnored public var notifications = NotificationService()
     /// Conversations whose summary is being written again right now.
     public private(set) var summariesBeingWritten: Set<String> = []
+    /// Conversations waiting for `tidyFolders`' next pass.
+    @ObservationIgnored private var pendingFolderTidy: [String] = []
+    @ObservationIgnored private var pendingTranscriptRewrites: [String] = []
     @ObservationIgnored private var recentSummaryProblems: [(error: ProcessingError, at: Date)] = []
     /// Conversations whose rewrite the person asked for with the button.
     @ObservationIgnored private var summariesAskedByPerson: Set<String> = []
@@ -564,6 +567,12 @@ public final class PipitRuntime {
             // app quit never re-enters `process`, so this is the only pass that
             // gives its folder the title enrichment produced.
             await pipeline.settleFolderNames()
+            // After the renames, so each part lands in the folder under its
+            // final name. Also moves conversations linked before their parts
+            // were kept inside them.
+            if await pipeline.tidyConversationFolders() > 0 {
+                await pipeline.rerenderConversations()
+            }
             refreshRecentMeetings()
             // Last, because each rewrite is a request and the launch work above
             // is what the person is waiting on.
@@ -1900,7 +1909,7 @@ public final class PipitRuntime {
             }
             refreshRecentMeetings()
             // This meeting's own identifier, whatever it was folded into: the
-            // audio is in this folder and combine moves nothing. Routing to the
+            // audio is in this recording's own folder. Routing to the
             // survivor instead handed the pipeline a meeting that has none of
             // the second half of the call, and it is usually already complete,
             // so nothing was transcribed at all.
@@ -1944,7 +1953,7 @@ public final class PipitRuntime {
     /// Associates a finished meeting with an earlier one it continues.
     ///
     /// Strong evidence merges on its own; anything weaker is recorded as a
-    /// suggestion the meetings window offers. Neither path moves or rewrites a source
+    /// suggestion the meetings window offers. Neither path rewrites a source
     /// segment: combining is a link, not a copy.
     @discardableResult
     private func linkContinuation(
@@ -1992,11 +2001,12 @@ public final class PipitRuntime {
 
     /// Links one recording to the conversation an earlier one started.
     ///
-    /// The link changes two files, which gain a pointer at each other, and
-    /// moves nothing. The second recording is the only
-    /// copy of the second half of the call, so it keeps its own segments,
-    /// manifest, raw transcription, raw diarization and speaker map, and stays
-    /// reachable under its own identifier.
+    /// The link changes two files, which gain a pointer at each other. The
+    /// second recording is the only copy of the second half of the call, so it
+    /// keeps its own segments, manifest, raw transcription, raw diarization and
+    /// speaker map, and stays reachable under its own identifier. Its folder
+    /// then moves, whole, into the first recording's `Parts` folder once
+    /// nothing is writing into it (`tidyConversationFolders`).
     ///
     /// The earlier recording's own duration and runs are not touched. Adding the
     /// later half into them made the combined figure a stored total, so undoing
@@ -2063,10 +2073,40 @@ public final class PipitRuntime {
         if pointed {
             Log.app.info("combined a meeting into an earlier one: \(reason, privacy: .public)")
         }
+        tidyFolders(of: [target.id], rewriting: target.id)
         refreshRecentMeetings()
         onProcessingUpdate?(target.id)
         if rewritingSummary { refreshConversationSummary(meetingID: target.id) }
         return true
+    }
+
+    /// Moves the recordings of these conversations into or out of each
+    /// other's folders, then writes their transcripts again: a conversation's
+    /// first folder holds the whole conversation's transcript, and a recording
+    /// separated from one holds its own again.
+    ///
+    /// Requests made in one turn share one pass, so merging several meetings
+    /// at once moves them together and reports once. The window hears about
+    /// it only when a folder moved; the link itself has already reported.
+    /// `rewriting` is the conversation whose transcript changed. A separated
+    /// recording's own transcript never held the others, so it is left alone.
+    private func tidyFolders(of meetingIDs: [String], rewriting: String) {
+        let scheduled = !pendingFolderTidy.isEmpty
+        for id in meetingIDs where !pendingFolderTidy.contains(id) { pendingFolderTidy.append(id) }
+        if !pendingTranscriptRewrites.contains(rewriting) { pendingTranscriptRewrites.append(rewriting) }
+        guard !scheduled else { return }
+        runProcessing { [weak self] in
+            guard let self else { return }
+            let meetingIDs = pendingFolderTidy
+            let rewrites = pendingTranscriptRewrites
+            pendingFolderTidy = []
+            pendingTranscriptRewrites = []
+            let moved = await pipeline.tidyConversationFolders(around: meetingIDs)
+            await pipeline.rerenderMeetings(rewrites)
+            guard moved > 0 else { return }
+            for id in meetingIDs { onProcessingUpdate?(id) }
+            refreshRecentMeetings()
+        }
     }
 
     /// One notification for a burst of failed rewrites. Separating a part asks for
@@ -2124,8 +2164,9 @@ public final class PipitRuntime {
 
     /// Separates a recording from the conversation it was linked to.
     ///
-    /// The association is the only thing undone: both recordings keep every file
-    /// they had, and each is its own row again. Offered because the match that
+    /// The association is undone and the recording's folder goes back beside
+    /// the one it was a part of: both recordings keep every file they had, and
+    /// each is its own row again. Offered because the match that
     /// linked them is a heuristic over provider identifiers and timing, and being
     /// wrong about it must not be permanent.
     public func detachContinuation(meetingID: String) {
@@ -2143,6 +2184,7 @@ public final class PipitRuntime {
             }
         }
         Log.app.info("separated a continuation from the meeting it was linked to")
+        tidyFolders(of: [parentID, meetingID], rewriting: parentID)
         refreshRecentMeetings()
         onProcessingUpdate?(parentID)
         // Both halves, since each now stands on its own: the conversation lost
