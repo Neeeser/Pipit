@@ -65,6 +65,11 @@ final class LiveTranscriptPanel: NSPanel {
             orderFrontRegardless()
             return
         }
+        hideIfNobodyCanSeeIt()
+        guard NSApp.activationPolicy() != .prohibited else {
+            orderFrontRegardless()
+            return
+        }
         alphaValue = 0
         let target = frame
         setFrame(target.offsetBy(dx: 0, dy: 8), display: false)
