@@ -172,10 +172,13 @@ public actor ProcessingPipeline {
     @discardableResult
     public func tidyConversationFolders(around meetingIDs: [String]? = nil) -> Int {
         let isHeld: (String) -> Bool = { self.foldersHeld[$0] != nil || self.running.contains($0) }
-        let moves =
-            meetingIDs.map { repository.tidyConversationFolders(around: $0, isHeld: isHeld) }
-            ?? repository.tidyConversationFolders(isHeld: isHeld)
-        return moves.count
+        // An if/else rather than Optional.map: passing the actor-bound
+        // closure through map's closure is a sending error under strict
+        // concurrency.
+        if let meetingIDs {
+            return repository.tidyConversationFolders(around: meetingIDs, isHeld: isHeld).count
+        }
+        return repository.tidyConversationFolders(isHeld: isHeld).count
     }
 
     /// Moves meeting directories, refusing while a job is writing into one.
