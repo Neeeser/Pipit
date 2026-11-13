@@ -7,9 +7,10 @@ import Testing
 
 /// A call that dropped and was rejoined is two recordings and one meeting.
 ///
-/// The rule these pin: linking them moves no audio and hides nothing. Both
-/// recordings keep every file they had, the conversation reads as one in time
-/// order, and being wrong about the link is undoable.
+/// The rule these pin: linking them changes no audio and hides nothing. Both
+/// recordings keep every file they had, the second one's folder moves inside
+/// the first's, the conversation reads as one in time order, and being wrong
+/// about the link is undoable.
 @Suite("Reconnect")
 struct ReconnectTests {
     /// Two recordings fifteen minutes apart, the second linked to the first.
@@ -179,7 +180,7 @@ struct ReconnectTests {
         )
         #expect(
             FileManager.default.fileExists(atPath: secondDirectory.path),
-            "nothing was moved, so the second recording is where it always was"
+            "it was never inside the first folder, so it is where it always was"
         )
         let reopened = try #require(repository.findMeeting(id: second))
         #expect(
@@ -264,5 +265,119 @@ struct ReconnectTests {
             abs((repository.logicalMeeting(id: first)?.durationSeconds ?? 0) - 2_100) <= 0.001,
             "expected \(2_100) ± \(0.001), got \((repository.logicalMeeting(id: first)?.durationSeconds ?? 0)) — and the conversation reports both, derived rather than stored"
         )
+    }
+
+    // MARK: - one folder per conversation
+
+    private static func finish(_ repository: MeetingRepository, _ ids: String...) throws {
+        for id in ids {
+            let found = try #require(repository.findMeeting(id: id, includingMerged: true))
+            _ = try found.store.updateMetadata { $0.processing.state = .complete }
+        }
+    }
+
+    private static func root(_ repository: MeetingRepository, _ id: String) throws -> URL {
+        try #require(repository.findMeeting(id: id, includingMerged: true)).store.layout.root
+    }
+
+    @Test("a linked recording's folder moves inside the folder the conversation started in")
+    func aLinkedRecordingMovesInsideTheFirstFolder() async throws {
+        // Finder showed a merged meeting as separate folders, the first
+        // holding a transcript of its first few minutes only.
+        let root = try TestPaths.makeTemporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let (repository, first, second) = try Self.makeSplitMeeting(root: root)
+        try Self.finish(repository, first, second)
+        let firstRoot = try Self.root(repository, first)
+
+        let moves = repository.tidyConversationFolders(isHeld: { _ in false })
+
+        #expect(moves.map(\.meetingID) == [second])
+        let secondRoot = try Self.root(repository, second)
+        #expect(
+            secondRoot.deletingLastPathComponent().standardizedFileURL
+                == MeetingLayout(root: firstRoot).parts.standardizedFileURL)
+        #expect(repository.listMeetings().map(\.id) == [first], "still one meeting")
+        #expect(repository.logicalMeeting(id: first)?.recordings.count == 2)
+        #expect(
+            repository.meetingDirectories().filter { $0.lastPathComponent == secondRoot.lastPathComponent }.count == 1,
+            "the part is listed once")
+        #expect(repository.tidyConversationFolders(isHeld: { _ in false }).isEmpty, "a second tidy moves nothing")
+        #expect(
+            ((try? repository.findMeeting(id: second, includingMerged: true)?.store.readCanonicalTranscript()) ?? nil)?
+                .utterances.first?.text == "after the rejoin",
+            "and every file came with it")
+    }
+
+    @Test("a recording a job holds, or one still processing, stays where it is")
+    func aBusyRecordingStaysWhereItIs() async throws {
+        let root = try TestPaths.makeTemporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let (repository, first, second) = try Self.makeSplitMeeting(root: root)
+        let before = try Self.root(repository, second)
+
+        #expect(repository.tidyConversationFolders(isHeld: { _ in false }).isEmpty, "still processing")
+        try Self.finish(repository, first, second)
+        #expect(repository.tidyConversationFolders(isHeld: { $0 == second }).isEmpty, "a job is writing into it")
+        #expect(try Self.root(repository, second).standardizedFileURL == before.standardizedFileURL)
+    }
+
+    @Test("a separated recording goes back beside the one it was part of")
+    func aSeparatedRecordingGoesBackBeside() async throws {
+        let root = try TestPaths.makeTemporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let (repository, first, second) = try Self.makeSplitMeeting(root: root)
+        try Self.finish(repository, first, second)
+        repository.tidyConversationFolders(isHeld: { _ in false })
+        let firstRoot = try Self.root(repository, first)
+
+        _ = try #require(repository.findMeeting(id: second, includingMerged: true)).store.updateMetadata {
+            $0.mergedIntoMeetingID = nil
+        }
+        _ = try #require(repository.findMeeting(id: first)).store.updateMetadata { $0.absorbedMeetingIDs = [] }
+        let moves = repository.tidyConversationFolders(around: [first, second], isHeld: { _ in false })
+
+        #expect(moves.map(\.meetingID) == [second])
+        #expect(
+            try Self.root(repository, second).deletingLastPathComponent().standardizedFileURL
+                == firstRoot.deletingLastPathComponent().standardizedFileURL)
+        #expect(
+            !FileManager.default.fileExists(atPath: MeetingLayout(root: firstRoot).parts.path),
+            "an empty Parts folder is not left behind")
+        #expect(Set(repository.listMeetings().map(\.id)) == Set([first, second]))
+    }
+
+    @Test("a part's bytes are counted once")
+    func aPartsBytesAreCountedOnce() async throws {
+        let root = try TestPaths.makeTemporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let (repository, first, second) = try Self.makeSplitMeeting(root: root)
+        try Self.finish(repository, first, second)
+        let before = repository.usage()
+        repository.tidyConversationFolders(isHeld: { _ in false })
+        let after = repository.usage()
+        #expect(after.bytes == before.bytes)
+        #expect(after.meetingCount == 1)
+    }
+
+    @Test("the first folder's transcript holds the whole conversation")
+    func theFirstFoldersTranscriptHoldsTheWholeConversation() async throws {
+        let root = try TestPaths.makeTemporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let (repository, first, second) = try Self.makeSplitMeeting(root: root)
+        let pipeline = PipelineFixtures.makePipeline(repository: repository, backend: FakeAIBackend())
+
+        await pipeline.rerenderMeetings([second])
+
+        let firstText = try #require(repository.findMeeting(id: first)?.store.readTranscriptMarkdown())
+        #expect(firstText.contains("## Part 1"))
+        #expect(firstText.contains("## Part 2"))
+        let before = try #require(firstText.range(of: "before the drop"))
+        let after = try #require(firstText.range(of: "after the rejoin"))
+        #expect(before.lowerBound < after.lowerBound, "in the order it was said")
+        #expect(firstText.contains("**Nadia**"), "named through the second recording's own speakers")
+        let secondText = try #require(
+            repository.findMeeting(id: second, includingMerged: true)?.store.readTranscriptMarkdown())
+        #expect(!secondText.contains("before the drop"), "a part keeps its own transcript")
     }
 }

@@ -791,6 +791,9 @@ public struct MeetingRepository: Sendable {
         }
         let current = found.store.layout.root
         let metadata = found.metadata
+        // A linked recording lives in its conversation's folder and is filed
+        // with it. Moving it on its own would split the conversation again.
+        if metadata.mergedIntoMeetingID != nil { return current }
         // Capture appends segments to paths it holds open, and the pipeline
         // holds absolute paths for the length of a run. Either way the folder
         // must not move out from under them.
@@ -955,7 +958,24 @@ public struct MeetingRepository: Sendable {
             }
         }
         directories.append(contentsOf: filedMeetingDirectories())
-        return directories
+        return directories + directories.flatMap(Self.partDirectories(of:))
+    }
+
+    /// The folders of the recordings linked into this one, which sit inside it.
+    static func partDirectories(of meeting: URL) -> [URL] {
+        let parts = MeetingLayout(root: meeting).parts
+        let entries = try? FileManager.default.contentsOfDirectory(
+            at: parts, includingPropertiesForKeys: nil, options: [.skipsHiddenFiles]
+        )
+        return (entries ?? []).filter(\.hasDirectoryPath)
+    }
+
+    /// Whether a meeting directory sits in another meeting's `Parts` folder.
+    public static func isPartDirectory(_ directory: URL) -> Bool {
+        let parent = directory.deletingLastPathComponent()
+        guard parent.lastPathComponent == MeetingLayout.partsFolderName else { return false }
+        let owner = parent.deletingLastPathComponent()
+        return FileManager.default.fileExists(atPath: MeetingLayout(root: owner).raw.path)
     }
 
     /// Every meeting directory sitting inside a folder the user made.
