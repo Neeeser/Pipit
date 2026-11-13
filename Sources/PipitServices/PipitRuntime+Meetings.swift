@@ -140,10 +140,13 @@ extension PipitRuntime {
             for meetingID in meetingIDs {
                 guard let logical = repository.logicalMeeting(id: meetingID) else { continue }
                 let text = ([logical.primary] + logical.continuations)
-                    .compactMap {
-                        try? String(
-                            contentsOf: $0.store.layout.transcriptMarkdown, encoding: .utf8
-                        )
+                    .compactMap { recording in
+                        // A part can move into or out of its conversation's
+                        // folder between the lookup and the read, so a file
+                        // that is gone is looked up once more where it went.
+                        Self.readTranscript(recording.store)
+                            ?? repository.findMeeting(id: recording.metadata.id, includingMerged: true)
+                            .flatMap { Self.readTranscript($0.store) }
                     }
                     .joined(separator: "\n")
                 guard !text.isEmpty else { continue }
@@ -151,6 +154,10 @@ extension PipitRuntime {
             }
             return index
         }.value
+    }
+
+    private nonisolated static func readTranscript(_ store: MeetingStore) -> String? {
+        try? String(contentsOf: store.layout.transcriptMarkdown, encoding: .utf8)
     }
 
     /// Opens the folder holding every meeting.

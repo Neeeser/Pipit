@@ -169,6 +169,9 @@ public final class PipitRuntime {
     @ObservationIgnored public var notifications = NotificationService()
     /// Conversations whose summary is being written again right now.
     public private(set) var summariesBeingWritten: Set<String> = []
+    /// Conversations waiting for `tidyFolders`' next pass.
+    @ObservationIgnored private var pendingFolderTidy: [String] = []
+    @ObservationIgnored private var pendingTranscriptRewrites: [String] = []
     @ObservationIgnored private var recentSummaryProblems: [(error: ProcessingError, at: Date)] = []
     /// Conversations whose rewrite the person asked for with the button.
     @ObservationIgnored private var summariesAskedByPerson: Set<String> = []
@@ -2070,7 +2073,7 @@ public final class PipitRuntime {
         if pointed {
             Log.app.info("combined a meeting into an earlier one: \(reason, privacy: .public)")
         }
-        tidyFolders(of: [target.id])
+        tidyFolders(of: [target.id], rewriting: target.id)
         refreshRecentMeetings()
         onProcessingUpdate?(target.id)
         if rewritingSummary { refreshConversationSummary(meetingID: target.id) }
@@ -2081,11 +2084,26 @@ public final class PipitRuntime {
     /// other's folders, then writes their transcripts again: a conversation's
     /// first folder holds the whole conversation's transcript, and a recording
     /// separated from one holds its own again.
-    private func tidyFolders(of meetingIDs: [String]) {
+    ///
+    /// Requests made in one turn share one pass, so merging several meetings
+    /// at once moves them together and reports once. The window hears about
+    /// it only when a folder moved; the link itself has already reported.
+    /// `rewriting` is the conversation whose transcript changed. A separated
+    /// recording's own transcript never held the others, so it is left alone.
+    private func tidyFolders(of meetingIDs: [String], rewriting: String) {
+        let scheduled = !pendingFolderTidy.isEmpty
+        for id in meetingIDs where !pendingFolderTidy.contains(id) { pendingFolderTidy.append(id) }
+        if !pendingTranscriptRewrites.contains(rewriting) { pendingTranscriptRewrites.append(rewriting) }
+        guard !scheduled else { return }
         runProcessing { [weak self] in
             guard let self else { return }
-            await pipeline.tidyConversationFolders(around: meetingIDs)
-            await pipeline.rerenderMeetings(meetingIDs)
+            let meetingIDs = pendingFolderTidy
+            let rewrites = pendingTranscriptRewrites
+            pendingFolderTidy = []
+            pendingTranscriptRewrites = []
+            let moved = await pipeline.tidyConversationFolders(around: meetingIDs)
+            await pipeline.rerenderMeetings(rewrites)
+            guard moved > 0 else { return }
             for id in meetingIDs { onProcessingUpdate?(id) }
             refreshRecentMeetings()
         }
@@ -2166,7 +2184,7 @@ public final class PipitRuntime {
             }
         }
         Log.app.info("separated a continuation from the meeting it was linked to")
-        tidyFolders(of: [parentID, meetingID])
+        tidyFolders(of: [parentID, meetingID], rewriting: parentID)
         refreshRecentMeetings()
         onProcessingUpdate?(parentID)
         // Both halves, since each now stands on its own: the conversation lost
