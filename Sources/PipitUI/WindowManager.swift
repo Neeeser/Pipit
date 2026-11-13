@@ -748,6 +748,7 @@ public final class WindowManager {
         // already inactive does not bring it back: measured, an inactive
         // application stayed inactive across the change.
         if holdsDockPresence { hold(window) }
+        window.hideIfNobodyCanSeeIt()
         if activating {
             NSApp.activate(ignoringOtherApps: true)
             window.makeKeyAndOrderFront(nil)
@@ -965,4 +966,20 @@ final class SmallCornerWindow: NSWindow {
     static let cornerRadius: CGFloat = 16
 
     @objc(_cornerRadius) private var smallCornerRadius: CGFloat { Self.cornerRadius }
+}
+
+extension NSWindow {
+    /// Keeps a window out of sight in a process that may not be activated.
+    ///
+    /// Pipit itself runs as a regular or accessory application. The test suite
+    /// runs Pipit's windows in a process set to `.prohibited`, and a window it
+    /// ordered in sat on top of whatever the person was using while the suite
+    /// ran. The window is still ordered in, so it lays out and its views load,
+    /// but it is transparent and lets clicks through.
+    func hideIfNobodyCanSeeIt() {
+        guard NSApp.activationPolicy() == .prohibited else { return }
+        alphaValue = 0
+        ignoresMouseEvents = true
+        animationBehavior = .none
+    }
 }

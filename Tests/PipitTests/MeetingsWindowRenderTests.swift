@@ -125,11 +125,10 @@ struct MeetingsWindowRenderTests {
         )
         window.appearance = NSAppearance(named: appearance)
         window.setContentSize(size)
-        // On screen but out of sight: a split view built by SwiftUI lays out
+        // Ordered in but out of sight: a split view built by SwiftUI lays out
         // and draws its columns only once its window is ordered in.
-        window.setFrameOrigin(NSPoint(x: -20_000, y: -20_000))
         window.hasShadow = false
-        window.orderFrontRegardless()
+        Self.orderInOutOfSight(window)
         defer { window.close() }
         guard let view = window.contentView else { return nil }
         view.layoutSubtreeIfNeeded()
@@ -153,6 +152,21 @@ struct MeetingsWindowRenderTests {
         try capture.run()
         capture.waitUntilExit()
         return file
+    }
+
+    /// Orders a window in behind the desktop.
+    ///
+    /// A split view built by SwiftUI lays out and draws its columns only once
+    /// its window is ordered in. macOS keeps part of a titled window on a
+    /// screen however far off it is placed, so an off-screen origin still drew
+    /// a strip of the window over whatever the person running the tests was
+    /// using. Below the desktop it is covered by everything, and the capture
+    /// still reads it, because it asks the window server for this one window.
+    private static func orderInOutOfSight(_ window: NSWindow) {
+        window.animationBehavior = .none
+        window.level = NSWindow.Level(rawValue: Int(CGWindowLevelForKey(.desktopWindow)) - 1)
+        window.ignoresMouseEvents = true
+        window.orderFrontRegardless()
     }
 
     @Test("the window lays out with one meeting open and with several selected")
@@ -288,8 +302,7 @@ struct MeetingsWindowRenderTests {
         model.select(built.open, extending: false)
         let window = WindowManager.makeMeetingsWindow(
             content: MeetingsWindowView(model: model), autosaveName: "PipitRenderTest")
-        window.setFrameOrigin(NSPoint(x: -20_000, y: -20_000))
-        window.orderFrontRegardless()
+        Self.orderInOutOfSight(window)
         defer { window.close() }
         window.contentView?.layoutSubtreeIfNeeded()
         try await Task.sleep(for: .milliseconds(400))
