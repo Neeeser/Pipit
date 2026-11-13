@@ -79,16 +79,26 @@ public struct CaptureThresholds: Sendable, Equatable {
     /// Remote tap fault threshold, applied only while a target is producing output.
     public var remoteCallbackTimeout: Double
     /// How long every buffer may be exactly zero while a target reports output
-    /// before the tap is rebound, and again before the tap is called degraded.
+    /// before the tap is rebound, once per run of silence.
     ///
-    /// Chosen rather than measured, unlike the constants above. Across the 29
-    /// recordings on this machine the readings are bimodal. The working taps
-    /// carry signal continuously, and the three broken ones read zero for their
-    /// whole length, 2, 31 and 41 minutes. Nothing measured sits near twenty
-    /// seconds. The case the value is guessing at is a solo stretch where the
-    /// application really does render digital zero while reporting output, and
-    /// twenty seconds is how long such a stretch runs before the tap is
-    /// rebound.
+    /// While the tap is dead the echo canceller has no reference, so the far
+    /// side's voices reach the cleaned microphone and are transcribed as the
+    /// local user; one recorded call lost 18 and 16 seconds that way at the
+    /// earlier twenty-second wait. A rebind on a working tap during a quiet
+    /// stretch costs only the half second of a rebuild, measured in the events
+    /// log, in a stretch that is already silent. Across 68 hours of recorded
+    /// calls on this machine, runs of exact zero three seconds or longer came
+    /// about five times an hour, so a working call pays a few such rebinds an
+    /// hour, against seconds of misattributed speech each time a tap dies.
+    public var remoteSilenceRebindAfter: Double
+    /// How long a run of exact zero may last in all, with the rebind behind it,
+    /// before the tap is called degraded and the user is warned.
+    ///
+    /// Chosen rather than measured. Broken taps read zero for minutes, while a
+    /// call where the application really does render digital zero while
+    /// reporting output, such as one where everyone else is muted, can run
+    /// zero for tens of seconds. The warning is what the user sees, so it
+    /// waits as long as it did when the rebind itself came at twenty seconds.
     public var remoteSilenceTimeout: Double
     /// Health poll interval.
     public var pollInterval: Double
@@ -128,7 +138,8 @@ public struct CaptureThresholds: Sendable, Equatable {
         rebuildGrace: Double = 1.5,
         micCallbackTimeout: Double = 2.0,
         remoteCallbackTimeout: Double = 5.0,
-        remoteSilenceTimeout: Double = 20,
+        remoteSilenceRebindAfter: Double = 3,
+        remoteSilenceTimeout: Double = 40,
         pollInterval: Double = 0.5,
         wakeSettleDelay: Double = 1.5,
         rebuildBackoffCeiling: Double = 30,
@@ -139,6 +150,7 @@ public struct CaptureThresholds: Sendable, Equatable {
         self.rebuildGrace = rebuildGrace
         self.micCallbackTimeout = micCallbackTimeout
         self.remoteCallbackTimeout = remoteCallbackTimeout
+        self.remoteSilenceRebindAfter = remoteSilenceRebindAfter
         self.remoteSilenceTimeout = remoteSilenceTimeout
         self.pollInterval = pollInterval
         self.wakeSettleDelay = wakeSettleDelay

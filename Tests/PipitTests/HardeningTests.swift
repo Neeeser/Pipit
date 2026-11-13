@@ -186,7 +186,7 @@ struct CaptureEngineHardeningTests {
         let tap = LockedBox<EmittingTap?>(nil)
         let delegate = SilentDelegate()
         let engine = CaptureEngine(
-            thresholds: CaptureThresholds(remoteSilenceTimeout: 0.1, pollInterval: 0.02),
+            thresholds: CaptureThresholds(remoteSilenceRebindAfter: 0.1, remoteSilenceTimeout: 0.2, pollInterval: 0.02),
             segmentSeconds: 60,
             makeMicrophone: { sink, _ in EmittingMicrophone(sink: sink) },
             makeTap: { sink, _ in
@@ -413,7 +413,7 @@ struct CaptureEngineHardeningTests {
         let tap = LockedBox<EmittingTap?>(nil)
         let delegate = SilentDelegate()
         let engine = CaptureEngine(
-            thresholds: CaptureThresholds(remoteSilenceTimeout: 0.1, pollInterval: 0.02),
+            thresholds: CaptureThresholds(remoteSilenceRebindAfter: 0.1, remoteSilenceTimeout: 0.2, pollInterval: 0.02),
             segmentSeconds: 60,
             makeMicrophone: { sink, _ in EmittingMicrophone(sink: sink) },
             makeTap: { sink, _ in
