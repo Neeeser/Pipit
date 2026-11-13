@@ -32,8 +32,10 @@ single meeting, and returns the participants and the files.
 ## Read a meeting
 
 `show` returns one entry in `recordings` for each recording of the meeting. A call
-that dropped and was rejoined has more than one, so read them in order. Each entry
-names the files that exist.
+that dropped and was rejoined, or two meetings merged into one, has more than one.
+The first recording's `transcript` then holds the whole conversation in time order,
+so read that one; the others hold their own part only. Each entry names the files
+that exist.
 
 - `transcript`: the transcript with speaker labels and times.
 - `summary`: a generated summary.
