@@ -39,6 +39,38 @@ struct MicrophoneVoiceCheckTests {
             "a far-end match within the margin of the user's own score is not enough")
     }
 
+    @Test("a line too quiet to judge stays with the user")
+    func aLineTooQuietToJudgeStays() {
+        let lines = [
+            MicrophoneVoiceCheck.Line(id: "own", levelDB: -35, ownScore: 0.84, farEnd: ["remote-001_speaker_01": 0.20]),
+            MicrophoneVoiceCheck.Line(
+                id: "quiet", levelDB: -81, ownScore: 0.05, farEnd: ["remote-001_speaker_01": 0.10]),
+            MicrophoneVoiceCheck.Line(
+                id: "unmatched", levelDB: -40, ownScore: 0.12, farEnd: ["remote-001_speaker_01": 0.20]),
+        ]
+        let decisions = MicrophoneVoiceCheck.decide(lines)
+        #expect(decisions["own"] == .keep)
+        #expect(decisions["quiet"] == nil, "a line under the level floor is not judged")
+        #expect(decisions["unmatched"] == .unattributed)
+    }
+
+    @Test("a meeting where most lines fail the profile makes nobody unattributed")
+    func aMeetingTheProfileDoesNotFitMakesNobodyUnattributed() {
+        // Three of four lines fail the profile: the profile does not fit this
+        // recording, so failing it says nothing. The far-end match still counts.
+        let lines = [
+            MicrophoneVoiceCheck.Line(id: "a", levelDB: -40, ownScore: 0.05, farEnd: ["remote-001_speaker_01": 0.20]),
+            MicrophoneVoiceCheck.Line(id: "b", levelDB: -40, ownScore: 0.10, farEnd: ["remote-001_speaker_01": 0.25]),
+            MicrophoneVoiceCheck.Line(id: "c", levelDB: -40, ownScore: 0.15, farEnd: ["remote-001_speaker_01": 0.72]),
+            MicrophoneVoiceCheck.Line(id: "d", levelDB: -40, ownScore: 0.80, farEnd: ["remote-001_speaker_01": 0.20]),
+        ]
+        let decisions = MicrophoneVoiceCheck.decide(lines)
+        #expect(decisions["a"] == .keep)
+        #expect(decisions["b"] == .keep)
+        #expect(decisions["c"] == .farEnd(speakerKey: "remote-001_speaker_01"))
+        #expect(decisions["d"] == .keep)
+    }
+
     @Test("only lines still filed under the user move")
     func onlyLinesStillFiledUnderTheUserMove() {
         func line(_ id: String, _ key: String) -> Utterance {

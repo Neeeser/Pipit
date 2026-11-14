@@ -1,3 +1,4 @@
+import AVFoundation
 import Foundation
 import PipitAudio
 import PipitCore
@@ -154,6 +155,45 @@ struct LocalModelTests {
                 "a cluster should sit closer to its own chunks (\(within)) than to another cluster (\(across))"
             )
         }
+    }
+
+    @Test("a stretch with no speech leaves the vectors of the stretches that have it")
+    func aStretchWithNoSpeechLeavesTheVectorsOfTheStretchesThatHaveIt() async throws {
+        let (support, conversation) = try Self.requireModels()
+        let manager = LocalModelManager(applicationSupport: support)
+        _ = try await manager.install(units: [.diarizer])
+        let extractor = FluidAudioEmbeddingExtractor(models: manager)
+
+        // The fixture followed by six seconds of digital silence, the way a
+        // microphone track looks where nothing reached it.
+        let speech = try MonoAudioDecoder.loadMono16k(conversation)
+        let speechSeconds = Double(speech.count) / 16_000
+        let root = try TestPaths.makeTemporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let audio = root.appendingPathComponent("speech-then-silence.wav")
+        try Self.writeMono16k(speech + [Float](repeating: 0, count: 6 * 16_000), to: audio)
+
+        let vectors = try await extractor.embed(
+            audio: audio,
+            intervals: [
+                DiarizationInterval(start: 0, end: min(10, speechSeconds), clusterID: "speech"),
+                DiarizationInterval(start: speechSeconds + 0.5, end: speechSeconds + 5.5, clusterID: "silence"),
+            ]
+        )
+        #expect(vectors.contains { $0.clusterID == "speech" })
+        #expect(!vectors.contains { $0.clusterID == "silence" })
+    }
+
+    private static func writeMono16k(_ samples: [Float], to url: URL) throws {
+        let format = try #require(AVAudioFormat(standardFormatWithSampleRate: 16_000, channels: 1))
+        let buffer = try #require(
+            AVAudioPCMBuffer(pcmFormat: format, frameCapacity: AVAudioFrameCount(samples.count)))
+        buffer.frameLength = AVAudioFrameCount(samples.count)
+        samples.withUnsafeBufferPointer { source in
+            buffer.floatChannelData![0].update(from: source.baseAddress!, count: samples.count)
+        }
+        let file = try AVAudioFile(forWriting: url, settings: format.settings)
+        try file.write(from: buffer)
     }
 
     @Test("parakeet transcribes the fixture with word timings of its own")

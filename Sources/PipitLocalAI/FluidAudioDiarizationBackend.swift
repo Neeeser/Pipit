@@ -376,7 +376,14 @@ extension LocalModelManager {
 
             let manager = OfflineDiarizerManager(config: config)
             manager.initialize(models: models)
-            let result = try await manager.process(audio: concatenated)
+            // A cluster with no speech in it has no vector to give. Skipping it
+            // keeps the other clusters' vectors, which one throw would discard.
+            let result: DiarizationResult
+            do {
+                result = try await manager.process(audio: concatenated)
+            } catch OfflineDiarizationError.noSpeechDetected {
+                continue
+            }
             for chunk in result.chunkEmbeddings ?? [] {
                 let (start, end) = Self.originalSpan(
                     concatStart: chunk.startTimeSeconds, concatEnd: chunk.endTimeSeconds, mapping: mapping

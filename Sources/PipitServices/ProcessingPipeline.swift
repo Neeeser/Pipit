@@ -3232,20 +3232,21 @@ public actor ProcessingPipeline {
             DiarizationInterval(
                 start: max(0, $0.start - leadIn), end: max(0, $0.end - leadIn), clusterID: $0.id)
         }
+        let levels = try Self.levelsDB(of: audio, intervals: intervals)
         var vectors: [String: [[Float]]] = [:]
         for embedding in try await extractor.embed(audio: audio, intervals: intervals) {
             vectors[embedding.clusterID, default: []].append(embedding.vector)
         }
 
-        var decisions: [String: MicrophoneVoiceCheck.Decision] = [:]
-        for line in lines {
-            guard let collected = vectors[line.id], !collected.isEmpty else { continue }
+        let measured = lines.compactMap { line -> MicrophoneVoiceCheck.Line? in
+            guard let collected = vectors[line.id], !collected.isEmpty, let level = levels[line.id]
+            else { return nil }
             let vector = VoiceVector.centroid(collected)
-            decisions[line.id] = MicrophoneVoiceCheck.decide(
-                ownScore: VoiceVector.cosine(vector, own),
-                farEnd: farEnd.mapValues { VoiceVector.cosine(vector, $0) }
-            )
+            return MicrophoneVoiceCheck.Line(
+                id: line.id, levelDB: level, ownScore: VoiceVector.cosine(vector, own),
+                farEnd: farEnd.mapValues { VoiceVector.cosine(vector, $0) })
         }
+        let decisions = MicrophoneVoiceCheck.decide(measured)
         let moved = decisions.values.filter { $0 != .keep }.count
         guard moved > 0 else { return }
         transcript = MicrophoneVoiceCheck.apply(decisions, to: transcript)
@@ -3253,6 +3254,21 @@ public actor ProcessingPipeline {
         Log.processing.info(
             "microphone voice check moved \(moved, privacy: .public) of \(lines.count, privacy: .public) lines"
         )
+    }
+
+    /// The loudness of each interval of a 16 kHz track, keyed by its cluster.
+    private static func levelsDB(
+        of audio: URL, intervals: [DiarizationInterval]
+    ) throws -> [String: Double] {
+        let samples = try MonoAudioDecoder.loadMono16k(audio)
+        var levels: [String: Double] = [:]
+        for interval in intervals {
+            let first = max(0, Int(interval.start * 16_000))
+            let last = min(samples.count, Int(interval.end * 16_000))
+            guard last > first else { continue }
+            levels[interval.clusterID] = MicrophoneVoiceCheck.levelDB(samples[first..<last])
+        }
+        return levels
     }
 
     /// Adds this meeting's microphone audio to the local user's own profile.
