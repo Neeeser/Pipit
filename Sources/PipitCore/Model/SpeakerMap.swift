@@ -422,6 +422,125 @@ public struct SpeakerMap: Codable, Sendable, Equatable {
         entries[key] = existing
     }
 
+    /// The share of a new cluster's speech that has to be the named old
+    /// cluster's before the name follows it.
+    static let carriedNamePurity = 0.8
+
+    /// Gives the clusters of a new diarization run the names a person set on
+    /// the clusters of the run it replaces, and returns how many took one.
+    ///
+    /// Re-clustering renumbers, so a name keyed to the old run's cluster is
+    /// keyed to nothing afterwards. Voice recognition puts a name back only
+    /// where that person has a profile that matches the new cluster, and a
+    /// name typed for somebody heard once has neither, so re-analysing a
+    /// meeting threw it away.
+    ///
+    /// The speech decides which new cluster is the same person: most of the
+    /// old cluster's seconds have to fall in the new cluster, and nearly all
+    /// of the new cluster's speech that the old run gave to anybody has to be
+    /// the old cluster's. The second bar is the strict one. A cloud
+    /// transcriber's labels are numbered per chunk, so for one of those the
+    /// second bar is measured inside that chunk's span. When two labels named
+    /// differently both land on one new cluster, neither name follows.
+    ///
+    /// A new cluster that merged two people holds only part of each, and the
+    /// name of one of them on all of it would be a wrong name with a person's
+    /// authority behind it, which nothing automatic may overwrite. A name that
+    /// does not carry leaves a numbered speaker, which a person can name in
+    /// one click.
+    ///
+    /// The person link stays behind. Voice learning trusts a person-named
+    /// cluster with a link as that person's audio, and a new cluster that is
+    /// only mostly the old one would put someone else's voice in the profile.
+    /// Recognition re-attaches the link when the voice itself matches.
+    ///
+    /// A speaker a person deliberately left unnamed is followed the same way,
+    /// so re-analysis does not let the roster name them again.
+    @discardableResult
+    public mutating func carryHumanNames(from previous: DiarizationRun, to current: DiarizationRun) -> Int {
+        guard previous.track == current.track, previous.id != current.id else { return 0 }
+        let named = previous.clusters.compactMap { cluster -> (String, String, SpeakerAssignment?)? in
+            let key = SpeakerLabel.namespaced(chunkID: previous.id, rawLabel: cluster.id)
+            if clearedKeys.contains(key) { return (cluster.id, key, nil) }
+            guard let entry = entries[key], entry.origin == .human else { return nil }
+            return (cluster.id, key, entry)
+        }
+        // Every named label's best new cluster, before any is applied: two
+        // labels a person named differently that land on one new cluster mean
+        // it holds both people, however pure it looks from either side.
+        var candidates: [String: [(assignment: SpeakerAssignment?, passes: Bool)]] = [:]
+        for (oldID, oldKey, assignment) in named {
+            guard let match = Self.bestMatch(for: oldID, key: oldKey, in: previous, among: current) else { continue }
+            let key = SpeakerLabel.namespaced(chunkID: current.id, rawLabel: match.newID)
+            candidates[key, default: []].append((assignment, match.passes))
+        }
+        var carried = 0
+        for key in candidates.keys.sorted() {
+            let claims = candidates[key] ?? []
+            guard Set(claims.map { $0.assignment?.displayName ?? "" }).count == 1,
+                let claim = claims.first(where: \.passes),
+                entries[key]?.origin != .human, !clearedKeys.contains(key)
+            else { continue }
+            if var assignment = claim.assignment {
+                assignment.identityID = nil
+                entries[key] = assignment
+            } else {
+                entries.removeValue(forKey: key)
+                clearedKeys.insert(key)
+            }
+            carried += 1
+        }
+        return carried
+    }
+
+    /// The new cluster holding most of one old cluster's speech, and whether
+    /// it is enough the same person for a name to follow.
+    private static func bestMatch(
+        for oldID: String, key oldKey: String, in previous: DiarizationRun, among current: DiarizationRun
+    ) -> (newID: String, passes: Bool)? {
+        let oldSpeech = previous.intervals.filter { $0.clusterID == oldID }
+        let oldSeconds = oldSpeech.reduce(0) { $0 + $1.duration }
+        guard oldSeconds > 0 else { return nil }
+        var shared: [String: Double] = [:]
+        for interval in current.intervals {
+            for old in oldSpeech {
+                let overlap = min(interval.end, old.end) - max(interval.start, old.start)
+                if overlap > 0 { shared[interval.clusterID, default: 0] += overlap }
+            }
+        }
+        // Sorted first so an exact tie picks the same cluster every time.
+        guard let (newID, seconds) = shared.sorted(by: { $0.key < $1.key }).max(by: { $0.value < $1.value })
+        else { return nil }
+        // Only the part of the new cluster that the old run gave to somebody
+        // counts: speech it left unassigned, or the gaps between transcript
+        // lines, says nothing about a second person.
+        //
+        // A cloud transcriber's label is local to one chunk, and the same
+        // person is a different key in the next chunk, so for one of those
+        // only the chunk's own span counts. The whole chunk's span, not the
+        // label's: a label heard for ten seconds would otherwise ignore the
+        // chunk-mate it was merged with.
+        var window = (start: -Double.infinity, end: Double.infinity)
+        if oldKey.contains("_chunk_"), let cut = oldKey.range(of: "_speaker_") {
+            let chunk = oldKey[..<cut.lowerBound] + "_speaker_"
+            let sameChunk = previous.intervals.filter {
+                SpeakerLabel.namespaced(chunkID: previous.id, rawLabel: $0.clusterID).hasPrefix(chunk)
+            }
+            window = (sameChunk.map(\.start).min() ?? 0, sameChunk.map(\.end).max() ?? 0)
+        }
+        var attributed = 0.0
+        for interval in current.intervals where interval.clusterID == newID {
+            let start = max(interval.start, window.start)
+            let end = min(interval.end, window.end)
+            guard end > start else { continue }
+            for old in previous.intervals {
+                attributed += max(0, min(end, old.end) - max(start, old.start))
+            }
+        }
+        let passes = seconds / oldSeconds > 0.5 && attributed > 0 && seconds / attributed >= carriedNamePurity
+        return (newID, passes)
+    }
+
     /// Applies a human correction to a whole cluster, which always wins.
     public mutating func assign(
         _ name: String, to key: String, participantID: String? = nil, identityID: IdentityID? = nil

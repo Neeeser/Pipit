@@ -4853,6 +4853,11 @@ public actor ProcessingPipeline {
 
         let output = try await reanalyze(metadata.id, audio, speakerCount)
         var diarization = try store.readRawDiarization()
+        let previous =
+            diarization.activeRun(track: track)
+            ?? (try? store.readCanonicalTranscript()).map {
+                DiarizationRun.fromLines($0.utterances, track: track)
+            }
         let leadIn = timeline.leadIn(track: track)
         let run = DiarizationRun(
             id: diarization.nextRunID(track: track),
@@ -4878,6 +4883,10 @@ public actor ProcessingPipeline {
         // cluster-level fallback names are applied again here. Without this,
         // re-analysing a meeting silently threw away its names.
         var reNamed = try store.readSpeakerMap()
+        // Ahead of the automatic stages, which may not overwrite a person's
+        // name, and ahead of recognition, which can only bring back a name
+        // whose voice profile matches.
+        if let previous { reNamed.carryHumanNames(from: previous, to: run) }
         await applySensorNames(
             store: store, metadata: metadata, diarization: diarization, into: &reNamed
         )
@@ -4902,9 +4911,10 @@ public actor ProcessingPipeline {
             meetingID: metadata.id, run: run, chunkEmbeddings: output.chunkEmbeddings
         )
 
-        // The new clusters carry the new run's identifiers, so no name from the
-        // previous clustering follows them. Line-level corrections do: they are
-        // anchored to a moment rather than to a cluster.
+        // The new clusters carry the new run's identifiers, so a name follows
+        // only where `carryHumanNames` matched the speech above. Line-level
+        // corrections always do: they are anchored to a moment rather than to
+        // a cluster.
         var metadataCopy = metadata
         let raw = try store.readRawTranscriptForAssembly()
         let transcript = TranscriptAssembler().assemble(
