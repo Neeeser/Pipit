@@ -90,3 +90,55 @@ struct ReanalysisNamesTests {
         #expect(!names.values.contains("Synthetic Person"), "half of this voice is somebody else, got \(names)")
     }
 }
+
+/// The matching rule on its own, without a pipeline around it.
+@Suite("CarryHumanNames")
+struct CarryHumanNamesTests {
+    private static func run(_ id: String, _ intervals: [(Double, Double, String)]) -> DiarizationRun {
+        let spans = intervals.map { DiarizationInterval(start: $0.0, end: $0.1, clusterID: $0.2) }
+        let ids = Array(Set(spans.map(\.clusterID))).sorted()
+        return DiarizationRun(
+            id: id, track: .remote, backend: "test", producedAt: Date(timeIntervalSince1970: 0),
+            timelineOffset: 0,
+            clusters: ids.map { id in
+                DiarizationCluster(
+                    id: id,
+                    speechSeconds: spans.filter { $0.clusterID == id }.reduce(0) { $0 + $1.duration })
+            },
+            intervals: spans)
+    }
+
+    private static let before = run("remote-001", [(0, 10, "S1"), (10, 20, "S2"), (20, 30, "S1")])
+    /// The same speech, numbered the other way round, with edges a little off.
+    private static let after = run("remote-002", [(0, 10.4, "S2"), (10.4, 19.8, "S1"), (19.8, 30, "S2")])
+
+    @Test("the name moves to the renumbered voice even when the edges moved")
+    func theNameMovesWithJitteredEdges() {
+        var map = SpeakerMap()
+        map.assign("Synthetic Person", to: "remote-001_speaker_00")
+        #expect(map.carryHumanNames(from: Self.before, to: Self.after) == 1)
+        #expect(map.entries["remote-002_speaker_01"]?.displayName == "Synthetic Person")
+        #expect(map.entries["remote-002_speaker_00"] == nil)
+    }
+
+    @Test("a carried name leaves the person link behind, so it teaches no voice profile")
+    func aCarriedNameHasNoPersonLink() {
+        var map = SpeakerMap()
+        map.assign("Synthetic Person", to: "remote-001_speaker_00", identityID: IdentityID(7))
+        map.carryHumanNames(from: Self.before, to: Self.after)
+        let carried = map.entries["remote-002_speaker_01"]
+        #expect(carried?.origin == .human)
+        #expect(carried?.identityID == nil, "the new voice group may be partly someone else's audio")
+    }
+
+    @Test("a voice a person left unnamed stays unnamed after re-analysis")
+    func aClearedVoiceStaysCleared() {
+        var map = SpeakerMap()
+        map.assign("", to: "remote-001_speaker_01")
+        map.carryHumanNames(from: Self.before, to: Self.after)
+        #expect(map.clearedKeys.contains("remote-002_speaker_00"))
+        map.applySuggestion(
+            SpeakerAssignment(displayName: "Roster Name", origin: .sensor), for: "remote-002_speaker_00")
+        #expect(map.entries["remote-002_speaker_00"] == nil)
+    }
+}

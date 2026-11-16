@@ -437,13 +437,22 @@ public struct SpeakerMap: Codable, Sendable, Equatable {
     /// A new cluster that merged two people holds only part of each, and the
     /// name of one of them on all of it would be a wrong name with a person's
     /// authority behind it, which nothing automatic may overwrite.
+    ///
+    /// The person link stays behind. Voice learning trusts a person-named
+    /// cluster with a link as that person's audio, and a new cluster that is
+    /// only mostly the old one would put someone else's voice in the profile.
+    /// Recognition re-attaches the link when the voice itself matches.
+    ///
+    /// A speaker a person deliberately left unnamed is followed the same way,
+    /// so re-analysis does not let the roster name them again.
     @discardableResult
     public mutating func carryHumanNames(from previous: DiarizationRun, to current: DiarizationRun) -> Int {
         guard previous.track == current.track, previous.id != current.id else { return 0 }
         var carried = 0
         var taken = Set<String>()
-        let named = previous.clusters.compactMap { cluster -> (String, SpeakerAssignment)? in
+        let named = previous.clusters.compactMap { cluster -> (String, SpeakerAssignment?)? in
             let key = SpeakerLabel.namespaced(chunkID: previous.id, rawLabel: cluster.id)
+            if clearedKeys.contains(key) { return (cluster.id, nil) }
             guard let entry = entries[key], entry.origin == .human else { return nil }
             return (cluster.id, entry)
         }
@@ -466,7 +475,13 @@ public struct SpeakerMap: Codable, Sendable, Equatable {
                 continue
             }
             taken.insert(key)
-            entries[key] = assignment
+            if var assignment {
+                assignment.identityID = nil
+                entries[key] = assignment
+            } else {
+                entries.removeValue(forKey: key)
+                clearedKeys.insert(key)
+            }
             carried += 1
         }
         return carried
