@@ -4853,7 +4853,11 @@ public actor ProcessingPipeline {
 
         let output = try await reanalyze(metadata.id, audio, speakerCount)
         var diarization = try store.readRawDiarization()
-        let previous = diarization.activeRun(track: track)
+        let previous =
+            diarization.activeRun(track: track)
+            ?? (try? store.readCanonicalTranscript()).map {
+                DiarizationRun.fromLines($0.utterances, track: track)
+            }
         let leadIn = timeline.leadIn(track: track)
         let run = DiarizationRun(
             id: diarization.nextRunID(track: track),

@@ -34,7 +34,9 @@ struct ReanalysisNamesTests {
     /// A 30 s call with two far-end voices, the first named by a person, then
     /// re-analysed into `reclustered`. Returns the name each far-end line reads
     /// under afterwards.
-    private static func reanalyse(into reclustered: [DiarizationInterval]) async throws -> [String: String] {
+    private static func reanalyse(
+        into reclustered: [DiarizationInterval], cloudLabelled: Bool = false
+    ) async throws -> [String: String] {
         let root = try TestPaths.makeTemporaryDirectory()
         defer { try? FileManager.default.removeItem(at: root) }
         let meeting = try PipelineFixtures.makeRecordedMeeting(
@@ -57,8 +59,21 @@ struct ReanalysisNamesTests {
         let id = meeting.metadata.id
         await pipeline.process(meetingID: id)
         let store = try #require(meeting.repository.findMeeting(id: id)?.store)
+        var named = "remote-001_speaker_00"
+        if cloudLabelled {
+            // A cloud transcriber labels speakers inside its own response and
+            // leaves no diarization record, so the lines carry its labels.
+            try FileManager.default.removeItem(at: store.layout.rawDiarization)
+            var transcript = try #require(try store.readCanonicalTranscript())
+            for index in transcript.utterances.indices {
+                transcript.utterances[index].speakerKey = transcript.utterances[index].speakerKey
+                    .replacingOccurrences(of: "remote-001_", with: "remote_chunk_001_")
+            }
+            try store.writeCanonicalTranscript(transcript)
+            named = "remote_chunk_001_speaker_00"
+        }
         var map = try store.readSpeakerMap()
-        map.assign("Synthetic Person", to: "remote-001_speaker_00")
+        map.assign("Synthetic Person", to: named)
         try store.writeSpeakerMap(map)
 
         try await pipeline.reanalyzeSpeakers(meetingID: id, speakerCount: nil)
@@ -80,6 +95,17 @@ struct ReanalysisNamesTests {
             DiarizationInterval(start: 0, end: 15, clusterID: "S2"),
             DiarizationInterval(start: 15, end: 30, clusterID: "S1"),
         ])
+        #expect(names["alphaword"] == "Synthetic Person", "got \(names)")
+        #expect(names["charlieword"] != "Synthetic Person", "got \(names)")
+    }
+
+    @Test("a name given to a speaker the cloud transcriber labelled follows the same speech")
+    func aCloudLabelledNameFollowsTheSameSpeech() async throws {
+        let names = try await Self.reanalyse(
+            into: [
+                DiarizationInterval(start: 0, end: 15, clusterID: "S2"),
+                DiarizationInterval(start: 15, end: 30, clusterID: "S1"),
+            ], cloudLabelled: true)
         #expect(names["alphaword"] == "Synthetic Person", "got \(names)")
         #expect(names["charlieword"] != "Synthetic Person", "got \(names)")
     }
@@ -118,6 +144,16 @@ struct CarryHumanNamesTests {
         map.assign("Synthetic Person", to: "remote-001_speaker_00")
         #expect(map.carryHumanNames(from: Self.before, to: Self.after) == 1)
         #expect(map.entries["remote-002_speaker_01"]?.displayName == "Synthetic Person")
+        #expect(map.entries["remote-002_speaker_00"] == nil)
+    }
+
+    @Test("a voice that is a quarter somebody else's does not take the name")
+    func aMostlyMatchingVoiceTakesNoName() {
+        var map = SpeakerMap()
+        map.assign("Synthetic Person", to: "remote-001_speaker_00")
+        // S1 holds all 20 s of the named voice and 6 s of the other one.
+        let mixed = Self.run("remote-002", [(0, 16, "S1"), (16, 20, "S2"), (20, 30, "S1")])
+        #expect(map.carryHumanNames(from: Self.before, to: mixed) == 0)
         #expect(map.entries["remote-002_speaker_00"] == nil)
     }
 

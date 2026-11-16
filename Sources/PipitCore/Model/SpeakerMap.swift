@@ -422,6 +422,10 @@ public struct SpeakerMap: Codable, Sendable, Equatable {
         entries[key] = existing
     }
 
+    /// The share of a new cluster's speech that has to be the named old
+    /// cluster's before the name follows it.
+    static let carriedNamePurity = 0.8
+
     /// Gives the clusters of a new diarization run the names a person set on
     /// the clusters of the run it replaces, and returns how many took one.
     ///
@@ -432,11 +436,14 @@ public struct SpeakerMap: Codable, Sendable, Equatable {
     /// meeting threw it away.
     ///
     /// The speech decides which new cluster is the same person: most of the
-    /// old cluster's seconds have to fall in the new cluster, and most of the
-    /// new cluster's seconds have to be the old cluster's. Both halves matter.
-    /// A new cluster that merged two people holds only part of each, and the
-    /// name of one of them on all of it would be a wrong name with a person's
-    /// authority behind it, which nothing automatic may overwrite.
+    /// old cluster's seconds have to fall in the new cluster, and nearly all
+    /// of the new cluster's speech that the old run gave to anybody has to be
+    /// the old cluster's. The second
+    /// bar is the strict one. A new cluster that merged two people holds only
+    /// part of each, and the name of one of them on all of it would be a wrong
+    /// name with a person's authority behind it, which nothing automatic may
+    /// overwrite. A name that does not carry leaves a numbered speaker, which
+    /// a person can name in one click.
     ///
     /// The person link stays behind. Voice learning trusts a person-named
     /// cluster with a link as that person's audio, and a new cluster that is
@@ -468,8 +475,17 @@ public struct SpeakerMap: Codable, Sendable, Equatable {
                 }
             }
             guard let (newID, seconds) = shared.max(by: { $0.value < $1.value }) else { continue }
-            let newSeconds = current.intervals.filter { $0.clusterID == newID }.reduce(0) { $0 + $1.duration }
-            guard seconds / oldSeconds > 0.5, newSeconds > 0, seconds / newSeconds > 0.5 else { continue }
+            // Only the part of the new cluster that the old run gave to
+            // somebody: speech it left unassigned, or a transcript with gaps
+            // between lines, says nothing about a second person.
+            var attributed = 0.0
+            for interval in current.intervals where interval.clusterID == newID {
+                for old in previous.intervals {
+                    attributed += max(0, min(interval.end, old.end) - max(interval.start, old.start))
+                }
+            }
+            guard seconds / oldSeconds > 0.5, attributed > 0, seconds / attributed >= Self.carriedNamePurity
+            else { continue }
             let key = SpeakerLabel.namespaced(chunkID: current.id, rawLabel: newID)
             guard !taken.contains(key), entries[key]?.origin != .human, !clearedKeys.contains(key) else {
                 continue

@@ -130,6 +130,27 @@ public struct DiarizationRun: Codable, Sendable, Equatable, Identifiable {
     public var speakerCount: Int { Set(intervals.map(\.clusterID)).count }
 
     public var speechSeconds: Double { intervals.reduce(0) { $0 + $1.duration } }
+
+    /// The speakers one track's transcript lines were filed under, read as a
+    /// diarization run.
+    ///
+    /// A cloud transcriber labels speakers inside its own response and leaves
+    /// no run on disk, so the lines are the only record of who spoke when. Only
+    /// cluster keys are kept: a sensor key names a person by itself and
+    /// survives a re-clustering without help.
+    public static func fromLines(_ utterances: [Utterance], track: CaptureTrack) -> DiarizationRun {
+        let intervals =
+            utterances
+            .filter { $0.track == track && $0.speakerKey.contains("_speaker_") && $0.end > $0.start }
+            .map { DiarizationInterval(start: $0.start, end: $0.end, clusterID: $0.speakerKey) }
+        var speech: [String: Double] = [:]
+        for interval in intervals { speech[interval.clusterID, default: 0] += interval.duration }
+        return DiarizationRun(
+            id: "\(track.rawValue)-lines", track: track, backend: "transcript lines",
+            producedAt: Date(timeIntervalSince1970: 0), timelineOffset: 0, isActive: false,
+            clusters: speech.keys.sorted().map { DiarizationCluster(id: $0, speechSeconds: speech[$0] ?? 0) },
+            intervals: intervals)
+    }
 }
 
 /// `diarization.raw.json`. The immutable record of who spoke when.
