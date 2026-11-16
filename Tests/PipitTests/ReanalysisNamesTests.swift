@@ -174,6 +174,17 @@ struct CarryHumanNamesTests {
         #expect(map.entries["remote-001_speaker_00"]?.displayName == "Synthetic Person")
     }
 
+    @Test("a chunk label heard briefly does not name a voice that is mostly another speaker in that chunk")
+    func aBriefChunkLabelDoesNotNameAMergedVoice() {
+        let lines = Self.run(
+            "remote-lines",
+            [(0, 10, "remote_chunk_001_speaker_00"), (10, 60, "remote_chunk_001_speaker_01")])
+        let merged = Self.run("remote-001", [(0, 60, "S1")])
+        var map = SpeakerMap()
+        map.assign("Synthetic Person", to: "remote_chunk_001_speaker_00")
+        #expect(map.carryHumanNames(from: lines, to: merged) == 0)
+    }
+
     @Test("a carried name leaves the person link behind, so it teaches no voice profile")
     func aCarriedNameHasNoPersonLink() {
         var map = SpeakerMap()

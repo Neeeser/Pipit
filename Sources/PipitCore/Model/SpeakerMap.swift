@@ -438,8 +438,9 @@ public struct SpeakerMap: Codable, Sendable, Equatable {
     /// The speech decides which new cluster is the same person: most of the
     /// old cluster's seconds have to fall in the new cluster, and nearly all
     /// of the new cluster's speech that the old run gave to anybody has to be
-    /// the old cluster's. The second
-    /// bar is the strict one. A new cluster that merged two people holds only
+    /// the old cluster's. The second bar is the strict one. A cloud
+    /// transcriber's labels are numbered per chunk, so for one of those the
+    /// second bar is measured inside that chunk's span. A new cluster that merged two people holds only
     /// part of each, and the name of one of them on all of it would be a wrong
     /// name with a person's authority behind it, which nothing automatic may
     /// overwrite. A name that does not carry leaves a numbered speaker, which
@@ -483,9 +484,15 @@ public struct SpeakerMap: Codable, Sendable, Equatable {
             // person is a different key in the next chunk, so outside this
             // chunk the other keys say nothing about whether they are someone
             // else. Inside it they do.
+            // The chunk's span is where every label of that chunk speaks, not
+            // where this one does: a label heard for ten seconds would
+            // otherwise ignore the chunk-mate it was merged with.
             var window = (start: -Double.infinity, end: Double.infinity)
-            if oldKey.contains("_chunk_") {
-                window = (oldSpeech.map(\.start).min() ?? 0, oldSpeech.map(\.end).max() ?? 0)
+            if oldKey.contains("_chunk_"), let chunk = oldKey.range(of: "_speaker_").map({ oldKey[..<$0.lowerBound] }) {
+                let sameChunk = previous.intervals.filter {
+                    SpeakerLabel.namespaced(chunkID: previous.id, rawLabel: $0.clusterID).hasPrefix(chunk + "_speaker_")
+                }
+                window = (sameChunk.map(\.start).min() ?? 0, sameChunk.map(\.end).max() ?? 0)
             }
             var attributed = 0.0
             for interval in current.intervals where interval.clusterID == newID {
