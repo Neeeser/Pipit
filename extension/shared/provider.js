@@ -43,10 +43,44 @@ export function meetingIdForURL(href) {
 
 // A control is described by the text a screen reader would announce for it.
 const LEAVE_PATTERN = /leave call|end call|leave meeting|hang up|leave the meeting/;
+// Zoom's web client labels its leave button with the bare word, in both the
+// accessible label and the text. Its waiting room shows the same button, so
+// this one only counts once the waiting text is ruled out.
+const BARE_LEAVE_PATTERN = /^leave( leave)?$/;
 const JOIN_PATTERN = /join now|ask to join|join meeting|join audio|switch here/;
 const WAITING_PATTERN = /waiting for the host|asking to be let in|please wait|waiting room/;
 const MUTE_ON_PATTERN = /turn on microphone|unmute/;
 const MUTE_OFF_PATTERN = /turn off microphone|^mute/;
+
+/// The controls a screen reader would find, across every document given.
+///
+/// Zoom draws its whole client, the leave button included, inside a same-origin
+/// frame, so the top document alone shows a call as a page with no controls.
+export function controlsFromDocuments(documents, limit = 200) {
+  const controls = [];
+  for (const doc of documents) {
+    for (const node of doc.querySelectorAll('button,[role="button"]')) {
+      controls.push({
+        ariaLabel: node.getAttribute('aria-label'),
+        tooltip: node.getAttribute('data-tooltip'),
+        text: (node.textContent || '').slice(0, 80),
+        ariaPressed: node.getAttribute('aria-pressed'),
+      });
+      if (controls.length >= limit) return controls;
+    }
+  }
+  return controls;
+}
+
+/// The visible text of every document given, top first, cut to what the
+/// waiting-room check reads. Zoom's waiting room text lives in its frame.
+export function pageTextFromDocuments(documents, limit = 4000) {
+  return documents
+    .map((doc) => (doc.body && doc.body.innerText) || '')
+    .filter(Boolean)
+    .join('\n')
+    .slice(0, limit);
+}
 
 export function labelFor(control) {
   return [control.ariaLabel, control.tooltip, control.text]
@@ -65,6 +99,7 @@ export function stateFromControls(controls, pageText = '') {
   const labels = controls.map(labelFor);
   if (labels.some((label) => LEAVE_PATTERN.test(label))) return 'in_call';
   if (WAITING_PATTERN.test(pageText.toLowerCase().slice(0, 4000))) return 'waiting';
+  if (labels.some((label) => BARE_LEAVE_PATTERN.test(label))) return 'in_call';
   if (labels.some((label) => JOIN_PATTERN.test(label))) return 'prejoin';
   return 'browsing';
 }

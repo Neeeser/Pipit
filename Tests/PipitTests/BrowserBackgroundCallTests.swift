@@ -335,4 +335,42 @@ struct BrowserBackgroundCallTests {
         }
         #expect(detector.update(native: otherTab, at: now).confidence == .confirmed)
     }
+
+    @Test("a Zoom web client call in a background tab stays a meeting")
+    func aZoomWebClientCallInABackgroundTabStaysAMeeting() async throws {
+        // The web client titles its tab with a fixed label and no meeting name.
+        // Read as a page that only mentions Zoom, the call was forgotten two
+        // minutes after the person switched tabs, mid-call.
+        var detector = BrowserMeetingDetector()
+        var now = 100.0
+        let onCall = BrowserMeetingDetector.NativeSignals(
+            browserHoldsMicrophone: true, browserProducesOutput: true,
+            windowTitles: ["Zoom Meeting on Web"]
+        )
+        _ = detector.update(native: onCall, at: now)
+        now += 25
+        #expect(detector.update(native: onCall, at: now).confidence == .confirmed)
+
+        let otherTab = BrowserMeetingDetector.NativeSignals(
+            browserHoldsMicrophone: true, browserProducesOutput: true,
+            windowTitles: ["Quarterly plan - Docs"]
+        )
+        for _ in 0..<300 {
+            now += 1
+            let evidence = detector.update(native: otherTab, at: now)
+            #expect(evidence.confidence == .confirmed)
+            #expect(evidence.provider == .zoom)
+        }
+    }
+
+    @Test("the Zoom web client's fixed tab label is a meeting page with no name")
+    func theZoomWebClientLabelIsAMeetingPage() {
+        for title in ["Zoom Meeting on Web", "Zoom Meeting on Web \u{2014} Private Browsing"] {
+            let parsed = BrowserWindowTitle.parse(title)
+            #expect(parsed?.provider == .zoom)
+            #expect(parsed?.isMeetingPage == true)
+            #expect(parsed?.isLanding == false)
+            #expect(parsed?.title == nil)
+        }
+    }
 }

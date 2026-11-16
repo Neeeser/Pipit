@@ -7,25 +7,11 @@
 // its functions are already defined here. Content scripts cannot be ES modules:
 // an `import` statement makes the whole script fail to load, silently.
 /* global providerForURL, buildState, shouldSend, meetTileName */
+/* global controlsFromDocuments, pageTextFromDocuments */
 /* global zoomParticipantFromLabel, createSpeakingTracker */
 
 const api = globalThis.browser ?? globalThis.chrome;
 const POLL_MS = 500;
-
-function readControls() {
-  const nodes = document.querySelectorAll('button,[role="button"]');
-  const controls = [];
-  for (const node of nodes) {
-    controls.push({
-      ariaLabel: node.getAttribute('aria-label'),
-      tooltip: node.getAttribute('data-tooltip'),
-      text: (node.textContent || '').slice(0, 80),
-      ariaPressed: node.getAttribute('aria-pressed'),
-    });
-    if (controls.length >= 200) break;
-  }
-  return controls;
-}
 
 // The documents a provider's UI lives in. Zoom renders its whole client inside
 // a same-origin iframe, so the top document alone shows nothing but chrome.
@@ -181,9 +167,6 @@ function readTiles(provider) {
   return [];
 }
 
-function readPageText() {
-  return (document.body && document.body.innerText) ? document.body.innerText.slice(0, 4000) : '';
-}
 
 let previous = null;
 let lastSentAt = 0;
@@ -193,12 +176,13 @@ function tick() {
   const provider = providerForURL(location.href);
   if (provider === 'unknown') return;
   const now = Date.now();
+  const documents = readDocuments();
   const tiles = readTiles(provider);
   const snapshot = buildState({
     href: location.href,
     title: document.title,
-    controls: readControls(),
-    pageText: readPageText(),
+    controls: controlsFromDocuments(documents),
+    pageText: pageTextFromDocuments(documents),
     tabId: null,
     now,
     people: tiles,
