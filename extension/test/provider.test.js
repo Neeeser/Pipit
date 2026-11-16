@@ -583,6 +583,8 @@ test('Zoom\'s plain Leave button means in a call, but not in a waiting room', ()
     stateFromControls([leave], 'Please wait, the meeting host will let you in soon.'),
     'waiting',
   );
+  // A host in a call sees the waiting room listed in the participants panel.
+  assert.equal(stateFromControls([leave], 'Waiting Room (2) Admit all'), 'in_call');
   // A label that merely starts with the word is not the control.
   assert.equal(stateFromControls([{ text: 'Leave a comment' }]), 'browsing');
 });

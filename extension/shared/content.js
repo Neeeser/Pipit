@@ -167,7 +167,6 @@ function readTiles(provider) {
   return [];
 }
 
-
 let previous = null;
 let lastSentAt = 0;
 const speaking = createSpeakingTracker();
@@ -176,7 +175,9 @@ function tick() {
   const provider = providerForURL(location.href);
   if (provider === 'unknown') return;
   const now = Date.now();
-  const documents = readDocuments();
+  // Only Zoom draws its client in a frame. Walking Meet's frames would cost a
+  // scan per tick and find nothing.
+  const documents = provider === 'zoom' ? readDocuments() : [document];
   const tiles = readTiles(provider);
   const snapshot = buildState({
     href: location.href,
