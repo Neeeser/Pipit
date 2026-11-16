@@ -185,6 +185,32 @@ struct CarryHumanNamesTests {
         #expect(map.carryHumanNames(from: lines, to: merged) == 0)
     }
 
+    @Test("two people named in different chunks and merged into one voice give it neither name")
+    func twoNamedPeopleMergedGiveNoName() {
+        let lines = Self.run(
+            "remote-lines",
+            [(0, 10, "remote_chunk_001_speaker_00"), (20, 30, "remote_chunk_002_speaker_00")])
+        let merged = Self.run("remote-001", [(0, 10, "S1"), (20, 30, "S1")])
+        var map = SpeakerMap()
+        map.assign("Synthetic Person", to: "remote_chunk_001_speaker_00")
+        map.assign("Another Person", to: "remote_chunk_002_speaker_00")
+        #expect(map.carryHumanNames(from: lines, to: merged) == 0)
+        #expect(map.entries["remote-001_speaker_00"] == nil)
+    }
+
+    @Test("one person named in two chunks gives the merged voice that name")
+    func onePersonNamedTwiceGivesTheName() {
+        let lines = Self.run(
+            "remote-lines",
+            [(0, 10, "remote_chunk_001_speaker_00"), (20, 30, "remote_chunk_002_speaker_00")])
+        let merged = Self.run("remote-001", [(0, 10, "S1"), (20, 30, "S1")])
+        var map = SpeakerMap()
+        map.assign("Synthetic Person", to: "remote_chunk_001_speaker_00")
+        map.assign("Synthetic Person", to: "remote_chunk_002_speaker_00")
+        map.carryHumanNames(from: lines, to: merged)
+        #expect(map.entries["remote-001_speaker_00"]?.displayName == "Synthetic Person")
+    }
+
     @Test("a carried name leaves the person link behind, so it teaches no voice profile")
     func aCarriedNameHasNoPersonLink() {
         var map = SpeakerMap()
