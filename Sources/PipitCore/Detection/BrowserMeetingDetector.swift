@@ -128,6 +128,12 @@ public enum BrowserWindowTitle {
             if title.localizedCaseInsensitiveContains("Join from Zoom") {
                 return Parsed(provider: .zoom, meetingID: nil, title: nil, isLanding: true)
             }
+            // The web client titles a call with a fixed label instead of the
+            // meeting's name. It is a meeting page, so the open microphone keeps
+            // the call once the person switches tabs, but the label is not a name.
+            if strippingBrowserSuffix(title) == "Zoom Meeting on Web" {
+                return Parsed(provider: .zoom, meetingID: nil, title: nil, isLanding: false, isMeetingPage: true)
+            }
             // Zoom's browser title carries the meeting name, not the numeric ID.
             let ending = title.range(
                 of: #"( - Zoom| Zoom Meeting)("# + browserSuffixPattern + #")?$"#, options: .regularExpression

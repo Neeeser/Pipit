@@ -13,6 +13,8 @@ import {
   zoomParticipantFromLabel,
   createSpeakingTracker,
   meetTileName,
+  controlsFromDocuments,
+  pageTextFromDocuments,
 } from '../shared/provider.js';
 import { relayEnvelope, helloMessage, SENSOR_PROTOCOL } from '../shared/relay.js';
 
@@ -551,4 +553,44 @@ test('the hello names the wire shape the add-on speaks', () => {
   assert.equal(hello.protocol, SENSOR_PROTOCOL);
   assert.equal(hello.sentAt, 1000);
   assert.ok(Number.isInteger(SENSOR_PROTOCOL) && SENSOR_PROTOCOL >= 2);
+});
+
+// A stand-in for a document: only what the readers call.
+function fakeDocument(buttons, text = '') {
+  return {
+    querySelectorAll: () => buttons.map((b) => ({
+      getAttribute: (name) => ({ 'aria-label': b.ariaLabel ?? null, 'aria-pressed': null, 'data-tooltip': null })[name],
+      textContent: b.text ?? '',
+    })),
+    body: { innerText: text },
+  };
+}
+
+test('a leave control inside Zoom\'s frame counts as being in the call', () => {
+  // Zoom draws its client inside a same-origin frame; the top document holds
+  // only page chrome. Reading the top document alone never saw the call.
+  const top = fakeDocument([{ ariaLabel: 'Open menu' }]);
+  const frame = fakeDocument([{ ariaLabel: 'Leave', text: 'Leave' }]);
+  const controls = controlsFromDocuments([top, frame]);
+  assert.equal(stateFromControls(controls, pageTextFromDocuments([top, frame])), 'in_call');
+});
+
+test('Zoom\'s plain Leave button means in a call, but not in a waiting room', () => {
+  const leave = { ariaLabel: 'Leave', text: 'Leave' };
+  assert.equal(stateFromControls([leave]), 'in_call');
+  // The waiting room shows the same button under its waiting text.
+  assert.equal(
+    stateFromControls([leave], 'Please wait, the meeting host will let you in soon.'),
+    'waiting',
+  );
+  // A host in a call sees the waiting room listed in the participants panel.
+  assert.equal(stateFromControls([leave], 'Waiting Room (2) Admit all'), 'in_call');
+  // A label that merely starts with the word is not the control.
+  assert.equal(stateFromControls([{ text: 'Leave a comment' }]), 'browsing');
+});
+
+test('page text comes from every document, top first', () => {
+  const top = fakeDocument([], 'chrome');
+  const frame = fakeDocument([], 'Please wait');
+  assert.match(pageTextFromDocuments([top, frame]), /chrome[\s\S]*Please wait/);
 });
