@@ -253,6 +253,7 @@ public enum PipelineFixtures {
         prepareAligner: (@Sendable () async throws -> Void)? = nil,
         prepareLocalModels: (@Sendable () async throws -> Void)? = nil,
         singleSpeakerEmbedding: (@Sendable (URL) async throws -> SingleSpeakerSample?)? = nil,
+        reanalyzeDiarization: (@Sendable (String, URL, Int?) async throws -> DiarizationOutput)? = nil,
         settings: AppSettings,
         scratchRoot: URL,
         onProgress: @escaping @Sendable (ProcessingPipeline.Progress) -> Void = { _ in }
@@ -267,7 +268,8 @@ public enum PipelineFixtures {
                 prepareLocalModels: prepareLocalModels,
                 aligner: aligner,
                 prepareAligner: prepareAligner,
-                singleSpeakerEmbedding: singleSpeakerEmbedding
+                singleSpeakerEmbedding: singleSpeakerEmbedding,
+                reanalyzeDiarization: reanalyzeDiarization
             ),
             scratch: ProcessingScratch(root: scratchRoot),
             clock: ManualClock(),

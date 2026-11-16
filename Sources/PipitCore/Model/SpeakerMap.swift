@@ -422,6 +422,56 @@ public struct SpeakerMap: Codable, Sendable, Equatable {
         entries[key] = existing
     }
 
+    /// Gives the clusters of a new diarization run the names a person set on
+    /// the clusters of the run it replaces, and returns how many took one.
+    ///
+    /// Re-clustering renumbers, so a name keyed to the old run's cluster is
+    /// keyed to nothing afterwards. Voice recognition puts a name back only
+    /// where that person has a profile that matches the new cluster, and a
+    /// name typed for somebody heard once has neither, so re-analysing a
+    /// meeting threw it away.
+    ///
+    /// The speech decides which new cluster is the same person: most of the
+    /// old cluster's seconds have to fall in the new cluster, and most of the
+    /// new cluster's seconds have to be the old cluster's. Both halves matter.
+    /// A new cluster that merged two people holds only part of each, and the
+    /// name of one of them on all of it would be a wrong name with a person's
+    /// authority behind it, which nothing automatic may overwrite.
+    @discardableResult
+    public mutating func carryHumanNames(from previous: DiarizationRun, to current: DiarizationRun) -> Int {
+        guard previous.track == current.track, previous.id != current.id else { return 0 }
+        var carried = 0
+        var taken = Set<String>()
+        let named = previous.clusters.compactMap { cluster -> (String, SpeakerAssignment)? in
+            let key = SpeakerLabel.namespaced(chunkID: previous.id, rawLabel: cluster.id)
+            guard let entry = entries[key], entry.origin == .human else { return nil }
+            return (cluster.id, entry)
+        }
+        for (oldID, assignment) in named {
+            let oldSpeech = previous.intervals.filter { $0.clusterID == oldID }
+            let oldSeconds = oldSpeech.reduce(0) { $0 + $1.duration }
+            guard oldSeconds > 0 else { continue }
+            var shared: [String: Double] = [:]
+            for interval in current.intervals {
+                for old in oldSpeech {
+                    let overlap = min(interval.end, old.end) - max(interval.start, old.start)
+                    if overlap > 0 { shared[interval.clusterID, default: 0] += overlap }
+                }
+            }
+            guard let (newID, seconds) = shared.max(by: { $0.value < $1.value }) else { continue }
+            let newSeconds = current.intervals.filter { $0.clusterID == newID }.reduce(0) { $0 + $1.duration }
+            guard seconds / oldSeconds > 0.5, newSeconds > 0, seconds / newSeconds > 0.5 else { continue }
+            let key = SpeakerLabel.namespaced(chunkID: current.id, rawLabel: newID)
+            guard !taken.contains(key), entries[key]?.origin != .human, !clearedKeys.contains(key) else {
+                continue
+            }
+            taken.insert(key)
+            entries[key] = assignment
+            carried += 1
+        }
+        return carried
+    }
+
     /// Applies a human correction to a whole cluster, which always wins.
     public mutating func assign(
         _ name: String, to key: String, participantID: String? = nil, identityID: IdentityID? = nil
