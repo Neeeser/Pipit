@@ -157,6 +157,23 @@ struct CarryHumanNamesTests {
         #expect(map.entries["remote-002_speaker_00"] == nil)
     }
 
+    @Test("a name given to one chunk's label follows the voice that spans every chunk")
+    func aChunkLabelledNameFollowsAcrossChunks() {
+        // A cloud transcriber numbers speakers per chunk, so the named person
+        // is `speaker_00` in both chunks under two different keys.
+        let lines = Self.run(
+            "remote-lines",
+            [
+                (0, 10, "remote_chunk_001_speaker_00"), (10, 12, "remote_chunk_001_speaker_01"),
+                (20, 30, "remote_chunk_002_speaker_00"), (30, 40, "remote_chunk_002_speaker_01"),
+            ])
+        let after = Self.run("remote-001", [(0, 10, "S1"), (10, 12, "S2"), (20, 30, "S1"), (30, 40, "S2")])
+        var map = SpeakerMap()
+        map.assign("Synthetic Person", to: "remote_chunk_001_speaker_00")
+        #expect(map.carryHumanNames(from: lines, to: after) == 1)
+        #expect(map.entries["remote-001_speaker_00"]?.displayName == "Synthetic Person")
+    }
+
     @Test("a carried name leaves the person link behind, so it teaches no voice profile")
     func aCarriedNameHasNoPersonLink() {
         var map = SpeakerMap()

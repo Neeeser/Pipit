@@ -457,13 +457,13 @@ public struct SpeakerMap: Codable, Sendable, Equatable {
         guard previous.track == current.track, previous.id != current.id else { return 0 }
         var carried = 0
         var taken = Set<String>()
-        let named = previous.clusters.compactMap { cluster -> (String, SpeakerAssignment?)? in
+        let named = previous.clusters.compactMap { cluster -> (String, String, SpeakerAssignment?)? in
             let key = SpeakerLabel.namespaced(chunkID: previous.id, rawLabel: cluster.id)
-            if clearedKeys.contains(key) { return (cluster.id, nil) }
+            if clearedKeys.contains(key) { return (cluster.id, key, nil) }
             guard let entry = entries[key], entry.origin == .human else { return nil }
-            return (cluster.id, entry)
+            return (cluster.id, key, entry)
         }
-        for (oldID, assignment) in named {
+        for (oldID, oldKey, assignment) in named {
             let oldSpeech = previous.intervals.filter { $0.clusterID == oldID }
             let oldSeconds = oldSpeech.reduce(0) { $0 + $1.duration }
             guard oldSeconds > 0 else { continue }
@@ -478,10 +478,22 @@ public struct SpeakerMap: Codable, Sendable, Equatable {
             // Only the part of the new cluster that the old run gave to
             // somebody: speech it left unassigned, or a transcript with gaps
             // between lines, says nothing about a second person.
+            //
+            // A cloud transcriber's label is local to one chunk: the same
+            // person is a different key in the next chunk, so outside this
+            // chunk the other keys say nothing about whether they are someone
+            // else. Inside it they do.
+            var window = (start: -Double.infinity, end: Double.infinity)
+            if oldKey.contains("_chunk_") {
+                window = (oldSpeech.map(\.start).min() ?? 0, oldSpeech.map(\.end).max() ?? 0)
+            }
             var attributed = 0.0
             for interval in current.intervals where interval.clusterID == newID {
+                let start = max(interval.start, window.start)
+                let end = min(interval.end, window.end)
+                guard end > start else { continue }
                 for old in previous.intervals {
-                    attributed += max(0, min(interval.end, old.end) - max(interval.start, old.start))
+                    attributed += max(0, min(end, old.end) - max(start, old.start))
                 }
             }
             guard seconds / oldSeconds > 0.5, attributed > 0, seconds / attributed >= Self.carriedNamePurity
