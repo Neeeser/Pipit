@@ -7,6 +7,25 @@ adds the list of merged pull requests and their authors below it, and holds the
 notes for releases before 0.1.9. See [docs/RELEASING.md](docs/RELEASING.md) for
 how a section gets written.
 
+## 0.1.12
+
+<!-- One or two lines on what this release is, then rewrite the items below for the person updating. Cut fixes to things that were never released. -->
+
+### New
+- Write meeting summaries with Apple Intelligence, with nothing to install
+
+### Fixes
+- Keep recording a browser call when its page stops naming the meeting
+- Stop filing another speaker's voice under your name when it reaches your microphone
+- Make the arrow on a merged meeting's speaker chip step through that speaker's lines
+- Keep a merged meeting in one folder with one transcript
+- Recover call audio a few seconds after it goes silent instead of about 20
+- Keep recording a Zoom web call after you switch to another tab
+- Keep the names you gave speakers when you re-analyze a meeting
+- Use far less memory when Pipit separates speakers on this Mac
+- Use far less CPU and memory while Pipit sits idle
+- Keep every Meetings filter label whole at the narrowest sidebar on newer macOS
+
 ## 0.1.11
 
 A redesigned Meetings window, a live transcript during calls, and trimming and merging for your recordings.
