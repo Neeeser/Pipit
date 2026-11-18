@@ -7,14 +7,12 @@ import Testing
 
 @testable import PipitUI
 
-/// The whole meetings window drawn over an invented archive, at a quarter of
-/// the screen and at full screen, in both appearances, with one meeting open
-/// and with several selected.
+/// An invented archive and a way to draw a window over it, shared by the two
+/// suites below.
 ///
 /// Set `PIPIT_RENDER_DIR` to a folder to keep the drawings as PNG files.
-@Suite("Meetings window render")
 @MainActor
-struct MeetingsWindowRenderTests {
+private enum WindowRender {
     private static let summary = GeneratedSummary(
         overview: "The team checked whether the beta can open to the waitlist on Thursday. Sign-up and "
             + "payments are ready; the offline sync bug is the one blocker, with a fix expected Wednesday.",
@@ -59,7 +57,7 @@ struct MeetingsWindowRenderTests {
         (SpeakerLabel.localUser, .mic, "Good. Let's send the first five hundred and watch support email."),
     ]
 
-    private func makeArchive(root: URL) throws -> (runtime: PipitRuntime, open: String, others: [String]) {
+    static func makeArchive(root: URL) throws -> (runtime: PipitRuntime, open: String, others: [String]) {
         let archive = root.appendingPathComponent("Meetings")
         let made = try PipelineFixtures.makeRecordedMeeting(root: archive, source: .slackHuddle, seconds: 100)
         let started = made.metadata.startedAt
@@ -108,7 +106,7 @@ struct MeetingsWindowRenderTests {
         return (runtime, made.metadata.id, others)
     }
 
-    private static let looks: [(String, NSAppearance.Name)] = [("dark", .darkAqua), ("light", .aqua)]
+    static let looks: [(String, NSAppearance.Name)] = [("dark", .darkAqua), ("light", .aqua)]
 
     /// Lays a view out in a window built the way the app builds its
     /// split-view windows, and writes it to `PIPIT_RENDER_DIR` when that is
@@ -117,7 +115,7 @@ struct MeetingsWindowRenderTests {
     /// A window rather than a bare hosting view: a split view's panes draw
     /// nothing offscreen without one.
     @discardableResult
-    private func render(
+    static func render(
         _ content: some View, size: CGSize, appearance: NSAppearance.Name, name: String, folder: URL? = nil
     ) async throws -> URL? {
         let window = WindowManager.makeSplitWindow(
@@ -128,7 +126,7 @@ struct MeetingsWindowRenderTests {
         // Ordered in but out of sight: a split view built by SwiftUI lays out
         // and draws its columns only once its window is ordered in.
         window.hasShadow = false
-        Self.orderInOutOfSight(window)
+        orderInOutOfSight(window)
         defer { window.close() }
         guard let view = window.contentView else { return nil }
         view.layoutSubtreeIfNeeded()
@@ -162,19 +160,31 @@ struct MeetingsWindowRenderTests {
     /// a strip of the window over whatever the person running the tests was
     /// using. Below the desktop it is covered by everything, and the capture
     /// still reads it, because it asks the window server for this one window.
-    private static func orderInOutOfSight(_ window: NSWindow) {
+    static func orderInOutOfSight(_ window: NSWindow) {
         window.animationBehavior = .none
         window.level = NSWindow.Level(rawValue: Int(CGWindowLevelForKey(.desktopWindow)) - 1)
         window.ignoresMouseEvents = true
         window.orderFrontRegardless()
     }
 
+}
+
+/// The windows drawn whole, at a quarter of the screen and at full screen, in
+/// both appearances, for a person to look at with `PIPIT_RENDER_DIR` set.
+///
+/// The check on each drawing is only that the window laid out, and the suite
+/// draws dozens of full windows, about a minute of a pull request's test run.
+/// It runs on the push to main, which still catches a window that no longer
+/// lays out.
+@Suite("Window drawings", .tags(.slow))
+@MainActor
+struct WindowDrawingTests {
     @Test("the window lays out with one meeting open and with several selected")
     func theWindowLaysOut() async throws {
         let root = try TestPaths.makeTemporaryDirectory()
         defer { try? FileManager.default.removeItem(at: root) }
         NSApplication.shared.setActivationPolicy(.prohibited)
-        let built = try makeArchive(root: root)
+        let built = try WindowRender.makeArchive(root: root)
         let model = MeetingsWindowModel(runtime: built.runtime)
         await model.reload()
 
@@ -221,8 +231,8 @@ struct MeetingsWindowRenderTests {
                 try await Task.sleep(for: .milliseconds(50))
             }
             for (sizeName, size) in sizes {
-                for (look, appearance) in Self.looks {
-                    try await render(
+                for (look, appearance) in WindowRender.looks {
+                    try await WindowRender.render(
                         MeetingsWindowView(model: model), size: size, appearance: appearance,
                         name: "window-\(state)-\(sizeName)-\(look)")
                 }
@@ -239,8 +249,8 @@ struct MeetingsWindowRenderTests {
         let model = SettingsModel(runtime: runtime, storedKeyLookup: { _ in false })
         for pane in SettingsPane.allCases {
             model.pane = pane
-            for (look, appearance) in Self.looks {
-                try await render(
+            for (look, appearance) in WindowRender.looks {
+                try await WindowRender.render(
                     SettingsView(model: model), size: CGSize(width: 760, height: 600), appearance: appearance,
                     name: "settings-\(pane.rawValue)-\(look)")
             }
@@ -252,7 +262,7 @@ struct MeetingsWindowRenderTests {
         let root = try TestPaths.makeTemporaryDirectory()
         defer { try? FileManager.default.removeItem(at: root) }
         NSApplication.shared.setActivationPolicy(.prohibited)
-        let runtime = try makeArchive(root: root).runtime
+        let runtime = try WindowRender.makeArchive(root: root).runtime
         let store = try #require(runtime.speakerStore)
         var ids: [IdentityID] = []
         for (name, organization) in [
@@ -265,8 +275,8 @@ struct MeetingsWindowRenderTests {
         for (state, selected) in [("one", Array(ids.prefix(1))), ("several", Array(ids.prefix(3)))] {
             model.select(selected[0], extending: false)
             for id in selected.dropFirst() { model.select(id, extending: true) }
-            for (look, appearance) in Self.looks {
-                try await render(
+            for (look, appearance) in WindowRender.looks {
+                try await WindowRender.render(
                     PeopleDirectoryView(model: model), size: CGSize(width: 900, height: 600), appearance: appearance,
                     name: "people-\(state)-\(look)")
             }
@@ -281,13 +291,19 @@ struct MeetingsWindowRenderTests {
         defer { try? FileManager.default.removeItem(at: root) }
         NSApplication.shared.setActivationPolicy(.prohibited)
         let model = SetupModel(runtime: PipitRuntime(settingsDirectory: root), install: { _, _ in })
-        for (look, appearance) in Self.looks {
-            try await render(
+        for (look, appearance) in WindowRender.looks {
+            try await WindowRender.render(
                 SetupWizardView(model: model, onFinish: {}), size: CGSize(width: 760, height: 580),
                 appearance: appearance, name: "setup-\(look)")
         }
     }
+}
 
+/// Checks on the meetings window that need it drawn: where the keys go when it
+/// opens, and what the player bar's fill covers.
+@Suite("Meetings window render")
+@MainActor
+struct MeetingsWindowRenderTests {
     /// Typing in a freshly opened window renamed the meeting: the split view
     /// handed the first key view to the title field rather than the search
     /// field, and Space stopped playing because a field with text held it.
@@ -296,13 +312,13 @@ struct MeetingsWindowRenderTests {
         let root = try TestPaths.makeTemporaryDirectory()
         defer { try? FileManager.default.removeItem(at: root) }
         NSApplication.shared.setActivationPolicy(.prohibited)
-        let built = try makeArchive(root: root)
+        let built = try WindowRender.makeArchive(root: root)
         let model = MeetingsWindowModel(runtime: built.runtime)
         await model.reload()
         model.select(built.open, extending: false)
         let window = WindowManager.makeMeetingsWindow(
             content: MeetingsWindowView(model: model), autosaveName: "PipitRenderTest")
-        Self.orderInOutOfSight(window)
+        WindowRender.orderInOutOfSight(window)
         defer { window.close() }
         window.contentView?.layoutSubtreeIfNeeded()
         try await Task.sleep(for: .milliseconds(400))
@@ -318,15 +334,15 @@ struct MeetingsWindowRenderTests {
         let root = try TestPaths.makeTemporaryDirectory()
         defer { try? FileManager.default.removeItem(at: root) }
         NSApplication.shared.setActivationPolicy(.prohibited)
-        let built = try makeArchive(root: root)
+        let built = try WindowRender.makeArchive(root: root)
         let model = MeetingsWindowModel(runtime: built.runtime)
         await model.reload()
         model.select(built.open, extending: false)
         for _ in 0..<40 where model.detail?.playback.hasAudio != true {
             try await Task.sleep(for: .milliseconds(50))
         }
-        for (look, appearance) in Self.looks {
-            let file = try await render(
+        for (look, appearance) in WindowRender.looks {
+            let file = try await WindowRender.render(
                 MeetingsWindowView(model: model), size: CGSize(width: 900, height: 640), appearance: appearance,
                 name: "gap-\(look)", folder: root)
             let image = try #require(file.flatMap { NSImage(contentsOf: $0) })

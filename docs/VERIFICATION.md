@@ -37,9 +37,9 @@ speech and removes a tone as noise.
 The extension suite covers event ordering, stale tab state, provider detection,
 and manifest generation.
 
-A pull request runs the browser suite and, in one macOS job, lint and the
+A pull request runs the browser suite and, in one macOS 26 job, lint and the
 application tests that are not tagged `.slow`. A push to `main` runs every
-application test in that job, and a second job builds the Xcode project, builds
+application test in that job on macOS 15, and a second job builds the Xcode project, builds
 the release configuration, assembles the application bundle, verifies its
 signature and resources, and archives the debug symbols. A Linux job scans the
 repository for keys and audio files. The release workflow reads the

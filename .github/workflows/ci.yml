@@ -27,7 +27,11 @@ jobs:
   build-and-test:
     name: Build and test
     if: ${{ !(github.event_name == 'workflow_dispatch' && inputs.notarize) }}
-    runs-on: macos-15
+    # A pull request runs on macOS 26, the system most people run, where
+    # controls are wider than on 15 and a layout that fits on 15 can clip.
+    # Main runs on macOS 15, the oldest system Pipit supports, so every merged
+    # change is tested on both.
+    runs-on: ${{ github.event_name == 'pull_request' && 'macos-26' || 'macos-15' }}
     # A push to main runs every test, about 40 minutes on a hosted runner and
     # past 45 on a slow one, with no test failing.
     timeout-minutes: 90
@@ -89,9 +93,9 @@ jobs:
       - name: Run the tests
         # A pull request runs everything except the suites tagged .slow, which
         # run the echo canceller and the processing pipeline over seconds of
-        # audio. Main runs them all. Live OpenAI tests are skipped in both:
-        # they need a key, and CI must not spend money or depend on a network
-        # service.
+        # audio, draw whole windows to check that they lay out, or score a
+        # whole benchmark transcript. Main runs them all. Live OpenAI tests are skipped in both: they need a key, and
+        # CI must not spend money or depend on a network service.
         env:
           EVENT: ${{ github.event_name }}
         run: |

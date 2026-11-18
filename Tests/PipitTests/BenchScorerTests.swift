@@ -10,7 +10,11 @@ import Testing
 /// its speaker labels shuffled. The first two pin word error rate to an exact
 /// value; the third pins attribution and DER to chance, which is what a
 /// diarizer that has learned nothing scores.
-@Suite("BenchScorer")
+///
+/// Tagged slow: each scoring of the full excerpt takes seconds in the
+/// unoptimised test build, and the scorer ships only in the developer
+/// evaluation tool, so the push to main is soon enough to catch a change.
+@Suite("BenchScorer", .tags(.slow))
 struct BenchScorerTests {
     /// The committed truth for one AMI excerpt, which is text and already in
     /// the tree for the harness to score against.

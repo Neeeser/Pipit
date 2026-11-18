@@ -121,8 +121,9 @@ jobs:
           echo "xcode=$(xcodebuild -version | head -1)" >> "$GITHUB_OUTPUT"
 
       - name: Cache the SwiftPM build directory
-        # Shares the key shape with ci.yml, so a release warms from whatever
-        # CI last wrote for this toolchain and resolved dependency set. .build
+        # A release warms from the last release built with this toolchain and
+        # resolved dependency set. ci.yml keeps no cache: there a restored
+        # .build still compiled every dependency, so it cost time. .build
         # holds the checkouts, the artifacts and both configurations, so
         # nothing is excluded. It runs a few gigabytes, and GitHub evicts by
         # age under the 10 GB repository limit. A change to Package.resolved
