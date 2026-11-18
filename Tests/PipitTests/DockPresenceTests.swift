@@ -57,7 +57,7 @@ struct DockPresenceTests {
         let before = Set(NSApp.windows.map(ObjectIdentifier.init))
 
         windows.showMeetings(activating: false)
-        weak var opened = NSApp.windows.first { !before.contains(ObjectIdentifier($0)) }
+        weak let opened = NSApp.windows.first { !before.contains(ObjectIdentifier($0)) }
         #expect(opened != nil, "the window opened")
 
         autoreleasepool { opened?.close() }
@@ -91,7 +91,7 @@ struct DockPresenceTests {
         windows.showPeople()
         // Held weakly, as the save timer holds it, so only the window manager
         // keeps it alive.
-        weak var model = windows.peopleModel
+        weak let model = windows.peopleModel
         await model?.reload()
         model?.select(me.id, extending: false)
         // Selecting flushes the previous person's note in a task of its own.
