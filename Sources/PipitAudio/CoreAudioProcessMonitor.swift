@@ -8,9 +8,13 @@ public protocol CoreAudioProcessSource: Sendable {
     /// The process objects, or nil when the read failed, which is not the
     /// same as an empty list.
     func processObjectIDs() -> [AudioObjectID]?
+    /// Nil when the read failed.
     func processID(_ object: AudioObjectID) -> pid_t?
+    /// Nil when the read failed; empty for a process that has no bundle
+    /// identifier, such as a command-line tool.
     func bundleIdentifier(_ object: AudioObjectID) -> String?
-    func isRunning(_ object: AudioObjectID) -> Bool
+    /// Nil when the read failed.
+    func isRunning(_ object: AudioObjectID) -> Bool?
     func isRunningInput(_ object: AudioObjectID) -> Bool
     func isRunningOutput(_ object: AudioObjectID) -> Bool
     /// Calls `handler` on `queue` when the process list changes. Returns a
@@ -75,9 +79,13 @@ public final class CoreAudioProcessMonitor: @unchecked Sendable {
         var processID: pid_t
         var bundleIdentifier: String
         var isRunning: Bool
+        /// A read of the PID or bundle identifier failed, so the values here
+        /// are placeholders to read again.
+        var identityReadFailed: Bool
+        /// The last read of the running flag failed, so `isRunning` may be
+        /// stale and is read again on the next look.
+        var runningReadFailed: Bool
         var token: CoreAudioListenerToken?
-
-        var lacksIdentity: Bool { processID < 0 || bundleIdentifier.isEmpty }
     }
 
     private let source: any CoreAudioProcessSource
@@ -190,20 +198,23 @@ public final class CoreAudioProcessMonitor: @unchecked Sendable {
                 refreshList()
                 for objectID in lock.withLock({ Array(entries.keys) }) {
                     refreshRunning(objectID)
-                    refreshIdentityIfMissing(objectID)
+                    refreshIdentityIfFailed(objectID)
                 }
             }
         }
         // Read on the monitor's queue, so a restart's rebuild, which empties
         // the list and fills it again, is never seen half done.
         let snapshot = queue.sync { () -> [AudioObjectID: Entry] in
-            // A process doing audio is the one detection matches on its bundle
-            // identifier, so a missing one is read again on every look rather
-            // than at the next re-read. These are few, and usually none.
-            let unidentified = lock.withLock {
-                entries.filter { $0.value.isRunning && $0.value.lacksIdentity }.map(\.key)
+            // A read that failed is tried again on every look rather than at
+            // the next re-read: a running flag, which no notification will
+            // correct, and the identity of a process doing audio, which is
+            // what detection matches on. Only failures are read here, so
+            // these are few and usually none.
+            let retries = lock.withLock {
+                entries.filter { $0.value.runningReadFailed || ($0.value.isRunning && $0.value.identityReadFailed) }
+                    .map(\.key)
             }
-            for objectID in unidentified { refreshIdentityIfMissing(objectID) }
+            for objectID in retries { refreshRunning(objectID) }
             return lock.withLock { entries }
         }
 
@@ -247,10 +258,15 @@ public final class CoreAudioProcessMonitor: @unchecked Sendable {
                 self?.refreshRunning(objectID)
                 self?.notify()
             }
+            let processID = source.processID(objectID)
+            let bundleIdentifier = source.bundleIdentifier(objectID)
+            let isRunning = source.isRunning(objectID)
             let entry = Entry(
-                processID: source.processID(objectID) ?? -1,
-                bundleIdentifier: source.bundleIdentifier(objectID) ?? "",
-                isRunning: source.isRunning(objectID),
+                processID: processID ?? -1,
+                bundleIdentifier: bundleIdentifier ?? "",
+                isRunning: isRunning ?? false,
+                identityReadFailed: processID == nil || bundleIdentifier == nil,
+                runningReadFailed: isRunning == nil,
                 token: token
             )
             let stillWanted = lock.withLock { () -> Bool in
@@ -262,25 +278,30 @@ public final class CoreAudioProcessMonitor: @unchecked Sendable {
         }
     }
 
-    /// Reads a process's PID and bundle identifier again when the first read
-    /// failed, as it can while the object is still being set up. A process
-    /// with no bundle identifier at all, such as a command-line tool, costs
-    /// two reads per re-read interval.
-    private func refreshIdentityIfMissing(_ objectID: AudioObjectID) {
-        guard let entry = lock.withLock({ entries[objectID] }), entry.lacksIdentity else { return }
-        let processID = entry.processID < 0 ? source.processID(objectID) : entry.processID
-        let bundleIdentifier =
-            entry.bundleIdentifier.isEmpty ? source.bundleIdentifier(objectID) : entry.bundleIdentifier
+    /// Reads a process's PID and bundle identifier again when an earlier
+    /// read failed, as one can while the object is still being set up. A
+    /// process that simply has no bundle identifier read successfully and is
+    /// not read again.
+    private func refreshIdentityIfFailed(_ objectID: AudioObjectID) {
+        guard lock.withLock({ entries[objectID]?.identityReadFailed }) == true else { return }
+        let processID = source.processID(objectID)
+        let bundleIdentifier = source.bundleIdentifier(objectID)
         lock.withLock {
             if let processID { entries[objectID]?.processID = processID }
             if let bundleIdentifier { entries[objectID]?.bundleIdentifier = bundleIdentifier }
+            entries[objectID]?.identityReadFailed = processID == nil || bundleIdentifier == nil
         }
     }
 
+    /// A failed read keeps the last known value and is retried on the next
+    /// look.
     private func refreshRunning(_ objectID: AudioObjectID) {
         let isRunning = source.isRunning(objectID)
-        lock.withLock { entries[objectID]?.isRunning = isRunning }
-        if isRunning { refreshIdentityIfMissing(objectID) }
+        lock.withLock {
+            if let isRunning { entries[objectID]?.isRunning = isRunning }
+            entries[objectID]?.runningReadFailed = isRunning == nil
+        }
+        if isRunning == true { refreshIdentityIfFailed(objectID) }
     }
 
     private func notify() {
@@ -310,10 +331,20 @@ public struct SystemCoreAudioProcessSource: CoreAudioProcessSource {
     public func processID(_ object: AudioObjectID) -> pid_t? { CoreAudioSystem.processID(object) }
 
     public func bundleIdentifier(_ object: AudioObjectID) -> String? {
-        CoreAudioSystem.string(object, CoreAudioSystem.address(kAudioProcessPropertyBundleID))
+        var address = CoreAudioSystem.address(kAudioProcessPropertyBundleID)
+        var size = UInt32(MemoryLayout<CFString?>.size)
+        var value: CFString?
+        let status = withUnsafeMutablePointer(to: &value) {
+            AudioObjectGetPropertyData(object, &address, 0, nil, &size, $0)
+        }
+        guard status == noErr else { return nil }
+        // A process with no bundle reads successfully with no string.
+        return (value as String?) ?? ""
     }
 
-    public func isRunning(_ object: AudioObjectID) -> Bool { flag(object, kAudioProcessPropertyIsRunning) }
+    public func isRunning(_ object: AudioObjectID) -> Bool? {
+        CoreAudioSystem.uint32(object, CoreAudioSystem.address(kAudioProcessPropertyIsRunning)).map { $0 != 0 }
+    }
     public func isRunningInput(_ object: AudioObjectID) -> Bool { flag(object, kAudioProcessPropertyIsRunningInput) }
     public func isRunningOutput(_ object: AudioObjectID) -> Bool {
         flag(object, kAudioProcessPropertyIsRunningOutput)

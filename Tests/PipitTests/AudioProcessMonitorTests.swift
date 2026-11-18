@@ -25,6 +25,8 @@ private final class FakeAudioServer: CoreAudioProcessSource, @unchecked Sendable
     private(set) var reads: [String: Int] = [:]
     /// Set to drop the next running-state notification, as a lost one would.
     var dropsNotifications = false
+    /// How many running-flag reads fail before they work again.
+    var failingRunningReads = 0
     /// How many process-list reads fail before they work again.
     var failingListReads = 0
     /// Objects whose bundle identifier read fails until cleared.
@@ -55,9 +57,15 @@ private final class FakeAudioServer: CoreAudioProcessSource, @unchecked Sendable
         count("bundle")
         return lock.withLock { failingBundleReads.contains(object) ? nil : processes[object]?.bundleIdentifier }
     }
-    func isRunning(_ object: AudioObjectID) -> Bool {
+    func isRunning(_ object: AudioObjectID) -> Bool? {
         count("running")
-        return lock.withLock { processes[object]?.isRunning ?? false }
+        return lock.withLock {
+            if failingRunningReads > 0 {
+                failingRunningReads -= 1
+                return nil
+            }
+            return processes[object]?.isRunning ?? false
+        }
     }
     func isRunningInput(_ object: AudioObjectID) -> Bool {
         count("input")
@@ -344,6 +352,34 @@ struct AudioProcessMonitorTests {
         #expect(monitor.processes(at: 1).count == 4)
         #expect(server.readCount("list") == 1)
         #expect(server.listenerCount == 4)
+    }
+
+    @Test("a running-flag read that fails after a notification is read again on the next look")
+    func aFailedRunningReadIsRetried() {
+        let server = Self.idleServer(count: 2)
+        let monitor = CoreAudioProcessMonitor(source: server)
+        monitor.start {}
+        _ = monitor.processes(at: 0)
+
+        server.failingRunningReads = 1
+        server.set(101, input: true)
+
+        // Well before the next re-read, and with no further notification.
+        #expect(monitor.processes(at: 1).first { $0.objectID == 101 }?.isRunningInput == true)
+    }
+
+    @Test("a process that has no bundle identifier is not read again while it plays")
+    func aProcessWithNoBundleIsNotReadAgain() {
+        let server = FakeAudioServer([700: .init(processID: 7000, bundleIdentifier: "", output: true)])
+        let monitor = CoreAudioProcessMonitor(source: server)
+        monitor.start {}
+        _ = monitor.processes(at: 0)
+        server.resetCounts()
+
+        for tick in 1...10 { _ = monitor.processes(at: Double(tick) * 0.5) }
+
+        #expect(server.readCount("bundle") == 0)
+        #expect(server.readCount("pid") == 0)
     }
 
     @Test("stopping removes every listener")
