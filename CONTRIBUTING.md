@@ -75,9 +75,10 @@ The filter matches the Swift type name of a suite or test, not the display
 name in its `@Suite` or `@Test` label.
 
 Suites that run the echo canceller or the full processing pipeline over seconds
-of speech carry the `.slow` tag, written as `@Suite("Name", .tags(.slow))` on
-one line. They make up most of a full run. `./scripts/test.sh --fast` runs every
-other test, and `./scripts/test.sh --slow` runs only the tagged suites.
+of speech, or draw whole windows only to check that they lay out, carry the
+`.slow` tag, written as `@Suite("Name", .tags(.slow))` on one line. They make up
+most of a full run. `./scripts/test.sh --fast` runs every other test, and
+`./scripts/test.sh --slow` runs only the tagged suites.
 `scripts/slow-suites.sh` reads the tag from the sources, because SwiftPM cannot
 select by tag, and fails when a `.slow` is not on a suite line it can read. Tag
 a new suite when its tests take several seconds each.

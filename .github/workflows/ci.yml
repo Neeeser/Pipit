@@ -89,9 +89,9 @@ jobs:
       - name: Run the tests
         # A pull request runs everything except the suites tagged .slow, which
         # run the echo canceller and the processing pipeline over seconds of
-        # audio. Main runs them all. Live OpenAI tests are skipped in both:
-        # they need a key, and CI must not spend money or depend on a network
-        # service.
+        # audio or draw whole windows to check that they lay out. Main runs
+        # them all. Live OpenAI tests are skipped in both: they need a key, and
+        # CI must not spend money or depend on a network service.
         env:
           EVENT: ${{ github.event_name }}
         run: |

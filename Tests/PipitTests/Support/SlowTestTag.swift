@@ -2,7 +2,8 @@ import Testing
 
 extension Tag {
     /// Suites that run the real echo canceller or the full processing pipeline
-    /// over seconds of speech. Together they take most of a full test run.
+    /// over seconds of speech, or draw whole windows only to check that they
+    /// lay out. Together they take most of a full test run.
     ///
     /// Tag a suite with `@Suite("Name", .tags(.slow))` on one line. The tag is
     /// what `scripts/slow-suites.sh` reads to split the run: pull request CI
