@@ -25,6 +25,8 @@ private final class FakeAudioServer: CoreAudioProcessSource, @unchecked Sendable
     private(set) var reads: [String: Int] = [:]
     /// Set to drop the next running-state notification, as a lost one would.
     var dropsNotifications = false
+    /// Objects whose bundle identifier read fails until cleared.
+    var failingBundleReads: Set<AudioObjectID> = []
 
     init(_ processes: [AudioObjectID: Process]) { self.processes = processes }
 
@@ -43,7 +45,7 @@ private final class FakeAudioServer: CoreAudioProcessSource, @unchecked Sendable
     }
     func bundleIdentifier(_ object: AudioObjectID) -> String? {
         count("bundle")
-        return lock.withLock { processes[object]?.bundleIdentifier }
+        return lock.withLock { failingBundleReads.contains(object) ? nil : processes[object]?.bundleIdentifier }
     }
     func isRunning(_ object: AudioObjectID) -> Bool {
         count("running")
@@ -278,6 +280,22 @@ struct AudioProcessMonitorTests {
         #expect(monitor.processes(at: 2).first { $0.objectID == 501 }?.isRunningInput == true)
     }
 
+    @Test("a bundle identifier that failed to read is read again")
+    func aFailedIdentityReadIsRetried() {
+        let server = Self.idleServer(count: 2)
+        server.failingBundleReads = [101]
+        let monitor = CoreAudioProcessMonitor(source: server)
+        monitor.start {}
+        #expect(monitor.processes(at: 0).first { $0.objectID == 101 }?.bundleIdentifier == "")
+
+        server.failingBundleReads = []
+        server.resetCounts()
+        let later = monitor.processes(at: CoreAudioProcessMonitor.reconcileInterval + 1)
+
+        #expect(later.first { $0.objectID == 101 }?.bundleIdentifier == "com.example.app1")
+        #expect(server.readCount("bundle") == 1, "only the one that failed")
+    }
+
     @Test("stopping removes every listener")
     func stoppingRemovesEveryListener() {
         let server = Self.idleServer(count: 5)
@@ -319,23 +337,81 @@ struct DetectionCadenceTests {
         let silent = Self.audio(bundle: "com.apple.Finder", microphone: false)
 
         #expect(
-            DetectionEngine.tickInterval(quiet: true, audio: [silent], configuration: configuration)
+            DetectionPollSchedule.tickInterval(quiet: true, audio: [silent], configuration: configuration)
                 == configuration.idlePollInterval)
         // A process already playing can open the microphone on the same device
         // without Core Audio saying so, so it is looked at on every fast tick.
         #expect(
-            DetectionEngine.tickInterval(quiet: true, audio: [music], configuration: configuration)
+            DetectionPollSchedule.tickInterval(quiet: true, audio: [music], configuration: configuration)
                 == configuration.pollInterval)
         #expect(
-            DetectionEngine.tickInterval(quiet: false, audio: [], configuration: configuration)
+            DetectionPollSchedule.tickInterval(quiet: false, audio: [], configuration: configuration)
                 == configuration.pollInterval)
+    }
+
+    @Test("an event while idle polls at once with the short leeway, then the idle cadence returns")
+    func anEventWhileIdlePollsAtOnce() {
+        let configuration = DetectionEngine.Configuration()
+        var schedule = DetectionPollSchedule(configuration: configuration)
+        let none: [ApplicationAudioState] = []
+
+        let step1 = schedule.beginTick(at: 0, audio: none)
+        #expect(step1)
+        let slowed = schedule.pollFinished(quiet: true, audio: none)
+        #expect(slowed?.interval == configuration.idlePollInterval)
+        #expect(slowed?.leewayMilliseconds == 250)
+
+        let soon = schedule.eventArrived(at: 5)
+        #expect(soon == .init(delay: 0, interval: configuration.idlePollInterval, leewayMilliseconds: 50))
+        let step2 = schedule.eventArrived(at: 5.01)
+        #expect(step2 == nil, "a second event joins the poll already on its way")
+
+        let step3 = schedule.beginTick(at: 5.02, audio: none)
+        #expect(step3, "the requested tick polls in full")
+        let back = schedule.pollFinished(quiet: true, audio: none)
+        #expect(back?.interval == configuration.idlePollInterval, "the one-off deadline gives way to the cadence")
+        #expect(back?.leewayMilliseconds == 250)
+        let step4 = schedule.pollFinished(quiet: true, audio: none)
+        #expect(step4 == nil, "and stays there")
+    }
+
+    @Test("an event right after a full poll waits out the active interval")
+    func anEventRightAfterAPollWaits() {
+        let configuration = DetectionEngine.Configuration()
+        var schedule = DetectionPollSchedule(configuration: configuration)
+        _ = schedule.beginTick(at: 10, audio: [])
+        _ = schedule.pollFinished(quiet: true, audio: [])
+        let soon = schedule.eventArrived(at: 10.1)
+        #expect(abs((soon?.delay ?? 0) - (configuration.pollInterval - 0.1)) < 1e-9)
+    }
+
+    @Test("while a ringtone plays, ticks read only audio until the call is answered")
+    func ticksReadOnlyAudioUntilTheCallIsAnswered() {
+        let configuration = DetectionEngine.Configuration()
+        var schedule = DetectionPollSchedule(configuration: configuration)
+        let ringing = [Self.audio(bundle: "us.zoom.xos", microphone: false, output: true)]
+        let answered = [Self.audio(bundle: "us.zoom.xos", microphone: true, output: true)]
+
+        let step5 = schedule.beginTick(at: 0, audio: ringing)
+        #expect(step5)
+        let step6 = schedule.pollFinished(quiet: true, audio: ringing)
+        #expect(step6 == nil, "the timer stays fast")
+        let step7 = schedule.beginTick(at: 0.5, audio: ringing)
+        #expect(!step7, "an audio-only tick")
+        let step8 = schedule.beginTick(at: 1.0, audio: answered)
+        #expect(step8, "the microphone opened: a full poll")
+        let fast = schedule.pollFinished(quiet: false, audio: answered)
+        #expect(fast == nil, "already fast")
+        #expect(!schedule.isQuiet)
+        let step9 = schedule.eventArrived(at: 1.1)
+        #expect(step9 == nil, "events change nothing while polls are fast")
     }
 
     @Test("a burst of audio events cannot poll faster than the active poll did")
     func aBurstOfAudioEventsCannotPollFaster() {
         let configuration = DetectionEngine.Configuration()
         func wait(_ since: Double?) -> Double {
-            DetectionEngine.delayBeforeRequestedPoll(sinceLastFullPoll: since, configuration: configuration)
+            DetectionPollSchedule.delayBeforeRequestedPoll(sinceLastFullPoll: since, configuration: configuration)
         }
         #expect(wait(nil) == 0, "nothing polled yet")
         #expect(wait(configuration.idlePollInterval) == 0, "the last full poll was long ago")
@@ -351,7 +427,7 @@ struct DetectionCadenceTests {
         func full(quiet: Bool = true, requested: Bool = false, _ audio: [ApplicationAudioState], since: Double?)
             -> Bool
         {
-            DetectionEngine.needsFullPoll(
+            DetectionPollSchedule.needsFullPoll(
                 quiet: quiet, requested: requested, audio: audio, sinceLastFullPoll: since,
                 configuration: configuration
             )

@@ -111,17 +111,8 @@ public final class DetectionEngine: @unchecked Sendable {
     private var browserDetectors: [BrowserKind: BrowserMeetingDetector] = [:]
     private var genericDetector = GenericCallDetector()
     private var timer: DispatchSourceTimer?
-    /// Whether the last full poll found nothing going on. This and the three
-    /// below are read and written only on `queue`.
-    private var isQuiet = false
-    /// How often the timer fires now.
-    private var tickInterval: Double
-    private var lastFullPollAt: Double?
-    /// An event asked for a full poll on the next tick.
-    private var fullPollRequested = false
-    /// The timer was last scheduled for an event's poll rather than for the
-    /// cadence.
-    private var timerHasOneOffDeadline = false
+    /// When the timer fires and what each tick does. Used only on `queue`.
+    private var schedule: DetectionPollSchedule
     private var sensorServer: BrowserSensorServer?
     /// Safari's own socket, inside the app group. Nil on a build without the
     /// Safari extension.
@@ -147,7 +138,7 @@ public final class DetectionEngine: @unchecked Sendable {
         delegate: any DetectionEngineDelegate
     ) {
         self.configuration = configuration
-        self.tickInterval = configuration.pollInterval
+        self.schedule = DetectionPollSchedule(configuration: configuration)
         self.clock = clock
         self.diagnostics = diagnostics
         self.delegate = delegate
@@ -236,56 +227,27 @@ public final class DetectionEngine: @unchecked Sendable {
         stop()
         startSensorServer()
         let timer = DispatchSource.makeTimerSource(queue: queue)
+        let first = DetectionPollSchedule(configuration: configuration).startSetting
         timer.schedule(
-            deadline: .now() + 0.2, repeating: configuration.pollInterval,
-            leeway: Self.leeway(for: configuration.pollInterval, configuration)
+            deadline: .now() + first.delay, repeating: first.interval,
+            leeway: .milliseconds(first.leewayMilliseconds)
         )
         timer.setEventHandler { [weak self] in self?.tick() }
         lock.lock()
         self.timer = timer
         lock.unlock()
-        queue.async { [weak self] in
-            guard let self else { return }
-            self.isQuiet = false
-            self.tickInterval = self.configuration.pollInterval
-            self.lastFullPollAt = nil
-        }
+        queue.async { [weak self] in self?.schedule.reset() }
         audioObserver.start { [weak self] in self?.pollSoonIfQuiet() }
         timer.resume()
     }
 
-    /// Room for the system to fold the wake-up into others. Idle ticks can
-    /// wait longer, since nothing they look for is in progress.
-    private static func leeway(for interval: Double, _ configuration: Configuration) -> DispatchTimeInterval {
-        interval > configuration.pollInterval ? .milliseconds(250) : .milliseconds(50)
-    }
-
-    /// Polls in full now instead of at the next idle tick, but never sooner
-    /// than `pollInterval` after the last full poll, so a process whose audio
-    /// starts and stops in bursts cannot make detection poll faster than it
-    /// did before. While polls are already fast this does nothing.
+    /// Polls in full soon instead of at the next idle tick; see
+    /// `DetectionPollSchedule.eventArrived`.
     private func pollSoonIfQuiet() {
         queue.async { [weak self] in
-            guard let self, self.isQuiet, !self.fullPollRequested else { return }
-            self.fullPollRequested = true
-            self.timerHasOneOffDeadline = true
-            let wait = Self.delayBeforeRequestedPoll(
-                sinceLastFullPoll: self.lastFullPollAt.map { self.clock.monotonicSeconds - $0 },
-                configuration: self.configuration
-            )
-            // The short leeway: this poll answers an event, and the idle
-            // leeway would let it slip by a quarter of a second.
-            self.lock.withLock { self.timer }?.schedule(
-                deadline: .now() + wait, repeating: self.tickInterval, leeway: .milliseconds(50)
-            )
+            guard let self else { return }
+            self.apply(self.schedule.eventArrived(at: self.clock.monotonicSeconds))
         }
-    }
-
-    /// How long a poll an event asked for waits: none, unless the last full
-    /// poll was less than `pollInterval` ago.
-    static func delayBeforeRequestedPoll(sinceLastFullPoll: Double?, configuration: Configuration) -> Double {
-        guard let elapsed = sinceLastFullPoll else { return 0 }
-        return max(0, configuration.pollInterval - elapsed)
     }
 
     /// One timer tick: a full poll, or, while quiet, only a look at the audio
@@ -293,51 +255,20 @@ public final class DetectionEngine: @unchecked Sendable {
     private func tick() {
         let now = clock.monotonicSeconds
         let audioStates = audioObserver.snapshot(at: now)
-        if Self.needsFullPoll(
-            quiet: isQuiet, requested: fullPollRequested, audio: audioStates,
-            sinceLastFullPoll: lastFullPollAt.map { now - $0 }, configuration: configuration
-        ) {
-            fullPollRequested = false
-            lastFullPollAt = now
+        if schedule.beginTick(at: now, audio: audioStates) {
             poll(at: now, audioStates: audioStates)
         } else {
-            setCadence(quiet: true, audio: audioStates)
+            apply(schedule.pollFinished(quiet: true, audio: audioStates))
         }
     }
 
     /// Runs on `queue`.
-    private func setCadence(quiet: Bool, audio: [ApplicationAudioState]) {
-        isQuiet = quiet
-        let interval = Self.tickInterval(quiet: quiet, audio: audio, configuration: configuration)
-        // A requested poll was scheduled with a one-off deadline and the short
-        // leeway, so the cadence is set again after it even if unchanged.
-        guard interval != tickInterval || timerHasOneOffDeadline else { return }
-        timerHasOneOffDeadline = false
-        tickInterval = interval
+    private func apply(_ setting: DetectionPollSchedule.TimerSetting?) {
+        guard let setting else { return }
         lock.withLock { timer }?.schedule(
-            deadline: .now() + interval, repeating: interval, leeway: Self.leeway(for: interval, configuration)
+            deadline: .now() + setting.delay, repeating: setting.interval,
+            leeway: .milliseconds(setting.leewayMilliseconds)
         )
-    }
-
-    /// How often the timer fires: fast while anything could be a meeting or
-    /// any application is playing or recording audio, slow otherwise.
-    static func tickInterval(
-        quiet: Bool, audio: [ApplicationAudioState], configuration: Configuration
-    ) -> Double {
-        let audioRunning = audio.contains { $0.holdsMicrophone || $0.producesOutput }
-        return quiet && !audioRunning ? configuration.idlePollInterval : configuration.pollInterval
-    }
-
-    /// Whether this tick reads everything or only the audio flags.
-    static func needsFullPoll(
-        quiet: Bool, requested: Bool, audio: [ApplicationAudioState], sinceLastFullPoll: Double?,
-        configuration: Configuration
-    ) -> Bool {
-        guard quiet, !requested, !audio.contains(where: \.holdsMicrophone), let elapsed = sinceLastFullPoll
-        else { return true }
-        // Half a fast tick of slack, so a full poll due on this tick is not
-        // pushed to the next one by timer jitter.
-        return elapsed >= configuration.idlePollInterval - configuration.pollInterval / 2
     }
 
     /// Whether a poll found nothing that could be a meeting, so the next one
@@ -507,7 +438,7 @@ public final class DetectionEngine: @unchecked Sendable {
         // needs the microphone too. So a quiet poll with the microphone free
         // skips the window list, and the poll the microphone opening triggers
         // reads it while the meeting page is still in front.
-        let readsTitles = !isQuiet || audioStates.contains(where: \.holdsMicrophone)
+        let readsTitles = !schedule.isQuiet || audioStates.contains(where: \.holdsMicrophone)
         let titles = readsTitles ? windowReader.allTitles() : [:]
 
         var evidence: [ProviderEvidence] = []
@@ -641,7 +572,7 @@ public final class DetectionEngine: @unchecked Sendable {
         let quiet = Self.isQuiet(audio: audioStates, evidence: evidence, slackState: slackDetector.state)
         lock.unlock()
 
-        setCadence(quiet: quiet, audio: audioStates)
+        apply(schedule.pollFinished(quiet: quiet, audio: audioStates))
 
         if evidenceChanged {
             // Notice rather than info so a `log show` after the fact still has

@@ -181,7 +181,10 @@ public final class CoreAudioProcessMonitor: @unchecked Sendable {
             queue.sync {
                 listenToList()
                 refreshList()
-                for objectID in lock.withLock({ Array(entries.keys) }) { refreshRunning(objectID) }
+                for objectID in lock.withLock({ Array(entries.keys) }) {
+                    refreshRunning(objectID)
+                    refreshIdentityIfMissing(objectID)
+                }
             }
         }
         let snapshot = lock.withLock { entries }
@@ -230,6 +233,23 @@ public final class CoreAudioProcessMonitor: @unchecked Sendable {
                 return true
             }
             if !stillWanted, let token { source.removeListener(token) }
+        }
+    }
+
+    /// Reads a process's PID and bundle identifier again when the first read
+    /// failed, as it can while the object is still being set up. A process
+    /// with no bundle identifier at all, such as a command-line tool, costs
+    /// two reads per re-read interval.
+    private func refreshIdentityIfMissing(_ objectID: AudioObjectID) {
+        guard let entry = lock.withLock({ entries[objectID] }),
+            entry.processID < 0 || entry.bundleIdentifier.isEmpty
+        else { return }
+        let processID = entry.processID < 0 ? source.processID(objectID) : entry.processID
+        let bundleIdentifier =
+            entry.bundleIdentifier.isEmpty ? source.bundleIdentifier(objectID) : entry.bundleIdentifier
+        lock.withLock {
+            if let processID { entries[objectID]?.processID = processID }
+            if let bundleIdentifier { entries[objectID]?.bundleIdentifier = bundleIdentifier }
         }
     }
 
