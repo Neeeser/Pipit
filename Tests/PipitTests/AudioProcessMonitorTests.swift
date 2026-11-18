@@ -331,6 +331,18 @@ struct DetectionCadenceTests {
                 == configuration.pollInterval)
     }
 
+    @Test("a burst of audio events cannot poll faster than the active poll did")
+    func aBurstOfAudioEventsCannotPollFaster() {
+        let configuration = DetectionEngine.Configuration()
+        func wait(_ since: Double?) -> Double {
+            DetectionEngine.delayBeforeRequestedPoll(sinceLastFullPoll: since, configuration: configuration)
+        }
+        #expect(wait(nil) == 0, "nothing polled yet")
+        #expect(wait(configuration.idlePollInterval) == 0, "the last full poll was long ago")
+        #expect(abs(wait(0.1) - (configuration.pollInterval - 0.1)) < 1e-9, "a poll just ran")
+        #expect(wait(0) == configuration.pollInterval)
+    }
+
     @Test("a quiet tick reads only audio until the idle interval passes or the microphone opens")
     func aQuietTickReadsOnlyAudio() {
         let configuration = DetectionEngine.Configuration()

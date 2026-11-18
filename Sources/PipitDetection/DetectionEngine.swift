@@ -119,6 +119,9 @@ public final class DetectionEngine: @unchecked Sendable {
     private var lastFullPollAt: Double?
     /// An event asked for a full poll on the next tick.
     private var fullPollRequested = false
+    /// The timer was last scheduled for an event's poll rather than for the
+    /// cadence.
+    private var timerHasOneOffDeadline = false
     private var sensorServer: BrowserSensorServer?
     /// Safari's own socket, inside the app group. Nil on a build without the
     /// Safari extension.
@@ -257,18 +260,32 @@ public final class DetectionEngine: @unchecked Sendable {
         interval > configuration.pollInterval ? .milliseconds(250) : .milliseconds(50)
     }
 
-    /// Polls in full now instead of at the next idle tick. While polls are
-    /// already fast this does nothing, so a process that toggles its audio
-    /// rapidly cannot make detection poll faster than `pollInterval`.
+    /// Polls in full now instead of at the next idle tick, but never sooner
+    /// than `pollInterval` after the last full poll, so a process whose audio
+    /// starts and stops in bursts cannot make detection poll faster than it
+    /// did before. While polls are already fast this does nothing.
     private func pollSoonIfQuiet() {
         queue.async { [weak self] in
-            guard let self, self.isQuiet else { return }
+            guard let self, self.isQuiet, !self.fullPollRequested else { return }
             self.fullPollRequested = true
+            self.timerHasOneOffDeadline = true
+            let wait = Self.delayBeforeRequestedPoll(
+                sinceLastFullPoll: self.lastFullPollAt.map { self.clock.monotonicSeconds - $0 },
+                configuration: self.configuration
+            )
+            // The short leeway: this poll answers an event, and the idle
+            // leeway would let it slip by a quarter of a second.
             self.lock.withLock { self.timer }?.schedule(
-                deadline: .now(), repeating: self.tickInterval,
-                leeway: Self.leeway(for: self.tickInterval, self.configuration)
+                deadline: .now() + wait, repeating: self.tickInterval, leeway: .milliseconds(50)
             )
         }
+    }
+
+    /// How long a poll an event asked for waits: none, unless the last full
+    /// poll was less than `pollInterval` ago.
+    static func delayBeforeRequestedPoll(sinceLastFullPoll: Double?, configuration: Configuration) -> Double {
+        guard let elapsed = sinceLastFullPoll else { return 0 }
+        return max(0, configuration.pollInterval - elapsed)
     }
 
     /// One timer tick: a full poll, or, while quiet, only a look at the audio
@@ -292,7 +309,10 @@ public final class DetectionEngine: @unchecked Sendable {
     private func setCadence(quiet: Bool, audio: [ApplicationAudioState]) {
         isQuiet = quiet
         let interval = Self.tickInterval(quiet: quiet, audio: audio, configuration: configuration)
-        guard interval != tickInterval else { return }
+        // A requested poll was scheduled with a one-off deadline and the short
+        // leeway, so the cadence is set again after it even if unchanged.
+        guard interval != tickInterval || timerHasOneOffDeadline else { return }
+        timerHasOneOffDeadline = false
         tickInterval = interval
         lock.withLock { timer }?.schedule(
             deadline: .now() + interval, repeating: interval, leeway: Self.leeway(for: interval, configuration)

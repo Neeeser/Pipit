@@ -174,24 +174,20 @@ public final class CoreAudioProcessMonitor: @unchecked Sendable {
             return due
         }
         if needsReconcile {
-            // One read of the list, for a notification that never came.
+            // One read of the list and of every running flag, for a
+            // notification that never came. On the monitor's queue, where the
+            // listeners write too, so a notification cannot land between a
+            // read here and its write and be overwritten by the older value.
             queue.sync {
                 listenToList()
                 refreshList()
+                for objectID in lock.withLock({ Array(entries.keys) }) { refreshRunning(objectID) }
             }
         }
         let snapshot = lock.withLock { entries }
 
-        var running: [AudioObjectID: Bool] = [:]
-        if needsReconcile {
-            for objectID in snapshot.keys { running[objectID] = source.isRunning(objectID) }
-            lock.withLock {
-                for (objectID, isRunning) in running { entries[objectID]?.isRunning = isRunning }
-            }
-        }
-
         return snapshot.map { objectID, entry in
-            let isRunning = running[objectID] ?? entry.isRunning
+            let isRunning = entry.isRunning
             return AudioProcessInfo(
                 objectID: objectID,
                 processID: entry.processID,
