@@ -74,6 +74,8 @@ public final class CoreAudioProcessMonitor: @unchecked Sendable {
         var bundleIdentifier: String
         var isRunning: Bool
         var token: CoreAudioListenerToken?
+
+        var lacksIdentity: Bool { processID < 0 || bundleIdentifier.isEmpty }
     }
 
     private let source: any CoreAudioProcessSource
@@ -192,7 +194,16 @@ public final class CoreAudioProcessMonitor: @unchecked Sendable {
         }
         // Read on the monitor's queue, so a restart's rebuild, which empties
         // the list and fills it again, is never seen half done.
-        let snapshot = queue.sync { lock.withLock { entries } }
+        let snapshot = queue.sync { () -> [AudioObjectID: Entry] in
+            // A process doing audio is the one detection matches on its bundle
+            // identifier, so a missing one is read again on every look rather
+            // than at the next re-read. These are few, and usually none.
+            let unidentified = lock.withLock {
+                entries.filter { $0.value.isRunning && $0.value.lacksIdentity }.map(\.key)
+            }
+            for objectID in unidentified { refreshIdentityIfMissing(objectID) }
+            return lock.withLock { entries }
+        }
 
         return snapshot.map { objectID, entry in
             let isRunning = entry.isRunning
@@ -246,9 +257,7 @@ public final class CoreAudioProcessMonitor: @unchecked Sendable {
     /// with no bundle identifier at all, such as a command-line tool, costs
     /// two reads per re-read interval.
     private func refreshIdentityIfMissing(_ objectID: AudioObjectID) {
-        guard let entry = lock.withLock({ entries[objectID] }),
-            entry.processID < 0 || entry.bundleIdentifier.isEmpty
-        else { return }
+        guard let entry = lock.withLock({ entries[objectID] }), entry.lacksIdentity else { return }
         let processID = entry.processID < 0 ? source.processID(objectID) : entry.processID
         let bundleIdentifier =
             entry.bundleIdentifier.isEmpty ? source.bundleIdentifier(objectID) : entry.bundleIdentifier
@@ -261,6 +270,7 @@ public final class CoreAudioProcessMonitor: @unchecked Sendable {
     private func refreshRunning(_ objectID: AudioObjectID) {
         let isRunning = source.isRunning(objectID)
         lock.withLock { entries[objectID]?.isRunning = isRunning }
+        if isRunning { refreshIdentityIfMissing(objectID) }
     }
 
     private func notify() {

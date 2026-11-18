@@ -298,6 +298,23 @@ struct AudioProcessMonitorTests {
         #expect(server.readCount("bundle") == 1, "only the one that failed")
     }
 
+    @Test("a process that starts audio with an unread bundle identifier is identified at once")
+    func aRunningProcessWithAFailedIdentityIsIdentifiedAtOnce() {
+        let server = Self.idleServer(count: 2)
+        server.failingBundleReads = [100]
+        let monitor = CoreAudioProcessMonitor(source: server)
+        monitor.start {}
+        _ = monitor.processes(at: 0)
+        server.failingBundleReads = []
+
+        server.set(100, input: true)
+
+        // Well before the next re-read.
+        let states = monitor.processes(at: 1)
+        #expect(states.first { $0.objectID == 100 }?.bundleIdentifier == "com.example.app0")
+        #expect(states.first { $0.objectID == 100 }?.isRunningInput == true)
+    }
+
     @Test("stopping removes every listener")
     func stoppingRemovesEveryListener() {
         let server = Self.idleServer(count: 5)
