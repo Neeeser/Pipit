@@ -20,6 +20,7 @@ private final class FakeAudioServer: CoreAudioProcessSource, @unchecked Sendable
     private let lock = NSLock()
     private var processes: [AudioObjectID: Process] = [:]
     private var listHandler: (@Sendable () -> Void)?
+    private var restartHandler: (@Sendable () -> Void)?
     private var processHandlers: [AudioObjectID: @Sendable () -> Void] = [:]
     private(set) var reads: [String: Int] = [:]
     /// Set to drop the next running-state notification, as a lost one would.
@@ -63,6 +64,12 @@ private final class FakeAudioServer: CoreAudioProcessSource, @unchecked Sendable
         lock.withLock { listHandler = { queue.sync(execute: handler) } }
         return token(AudioObjectID(kAudioObjectSystemObject))
     }
+    func addServiceRestartListener(
+        queue: DispatchQueue, _ handler: @escaping @Sendable () -> Void
+    ) -> CoreAudioListenerToken? {
+        lock.withLock { restartHandler = { queue.sync(execute: handler) } }
+        return token(AudioObjectID(kAudioObjectSystemObject))
+    }
     func addProcessListener(
         _ object: AudioObjectID, queue: DispatchQueue, _ handler: @escaping @Sendable () -> Void
     ) -> CoreAudioListenerToken? {
@@ -92,6 +99,22 @@ private final class FakeAudioServer: CoreAudioProcessSource, @unchecked Sendable
         let handler = lock.withLock {
             processes[object] = process
             return listHandler
+        }
+        handler?()
+    }
+
+    /// A process joins without the list notification arriving.
+    func addSilently(_ object: AudioObjectID, _ process: Process) {
+        lock.withLock { processes[object] = process }
+    }
+
+    /// The audio server restarts: every object gets a new ID, and the old
+    /// per-process listeners are gone.
+    func restart(with fresh: [AudioObjectID: Process]) {
+        let handler = lock.withLock {
+            processes = fresh
+            processHandlers = [:]
+            return restartHandler
         }
         handler?()
     }
@@ -219,6 +242,42 @@ struct AudioProcessMonitorTests {
         #expect(later.first { $0.objectID == 100 }?.isRunningInput == true)
     }
 
+    @Test("a process that joined without a notification is found by the periodic re-read")
+    func aSilentJoinIsFoundByTheReRead() {
+        let server = Self.idleServer(count: 2)
+        let monitor = CoreAudioProcessMonitor(source: server)
+        monitor.start {}
+        _ = monitor.processes(at: 0)
+
+        server.addSilently(300, .init(processID: 3000, bundleIdentifier: "com.microsoft.teams2", input: true))
+
+        #expect(!monitor.processes(at: 1).contains { $0.objectID == 300 })
+        let later = monitor.processes(at: CoreAudioProcessMonitor.reconcileInterval + 1)
+        #expect(later.first { $0.objectID == 300 }?.isRunningInput == true)
+    }
+
+    @Test("an audio server restart rebuilds the process list and its listeners")
+    func anAudioServerRestartRebuildsTheList() {
+        let server = Self.idleServer(count: 3)
+        let changes = ChangeCounter()
+        let monitor = CoreAudioProcessMonitor(source: server)
+        monitor.start { changes.increment() }
+        _ = monitor.processes(at: 0)
+
+        server.restart(with: [
+            500: .init(processID: 1000, bundleIdentifier: "com.example.app0"),
+            501: .init(processID: 4000, bundleIdentifier: "us.zoom.xos"),
+        ])
+
+        #expect(changes.count == 1)
+        #expect(Set(monitor.processes(at: 1).map(\.objectID)) == [500, 501])
+        #expect(server.listenerCount == 2)
+        // The new objects' listeners work: Zoom opening the microphone is seen.
+        server.set(501, input: true)
+        #expect(changes.count == 2)
+        #expect(monitor.processes(at: 2).first { $0.objectID == 501 }?.isRunningInput == true)
+    }
+
     @Test("stopping removes every listener")
     func stoppingRemovesEveryListener() {
         let server = Self.idleServer(count: 5)
@@ -252,9 +311,45 @@ struct DetectionCadenceTests {
         #expect(!DetectionEngine.isQuiet(audio: [], evidence: [], slackState: .candidate))
     }
 
-    @Test("the idle poll is slower than the active one")
-    func theIdlePollIsSlowerThanTheActiveOne() {
+    @Test("the timer stays fast while any application plays audio, and slows when none does")
+    func theTimerStaysFastWhileAudioPlays() {
         let configuration = DetectionEngine.Configuration()
         #expect(configuration.idlePollInterval > configuration.pollInterval)
+        let music = Self.audio(bundle: "com.apple.Music", microphone: false, output: true)
+        let silent = Self.audio(bundle: "com.apple.Finder", microphone: false)
+
+        #expect(
+            DetectionEngine.tickInterval(quiet: true, audio: [silent], configuration: configuration)
+                == configuration.idlePollInterval)
+        // A process already playing can open the microphone on the same device
+        // without Core Audio saying so, so it is looked at on every fast tick.
+        #expect(
+            DetectionEngine.tickInterval(quiet: true, audio: [music], configuration: configuration)
+                == configuration.pollInterval)
+        #expect(
+            DetectionEngine.tickInterval(quiet: false, audio: [], configuration: configuration)
+                == configuration.pollInterval)
+    }
+
+    @Test("a quiet tick reads only audio until the idle interval passes or the microphone opens")
+    func aQuietTickReadsOnlyAudio() {
+        let configuration = DetectionEngine.Configuration()
+        let music = Self.audio(bundle: "us.zoom.xos", microphone: false, output: true)
+        let answered = Self.audio(bundle: "us.zoom.xos", microphone: true, output: true)
+        func full(quiet: Bool = true, requested: Bool = false, _ audio: [ApplicationAudioState], since: Double?)
+            -> Bool
+        {
+            DetectionEngine.needsFullPoll(
+                quiet: quiet, requested: requested, audio: audio, sinceLastFullPoll: since,
+                configuration: configuration
+            )
+        }
+
+        #expect(!full([music], since: 0.5), "a ringtone playing, between full polls")
+        #expect(full([answered], since: 0.5), "the call is answered on the same device")
+        #expect(full([music], since: configuration.idlePollInterval), "the idle interval passed")
+        #expect(full(requested: true, [music], since: 0.5), "an event asked for a poll")
+        #expect(full(quiet: false, [music], since: 0.5), "something may be a meeting")
+        #expect(full([music], since: nil), "the first tick after start")
     }
 }

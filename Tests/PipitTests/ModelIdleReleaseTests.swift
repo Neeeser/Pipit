@@ -125,7 +125,7 @@ struct ModelIdleReleaseTests {
         #expect(!tracker.isBusy)
     }
 
-    @Test("the manager's lease counts as use")
+    @Test("the manager refuses to release while one of its leases is held")
     func managerLease() async {
         let root = FileManager.default.temporaryDirectory
             .appendingPathComponent("pipit-idle-\(UUID().uuidString)")
@@ -133,9 +133,10 @@ struct ModelIdleReleaseTests {
         let manager = LocalModelManager(applicationSupport: root, useTracker: tracker)
         let lease = manager.lease()
         #expect(tracker.isBusy)
+        #expect(await manager.releaseLoadedModels() == false, "a job holds the models")
         lease.release()
         #expect(!tracker.isBusy)
-        await manager.releaseLoadedModels()
+        #expect(await manager.releaseLoadedModels() == true, "nothing holds them now")
         #expect(await manager.loadedUnits.isEmpty)
     }
 }

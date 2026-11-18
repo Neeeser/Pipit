@@ -108,13 +108,17 @@ public actor LocalModelManager {
     /// and Metal memory returns to the system. The next job loads again through
     /// the `loaded*` functions. Does nothing while any job holds a lease; the
     /// idle timer calls it again when that job ends.
-    func releaseLoadedModels() {
-        guard !useTracker.isBusy else { return }
+    ///
+    /// - Returns: False when a job holding a lease refused the release.
+    @discardableResult
+    func releaseLoadedModels() -> Bool {
+        guard !useTracker.isBusy else { return false }
         let count = loadedUnits.count + (prepared == nil ? 0 : 1)
-        guard count > 0 else { return }
+        guard count > 0 else { return true }
         for unit in LocalModelUnit.allCases { unload(unit) }
         clearPreparedDiarization()
         Log.processing.notice("released \(count, privacy: .public) idle model caches")
+        return true
     }
 
     public var currentState: LocalModelState { state }

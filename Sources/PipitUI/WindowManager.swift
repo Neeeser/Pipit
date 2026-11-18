@@ -13,7 +13,7 @@ public final class WindowManager {
     private var settingsModel: SettingsModel?
     private var peopleWindow: NSWindow?
     private var aboutWindow: NSWindow?
-    private var peopleModel: PeopleDirectoryModel?
+    private(set) var peopleModel: PeopleDirectoryModel?
     private var setupWindow: NSWindow?
     private var setupModel: SetupModel?
     private var setupPlacementToken: NSObjectProtocol?
@@ -805,6 +805,10 @@ public final class WindowManager {
             settingsWindow = nil
             settingsModel = nil
         } else if matches(peopleWindow) {
+            // A note saves a beat after typing stops, through a timer that
+            // holds the model weakly. Saved here, holding it, so a note typed
+            // just before the window closed is not lost with the model.
+            if let peopleModel { Task { @MainActor in await peopleModel.flushNotes() } }
             peopleWindow = nil
             peopleModel = nil
         } else if matches(aboutWindow) {

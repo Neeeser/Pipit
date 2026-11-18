@@ -16,6 +16,11 @@ public protocol CoreAudioProcessSource: Sendable {
     func addProcessListListener(
         queue: DispatchQueue, _ handler: @escaping @Sendable () -> Void
     ) -> CoreAudioListenerToken?
+    /// Calls `handler` on `queue` when the audio server restarts, after which
+    /// every object ID and listener from before is gone.
+    func addServiceRestartListener(
+        queue: DispatchQueue, _ handler: @escaping @Sendable () -> Void
+    ) -> CoreAudioListenerToken?
     /// Calls `handler` on `queue` when the process starts or stops any audio,
     /// or changes the devices it uses.
     func addProcessListener(
@@ -58,6 +63,11 @@ public struct CoreAudioListenerToken: @unchecked Sendable {
 /// playing audio that opens the microphone on the same device raises no
 /// notification, and is caught because running processes are read on every
 /// poll.
+///
+/// The process list itself is read again with the running flags, and from
+/// scratch when the audio server restarts, so a lost list notification or a
+/// restarted coreaudiod costs at most one re-read interval rather than every
+/// process until Pipit relaunches.
 public final class CoreAudioProcessMonitor: @unchecked Sendable {
     private struct Entry {
         var processID: pid_t
@@ -72,6 +82,7 @@ public final class CoreAudioProcessMonitor: @unchecked Sendable {
     private let lock = NSLock()
     private var entries: [AudioObjectID: Entry] = [:]
     private var listToken: CoreAudioListenerToken?
+    private var restartToken: CoreAudioListenerToken?
     private var onChange: (@Sendable () -> Void)?
     private var started = false
     private var lastReconcile: Double?
@@ -98,18 +109,54 @@ public final class CoreAudioProcessMonitor: @unchecked Sendable {
         started = true
         self.onChange = onChange
         lock.unlock()
+        let restart = source.addServiceRestartListener(queue: queue) { [weak self] in
+            self?.rebuild()
+            self?.notify()
+        }
+        lock.withLock { restartToken = restart }
+        queue.sync {
+            listenToList()
+            refreshList()
+        }
+    }
+
+    /// Registers the process-list listener if it is not registered. Runs on the
+    /// monitor's queue, so a refused registration is tried again on the next
+    /// re-read.
+    private func listenToList() {
+        guard lock.withLock({ started && listToken == nil }) else { return }
         let token = source.addProcessListListener(queue: queue) { [weak self] in
             self?.refreshList()
             self?.notify()
         }
-        lock.withLock { listToken = token }
-        queue.sync { refreshList() }
+        let kept = lock.withLock { () -> Bool in
+            guard started else { return false }
+            listToken = token
+            return true
+        }
+        if !kept, let token { source.removeListener(token) }
+    }
+
+    /// Starts over after the audio server restarted: the old object IDs and
+    /// listeners belong to a server that is gone. Runs on the monitor's queue.
+    private func rebuild() {
+        let stale = lock.withLock { () -> [CoreAudioListenerToken] in
+            let tokens = [listToken].compactMap { $0 } + entries.values.compactMap(\.token)
+            listToken = nil
+            entries = [:]
+            lastReconcile = nil
+            return tokens
+        }
+        for token in stale { source.removeListener(token) }
+        listenToList()
+        refreshList()
     }
 
     public func stop() {
         let tokens = lock.withLock { () -> [CoreAudioListenerToken] in
-            let tokens = [listToken].compactMap { $0 } + entries.values.compactMap(\.token)
+            let tokens = [listToken, restartToken].compactMap { $0 } + entries.values.compactMap(\.token)
             listToken = nil
+            restartToken = nil
             entries = [:]
             onChange = nil
             started = false
@@ -121,11 +168,19 @@ public final class CoreAudioProcessMonitor: @unchecked Sendable {
     /// Every process Core Audio knows about. Input and output are read live
     /// for the processes running audio, and are false for the rest.
     public func processes(at now: Double) -> [AudioProcessInfo] {
-        lock.lock()
-        let needsReconcile = lastReconcile.map { now - $0 >= Self.reconcileInterval } ?? true
-        if needsReconcile { lastReconcile = now }
-        let snapshot = entries
-        lock.unlock()
+        let needsReconcile = lock.withLock { () -> Bool in
+            let due = lastReconcile.map { now - $0 >= Self.reconcileInterval } ?? true
+            if due { lastReconcile = now }
+            return due
+        }
+        if needsReconcile {
+            // One read of the list, for a notification that never came.
+            queue.sync {
+                listenToList()
+                refreshList()
+            }
+        }
+        let snapshot = lock.withLock { entries }
 
         var running: [AudioObjectID: Bool] = [:]
         if needsReconcile {
@@ -223,6 +278,12 @@ public struct SystemCoreAudioProcessSource: CoreAudioProcessSource {
         queue: DispatchQueue, _ handler: @escaping @Sendable () -> Void
     ) -> CoreAudioListenerToken? {
         add(Self.system, selectors: [kAudioHardwarePropertyProcessObjectList], queue: queue, handler)
+    }
+
+    public func addServiceRestartListener(
+        queue: DispatchQueue, _ handler: @escaping @Sendable () -> Void
+    ) -> CoreAudioListenerToken? {
+        add(Self.system, selectors: [kAudioHardwarePropertyServiceRestarted], queue: queue, handler)
     }
 
     public func addProcessListener(

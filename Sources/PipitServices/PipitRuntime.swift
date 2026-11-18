@@ -133,7 +133,13 @@ public final class PipitRuntime {
     public private(set) var status = RuntimeStatus()
     public private(set) var recentMeetings: [MeetingSummary] = []
     public private(set) var processing: [String: ProcessingPipeline.Progress] = [:]
-    public private(set) var provisionalPrompt: ProvisionalPrompt?
+    /// The menu bar opens and closes the prompt from `onStatusChange`, and a
+    /// prompt can end on a path that changes nothing else in the status (a
+    /// provisional recording that fails to finish), so a change here notifies
+    /// on its own.
+    public private(set) var provisionalPrompt: ProvisionalPrompt? {
+        didSet { if oldValue != provisionalPrompt { onStatusChange?() } }
+    }
     /// The live transcript of the recording in progress, for the live window.
     @ObservationIgnored public let live = LiveTranscriptModel()
     @ObservationIgnored private var liveSession: LiveTranscriptSession?

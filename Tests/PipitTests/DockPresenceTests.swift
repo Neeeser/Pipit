@@ -2,8 +2,9 @@ import AppKit
 import Foundation
 import PipitCore
 import PipitServices
-import PipitUI
 import Testing
+
+@testable import PipitUI
 
 /// Whether Pipit takes a Dock slot, and what it costs when it does not.
 ///
@@ -65,6 +66,45 @@ struct DockPresenceTests {
         }
         #expect(opened == nil, "nothing holds the closed window")
         #expect(!windows.hasOpenWindow)
+        withExtendedLifetime(windows) {}
+    }
+
+    @Test("a note typed just before the People window closes is still saved")
+    func aNoteTypedJustBeforeClosingIsSaved() async throws {
+        try await Self.aNoteSurvivesClosingThePeopleWindow()
+    }
+
+    /// The note saves a beat after typing stops through a timer that holds the
+    /// model weakly, and closing the window now lets the model go.
+    @MainActor
+    private static func aNoteSurvivesClosingThePeopleWindow() async throws {
+        let root = try TestPaths.makeTemporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let runtime = RuntimeFixtures.makeRuntime(root: root)
+        let store = try #require(runtime.speakerStore)
+        await runtime.ensureLocalUserIdentity()
+        let me = try #require(try await store.localUser())
+        NSApplication.shared.setActivationPolicy(.prohibited)
+        let windows = WindowManager(runtime: runtime) { _ in }
+        let before = Set(NSApp.windows.map(ObjectIdentifier.init))
+
+        windows.showPeople()
+        // Held weakly, as the save timer holds it, so only the window manager
+        // keeps it alive.
+        weak var model = windows.peopleModel
+        await model?.reload()
+        model?.select(me.id, extending: false)
+        // Selecting flushes the previous person's note in a task of its own.
+        try await Task.sleep(for: .milliseconds(50))
+        model?.notesDraft = "Prefers written agendas"
+        model?.notesChanged()
+        NSApp.windows.first { !before.contains(ObjectIdentifier($0)) }?.close()
+
+        for _ in 0..<100 {
+            if try await store.localUser()?.notes != nil { break }
+            try await Task.sleep(for: .milliseconds(20))
+        }
+        #expect(try await store.localUser()?.notes == "Prefers written agendas")
         withExtendedLifetime(windows) {}
     }
 
