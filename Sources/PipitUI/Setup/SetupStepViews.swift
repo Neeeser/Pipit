@@ -357,8 +357,8 @@ struct OptionalPermissionsStep: View {
 struct AIFeaturesStep: View {
     let model: SetupModel
 
-    /// Shown when the provider is one of these two, so a provider chosen in
-    /// Settings is never shown as OpenAI, and Apple Intelligence once chosen
+    /// Shown when the provider is one of these two, so the choice never claims
+    /// another provider chosen in Settings, and Apple Intelligence once chosen
     /// can always be changed back.
     private var offersAppleIntelligence: Bool {
         switch provider {

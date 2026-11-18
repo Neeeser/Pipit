@@ -434,8 +434,9 @@ case in `LanguageModelFactory`, and its own key in `LanguageModelKeyring`.
 
 Apple Intelligence is the provider a new install starts with on a Mac that
 runs it at first launch, so titles, summaries and notes work with nothing to install or sign in
-to. `PipitApp` passes it to `PipitRuntime` only when no settings file exists, so
-a choice already saved is kept. Its requests are sized to
+to. `PipitApp` passes it to `PipitRuntime`, which applies and saves it only when
+there is no settings file and no meeting yet, so someone who used Pipit
+without changing a setting keeps the provider they had. Its requests are sized to
 `LanguageModelProvider.appleContextTokens`, under the model's 8,192-token
 window, because an answer sized to the full window sometimes overran it. An
 answer that overruns the window or does not decode is asked once more in a

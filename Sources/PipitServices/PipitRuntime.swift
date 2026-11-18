@@ -267,8 +267,17 @@ public final class PipitRuntime {
     /// It is a parameter so a test can drive the pipeline this runtime files
     /// through, which is the same object the folder holds live on.
     ///
-    /// `firstLaunchLanguageModel` replaces the default summary provider when
-    /// no settings have been saved yet. The app passes Apple Intelligence on a
+    /// No settings saved and no meetings recorded. A missing settings file
+    /// alone could be someone who has used Pipit without changing a setting,
+    /// whose provider must not change under them.
+    nonisolated static func isNewInstall(_ store: SettingsStore, meetings: URL) -> Bool {
+        guard !store.exists else { return false }
+        let entries = (try? FileManager.default.contentsOfDirectory(atPath: meetings.path)) ?? []
+        return entries.allSatisfy { $0.hasPrefix(".") }
+    }
+
+    /// `firstLaunchLanguageModel` replaces the default summary provider on a
+    /// new install, and is saved straight away. The app passes Apple Intelligence on a
     /// Mac that can run it, so a new install writes summaries with nothing to
     /// install or sign in to. Nil, as in tests, keeps the stored default.
     ///
@@ -294,8 +303,12 @@ public final class PipitRuntime {
         self.diagnostics = diagnostics
         self.settingsStore = SettingsStore(directory: settingsDirectory)
         var loaded = settingsStore.load()
-        if let firstLaunchLanguageModel, !settingsStore.exists {
+        if let firstLaunchLanguageModel, Self.isNewInstall(settingsStore, meetings: loaded.storageRoot) {
             loaded.models.metadataProvider = firstLaunchLanguageModel
+            // Saved at once, so the next launch keeps it rather than deciding
+            // again, and a Mac where it later becomes unavailable says so
+            // instead of quietly going back to a provider with no key.
+            try? settingsStore.save(loaded)
         }
         self.settings = loaded
         let snapshot = LockedBox(loaded)

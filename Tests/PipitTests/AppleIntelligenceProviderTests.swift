@@ -29,13 +29,28 @@ struct AppleIntelligenceProviderTests {
         #expect(DiagnosticSnapshot.metadataModel("CANARY", provider: .appleIntelligence) == "custom")
     }
 
-    @MainActor
-    @Test("a new install starts with the provider the app passes")
-    func aNewInstallStartsWithTheProviderTheAppPasses() throws {
+    @Test("only no settings and no meetings counts as a new install")
+    func onlyNoSettingsAndNoMeetingsCountsAsANewInstall() throws {
         let root = try TestPaths.makeTemporaryDirectory()
         defer { try? FileManager.default.removeItem(at: root) }
-        let runtime = PipitRuntime(settingsDirectory: root, firstLaunchLanguageModel: .appleIntelligence)
-        #expect(runtime.settings.models.metadataProvider == .appleIntelligence)
+        let settings = root.appendingPathComponent("support", isDirectory: true)
+        let meetings = root.appendingPathComponent("meetings", isDirectory: true)
+        try FileManager.default.createDirectory(at: settings, withIntermediateDirectories: true)
+        let store = SettingsStore(directory: settings)
+        // The meetings folder not existing yet is the usual new install.
+        #expect(PipitRuntime.isNewInstall(store, meetings: meetings))
+        try FileManager.default.createDirectory(at: meetings, withIntermediateDirectories: true)
+        try Data().write(to: meetings.appendingPathComponent(".DS_Store"))
+        #expect(PipitRuntime.isNewInstall(store, meetings: meetings))
+        // Someone who recorded without ever changing a setting has no file.
+        try FileManager.default.createDirectory(
+            at: meetings.appendingPathComponent("2026-11-17 Standup", isDirectory: true),
+            withIntermediateDirectories: true
+        )
+        #expect(!PipitRuntime.isNewInstall(store, meetings: meetings))
+        try FileManager.default.removeItem(at: meetings)
+        try store.save(AppSettings())
+        #expect(!PipitRuntime.isNewInstall(store, meetings: meetings))
     }
 
     @MainActor
