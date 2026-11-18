@@ -11,6 +11,7 @@ import PipitCore
 extension PipitRuntime {
     /// Every meeting, with who was in it and the notes a search can match.
     public func meetingRows() async -> [MeetingRow] {
+        await folderChangesSettled()
         let repository = self.repository
         return await Task.detached(priority: .userInitiated) {
             repository.listMeetings().map { summary in
@@ -32,6 +33,7 @@ extension PipitRuntime {
     /// what keeps a folded continuation out of the listing while an operation
     /// named by its identifier still lands.
     public func meetingRow(id: String, clusters: [TranscriptSpeaker]?) async -> MeetingRow? {
+        await folderChangesSettled()
         let repository = self.repository
         return await Task.detached(priority: .userInitiated) {
             guard let logical = repository.logicalMeeting(id: id),
@@ -134,6 +136,7 @@ extension PipitRuntime {
     /// The markdown is read rather than the canonical JSON, because it is the
     /// smaller of the two and holds the same words.
     public func transcriptSearchIndex(for meetingIDs: Set<String>) async -> [String: String] {
+        await folderChangesSettled()
         let repository = self.repository
         return await Task.detached(priority: .utility) {
             var index: [String: String] = [:]

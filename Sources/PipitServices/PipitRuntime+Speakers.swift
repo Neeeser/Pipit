@@ -731,6 +731,7 @@ extension PipitRuntime {
         // Answers for either half of a dropped call, and holds every recording
         // of the conversation, so nothing on disk is unreachable through an
         // identifier a notification or a link still carries.
+        await folderChangesSettled()
         guard let recordings = repository.logicalMeeting(id: meetingID)?.recordings else {
             return []
         }

@@ -184,6 +184,8 @@ public final class PipitRuntime {
     /// Conversations waiting for `tidyFolders`' next pass.
     @ObservationIgnored private var pendingFolderTidy: [String] = []
     @ObservationIgnored private var pendingTranscriptRewrites: [String] = []
+    /// The latest pass of `tidyFolders`, which waits for the one before it.
+    @ObservationIgnored private var folderTidy: Task<Void, Never>?
     @ObservationIgnored private var recentSummaryProblems: [(error: ProcessingError, at: Date)] = []
     /// Conversations whose rewrite the person asked for with the button.
     @ObservationIgnored private var summariesAskedByPerson: Set<String> = []
@@ -2133,7 +2135,9 @@ public final class PipitRuntime {
         for id in meetingIDs where !pendingFolderTidy.contains(id) { pendingFolderTidy.append(id) }
         if !pendingTranscriptRewrites.contains(rewriting) { pendingTranscriptRewrites.append(rewriting) }
         guard !scheduled else { return }
-        runProcessing { [weak self] in
+        let previous = folderTidy
+        folderTidy = Task { @MainActor [weak self] in
+            await previous?.value
             guard let self else { return }
             let meetingIDs = pendingFolderTidy
             let rewrites = pendingTranscriptRewrites
@@ -2145,6 +2149,18 @@ public final class PipitRuntime {
             for id in meetingIDs { onProcessingUpdate?(id) }
             refreshRecentMeetings()
         }
+    }
+
+    /// Returns once the folder moves and transcript rewrites that linking or
+    /// separating recordings started have landed.
+    ///
+    /// The archive reads wait on this. A read that ran while a separated
+    /// recording's folder moved out of its conversation's `Parts` folder found
+    /// it in neither place, so the window drew no row for it until the archive
+    /// was read again, and the index kept the conversation's words from before
+    /// its transcript was written again.
+    public func folderChangesSettled() async {
+        await folderTidy?.value
     }
 
     /// One notification for a burst of failed rewrites. Separating a part asks for
