@@ -35,7 +35,8 @@ struct BrowsersSettingsPane: View {
             isInProfile: runtime.status.firefoxAddOnInProfile,
             profileRead: runtime.settings.firefoxProfileAccess == .allowed,
             hasBundledAddOn: FirefoxAddOn.bundledAddOn != nil,
-            compatibility: runtime.status.firefoxAddOnCompatibility
+            compatibility: runtime.status.firefoxAddOnCompatibility,
+            awaitingReconnect: runtime.status.isAwaitingAddOnReconnect
         )
     }
 
