@@ -75,18 +75,19 @@ The filter matches the Swift type name of a suite or test, not the display
 name in its `@Suite` or `@Test` label.
 
 Suites that run the echo canceller or the full processing pipeline over seconds
-of speech, or draw whole windows only to check that they lay out, carry the
-`.slow` tag, written as `@Suite("Name", .tags(.slow))` on one line. They make up
-most of a full run. `./scripts/test.sh --fast` runs every other test, and
-`./scripts/test.sh --slow` runs only the tagged suites.
+of speech, draw whole windows only to check that they lay out, or score a whole
+benchmark transcript carry the `.slow` tag, written as
+`@Suite("Name", .tags(.slow))` on one line. They make up most of a full run.
+`./scripts/test.sh --fast` runs every other test, and `./scripts/test.sh --slow`
+runs only the tagged suites.
 `scripts/slow-suites.sh` reads the tag from the sources, because SwiftPM cannot
 select by tag, and fails when a `.slow` is not on a suite line it can read. Tag
 a new suite when its tests take several seconds each.
 
-Pull request CI runs one macOS job: lint, the project file check, one debug
+Pull request CI runs one macOS 26 job: lint, the project file check, one debug
 build and `./scripts/test.sh --fast`. The slow suites, the Xcode project build
-and the release bundle run after merge, on the push to `main`, and a release
-needs them to pass. Run `./scripts/test.sh --slow` locally before opening a pull
+and the release bundle run after merge, on the push to `main`, on macOS 15, and
+a release needs them to pass. Run `./scripts/test.sh --slow` locally before opening a pull
 request that changes audio or processing code.
 
 Run the browser sensor tests after changing `extension/`:
