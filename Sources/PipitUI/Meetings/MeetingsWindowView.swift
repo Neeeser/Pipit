@@ -17,9 +17,10 @@ public struct MeetingsWindowView: View {
         self.model = model
     }
 
-    /// Wide enough for the filter control at its narrowest, 235 points, inside
-    /// the sidebar's margins.
-    static let sidebarMinWidth: CGFloat = 256
+    /// Wide enough for the filter control at its narrowest inside the
+    /// sidebar's margins, with a few points to spare: 235 points on macOS 15,
+    /// and 238.5 on macOS 27, where 256 cut the last label off.
+    static let sidebarMinWidth: CGFloat = 264
     static let sidebarMargin: CGFloat = 10
 
     public var body: some View {
