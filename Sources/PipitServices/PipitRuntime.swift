@@ -740,7 +740,13 @@ public final class PipitRuntime {
         updated.firefoxProfileAccess = FirefoxProfileAccess.recorded(from: probe)
         if updated.firefoxProfileAccess != settings.firefoxProfileAccess { update(settings: updated) }
         firefoxProfileRead = (clock.monotonicSeconds, probe)
-        status.firefoxAddOnInProfile = status.sensorConnection.isLoaded || probe == .installed
+        let inProfile = status.sensorConnection.isLoaded || probe == .installed
+        if status.firefoxAddOnInProfile != inProfile {
+            status.firefoxAddOnInProfile = inProfile
+            // The menu bar's badge reads this. Detection notifies only on a
+            // change, and by its next poll this one is no longer a change.
+            onStatusChange?()
+        }
         Log.app.info("firefox profile check: \(String(describing: probe), privacy: .public)")
         return probe
     }

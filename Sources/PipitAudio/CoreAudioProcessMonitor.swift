@@ -114,9 +114,12 @@ public final class CoreAudioProcessMonitor: @unchecked Sendable {
             self?.notify()
         }
         lock.withLock { restartToken = restart }
-        queue.sync {
-            listenToList()
-            refreshList()
+        // Not waited for: reading every process object is a few calls into
+        // coreaudiod each, and the caller is usually launching the app. The
+        // first `processes(at:)` re-reads on this queue, so it sees the list.
+        queue.async { [weak self] in
+            self?.listenToList()
+            self?.refreshList()
         }
     }
 
@@ -187,7 +190,9 @@ public final class CoreAudioProcessMonitor: @unchecked Sendable {
                 }
             }
         }
-        let snapshot = lock.withLock { entries }
+        // Read on the monitor's queue, so a restart's rebuild, which empties
+        // the list and fills it again, is never seen half done.
+        let snapshot = queue.sync { lock.withLock { entries } }
 
         return snapshot.map { objectID, entry in
             let isRunning = entry.isRunning

@@ -168,9 +168,10 @@ struct AudioProcessMonitorTests {
         server.set(100, output: true)
         let monitor = CoreAudioProcessMonitor(source: server)
         monitor.start {}
+        // The first look waits for the start's read of the list.
+        _ = monitor.processes(at: 0)
         #expect(server.readCount("pid") == 44)
         #expect(server.readCount("bundle") == 44)
-        _ = monitor.processes(at: 0)
         server.resetCounts()
 
         let states = monitor.processes(at: 1)
@@ -218,6 +219,7 @@ struct AudioProcessMonitorTests {
         let changes = ChangeCounter()
         let monitor = CoreAudioProcessMonitor(source: server)
         monitor.start { changes.increment() }
+        _ = monitor.processes(at: 0)
 
         server.add(200, .init(processID: 2000, bundleIdentifier: "us.zoom.xos", input: true))
         let afterJoin = monitor.processes(at: 0)
