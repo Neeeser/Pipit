@@ -41,6 +41,33 @@ struct DockPresenceTests {
         try await Self.theProvisionalPromptLeavesThePolicyAlone()
     }
 
+    @Test("a closed Meetings window is let go rather than kept for reuse")
+    func aClosedMeetingsWindowIsLetGo() async throws {
+        try await Self.aClosedWindowIsReleased()
+    }
+
+    /// Kept for reuse, a closed Meetings window held its view tree, drawing
+    /// buffers and loaded transcripts for the rest of the app's life.
+    @MainActor
+    private static func aClosedWindowIsReleased() async throws {
+        let root = try TestPaths.makeTemporaryDirectory()
+        let recorder = Recorder()
+        let windows = makeWindows(root: root, into: recorder)
+        let before = Set(NSApp.windows.map(ObjectIdentifier.init))
+
+        windows.showMeetings(activating: false)
+        weak var opened = NSApp.windows.first { !before.contains(ObjectIdentifier($0)) }
+        #expect(opened != nil, "the window opened")
+
+        autoreleasepool { opened?.close() }
+        for _ in 0..<20 where opened != nil {
+            try await Task.sleep(for: .milliseconds(20))
+        }
+        #expect(opened == nil, "nothing holds the closed window")
+        #expect(!windows.hasOpenWindow)
+        withExtendedLifetime(windows) {}
+    }
+
     /// Holds what the window manager asked for.
     @MainActor
     private final class Recorder {
