@@ -19,6 +19,8 @@ extension LocalModelManager {
     /// costs no second copy of it in memory, and runs on the actor, so a
     /// phrase waits behind any other heavy job that holds the model.
     public func transcribeLivePhrase(_ samples: [Float]) async throws -> LivePhraseText {
+        let modelLease = lease()
+        defer { modelLease.release() }
         let manager = try await loadedParakeet()
         // Parakeet refuses anything under 0.3 s. A phrase that short is padded
         // with silence rather than dropped, since it is often a whole "yes".
@@ -211,6 +213,8 @@ public struct ParakeetPhraseTranscriptionBackend: TranscriptionBackend {
     public func transcribe(
         audio: URL, progress: @escaping @Sendable (Double) -> Void
     ) async throws -> TranscriptionOutput {
+        let modelLease = models.lease()
+        defer { modelLease.release() }
         let samples = try MonoAudioDecoder.loadMono16k(audio)
         let detector = try await models.liveVoiceActivity()
         let window = LiveVoiceActivity.windowSamples
