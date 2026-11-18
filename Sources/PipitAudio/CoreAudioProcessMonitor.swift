@@ -5,7 +5,9 @@ import Foundation
 /// stand in for the audio server. Every call here is a read or a listener;
 /// none writes a property.
 public protocol CoreAudioProcessSource: Sendable {
-    func processObjectIDs() -> [AudioObjectID]
+    /// The process objects, or nil when the read failed, which is not the
+    /// same as an empty list.
+    func processObjectIDs() -> [AudioObjectID]?
     func processID(_ object: AudioObjectID) -> pid_t?
     func bundleIdentifier(_ object: AudioObjectID) -> String?
     func isRunning(_ object: AudioObjectID) -> Bool
@@ -222,7 +224,15 @@ public final class CoreAudioProcessMonitor: @unchecked Sendable {
     /// Adds listeners for new objects and drops the ones that left. Runs on
     /// the monitor's queue.
     private func refreshList() {
-        let current = Set(source.processObjectIDs())
+        guard let ids = source.processObjectIDs() else {
+            // Keep what is known rather than drop every process and listener
+            // on a read that failed, as one can while coreaudiod is busy or
+            // restarting, and look again on the next check instead of the
+            // next re-read interval.
+            lock.withLock { lastReconcile = nil }
+            return
+        }
+        let current = Set(ids)
         let known = lock.withLock { Set(entries.keys) }
         var removed: [CoreAudioListenerToken] = []
         lock.withLock {
@@ -285,8 +295,16 @@ public struct SystemCoreAudioProcessSource: CoreAudioProcessSource {
 
     private static let system = AudioObjectID(kAudioObjectSystemObject)
 
-    public func processObjectIDs() -> [AudioObjectID] {
-        CoreAudioSystem.objectIDs(Self.system, CoreAudioSystem.address(kAudioHardwarePropertyProcessObjectList))
+    public func processObjectIDs() -> [AudioObjectID]? {
+        var address = CoreAudioSystem.address(kAudioHardwarePropertyProcessObjectList)
+        var size: UInt32 = 0
+        guard AudioObjectGetPropertyDataSize(Self.system, &address, 0, nil, &size) == noErr else { return nil }
+        guard size > 0 else { return [] }
+        var ids = [AudioObjectID](repeating: 0, count: Int(size) / MemoryLayout<AudioObjectID>.size)
+        guard AudioObjectGetPropertyData(Self.system, &address, 0, nil, &size, &ids) == noErr else { return nil }
+        // The list can shrink between the two calls; the second reports the
+        // size it filled.
+        return Array(ids.prefix(Int(size) / MemoryLayout<AudioObjectID>.size))
     }
 
     public func processID(_ object: AudioObjectID) -> pid_t? { CoreAudioSystem.processID(object) }

@@ -25,6 +25,8 @@ private final class FakeAudioServer: CoreAudioProcessSource, @unchecked Sendable
     private(set) var reads: [String: Int] = [:]
     /// Set to drop the next running-state notification, as a lost one would.
     var dropsNotifications = false
+    /// How many process-list reads fail before they work again.
+    var failingListReads = 0
     /// Objects whose bundle identifier read fails until cleared.
     var failingBundleReads: Set<AudioObjectID> = []
 
@@ -35,9 +37,15 @@ private final class FakeAudioServer: CoreAudioProcessSource, @unchecked Sendable
     func resetCounts() { lock.withLock { reads = [:] } }
     var listenerCount: Int { lock.withLock { processHandlers.count } }
 
-    func processObjectIDs() -> [AudioObjectID] {
+    func processObjectIDs() -> [AudioObjectID]? {
         count("list")
-        return lock.withLock { Array(processes.keys) }
+        return lock.withLock {
+            guard failingListReads == 0 else {
+                failingListReads -= 1
+                return nil
+            }
+            return Array(processes.keys)
+        }
     }
     func processID(_ object: AudioObjectID) -> pid_t? {
         count("pid")
@@ -119,6 +127,11 @@ private final class FakeAudioServer: CoreAudioProcessSource, @unchecked Sendable
             return restartHandler
         }
         handler?()
+    }
+
+    /// The list notification fires, as it does when a process leaves.
+    func notifyListChanged() {
+        lock.withLock { listHandler }?()
     }
 
     func remove(_ object: AudioObjectID) {
@@ -313,6 +326,24 @@ struct AudioProcessMonitorTests {
         let states = monitor.processes(at: 1)
         #expect(states.first { $0.objectID == 100 }?.bundleIdentifier == "com.example.app0")
         #expect(states.first { $0.objectID == 100 }?.isRunningInput == true)
+    }
+
+    @Test("a failed read of the process list keeps every process and listener")
+    func aFailedListReadKeepsEverything() {
+        let server = Self.idleServer(count: 4)
+        let monitor = CoreAudioProcessMonitor(source: server)
+        monitor.start {}
+        _ = monitor.processes(at: 0)
+
+        server.failingListReads = 1
+        server.notifyListChanged()
+        #expect(server.listenerCount == 4)
+
+        // The failed read is tried again on the next look, not 30 s later.
+        server.resetCounts()
+        #expect(monitor.processes(at: 1).count == 4)
+        #expect(server.readCount("list") == 1)
+        #expect(server.listenerCount == 4)
     }
 
     @Test("stopping removes every listener")
