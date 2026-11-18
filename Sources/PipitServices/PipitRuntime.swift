@@ -263,10 +263,6 @@ public final class PipitRuntime {
     /// crash is offered once, at the launch after it.
     public internal(set) var crashReportOffer: CrashReportOffer?
 
-    /// `backend` is the cloud client the pipeline and its cloud stages use.
-    /// It is a parameter so a test can drive the pipeline this runtime files
-    /// through, which is the same object the folder holds live on.
-    ///
     /// No settings saved and no meetings recorded. A missing settings file
     /// alone could be someone who has used Pipit without changing a setting,
     /// whose provider must not change under them.
@@ -276,10 +272,15 @@ public final class PipitRuntime {
         return entries.allSatisfy { $0.hasPrefix(".") }
     }
 
+    /// `backend` is the cloud client the pipeline and its cloud stages use.
+    /// It is a parameter so a test can drive the pipeline this runtime files
+    /// through, which is the same object the folder holds live on.
+    ///
     /// `firstLaunchLanguageModel` replaces the default summary provider on a
-    /// new install, and is saved straight away. The app passes Apple Intelligence on a
-    /// Mac that can run it, so a new install writes summaries with nothing to
-    /// install or sign in to. Nil, as in tests, keeps the stored default.
+    /// new install, and is saved straight away. The app passes Apple
+    /// Intelligence on a Mac that can run it, so a new install writes
+    /// summaries with nothing to install or sign in to. Nil, as in tests,
+    /// keeps the stored default.
     ///
     /// `diagnostics` is handed to every subsystem that records events.
     /// `reportTransport` and `deletionSecrets` stand in for the report
