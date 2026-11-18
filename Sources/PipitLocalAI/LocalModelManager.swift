@@ -349,7 +349,9 @@ public actor LocalModelManager {
 
         case .diarizer:
             progress(0, "Downloading speaker models")
-            diarizerModels = try await OfflineDiarizerModels.load(from: directory)
+            diarizerModels = try await OfflineDiarizerModels.load(
+                from: directory, configuration: Self.diarizerModelConfiguration()
+            )
 
         case .voiceActivity:
             // ModelHub appends the repository folder itself, as for Cohere.
@@ -451,6 +453,21 @@ public actor LocalModelManager {
         return pipeline
     }
 
+    /// Where the diarizer's segmentation, embedding and PLDA models compute.
+    /// FluidAudio keeps its feature extractor on the CPU whatever this says.
+    ///
+    /// The CPU and Neural Engine, not FluidAudio's default of every unit. With
+    /// the GPU allowed, a diarization held about 640 MB of GPU buffers while it
+    /// ran, for no gain: on the 14 held-out bench cases this setting scored
+    /// the same or better on DER, tcpWER, attribution and speaker count, and
+    /// took no longer. The CPU alone scored about the same and took nearly
+    /// three times as long on a one-hour meeting.
+    public static func diarizerModelConfiguration() -> MLModelConfiguration {
+        let configuration = MLModelConfiguration()
+        configuration.computeUnits = .cpuAndNeuralEngine
+        return configuration
+    }
+
     /// The loaded diarizer models, shared across every manager instance so a
     /// re-analysis does not reload 21 MB of CoreML.
     func loadedDiarizerModels() async throws -> OfflineDiarizerModels {
@@ -468,7 +485,9 @@ public actor LocalModelManager {
         // pulling files in the middle of processing a meeting.
         ModelHub.offlineMode = true
         defer { ModelHub.offlineMode = false }
-        let models = try await OfflineDiarizerModels.load(from: locations.diarizerDirectory)
+        let models = try await OfflineDiarizerModels.load(
+            from: locations.diarizerDirectory, configuration: Self.diarizerModelConfiguration()
+        )
         diarizerModels = models
         return models
     }
@@ -487,7 +506,9 @@ public actor LocalModelManager {
     /// content matches, tags the folder, and fetches only files that differ.
     /// The receipt is rewritten afterwards so later loads stay offline.
     private func adoptOlderDiarizerInstall() async throws -> OfflineDiarizerModels {
-        let models = try await OfflineDiarizerModels.load(from: locations.diarizerDirectory)
+        let models = try await OfflineDiarizerModels.load(
+            from: locations.diarizerDirectory, configuration: Self.diarizerModelConfiguration()
+        )
         receipts[.diarizer] = LocalUnitReceipt(
             revision: LocalSpeechStack.revision(for: .diarizer),
             bytes: DirectorySize.bytes(of: locations.containerDirectory(for: .diarizer)),
