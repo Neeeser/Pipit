@@ -102,6 +102,8 @@ extension LocalModelManager {
         speakerCount: Int?,
         progress: @escaping @Sendable (Double) -> Void
     ) async throws -> DiarizationOutput {
+        let modelLease = lease()
+        defer { modelLease.release() }
         let models = try await loadedDiarizerModels()
         let config = Self.diarizerConfiguration(speakerCount: speakerCount)
         let manager = OfflineDiarizerManager(config: config)
@@ -174,6 +176,8 @@ extension LocalModelManager {
     /// full re-diarization.
     func recluster(cacheKey: String, speakerCount: Int?) async throws -> DiarizationOutput? {
         guard let cached = preparedDiarization(for: cacheKey) else { return nil }
+        let modelLease = lease()
+        defer { modelLease.release() }
         let models = try await loadedDiarizerModels()
         let manager = OfflineDiarizerManager(config: Self.diarizerConfiguration(speakerCount: speakerCount))
         manager.initialize(models: models)
@@ -212,6 +216,8 @@ extension LocalModelManager {
     public func evaluateDiarization(
         audio: URL, warmStartFa: Double, speakerCount: Int? = nil
     ) async throws -> DiarizationOutput {
+        let modelLease = lease()
+        defer { modelLease.release() }
         let models = try await loadedDiarizerModels()
         var config = Self.diarizerConfiguration(speakerCount: speakerCount)
         config.clustering.warmStartFa = warmStartFa
@@ -288,6 +294,8 @@ extension LocalModelManager {
     public func embedSingleSpeaker(
         audio: URL, minimumDominantShare: Double = 0.75
     ) async throws -> SingleSpeakerSample? {
+        let modelLease = lease()
+        defer { modelLease.release() }
         let models = try await loadedDiarizerModels()
         var config = Self.diarizerConfiguration(speakerCount: nil)
         config.exposeChunkEmbeddings = true
@@ -338,6 +346,8 @@ extension LocalModelManager {
     /// cover it.
     func embed(audio: URL, intervals: [DiarizationInterval]) async throws -> [DiarizationChunkEmbedding] {
         guard !intervals.isEmpty else { return [] }
+        let modelLease = lease()
+        defer { modelLease.release() }
         let models = try await loadedDiarizerModels()
         let samples = try MonoAudioDecoder.loadMono16k(audio)
         guard !samples.isEmpty else { return [] }

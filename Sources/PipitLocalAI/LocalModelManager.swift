@@ -48,6 +48,9 @@ public actor LocalModelManager {
     private var prepared: (key: String, value: PreparedDiarization, source: DiskBackedAudioSampleSource)?
     private let onStateChange: @Sendable (LocalModelState) -> Void
     private let diagnostics: DiagnosticLog
+    /// Counts the work using the loaded models and releases them after they
+    /// have sat unused; see `ModelUseTracker`.
+    nonisolated let useTracker: ModelUseTracker
 
     public init(
         applicationSupport: URL,
@@ -55,6 +58,20 @@ public actor LocalModelManager {
         diagnostics: DiagnosticLog = .disabled,
         onStateChange: @escaping @Sendable (LocalModelState) -> Void = { _ in }
     ) {
+        self.init(
+            applicationSupport: applicationSupport, required: required, diagnostics: diagnostics,
+            useTracker: ModelUseTracker(), onStateChange: onStateChange
+        )
+    }
+
+    init(
+        applicationSupport: URL,
+        required: Set<LocalModelUnit> = [.whisper, .diarizer],
+        diagnostics: DiagnosticLog = .disabled,
+        useTracker: ModelUseTracker,
+        onStateChange: @escaping @Sendable (LocalModelState) -> Void = { _ in }
+    ) {
+        self.useTracker = useTracker
         let locations = LocalModelLocations(applicationSupport: applicationSupport)
         self.locations = locations
         self.diagnostics = diagnostics
@@ -65,6 +82,43 @@ public actor LocalModelManager {
         self.state = Self.computeState(
             receipts: receipts, required: required, locations: locations
         )
+        useTracker.setRelease { [weak self] in await self?.releaseLoadedModels() }
+    }
+
+    /// Takes a claim on the loaded models for as long as the caller holds it.
+    /// Every job that uses them holds one, so they are never released under
+    /// it, including across the suspension points where this actor runs
+    /// another call.
+    public nonisolated func lease() -> ModelLease { ModelLease(tracker: useTracker) }
+
+    /// The units whose models are in memory.
+    var loadedUnits: Set<LocalModelUnit> {
+        var units: Set<LocalModelUnit> = []
+        if whisper != nil { units.insert(.whisper) }
+        if parakeetManager != nil { units.insert(.parakeet) }
+        if cohereModels != nil { units.insert(.cohere) }
+        if canaryModels != nil { units.insert(.canary) }
+        if alignerModels != nil { units.insert(.ctcAligner) }
+        if diarizerModels != nil { units.insert(.diarizer) }
+        if voiceActivity != nil { units.insert(.voiceActivity) }
+        return units
+    }
+
+    /// Drops every loaded model and the prepared diarization, so their CoreML
+    /// and Metal memory returns to the system. The next job loads again through
+    /// the `loaded*` functions. Does nothing while any job holds a lease; the
+    /// idle timer calls it again when that job ends.
+    ///
+    /// - Returns: False when a job holding a lease refused the release.
+    @discardableResult
+    func releaseLoadedModels() -> Bool {
+        guard !useTracker.isBusy else { return false }
+        let count = loadedUnits.count + (prepared == nil ? 0 : 1)
+        guard count > 0 else { return true }
+        for unit in LocalModelUnit.allCases { unload(unit) }
+        clearPreparedDiarization()
+        Log.processing.notice("released \(count, privacy: .public) idle model caches")
+        return true
     }
 
     public var currentState: LocalModelState { state }
@@ -279,6 +333,10 @@ public actor LocalModelManager {
         _ unit: LocalModelUnit, force: Bool,
         progress: @escaping @Sendable (Double, String) -> Void
     ) async throws {
+        // Installing a unit leaves it loaded; hold a lease so the idle release
+        // cannot run in the middle of the install and the delay starts after it.
+        let modelLease = lease()
+        defer { modelLease.release() }
         let directory = locations.directory(for: unit)
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         var detail: String?
@@ -596,6 +654,8 @@ public actor LocalModelManager {
     func transcribeParakeet(audio: URL) async throws -> (
         text: String, words: [CtcForcedAlignment.AlignedWord], durationSeconds: Double
     ) {
+        let modelLease = lease()
+        defer { modelLease.release() }
         let manager = try await loadedParakeet()
         var decoderState = TdtDecoderState.make()
         let result = try await manager.transcribe(audio, decoderState: &decoderState)
@@ -610,6 +670,8 @@ public actor LocalModelManager {
     /// Cohere over one chunk, on the actor for the same reason. Text only;
     /// the aligner supplies the timings afterwards.
     func transcribeCohere(audio: URL) async throws -> String {
+        let modelLease = lease()
+        defer { modelLease.release() }
         let models = try await loadedCohere()
         let samples = try MonoAudioDecoder.loadMono16k(audio)
         guard !samples.isEmpty else { return "" }
@@ -621,6 +683,8 @@ public actor LocalModelManager {
     /// One chunk through Canary. The chunk is one model window long, so the
     /// manager's own overlap stitching never runs.
     func transcribeCanary(audio: URL) async throws -> String {
+        let modelLease = lease()
+        defer { modelLease.release() }
         let models = try loadedCanary()
         let samples = try MonoAudioDecoder.loadMono16k(audio)
         guard !samples.isEmpty else { return "" }
@@ -640,6 +704,8 @@ public actor LocalModelManager {
     func detectVoiceActivity(
         reading next: @escaping @Sendable () async throws -> [Float]?
     ) async throws -> VoiceActivityProfile {
+        let modelLease = lease()
+        defer { modelLease.release() }
         let manager = try await loadedVoiceActivity()
         let window = VadManager.chunkSize
         var state = await manager.makeStreamState()
@@ -683,6 +749,8 @@ public actor LocalModelManager {
     func alignTranscript(audio: URL, text: String) async throws -> [RawTranscriptSegment] {
         let rawWords = text.split(whereSeparator: \.isWhitespace).map(String.init)
         guard !rawWords.isEmpty else { return [] }
+        let modelLease = lease()
+        defer { modelLease.release() }
         let loaded = try await loadedAligner()
         let samples = try MonoAudioDecoder.loadMono16k(audio)
         guard !samples.isEmpty else { throw LocalModelError.audioUnreadable(audio.lastPathComponent) }

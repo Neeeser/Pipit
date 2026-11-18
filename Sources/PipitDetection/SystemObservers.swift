@@ -63,13 +63,24 @@ public struct WindowTitleReader: Sendable {
     }
 }
 
-/// Polls CoreAudio for which applications are using audio right now.
+/// Which applications are using audio right now, from a process list that
+/// Core Audio keeps current with notifications.
 public struct AudioProcessObserver: Sendable {
-    public init() {}
+    private let monitor: CoreAudioProcessMonitor
 
-    public func snapshot() -> [ApplicationAudioState] {
+    public init(monitor: CoreAudioProcessMonitor = CoreAudioProcessMonitor()) {
+        self.monitor = monitor
+    }
+
+    /// Starts listening. `onChange` runs when a process starts or stops audio,
+    /// so detection can look again at once instead of waiting for its poll.
+    public func start(onChange: @escaping @Sendable () -> Void) { monitor.start(onChange: onChange) }
+
+    public func stop() { monitor.stop() }
+
+    public func snapshot(at now: Double) -> [ApplicationAudioState] {
         let frontmost = NSWorkspace.shared.frontmostApplication?.bundleIdentifier
-        return CoreAudioSystem.processes().map { process in
+        return monitor.processes(at: now).map { process in
             ApplicationAudioState(
                 bundleIdentifier: process.bundleIdentifier,
                 processID: process.processID,

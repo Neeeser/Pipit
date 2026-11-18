@@ -35,9 +35,13 @@ extension LocalModelManager {
             #endif
             throw LiveEngineError.unavailable
         case .phrases:
+            // Held until the engine finishes or is dropped, so a quiet stretch
+            // in a long call does not release the models and make the next
+            // phrase wait for a reload.
+            let modelLease = lease()
             let activity = try await liveVoiceActivity()
             _ = try await loadedParakeet()
-            return ParakeetLiveEngine(models: self, activity: activity)
+            return ParakeetLiveEngine(models: self, activity: activity, lease: modelLease)
         case .none:
             throw LiveEngineError.unavailable
         }
@@ -61,6 +65,7 @@ public actor ParakeetLiveEngine: LiveTrackEngine {
     private let publish: AsyncStream<LiveTextUpdate>.Continuation
     private let models: LocalModelManager
     private let activity: LiveVoiceActivity
+    private let lease: ModelLease
     private var segmenter = LiveSpeechSegmenter(tuning: .live)
     /// Samples from `bufferStart`, the timeline index of the first one.
     private var buffer: [Float] = []
@@ -71,9 +76,10 @@ public actor ParakeetLiveEngine: LiveTrackEngine {
     private var scored = 0
     private var lastProvisional = 0
 
-    init(models: LocalModelManager, activity: LiveVoiceActivity) {
+    init(models: LocalModelManager, activity: LiveVoiceActivity, lease: ModelLease) {
         self.models = models
         self.activity = activity
+        self.lease = lease
         (updates, publish) = AsyncStream<LiveTextUpdate>.makeStream()
     }
 
@@ -126,6 +132,7 @@ public actor ParakeetLiveEngine: LiveTrackEngine {
             await transcribe(phrase.start, phrase.end, isFinal: true)
         }
         publish.finish()
+        lease.release()
     }
 
     /// Reads windows `from..<to` and publishes the text.

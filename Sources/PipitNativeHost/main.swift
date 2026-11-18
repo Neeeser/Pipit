@@ -19,45 +19,6 @@ let startedFrom = FileIdentity(path: Bundle.main.executablePath ?? CommandLine.a
 
 let hostVersion = "1.3.0"
 
-/// Reads the browser's length-prefixed messages from standard input.
-struct BrowserMessageReader {
-    /// Why reading stopped: the browser closed the pipe, or sent something
-    /// that is not a message.
-    private(set) var endedOnError = false
-
-    /// Reads exactly `count` bytes, or nil once the stream ends.
-    private func readExactly(_ count: Int) -> Data? {
-        var data = Data()
-        while data.count < count {
-            let chunk = FileHandle.standardInput.readData(ofLength: count - data.count)
-            if chunk.isEmpty { return nil }
-            data.append(chunk)
-        }
-        return data
-    }
-
-    mutating func next() -> [String: Any]? {
-        guard let header = readExactly(4) else { return nil }
-        let length =
-            Int(header[header.startIndex])
-            | Int(header[header.startIndex + 1]) << 8
-            | Int(header[header.startIndex + 2]) << 16
-            | Int(header[header.startIndex + 3]) << 24
-        // A hostile or confused peer must not be able to make the host allocate
-        // without bound; browsers cap messages far below this.
-        guard length > 0, length <= 1_048_576 else {
-            endedOnError = true
-            return nil
-        }
-        guard let payload = readExactly(length) else { return nil }
-        guard let object = (try? JSONSerialization.jsonObject(with: payload)) as? [String: Any] else {
-            endedOnError = true
-            return nil
-        }
-        return object
-    }
-}
-
 /// Writes a length-prefixed reply back to the browser.
 func replyToBrowser(_ object: [String: Any]) {
     guard let payload = try? JSONSerialization.data(withJSONObject: object) else { return }
@@ -142,9 +103,9 @@ let replacementCheck = exitWhenReplaced(
 func relayMessages() -> (relayed: Int, endedOnError: Bool) {
     var reader = BrowserMessageReader()
     var relayed = 0
-    while let raw = reader.next() {
+    let endedOnError = reader.readAll { raw in
         guard let message = SensorRelay.message(from: raw, browser: browser, hostVersion: hostVersion) else {
-            continue
+            return
         }
         let delivered = connection.deliver(message)
         if delivered {
@@ -158,7 +119,7 @@ func relayMessages() -> (relayed: Int, endedOnError: Bool) {
             replyToBrowser(["type": "ack", "connected": delivered])
         }
     }
-    return (relayed, reader.endedOnError)
+    return (relayed, endedOnError)
 }
 
 let outcome = relayMessages()

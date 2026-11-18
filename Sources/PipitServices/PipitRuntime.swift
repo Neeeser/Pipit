@@ -133,10 +133,22 @@ public final class PipitRuntime {
     public private(set) var status = RuntimeStatus()
     public private(set) var recentMeetings: [MeetingSummary] = []
     public private(set) var processing: [String: ProcessingPipeline.Progress] = [:]
-    public private(set) var provisionalPrompt: ProvisionalPrompt?
+    /// The menu bar opens and closes the prompt from `onStatusChange`, and a
+    /// prompt can end on a path that changes nothing else in the status (a
+    /// provisional recording that fails to finish), so a change here notifies
+    /// on its own.
+    public private(set) var provisionalPrompt: ProvisionalPrompt? {
+        didSet { if oldValue != provisionalPrompt { onStatusChange?() } }
+    }
     /// The live transcript of the recording in progress, for the live window.
     @ObservationIgnored public let live = LiveTranscriptModel()
     @ObservationIgnored private var liveSession: LiveTranscriptSession?
+    /// The last read of Firefox's add-on list and when it was made. Detection
+    /// reports every poll, and the list changes only when the person installs
+    /// or removes the add-on, so a read a few seconds old is as good as a new
+    /// one and the profile folder is not listed on every poll.
+    @ObservationIgnored private var firefoxProfileRead: (at: Double, probe: FirefoxProfile.Probe)?
+    static let firefoxProfileReadInterval: Double = 15
     public private(set) var settings: AppSettings
     /// Whether the on-device speech models are installed, and how far a
     /// download has got. Recording never waits on this.
@@ -727,24 +739,47 @@ public final class PipitRuntime {
         var updated = settings
         updated.firefoxProfileAccess = FirefoxProfileAccess.recorded(from: probe)
         if updated.firefoxProfileAccess != settings.firefoxProfileAccess { update(settings: updated) }
-        status.firefoxAddOnInProfile = status.sensorConnection.isLoaded || probe == .installed
+        firefoxProfileRead = (clock.monotonicSeconds, probe)
+        let inProfile = status.sensorConnection.isLoaded || probe == .installed
+        if status.firefoxAddOnInProfile != inProfile {
+            status.firefoxAddOnInProfile = inProfile
+            // The menu bar's badge reads this. Detection notifies only on a
+            // change, and by its next poll this one is no longer a change.
+            onStatusChange?()
+        }
         Log.app.info("firefox profile check: \(String(describing: probe), privacy: .public)")
         return probe
     }
 
+    /// Firefox's add-on list, read again only once the last read is stale.
+    private func firefoxProfileProbe() -> FirefoxProfile.Probe {
+        let now = clock.monotonicSeconds
+        if let read = firefoxProfileRead, now - read.at < Self.firefoxProfileReadInterval { return read.probe }
+        let probe = FirefoxProfile.probe()
+        firefoxProfileRead = (now, probe)
+        return probe
+    }
+
     func detectionDidUpdate(_ snapshot: DetectionSnapshot) {
-        status.sensorConnection = snapshot.browserSensor
-        status.browserSensors = snapshot.browserSensors
-        status.browserHellos = snapshot.sensorHellos
-        status.isFirefoxRunning = BrowserPresence.isRunning(.firefox)
+        // Detection reports on every poll, and almost every report changes
+        // nothing. The menu bar, the Dock and every open window redraw from
+        // `onStatusChange` and from observing `status`, so both are touched
+        // only when something did change.
+        let before = status
+        var next = status
+        next.sensorConnection = snapshot.browserSensor
+        next.browserSensors = snapshot.browserSensors
+        next.browserHellos = snapshot.sensorHellos
+        next.isFirefoxRunning = BrowserPresence.isRunning(.firefox)
         // A live connection is proof enough. The profile is read only when
         // nothing is talking and the person has allowed the read, which they
         // do once on the Firefox page. Reading it here unasked raised the
         // macOS "access data from other apps" prompt seconds after first
         // launch, before setup had said a word about Firefox.
-        status.firefoxAddOnInProfile =
+        next.firefoxAddOnInProfile =
             snapshot.browserSensor.isLoaded
-            || (settings.firefoxProfileAccess == .allowed && FirefoxProfile.probe() == .installed)
+            || (settings.firefoxProfileAccess == .allowed && firefoxProfileProbe() == .installed)
+        if next != status { status = next }
         // The latch is written once, the first time the add-on ever reports.
         // From then on a silent sensor is a dropped add-on rather than one that
         // was never installed.
@@ -765,10 +800,12 @@ public final class PipitRuntime {
                 update(settings: updated)
             }
         }
-        status.firefoxSensorHasConnected = settings.firefoxSensorHasConnected
-        status.firefoxAddOnProtocol = settings.firefoxAddOnProtocol
-        status.firefoxAddOnVersion = settings.firefoxAddOnVersion
-        status.slackState = snapshot.slackState
+        next = status
+        next.firefoxSensorHasConnected = settings.firefoxSensorHasConnected
+        next.firefoxAddOnProtocol = settings.firefoxAddOnProtocol
+        next.firefoxAddOnVersion = settings.firefoxAddOnVersion
+        next.slackState = snapshot.slackState
+        if next != status { status = next }
         if let reading = snapshot.roster { recordSensorReading(reading) }
 
         // Unsupported calls arrive as ordinary evidence rather than a one-shot
@@ -776,7 +813,8 @@ public final class PipitRuntime {
         let actions = sessionController.update(
             evidence: snapshot.evidence, now: clock.monotonicSeconds, wallClock: clock.now
         )
-        syncStatusFromSession()
+        syncStatusFromSession(notify: false)
+        if status != before { onStatusChange?() }
         guard !actions.isEmpty else { return }
         enqueue { [weak self] in await self?.perform(actions) }
     }
@@ -2299,15 +2337,19 @@ public final class PipitRuntime {
         onProcessingUpdate?(meetingID)
     }
 
-    private func syncStatusFromSession() {
+    /// - Parameter notify: Whether to call `onStatusChange` whatever changed.
+    ///   The detection path passes false and notifies only on a change.
+    private func syncStatusFromSession(notify: Bool = true) {
         let snapshot = sessionController.snapshot
-        status.sessionState = snapshot.state
-        status.source = snapshot.source
-        status.provider = snapshot.provider
-        status.title = currentMeeting?.metadata.displayTitle ?? snapshot.title
-        status.startedAt = snapshot.startedAt
-        status.isProvisional = snapshot.isProvisional
-        status.detectionPaused = settings.providers.detectionPaused
+        var next = status
+        next.sessionState = snapshot.state
+        next.source = snapshot.source
+        next.provider = snapshot.provider
+        next.title = currentMeeting?.metadata.displayTitle ?? snapshot.title
+        next.startedAt = snapshot.startedAt
+        next.isProvisional = snapshot.isProvisional
+        next.detectionPaused = settings.providers.detectionPaused
+        if next != status { status = next }
         // Read by the processing gate from another executor, so a job started
         // before a meeting parks between stages instead of competing with the
         // capture that is running now.
@@ -2323,7 +2365,7 @@ public final class PipitRuntime {
                 existing = .idle
             }
         }
-        onStatusChange?()
+        if notify { onStatusChange?() }
     }
 }
 

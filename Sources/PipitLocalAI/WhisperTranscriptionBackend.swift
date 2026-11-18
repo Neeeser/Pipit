@@ -56,6 +56,8 @@ extension LocalModelManager {
     func transcribe(
         audio: URL, progress: @escaping @Sendable (Double) -> Void
     ) async throws -> TranscriptionOutput {
+        let modelLease = lease()
+        defer { modelLease.release() }
         let pipeline = try await loadedWhisper()
 
         let options = Self.decodingOptions()

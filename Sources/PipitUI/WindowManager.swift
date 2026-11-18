@@ -13,7 +13,7 @@ public final class WindowManager {
     private var settingsModel: SettingsModel?
     private var peopleWindow: NSWindow?
     private var aboutWindow: NSWindow?
-    private var peopleModel: PeopleDirectoryModel?
+    private(set) var peopleModel: PeopleDirectoryModel?
     private var setupWindow: NSWindow?
     private var setupModel: SetupModel?
     private var setupPlacementToken: NSObjectProtocol?
@@ -777,6 +777,43 @@ public final class WindowManager {
             NotificationCenter.default.removeObserver(token)
         }
         refreshDockPresence()
+        // After the close finishes, not during its notification.
+        DispatchQueue.main.async { [weak self] in
+            MainActor.assumeIsolated { self?.discardClosedWindow(key) }
+        }
+    }
+
+    /// Lets a closed window and its model go, so Pipit returns to its small
+    /// idle footprint once the person is done with them.
+    ///
+    /// A window kept for reuse keeps its whole view tree, its layers and
+    /// whatever it last loaded: a Meetings window left open once held its
+    /// transcripts and drawing buffers for the rest of the app's life. Each
+    /// of these windows reloads its contents on every open anyway, and its
+    /// frame is saved under its autosave name, so building it again on the
+    /// next open loses nothing the person sees.
+    private func discardClosedWindow(_ key: ObjectIdentifier) {
+        // Reopened before this ran.
+        guard !openWindows.contains(key) else { return }
+        func matches(_ window: NSWindow?) -> Bool { window.map { ObjectIdentifier($0) == key } ?? false }
+        if matches(meetingsWindow) {
+            meetingsWindow = nil
+            meetingsModel = nil
+            if let findMonitor { NSEvent.removeMonitor(findMonitor) }
+            findMonitor = nil
+        } else if matches(settingsWindow) {
+            settingsWindow = nil
+            settingsModel = nil
+        } else if matches(peopleWindow) {
+            // A note saves a beat after typing stops, through a timer that
+            // holds the model weakly. Saved here, holding it, so a note typed
+            // just before the window closed is not lost with the model.
+            if let peopleModel { Task { @MainActor in await peopleModel.flushNotes() } }
+            peopleWindow = nil
+            peopleModel = nil
+        } else if matches(aboutWindow) {
+            aboutWindow = nil
+        }
     }
 
     /// Whether a window Pipit has to stay reachable behind is on screen.
