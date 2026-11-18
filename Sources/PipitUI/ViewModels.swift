@@ -24,6 +24,9 @@ public final class SettingsModel {
     var pane: SettingsPane = .general
     public var hostStatus: NativeMessagingInstaller.Status?
     public var sensorStatus: BrowserSensorServer.Status?
+    /// Whether Safari has Pipit's extension switched on. Nil until Safari
+    /// answers, and on a build with no extension.
+    var safariExtensionEnabled: Bool?
     public var apiKey = ""
     public var hasStoredKey: Bool
     public var testState = TestState.idle
@@ -93,6 +96,7 @@ public final class SettingsModel {
         statuses = await runtime.permissions.allStatuses()
         hostStatus = NativeMessagingInstaller().status()
         sensorStatus = runtime.sensorStatus
+        safariExtensionEnabled = await SafariAddOn.isEnabled()
         // Off the main actor: this call blocks until the person answers the
         // login-keychain prompt macOS raises when the item's ACL does not
         // trust the binary, which every unsigned rebuild produces. Run inline
@@ -115,6 +119,7 @@ public final class SettingsModel {
             guard !Task.isCancelled else { return }
             sensorStatus = runtime.sensorStatus
             hostStatus = NativeMessagingInstaller().status()
+            safariExtensionEnabled = await SafariAddOn.isEnabled()
         }
     }
 

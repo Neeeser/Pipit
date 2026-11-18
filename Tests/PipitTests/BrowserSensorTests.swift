@@ -185,4 +185,20 @@ struct BrowserSensorTests {
         #expect(BrowserAddOnState(connection: .absent, isBundled: false) == .unavailable)
         #expect(!BrowserAddOnState(connection: .absent, isBundled: false).offersSetUp)
     }
+
+    @Test("a Safari extension that is switched on counts as installed while Safari is closed")
+    func aSafariExtensionThatIsSwitchedOnCountsAsInstalledWhileSafariIsClosed() async throws {
+        // Safari starts the extension only while it has a page open, so with
+        // Safari closed there is no connection. Safari's own answer decides.
+        let idle = BrowserAddOnState(connection: .absent, isBundled: true, isEnabled: true)
+        #expect(idle == .installed)
+        #expect(!idle.offersSetUp)
+        #expect(BrowserAddOnState(connection: .absent, isBundled: true, isEnabled: false) == .off)
+        #expect(BrowserAddOnState(connection: .absent, isBundled: true, isEnabled: false).offersSetUp)
+        #expect(
+            BrowserAddOnState(connection: .absent, isBundled: true, isEnabled: nil) == .off,
+            "an answer Safari has not given yet changes nothing")
+        #expect(BrowserAddOnState(connection: .fresh, isBundled: true, isEnabled: false) == .on)
+        #expect(BrowserAddOnState(connection: .absent, isBundled: false, isEnabled: true) == .unavailable)
+    }
 }

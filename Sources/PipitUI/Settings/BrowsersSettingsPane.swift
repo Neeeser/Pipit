@@ -17,7 +17,8 @@ struct BrowsersSettingsPane: View {
     private var safariState: BrowserAddOnState {
         BrowserAddOnState(
             connection: runtime.status.browserSensors[.safari] ?? .absent,
-            isBundled: SafariAddOn.isBundled
+            isBundled: SafariAddOn.isBundled,
+            isEnabled: model.safariExtensionEnabled
         )
     }
 
