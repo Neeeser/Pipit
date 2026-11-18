@@ -1,5 +1,6 @@
 import AppKit
 import PipitCore
+import PipitIntegrations
 import PipitServices
 import PipitUI
 
@@ -21,10 +22,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var updates: UpdateController!
     private var isTerminating = false
 
+    /// Apple Intelligence on a Mac that runs it now. A Mac still downloading
+    /// the model is left on the stored default: a meeting processed before the
+    /// download finished would be skipped and never caught up on its own, and
+    /// Settings offers Apple Intelligence once it is ready.
+    private static var firstLaunchLanguageModel: LanguageModelProvider? {
+        AppleIntelligenceAvailability.current == .available ? .appleIntelligence : nil
+    }
+
     func applicationDidFinishLaunching(_ notification: Notification) {
         // The real event log only here. Every other runtime, the tests' among
         // them, gets the disabled one and writes nothing to the Logs folder.
-        runtime = PipitRuntime(diagnostics: DiagnosticLog(layout: .standard))
+        runtime = PipitRuntime(
+            diagnostics: DiagnosticLog(layout: .standard),
+            firstLaunchLanguageModel: Self.firstLaunchLanguageModel
+        )
         LoginItem.apply(launchAtLogin: runtime.settings.launchAtLogin)
         windows = WindowManager(runtime: runtime)
         // Applied from the loaded settings rather than hardcoded, and again on

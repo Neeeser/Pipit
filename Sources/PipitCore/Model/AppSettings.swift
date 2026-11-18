@@ -698,6 +698,9 @@ public struct SettingsStore: Sendable {
         self.url = directory.appendingPathComponent("settings.json")
     }
 
+    /// Whether settings were ever saved here, which is false on a new install.
+    public var exists: Bool { FileManager.default.fileExists(atPath: url.path) }
+
     public func load() -> AppSettings {
         guard let data = try? Data(contentsOf: url),
             let settings = try? ArchiveCoding.decode(AppSettings.self, from: data, path: url.path)

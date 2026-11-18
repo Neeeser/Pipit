@@ -7,6 +7,9 @@ import Foundation
 /// page. Adding a provider is one case here, one case in `LanguageModelFactory`,
 /// and a row in Settings that already iterates `allCases`.
 public enum LanguageModelProvider: String, Codable, Sendable, CaseIterable, Identifiable {
+    /// Apple's Foundation Models on this Mac. Needs macOS 27 with Apple
+    /// Intelligence on, and nothing to install or sign in to.
+    case appleIntelligence = "apple-intelligence"
     case openAI = "openai"
     case openRouter = "openrouter"
     case ollama
@@ -16,6 +19,7 @@ public enum LanguageModelProvider: String, Codable, Sendable, CaseIterable, Iden
 
     public var displayName: String {
         switch self {
+        case .appleIntelligence: "Apple Intelligence"
         case .openAI: "OpenAI"
         case .openRouter: "OpenRouter"
         case .ollama: "Ollama"
@@ -25,6 +29,7 @@ public enum LanguageModelProvider: String, Codable, Sendable, CaseIterable, Iden
 
     public var blurb: String {
         switch self {
+        case .appleIntelligence: "Apple's model on this Mac"
         case .openAI: "GPT models from OpenAI"
         case .openRouter: "One key for hundreds of hosted models"
         case .ollama: "Models running on this Mac"
@@ -43,6 +48,8 @@ public enum LanguageModelProvider: String, Codable, Sendable, CaseIterable, Iden
         /// context window, and a prompt past the default is cut short without
         /// an error.
         case ollamaChat
+        /// Apple's Foundation Models framework, called in process.
+        case foundationModels
     }
 
     public var wire: Wire {
@@ -50,6 +57,7 @@ public enum LanguageModelProvider: String, Codable, Sendable, CaseIterable, Iden
         case .openAI: .openAIResponses
         case .openRouter, .custom: .chatCompletions
         case .ollama: .ollamaChat
+        case .appleIntelligence: .foundationModels
         }
     }
 
@@ -64,7 +72,7 @@ public enum LanguageModelProvider: String, Codable, Sendable, CaseIterable, Iden
         switch self {
         case .openAI, .openRouter: .required
         case .custom: .optional
-        case .ollama: .none
+        case .ollama, .appleIntelligence: .none
         }
     }
 
@@ -76,7 +84,7 @@ public enum LanguageModelProvider: String, Codable, Sendable, CaseIterable, Iden
         case .openAI: "sk-…"
         case .openRouter: "sk-or-…"
         case .custom: "Optional"
-        case .ollama: ""
+        case .ollama, .appleIntelligence: ""
         }
     }
 
@@ -87,7 +95,7 @@ public enum LanguageModelProvider: String, Codable, Sendable, CaseIterable, Iden
         case .openAI: "com.pipit.app.openai"
         case .openRouter: "com.pipit.app.openrouter"
         case .custom: "com.pipit.app.custom-endpoint"
-        case .ollama: ""
+        case .ollama, .appleIntelligence: ""
         }
     }
 
@@ -97,7 +105,7 @@ public enum LanguageModelProvider: String, Codable, Sendable, CaseIterable, Iden
         switch self {
         case .openAI: "OPENAI_API_KEY"
         case .openRouter: "OPENROUTER_API_KEY"
-        case .custom, .ollama: nil
+        case .custom, .ollama, .appleIntelligence: nil
         }
     }
 
@@ -107,7 +115,7 @@ public enum LanguageModelProvider: String, Codable, Sendable, CaseIterable, Iden
         case .openAI: "https://api.openai.com/v1"
         case .openRouter: "https://openrouter.ai/api/v1"
         case .ollama: "http://127.0.0.1:11434"
-        case .custom: ""
+        case .custom, .appleIntelligence: ""
         }
     }
 
@@ -116,13 +124,15 @@ public enum LanguageModelProvider: String, Codable, Sendable, CaseIterable, Iden
     public var choosesContextWindow: Bool {
         switch self {
         case .ollama, .custom: true
-        case .openAI, .openRouter: false
+        case .openAI, .openRouter, .appleIntelligence: false
         }
     }
 
-    /// The model used before one is chosen. Only OpenAI has a sensible answer.
+    /// The model used before one is chosen. OpenAI has a sensible answer, and
+    /// Apple Intelligence has only the one model.
     public var defaultModel: String {
         switch self {
+        case .appleIntelligence: Self.appleOnDeviceModel
         case .openAI: AIModelSettings.defaultMetadataModel
         case .openRouter, .ollama, .custom: ""
         }
@@ -138,8 +148,20 @@ public enum LanguageModelProvider: String, Codable, Sendable, CaseIterable, Iden
         switch self {
         case .ollama, .custom: ContextWindow.defaultTokens
         case .openAI, .openRouter: ContextWindow.hostedDefaultTokens
+        case .appleIntelligence: Self.appleContextTokens
         }
     }
+
+    /// The name the on-device model is stored and reported under.
+    public static let appleOnDeviceModel = "on-device"
+
+    /// The window each request to Apple's on-device model is sized to.
+    ///
+    /// The model's window is 8,192 tokens, but sizing parts to it left too
+    /// little room for the answer, which overran the window in about one
+    /// meeting in five. The summary benchmark found more of the key's action
+    /// items with parts sized to this smaller window as well.
+    public static let appleContextTokens = 6_144
 }
 
 /// What a person typed or picked for one provider.

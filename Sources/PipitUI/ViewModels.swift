@@ -216,7 +216,7 @@ public final class SettingsModel {
         // list can say it is there.
         async let ollama: Void = probeOllama()
         switch provider {
-        case .openAI, .ollama: break
+        case .openAI, .ollama, .appleIntelligence: break
         case .openRouter, .custom: await loadModelList()
         }
         await ollama

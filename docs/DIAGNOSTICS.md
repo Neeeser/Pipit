@@ -394,8 +394,8 @@ a count or a yes/no.
 | `recognizeKnownVoices`, `rememberRecurringVoices`, `learnMyVoice`, `learnFromCorrections` | Booleans |
 | `hasLocalUserIdentity` | Whether a voice identity stands for the person using this Mac |
 | `vocabularyHintCount` | How many vocabulary hints there are |
-| `metadataProvider` | `openai`, `openrouter`, `ollama`, or `custom` |
-| `metadataModel` | OpenAI: one of the models Settings offers, else `custom`. OpenRouter: a catalogue identifier `vendor/model` written `vendor:model`, else `custom`. Ollama and a custom endpoint: always `custom`. `none` when empty |
+| `metadataProvider` | `apple-intelligence`, `openai`, `openrouter`, `ollama`, or `custom` |
+| `metadataModel` | Apple Intelligence: `on-device`. OpenAI: one of the models Settings offers, else `custom`. OpenRouter: a catalogue identifier `vendor/model` written `vendor:model`, else `custom`. Ollama and a custom endpoint: always `custom`. `none` when empty |
 | `metadataContextTokens` | The context window requests are sized to |
 | `hasOpenAIKey`, `hasOpenRouterKey`, `hasCustomEndpointKey` | Whether the Keychain holds a key, asked without reading it |
 | `customEndpointScheme` | `none` (nothing typed), `http`, `https`, or `other` (not a web address) |

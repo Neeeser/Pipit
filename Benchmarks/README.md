@@ -151,8 +151,11 @@ scripts/eval.sh summaries \
 ```
 
 `--instructions FILE` scores a draft of the prompt without rebuilding. A model
-is `provider:model` with provider `openai`, `openrouter` or `ollama`, or
-`custom:<base url>|<model>` for any chat completions server. OpenAI and
+is `provider:model` with provider `openai`, `openrouter` or `ollama`,
+`custom:<base url>|<model>` for any chat completions server, or
+`apple:on-device` and `apple:private-cloud` for Apple's Foundation Models on
+macOS 27. The Private Cloud Compute model answers only in a build that holds
+Apple's entitlement for it. OpenAI and
 OpenRouter keys come from `OPENAI_API_KEY` and `OPENROUTER_API_KEY`, or from
 the keys Pipit stores in the keychain.
 

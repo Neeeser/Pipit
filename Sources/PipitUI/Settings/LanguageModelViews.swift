@@ -13,7 +13,7 @@ struct ProviderChoice: View {
             "Provider",
             selection: Binding(get: { model.provider }, set: { newValue in model.selectProvider(newValue) })
         ) {
-            ForEach(LanguageModelProvider.allCases) { provider in
+            ForEach(offered) { provider in
                 HStack(alignment: .firstTextBaseline) {
                     VStack(alignment: .leading, spacing: 1) {
                         Text(provider.displayName)
@@ -29,6 +29,14 @@ struct ProviderChoice: View {
         .pickerStyle(.radioGroup)
         .labelsHidden()
     }
+
+    /// Apple Intelligence is left out on a Mac that can never run it, unless
+    /// it is already chosen, so the choice stays visible to change.
+    private var offered: [LanguageModelProvider] {
+        guard AppleIntelligenceAvailability.current.isPermanent, model.provider != .appleIntelligence
+        else { return LanguageModelProvider.allCases }
+        return LanguageModelProvider.allCases.filter { $0 != .appleIntelligence }
+    }
 }
 
 /// What the chosen provider needs: a key, an address, a model.
@@ -37,6 +45,8 @@ struct ProviderSettingsRows: View {
 
     var body: some View {
         switch model.provider {
+        case .appleIntelligence:
+            AppleIntelligenceRows()
         case .openAI:
             ProviderKeyRows(model: model)
             LabeledContent("Model") { MetadataModelPicker(runtime: model.runtime) }
@@ -244,6 +254,35 @@ struct ModelSearchList: View {
         // Cents, unless the price needs the third digit.
         if text.hasSuffix("0") { text.removeLast() }
         return "$\(text)"
+    }
+}
+
+/// Whether Apple Intelligence can write summaries on this Mac, and what to do
+/// when it cannot. There is no key, address or model to choose.
+struct AppleIntelligenceRows: View {
+    private let availability = AppleIntelligenceAvailability.current
+
+    var body: some View {
+        switch availability {
+        case .available:
+            Label("Ready", systemImage: "checkmark.circle.fill")
+                .foregroundStyle(.green).font(.caption)
+        case .notInThisBuild:
+            unavailable("This version of Pipit cannot use Apple Intelligence")
+        case .needsNewerMacOS:
+            unavailable("Needs macOS 27 or later")
+        case .deviceNotEligible:
+            unavailable("This Mac does not support Apple Intelligence")
+        case .notEnabled:
+            unavailable("Turn on Apple Intelligence in System Settings")
+        case .modelNotReady:
+            unavailable("Apple Intelligence is still downloading")
+        }
+    }
+
+    private func unavailable(_ message: String) -> some View {
+        Label(message, systemImage: "exclamationmark.circle.fill")
+            .foregroundStyle(.orange).font(.caption)
     }
 }
 

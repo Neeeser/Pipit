@@ -1,5 +1,6 @@
 import AppKit
 import PipitCore
+import PipitIntegrations
 import PipitLocalAI
 import PipitServices
 import SwiftUI
@@ -347,10 +348,27 @@ struct OptionalPermissionsStep: View {
 
 // MARK: - AI features
 
-/// The OpenAI key and what it is used for. Every feature is on by default,
-/// and this is where a person switches one off.
+/// Who writes titles, summaries and notes, and which of them to write. Every
+/// feature is on by default, and this is where a person switches one off.
+///
+/// On a Mac that runs Apple Intelligence a new install already uses it, so the
+/// step says so and offers OpenAI as the other choice. A key typed here is
+/// then always for the provider that will use it.
 struct AIFeaturesStep: View {
     let model: SetupModel
+
+    /// Shown when the provider is one of these two, so the choice never claims
+    /// another provider chosen in Settings, and Apple Intelligence once chosen
+    /// can always be changed back.
+    private var offersAppleIntelligence: Bool {
+        switch provider {
+        case .appleIntelligence: true
+        case .openAI: !AppleIntelligenceAvailability.current.isPermanent
+        case .openRouter, .ollama, .custom: false
+        }
+    }
+
+    private var provider: LanguageModelProvider { model.runtime.settings.models.metadataProvider }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 18) {
@@ -358,16 +376,40 @@ struct AIFeaturesStep: View {
                 eyebrow: "Optional",
                 title: "AI Features"
             )
-            OpenAIKeyField(model: model)
-            Divider()
-            HStack(alignment: .firstTextBaseline, spacing: 12) {
-                Text("Model").font(.headline)
-                MetadataModelPicker(runtime: model.runtime)
+            if offersAppleIntelligence {
+                Picker("Provider", selection: providerBinding) {
+                    Text(LanguageModelProvider.appleIntelligence.displayName).tag(
+                        LanguageModelProvider.appleIntelligence)
+                    Text(LanguageModelProvider.openAI.displayName).tag(LanguageModelProvider.openAI)
+                }
+                .pickerStyle(.segmented)
+                .fixedSize()
+            }
+            if provider == .appleIntelligence {
+                AppleIntelligenceRows()
+            } else {
+                OpenAIKeyField(model: model)
+                Divider()
+                HStack(alignment: .firstTextBaseline, spacing: 12) {
+                    Text("Model").font(.headline)
+                    MetadataModelPicker(runtime: model.runtime)
+                }
             }
             Divider()
             EnrichmentToggles(runtime: model.runtime)
         }
         .task { await model.lookUpStoredKey() }
+    }
+
+    private var providerBinding: Binding<LanguageModelProvider> {
+        Binding(
+            get: { provider },
+            set: { chosen in
+                var settings = model.runtime.settings
+                settings.models.metadataProvider = chosen
+                model.runtime.update(settings: settings)
+            }
+        )
     }
 }
 
