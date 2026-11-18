@@ -166,6 +166,8 @@ public enum SetupFlow {
             // A key on disk is the offer taken, whether or not this session
             // checked it. The page checks a typed key before saving it.
             if snapshot.cloudKeyVerified || snapshot.hasStoredKey { return .done }
+            // Apple Intelligence needs nothing set up, so choosing it is done.
+            if visited, snapshot.settings.models.metadataProvider == .appleIntelligence { return .done }
             return visited ? .skipped : .notVisited
         case .firefox:
             // The add-on in Firefox, not the relay on disk. The relay is

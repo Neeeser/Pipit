@@ -357,8 +357,15 @@ struct OptionalPermissionsStep: View {
 struct AIFeaturesStep: View {
     let model: SetupModel
 
+    /// Shown when the provider is one of these two, so a provider chosen in
+    /// Settings is never shown as OpenAI, and Apple Intelligence once chosen
+    /// can always be changed back.
     private var offersAppleIntelligence: Bool {
-        !AppleIntelligenceAvailability.current.isPermanent
+        switch provider {
+        case .appleIntelligence: true
+        case .openAI: !AppleIntelligenceAvailability.current.isPermanent
+        case .openRouter, .ollama, .custom: false
+        }
     }
 
     private var provider: LanguageModelProvider { model.runtime.settings.models.metadataProvider }
@@ -396,7 +403,7 @@ struct AIFeaturesStep: View {
 
     private var providerBinding: Binding<LanguageModelProvider> {
         Binding(
-            get: { provider == .appleIntelligence ? .appleIntelligence : .openAI },
+            get: { provider },
             set: { chosen in
                 var settings = model.runtime.settings
                 settings.models.metadataProvider = chosen

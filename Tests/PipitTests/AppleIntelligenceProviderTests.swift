@@ -66,7 +66,7 @@ struct AppleIntelligenceProviderTests {
             let context = LanguageModelSession.GenerationError.Context(debugDescription: "")
             #expect(AppleIntelligenceClient.failure(of: .rateLimited(context)) == .rateLimited(retryAfter: nil))
             #expect(AppleIntelligenceClient.failure(of: .assetsUnavailable(context)) == .unreachable)
-            #expect(AppleIntelligenceClient.failure(of: .guardrailViolation(context)) == .rejected(status: 0))
+            #expect(AppleIntelligenceClient.failure(of: .guardrailViolation(context)) == .unexpectedResponse)
             #expect(AppleIntelligenceClient.failure(of: .exceededContextWindowSize(context)) == .unexpectedResponse)
         }
 

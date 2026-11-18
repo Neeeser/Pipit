@@ -150,7 +150,8 @@ public enum AppleIntelligenceAvailability: Sendable, Hashable {
             switch error {
             case .assetsUnavailable: .unreachable
             case .rateLimited, .concurrentRequests: .rateLimited(retryAfter: nil)
-            case .guardrailViolation, .refusal, .unsupportedLanguageOrLocale: .rejected(status: 0)
+            // Not `.rejected`, whose advice is to pick another model, and
+            // there is no other Apple model to pick.
             default: .unexpectedResponse
             }
         }

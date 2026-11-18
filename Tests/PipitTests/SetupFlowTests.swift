@@ -221,6 +221,15 @@ struct SetupFlowTests {
         #expect(marks[.aiFeatures] == .skipped, "no key stored is the offer left off")
         #expect(marks[.firefox] == .skipped)
 
+        // Apple Intelligence needs no key, so continuing with it chosen is the
+        // page done rather than skipped.
+        snapshot.settings.models.metadataProvider = .appleIntelligence
+        marks = Dictionary(
+            uniqueKeysWithValues: SetupFlow.steps(for: snapshot).map { ($0.id, $0.mark) }
+        )
+        #expect(marks[.aiFeatures] == .done)
+        snapshot.settings.models.metadataProvider = .openAI
+
         // The relay and its manifest are written by Pipit on every launch, so
         // they said nothing about Firefox. A reinstall onto a Mac that had an
         // earlier build showed a green check with no add-on in Firefox at all.

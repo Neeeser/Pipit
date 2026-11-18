@@ -432,8 +432,8 @@ their instructions and answer schema from `LanguageModelPrompts`, so a provider
 changes the envelope and not the words. A new provider is a case in the enum, a
 case in `LanguageModelFactory`, and its own key in `LanguageModelKeyring`.
 
-Apple Intelligence is the provider a new install starts with on a Mac that can
-run it, so titles, summaries and notes work with nothing to install or sign in
+Apple Intelligence is the provider a new install starts with on a Mac that
+runs it at first launch, so titles, summaries and notes work with nothing to install or sign in
 to. `PipitApp` passes it to `PipitRuntime` only when no settings file exists, so
 a choice already saved is kept. Its requests are sized to
 `LanguageModelProvider.appleContextTokens`, under the model's 8,192-token

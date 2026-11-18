@@ -22,15 +22,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var updates: UpdateController!
     private var isTerminating = false
 
-    /// Apple Intelligence on a Mac that runs it, including one still
-    /// downloading the model on a new Mac, which is ready within minutes. A
-    /// meeting processed before then says it has no summary and is caught up
-    /// by reprocessing.
+    /// Apple Intelligence on a Mac that runs it now. A Mac still downloading
+    /// the model is left on the stored default: a meeting processed before the
+    /// download finished would be skipped and never caught up on its own, and
+    /// Settings offers Apple Intelligence once it is ready.
     private static var firstLaunchLanguageModel: LanguageModelProvider? {
-        switch AppleIntelligenceAvailability.current {
-        case .available, .modelNotReady: .appleIntelligence
-        default: nil
-        }
+        AppleIntelligenceAvailability.current == .available ? .appleIntelligence : nil
     }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
