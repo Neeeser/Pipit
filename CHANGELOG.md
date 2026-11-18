@@ -7,6 +7,23 @@ adds the list of merged pull requests and their authors below it, and holds the
 notes for releases before 0.1.9. See [docs/RELEASING.md](docs/RELEASING.md) for
 how a section gets written.
 
+## 0.1.12
+
+Summaries can now be written by Apple Intelligence, and Pipit uses much less CPU and memory.
+
+### New
+- Write meeting summaries with Apple Intelligence on this Mac, with nothing to install.
+
+### Fixes
+- Pipit uses far less CPU and memory while it sits idle.
+- Separating speakers uses far less memory.
+- Your own voice is no longer filed under another speaker's name when it reaches your microphone.
+- Speaker names you gave are kept when you re-analyze a meeting.
+- A browser call keeps recording when you switch to another tab, including Zoom in the browser, and when its page stops showing the meeting's name.
+- Call audio comes back within a few seconds after it goes silent, instead of about 20.
+- A merged meeting stays in one folder with one transcript, and the arrow on a speaker's chip steps through that speaker's lines.
+- The Meetings filter labels stay whole at the narrowest sidebar width on newer macOS.
+
 ## 0.1.11
 
 A redesigned Meetings window, a live transcript during calls, and trimming and merging for your recordings.
