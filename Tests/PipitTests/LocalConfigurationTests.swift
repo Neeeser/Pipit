@@ -1,3 +1,4 @@
+import CoreML
 import FluidAudio
 import Foundation
 import PipitCore
@@ -192,6 +193,14 @@ struct LocalConfigurationTests {
             abs(config.clustering.warmStartFa - 0.20) <= 0.0001,
             "expected \(0.20) ± \(0.0001), got \(config.clustering.warmStartFa)"
         )
+    }
+
+    @Test("the diarizer computes on the CPU and Neural Engine, not the GPU")
+    func theDiarizerComputesOnTheCPUAndNeuralEngine() {
+        // On the 14 held-out bench cases this matched or beat the library's
+        // default of every compute unit on DER, tcpWER, attribution and
+        // speaker count, and left out about 640 MB of GPU buffers.
+        #expect(LocalModelManager.diarizerModelConfiguration().computeUnits == .cpuAndNeuralEngine)
     }
 
     @Test("no speaker count is ever supplied automatically")
