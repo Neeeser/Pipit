@@ -9,22 +9,20 @@ how a section gets written.
 
 ## 0.1.12
 
-<!-- One or two lines on what this release is, then rewrite the items below for the person updating. Cut fixes to things that were never released. -->
+Summaries can now be written by Apple Intelligence, and Pipit uses much less CPU and memory.
 
 ### New
-- Write meeting summaries with Apple Intelligence, with nothing to install
+- Write meeting summaries with Apple Intelligence on this Mac, with nothing to install.
 
 ### Fixes
-- Keep recording a browser call when its page stops naming the meeting
-- Stop filing another speaker's voice under your name when it reaches your microphone
-- Make the arrow on a merged meeting's speaker chip step through that speaker's lines
-- Keep a merged meeting in one folder with one transcript
-- Recover call audio a few seconds after it goes silent instead of about 20
-- Keep recording a Zoom web call after you switch to another tab
-- Keep the names you gave speakers when you re-analyze a meeting
-- Use far less memory when Pipit separates speakers on this Mac
-- Use far less CPU and memory while Pipit sits idle
-- Keep every Meetings filter label whole at the narrowest sidebar on newer macOS
+- Pipit uses far less CPU and memory while it sits idle.
+- Separating speakers uses far less memory.
+- Your own voice is no longer filed under another speaker's name when it reaches your microphone.
+- Speaker names you gave are kept when you re-analyze a meeting.
+- A browser call keeps recording when you switch to another tab, including Zoom in the browser, and when its page stops showing the meeting's name.
+- Call audio comes back within a few seconds after it goes silent, instead of about 20.
+- A merged meeting stays in one folder with one transcript, and the arrow on a speaker's chip steps through that speaker's lines.
+- The Meetings filter labels stay whole at the narrowest sidebar width on newer macOS.
 
 ## 0.1.11
 
