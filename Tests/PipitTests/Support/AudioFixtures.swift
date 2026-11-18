@@ -1,4 +1,5 @@
 import AVFoundation
+import Accelerate
 import Foundation
 
 /// Synthetic audio buffers and sample runs. No hardware and no files.
@@ -26,10 +27,23 @@ public enum AudioFixtures {
         let buffer = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: frames)!
         buffer.frameLength = frames
         let data = buffer.floatChannelData!
-        for frame in 0..<Int(frames) {
-            let value = amplitude * Float(sin(2 * Double.pi * frequency * Double(frame) / sampleRate))
-            for channel in 0..<Int(channels) {
-                data[channel][frame] = toneChannel == nil || toneChannel == channel ? value : 0
+        // Vectorised, because the test build is unoptimised and a sample-by-
+        // sample loop over a minute of audio took seconds per fixture.
+        let count = Int(frames)
+        var phases = [Double](repeating: 0, count: count)
+        var start = 0.0
+        var step = 2 * Double.pi * frequency / sampleRate
+        vDSP_vrampD(&start, &step, &phases, 1, vDSP_Length(count))
+        var values = [Double](repeating: 0, count: count)
+        var length = Int32(count)
+        vvsin(&values, phases, &length)
+        var gain = amplitude
+        for channel in 0..<Int(channels) {
+            if toneChannel == nil || toneChannel == channel {
+                vDSP_vdpsp(values, 1, data[channel], 1, vDSP_Length(count))
+                vDSP_vsmul(data[channel], 1, &gain, data[channel], 1, vDSP_Length(count))
+            } else {
+                vDSP_vclr(data[channel], 1, vDSP_Length(count))
             }
         }
         return buffer
