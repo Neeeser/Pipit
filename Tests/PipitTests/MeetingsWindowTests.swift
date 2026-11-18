@@ -1651,6 +1651,41 @@ struct MeetingsWindowTests {
         }
     }
 
+    /// Combining and separating move the recording's folder into or out of
+    /// its conversation's `Parts` folder a moment after the link changes. An
+    /// archive read that ran during the move found the separated recording in
+    /// neither place, so it had no row until the window was read again.
+    @MainActor
+    private static func anArchiveReadWaitsForTheFolderMove() async throws {
+        let root = try TestPaths.makeTemporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let first = try RuntimeFixtures.makeMeeting(
+            root: root, clusters: ["local"], title: "Design review",
+            startedAt: Date(timeIntervalSince1970: 1_787_066_400)
+        )
+        let second = try RuntimeFixtures.makeMeeting(
+            root: root, clusters: ["local"], title: "Design review, rejoined"
+        )
+        let runtime = RuntimeFixtures.makeRuntime(root: root)
+        // Several rounds, because one read can land before the move begins and
+        // still look right.
+        for round in 1...5 {
+            runtime.combine(meetingID: second.id, into: first.id, reason: "a test")
+            let combined = await runtime.meetingRows()
+            #expect(combined.map(\.id) == [first.id], "round \(round): one row for the conversation")
+            runtime.detachContinuation(meetingID: second.id)
+            let separated = await runtime.meetingRows()
+            #expect(
+                Set(separated.map(\.id)) == [first.id, second.id],
+                "round \(round): the separated recording has its row"
+            )
+            #expect(
+                !separated.contains { MeetingRepository.isPartDirectory($0.summary.directory) },
+                "round \(round): and the read saw its folder after the move"
+            )
+        }
+    }
+
     /// A diarizer can emit a label that owns almost none of the transcript: one
     /// cloud-diarized meeting listed eleven speakers, six of them at 0s. The
     /// speaker strip leaves those out, so a row that counted them put the
@@ -2545,6 +2580,11 @@ struct MeetingsWindowTests {
     @Test("separating gives the later recording its row and its words back")
     func separatingGivesTheLaterRecordingItsRowAndItsWordsBack() async throws {
         try await Self.separatingRestoresTheRowAndTheIndex()
+    }
+
+    @Test("reading the archive right after combining or separating sees the folder where it moved")
+    func readingTheArchiveRightAfterCombiningOrSeparatingSeesTheFolderWhereItMoved() async throws {
+        try await Self.anArchiveReadWaitsForTheFolderMove()
     }
 
     @Test("a cluster that says almost nothing is not counted as work to do")
