@@ -1,5 +1,6 @@
 import AppKit
 import PipitCore
+import PipitIntegrations
 import PipitServices
 import PipitUI
 
@@ -24,7 +25,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         // The real event log only here. Every other runtime, the tests' among
         // them, gets the disabled one and writes nothing to the Logs folder.
-        runtime = PipitRuntime(diagnostics: DiagnosticLog(layout: .standard))
+        runtime = PipitRuntime(
+            diagnostics: DiagnosticLog(layout: .standard),
+            firstLaunchLanguageModel: AppleIntelligenceAvailability.current == .available ? .appleIntelligence : nil
+        )
         LoginItem.apply(launchAtLogin: runtime.settings.launchAtLogin)
         windows = WindowManager(runtime: runtime)
         // Applied from the loaded settings rather than hardcoded, and again on

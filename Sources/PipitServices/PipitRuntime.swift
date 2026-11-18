@@ -267,6 +267,11 @@ public final class PipitRuntime {
     /// It is a parameter so a test can drive the pipeline this runtime files
     /// through, which is the same object the folder holds live on.
     ///
+    /// `firstLaunchLanguageModel` replaces the default summary provider when
+    /// no settings have been saved yet. The app passes Apple Intelligence on a
+    /// Mac that can run it, so a new install writes summaries with nothing to
+    /// install or sign in to. Nil, as in tests, keeps the stored default.
+    ///
     /// `diagnostics` is handed to every subsystem that records events.
     /// `reportTransport` and `deletionSecrets` stand in for the report
     /// service and the Keychain; nil means the real ones, and only when the
@@ -278,6 +283,7 @@ public final class PipitRuntime {
         diagnostics: DiagnosticLog = .disabled,
         reportTransport: (any DiagnosticReportTransport)? = nil,
         deletionSecrets: (any DiagnosticDeletionSecrets)? = nil,
+        firstLaunchLanguageModel: LanguageModelProvider? = nil,
         trash: @escaping @Sendable (URL) throws -> Void = {
             try FileManager.default.trashItem(at: $0, resultingItemURL: nil)
         }
@@ -287,7 +293,10 @@ public final class PipitRuntime {
         self.applicationSupport = settingsDirectory
         self.diagnostics = diagnostics
         self.settingsStore = SettingsStore(directory: settingsDirectory)
-        let loaded = settingsStore.load()
+        var loaded = settingsStore.load()
+        if let firstLaunchLanguageModel, !settingsStore.exists {
+            loaded.models.metadataProvider = firstLaunchLanguageModel
+        }
         self.settings = loaded
         let snapshot = LockedBox(loaded)
         self.settingsSnapshot = snapshot

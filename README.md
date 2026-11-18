@@ -62,8 +62,8 @@ detect the call -> record separate tracks -> transcribe and identify speakers ->
 Pipit keeps a short audio pre-roll while a call is being confirmed, so the
 recording includes its opening. Processing starts after capture is safe on disk.
 OpenAI transcription is an optional setting. Titles, summaries, and notes can come
-from OpenAI, OpenRouter, Ollama on your Mac, or any server with a chat completions
-API.
+from Apple Intelligence on your Mac (macOS 27 and later), OpenAI, OpenRouter,
+Ollama on your Mac, or any server with a chat completions API.
 
 ## Privacy
 

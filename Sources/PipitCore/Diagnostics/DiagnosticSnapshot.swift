@@ -279,6 +279,8 @@ extension DiagnosticSnapshot {
     static func metadataModel(_ model: String, provider: LanguageModelProvider) -> String {
         if model.isEmpty { return "none" }
         switch provider {
+        case .appleIntelligence:
+            return model == LanguageModelProvider.appleOnDeviceModel ? model : "custom"
         case .openAI:
             return offered(model, among: AIModelSettings.metadataChoices)
         case .openRouter:

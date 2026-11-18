@@ -131,7 +131,9 @@ enum SummaryEvalCommand {
         }
         let models = options.models.compactMap(SummaryModel.init)
         guard models.count == options.models.count else {
-            note("summaries: a --model is openai:, openrouter: or ollama: and a model, or custom:<url>|<model>")
+            note(
+                "summaries: a --model is openai:, openrouter: or ollama: and a model, apple:on-device, or custom:<url>|<model>"
+            )
             return 2
         }
         let judgeModel = options.judge.flatMap(SummaryModel.init)

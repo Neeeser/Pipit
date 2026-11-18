@@ -422,13 +422,23 @@ summary, notes, and textual speaker suggestions. An enrichment failure leaves
 the recording and transcript available for retry.
 
 The model that does this is chosen separately from transcription, in Settings
-under AI Features. `LanguageModelProvider` lists the choices: OpenAI, which
+under AI Features. `LanguageModelProvider` lists the choices: Apple
+Intelligence, Apple's on-device Foundation Models through
+`AppleIntelligenceClient` on macOS 27 and later; OpenAI, which
 keeps the responses endpoint and the key it has always used; OpenRouter and any
 server that answers `POST {base}/chat/completions`, through
 `ChatCompletionsClient`; and Ollama, through `OllamaClient`. All of them read
 their instructions and answer schema from `LanguageModelPrompts`, so a provider
 changes the envelope and not the words. A new provider is a case in the enum, a
 case in `LanguageModelFactory`, and its own key in `LanguageModelKeyring`.
+
+Apple Intelligence is the provider a new install starts with on a Mac that can
+run it, so titles, summaries and notes work with nothing to install or sign in
+to. `PipitApp` passes it to `PipitRuntime` only when no settings file exists, so
+a choice already saved is kept. Its requests are sized to
+`LanguageModelProvider.appleContextTokens`, under the model's 8,192-token
+window, because an answer sized to the full window sometimes overran it. A
+request that does overrun is asked once more in a fresh session.
 
 Ollama is called on its own `/api/chat` endpoint, because only that request can
 set `num_ctx`. Its default window is small next to a meeting (4,096 tokens in

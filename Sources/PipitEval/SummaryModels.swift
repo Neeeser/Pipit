@@ -22,6 +22,9 @@ struct SummaryModel: Sendable {
         let rest = String(spec[spec.index(after: colon)...])
         guard !rest.isEmpty else { return nil }
         switch name {
+        case "apple":
+            guard AppleModel(rawValue: rest) != nil else { return nil }
+            provider = .appleIntelligence
         case "openai": provider = .openAI
         case "openrouter": provider = .openRouter
         case "ollama": provider = .ollama
@@ -39,7 +42,8 @@ struct SummaryModel: Sendable {
 
     /// A name for files and tables.
     var label: String {
-        provider == .custom ? "custom:\(model)" : "\(provider.rawValue):\(model)"
+        if provider == .appleIntelligence { return "apple:\(model)" }
+        return provider == .custom ? "custom:\(model)" : "\(provider.rawValue):\(model)"
     }
 
     var slug: String {
@@ -68,6 +72,11 @@ struct SummaryModel: Sendable {
     /// The client that writes the summary, as the app would build it.
     func summarizer(contextTokens: Int) -> any LanguageModelBackend {
         switch provider {
+        case .appleIntelligence:
+            guard #available(macOS 27.0, *), let kind = AppleIntelligenceClient.Model(rawValue: model) else {
+                return UnconfiguredLanguageModel(provider: provider)
+            }
+            return ChunkedLanguageModel(AppleIntelligenceClient(model: kind), contextTokens: contextTokens)
         case .openAI:
             return OpenAIClient(keyProvider: keys)
         case .ollama:
@@ -81,9 +90,21 @@ struct SummaryModel: Sendable {
     /// The same provider asked a question of the tool's own, for judging.
     func structured(contextTokens: Int) -> any StructuredLanguageModel {
         switch provider {
+        case .appleIntelligence:
+            if #available(macOS 27.0, *), let kind = AppleIntelligenceClient.Model(rawValue: model) {
+                return AppleIntelligenceClient(model: kind)
+            }
+            return chatClient()
         case .openAI: return OpenAIClient(keyProvider: keys)
         case .ollama: return OllamaClient(configuration: .init(contextTokens: contextTokens))
         case .openRouter, .custom: return chatClient()
         }
     }
+}
+
+/// The Apple models `apple:` names, spelled as `AppleIntelligenceClient.Model`
+/// spells them, readable on a macOS too old to have that type.
+private enum AppleModel: String {
+    case onDevice = "on-device"
+    case privateCloud = "private-cloud"
 }
