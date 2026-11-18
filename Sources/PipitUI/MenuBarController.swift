@@ -47,22 +47,38 @@ public final class MenuBarController: NSObject, NSMenuDelegate {
         )
         runtime.observeStatus { [weak self, weak windows] in
             self?.refreshButton()
+            self?.syncElapsedTimer()
             self?.syncProvisionalPrompt()
             windows?.refreshDockPresence()
             self?.applyLoginItemIfChanged(runtime.settings.launchAtLogin)
             self?.updates.statusDidChange()
         }
+        syncElapsedTimer()
+
+        Log.ui.info(
+            "menu bar item ready: \(self.statusItem.button != nil, privacy: .public), visible: \(self.statusItem.isVisible, privacy: .public)"
+        )
+    }
+
+    /// Runs the one-second tick that advances the recording clock beside the
+    /// icon, and only while there is a clock to show. Idle, the button changes
+    /// only when the status does, so the tick would wake the app every second
+    /// to redraw nothing.
+    private func syncElapsedTimer() {
+        let wanted = runtime.status.isRecording
+        guard wanted != (elapsedTimer != nil) else { return }
+        guard wanted else {
+            elapsedTimer?.cancel()
+            elapsedTimer = nil
+            return
+        }
         let timer = DispatchSource.makeTimerSource(queue: .main)
-        timer.schedule(deadline: .now() + 1, repeating: 1)
+        timer.schedule(deadline: .now() + 1, repeating: 1, leeway: .milliseconds(100))
         timer.setEventHandler { [weak self] in
             MainActor.assumeIsolated { self?.refreshButton() }
         }
         timer.resume()
         elapsedTimer = timer
-
-        Log.ui.info(
-            "menu bar item ready: \(self.statusItem.button != nil, privacy: .public), visible: \(self.statusItem.isVisible, privacy: .public)"
-        )
     }
 
     /// Hands a changed setting to `LoginItem`, and nothing otherwise.
