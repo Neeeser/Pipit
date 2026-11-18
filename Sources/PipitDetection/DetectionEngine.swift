@@ -48,13 +48,23 @@ public protocol DetectionEngineDelegate: AnyObject, Sendable {
     func detectionEngineDidUpdate(_ snapshot: DetectionSnapshot)
 }
 
-/// Turns OS observations into provider evidence on a fixed poll.
+/// Turns OS observations into provider evidence on a poll.
+///
+/// The poll runs every `pollInterval` while anything holds the microphone or
+/// any provider has evidence, and every `idlePollInterval` otherwise. Nothing
+/// can become a meeting without one of those changing, and both changes
+/// arrive as events (a Core Audio notification, an add-on message) that poll
+/// at once, so the slow idle poll costs no latency for a call that opens the
+/// microphone or that the add-on reports. What it does delay is a Slack
+/// huddle joined with the microphone off, which only the accessibility read
+/// sees: up to `idlePollInterval` instead of `pollInterval`.
 ///
 /// Every provider adapter here only reports what it sees. Nothing in this file
 /// decides whether to record; `SessionController` does, from the evidence.
 public final class DetectionEngine: @unchecked Sendable {
     public struct Configuration: Sendable {
         public var pollInterval: Double
+        public var idlePollInterval: Double
         public var slackBundleIdentifier: String
         public var slackAudioPrefixes: [String]
         public var browsers: [BrowserKind]
@@ -62,12 +72,14 @@ public final class DetectionEngine: @unchecked Sendable {
 
         public init(
             pollInterval: Double = 0.5,
+            idlePollInterval: Double = 2,
             slackBundleIdentifier: String = "com.tinyspeck.slackmacgap",
             slackAudioPrefixes: [String] = ["com.tinyspeck.slackmacgap"],
             browsers: [BrowserKind] = [.firefox, .chrome, .safari],
             genericDetection: Bool = true
         ) {
             self.pollInterval = pollInterval
+            self.idlePollInterval = idlePollInterval
             self.slackBundleIdentifier = slackBundleIdentifier
             self.slackAudioPrefixes = slackAudioPrefixes
             self.browsers = browsers
@@ -90,6 +102,9 @@ public final class DetectionEngine: @unchecked Sendable {
     private var browserDetectors: [BrowserKind: BrowserMeetingDetector] = [:]
     private var genericDetector = GenericCallDetector()
     private var timer: DispatchSourceTimer?
+    /// Whether the last poll found nothing going on. Read and written only on
+    /// `queue`.
+    private var isQuiet = false
     private var sensorServer: BrowserSensorServer?
     /// Safari's own socket, inside the app group. Nil on a build without the
     /// Safari extension.
@@ -203,12 +218,48 @@ public final class DetectionEngine: @unchecked Sendable {
         stop()
         startSensorServer()
         let timer = DispatchSource.makeTimerSource(queue: queue)
-        timer.schedule(deadline: .now() + 0.2, repeating: configuration.pollInterval)
+        timer.schedule(
+            deadline: .now() + 0.2, repeating: configuration.pollInterval, leeway: Self.leeway(quiet: false)
+        )
         timer.setEventHandler { [weak self] in self?.poll() }
-        timer.resume()
         lock.lock()
         self.timer = timer
         lock.unlock()
+        queue.async { [weak self] in self?.isQuiet = false }
+        audioObserver.start { [weak self] in self?.pollSoonIfQuiet() }
+        timer.resume()
+    }
+
+    /// Room for the system to fold the poll's wake-up into others. Idle polls
+    /// can wait longer, since nothing they look for is in progress.
+    private static func leeway(quiet: Bool) -> DispatchTimeInterval {
+        quiet ? .milliseconds(250) : .milliseconds(50)
+    }
+
+    /// Polls now instead of at the next idle tick. While polls are already
+    /// fast this does nothing, so a process that toggles its audio rapidly
+    /// cannot make detection poll faster than `pollInterval`.
+    private func pollSoonIfQuiet() {
+        queue.async { [weak self] in
+            guard let self, self.isQuiet else { return }
+            self.reschedule(quiet: false, deadline: .now())
+        }
+    }
+
+    /// Runs on `queue`.
+    private func reschedule(quiet: Bool, deadline: DispatchTime) {
+        isQuiet = quiet
+        let interval = quiet ? configuration.idlePollInterval : configuration.pollInterval
+        lock.withLock { timer }?.schedule(deadline: deadline, repeating: interval, leeway: Self.leeway(quiet: quiet))
+    }
+
+    /// Whether a poll found nothing that could be a meeting, so the next one
+    /// can wait. Pipit's own recording holds the microphone, so detection
+    /// stays fast for as long as a recording runs.
+    static func isQuiet(
+        audio: [ApplicationAudioState], evidence: [ProviderEvidence], slackState: SlackHuddleDetector.State
+    ) -> Bool {
+        evidence.isEmpty && slackState == .idle && !audio.contains(where: \.holdsMicrophone)
     }
 
     public func stop() {
@@ -221,6 +272,7 @@ public final class DetectionEngine: @unchecked Sendable {
         safariSensorServer = nil
         lock.unlock()
         timer?.cancel()
+        audioObserver.stop()
         server?.stop()
         safariServer?.stop()
     }
@@ -282,6 +334,7 @@ public final class DetectionEngine: @unchecked Sendable {
 
     private func handleSensor(_ message: SensorMessage) {
         let now = clock.monotonicSeconds
+        defer { pollSoonIfQuiet() }
         lock.lock()
         defer { lock.unlock() }
         if message.browser == .safari { lastSafariContact = now }
@@ -364,9 +417,13 @@ public final class DetectionEngine: @unchecked Sendable {
 
     private func poll() {
         let now = clock.monotonicSeconds
-        let audioStates = audioObserver.snapshot()
-        let titles = windowReader.allTitles()
-        let windowTitlesByBundle = windowReader.titlesByBundleIdentifier(from: titles)
+        let audioStates = audioObserver.snapshot(at: now)
+        // A window title on its own is never a meeting: every native path
+        // needs the microphone too. So a quiet poll with the microphone free
+        // skips the window list, and the poll the microphone opening triggers
+        // reads it while the meeting page is still in front.
+        let readsTitles = !isQuiet || audioStates.contains(where: \.holdsMicrophone)
+        let titles = readsTitles ? windowReader.allTitles() : [:]
 
         var evidence: [ProviderEvidence] = []
 
@@ -451,9 +508,16 @@ public final class DetectionEngine: @unchecked Sendable {
                 configuration.slackAudioPrefixes
                 + configuration.browsers.flatMap(\.bundleIdentifiers)
                 + evidence.compactMap(\.browser).flatMap(\.audioBundlePrefixes)
+            let unknownAudio = audioStates.filter { state in
+                !knownPrefixes.contains { state.bundleIdentifier.hasPrefix($0) }
+            }
+            // Only an application holding the microphone can be a call, and
+            // only then is its window title wanted.
+            let windowTitlesByBundle =
+                unknownAudio.contains(where: \.holdsMicrophone)
+                ? windowReader.titlesByBundleIdentifier(from: titles) : [:]
             let unknownStates =
-                audioStates
-                .filter { state in !knownPrefixes.contains { state.bundleIdentifier.hasPrefix($0) } }
+                unknownAudio
                 .map { state in
                     ApplicationAudioState(
                         bundleIdentifier: state.bundleIdentifier,
@@ -475,7 +539,8 @@ public final class DetectionEngine: @unchecked Sendable {
             slackState: slackDetector.state,
             browserSensor: browserDetectors[.firefox]?.sensor.connection ?? .absent,
             hasAccessibility: AccessibilityBridge.isTrusted,
-            hasWindowTitles: !titles.isEmpty || windowReader.hasTitleAccess,
+            hasWindowTitles: readsTitles
+                ? !titles.isEmpty || windowReader.hasTitleAccess : lastSnapshot.hasWindowTitles,
             roster: reading(slack: slackObservation, browsers: browserDetectors, at: observedAt),
             sensorHello: hellos[.firefox],
             browserSensors: browserDetectors.mapValues(\.sensor.connection),
@@ -488,7 +553,13 @@ public final class DetectionEngine: @unchecked Sendable {
         previousEvidence = labels
         lastSnapshot = snapshot
         noteConfirmedMeetings(evidence)
+        let quiet = Self.isQuiet(audio: audioStates, evidence: evidence, slackState: slackDetector.state)
         lock.unlock()
+
+        if quiet != isQuiet {
+            let interval = quiet ? configuration.idlePollInterval : configuration.pollInterval
+            reschedule(quiet: quiet, deadline: .now() + interval)
+        }
 
         if evidenceChanged {
             // Notice rather than info so a `log show` after the fact still has
