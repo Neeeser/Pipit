@@ -22,12 +22,23 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var updates: UpdateController!
     private var isTerminating = false
 
+    /// Apple Intelligence on a Mac that runs it, including one still
+    /// downloading the model on a new Mac, which is ready within minutes. A
+    /// meeting processed before then says it has no summary and is caught up
+    /// by reprocessing.
+    private static var firstLaunchLanguageModel: LanguageModelProvider? {
+        switch AppleIntelligenceAvailability.current {
+        case .available, .modelNotReady: .appleIntelligence
+        default: nil
+        }
+    }
+
     func applicationDidFinishLaunching(_ notification: Notification) {
         // The real event log only here. Every other runtime, the tests' among
         // them, gets the disabled one and writes nothing to the Logs folder.
         runtime = PipitRuntime(
             diagnostics: DiagnosticLog(layout: .standard),
-            firstLaunchLanguageModel: AppleIntelligenceAvailability.current == .available ? .appleIntelligence : nil
+            firstLaunchLanguageModel: Self.firstLaunchLanguageModel
         )
         LoginItem.apply(launchAtLogin: runtime.settings.launchAtLogin)
         windows = WindowManager(runtime: runtime)

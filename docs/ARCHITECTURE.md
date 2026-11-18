@@ -437,8 +437,11 @@ run it, so titles, summaries and notes work with nothing to install or sign in
 to. `PipitApp` passes it to `PipitRuntime` only when no settings file exists, so
 a choice already saved is kept. Its requests are sized to
 `LanguageModelProvider.appleContextTokens`, under the model's 8,192-token
-window, because an answer sized to the full window sometimes overran it. A
-request that does overrun is asked once more in a fresh session.
+window, because an answer sized to the full window sometimes overran it. An
+answer that overruns the window or does not decode is asked once more in a
+fresh session. The client needs the macOS 27 SDK to compile, so it sits behind
+`#if compiler(>=6.4)`; a build from an older Xcode leaves it out, and Settings
+says this version cannot use Apple Intelligence.
 
 Ollama is called on its own `/api/chat` endpoint, because only that request can
 set `num_ctx`. Its default window is small next to a meeting (4,096 tokens in

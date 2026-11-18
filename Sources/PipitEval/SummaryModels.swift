@@ -23,7 +23,10 @@ struct SummaryModel: Sendable {
         guard !rest.isEmpty else { return nil }
         switch name {
         case "apple":
-            guard AppleModel(rawValue: rest) != nil else { return nil }
+            guard AppleModel(rawValue: rest) != nil, AppleIntelligenceAvailability.current != .notInThisBuild,
+                ProcessInfo.processInfo.isOperatingSystemAtLeast(
+                    OperatingSystemVersion(majorVersion: 27, minorVersion: 0, patchVersion: 0))
+            else { return nil }
             provider = .appleIntelligence
         case "openai": provider = .openAI
         case "openrouter": provider = .openRouter
@@ -73,10 +76,12 @@ struct SummaryModel: Sendable {
     func summarizer(contextTokens: Int) -> any LanguageModelBackend {
         switch provider {
         case .appleIntelligence:
-            guard #available(macOS 27.0, *), let kind = AppleIntelligenceClient.Model(rawValue: model) else {
-                return UnconfiguredLanguageModel(provider: provider)
-            }
-            return ChunkedLanguageModel(AppleIntelligenceClient(model: kind), contextTokens: contextTokens)
+            #if compiler(>=6.4)
+                if #available(macOS 27.0, *), let kind = AppleIntelligenceClient.Model(rawValue: model) {
+                    return ChunkedLanguageModel(AppleIntelligenceClient(model: kind), contextTokens: contextTokens)
+                }
+            #endif
+            return UnconfiguredLanguageModel(provider: provider)
         case .openAI:
             return OpenAIClient(keyProvider: keys)
         case .ollama:
@@ -91,10 +96,14 @@ struct SummaryModel: Sendable {
     func structured(contextTokens: Int) -> any StructuredLanguageModel {
         switch provider {
         case .appleIntelligence:
-            if #available(macOS 27.0, *), let kind = AppleIntelligenceClient.Model(rawValue: model) {
-                return AppleIntelligenceClient(model: kind)
-            }
-            return chatClient()
+            #if compiler(>=6.4)
+                if #available(macOS 27.0, *), let kind = AppleIntelligenceClient.Model(rawValue: model) {
+                    return AppleIntelligenceClient(model: kind)
+                }
+            #endif
+            // An Apple model this build or Mac cannot run is refused when the
+            // command line is read, so this is never reached.
+            preconditionFailure("apple:\(model) is not available in this build")
         case .openAI: return OpenAIClient(keyProvider: keys)
         case .ollama: return OllamaClient(configuration: .init(contextTokens: contextTokens))
         case .openRouter, .custom: return chatClient()

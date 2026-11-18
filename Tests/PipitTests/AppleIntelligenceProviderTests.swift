@@ -59,13 +59,25 @@ struct AppleIntelligenceProviderTests {
         #expect(runtime.settings.models.metadataProvider == AIModelSettings().metadataProvider)
     }
 
-    @Test("the framework's errors read as the failures every provider reports")
-    func theFrameworksErrorsReadAsTheFailuresEveryProviderReports() throws {
-        guard #available(macOS 27.0, *) else { return }
-        let context = LanguageModelSession.GenerationError.Context(debugDescription: "")
-        #expect(AppleIntelligenceClient.failure(of: .rateLimited(context)) == .rateLimited(retryAfter: nil))
-        #expect(AppleIntelligenceClient.failure(of: .assetsUnavailable(context)) == .unreachable)
-        #expect(AppleIntelligenceClient.failure(of: .guardrailViolation(context)) == .rejected(status: 0))
-        #expect(AppleIntelligenceClient.failure(of: .exceededContextWindowSize(context)) == .unexpectedResponse)
-    }
+    #if compiler(>=6.4)
+        @Test("the framework's errors read as the failures every provider reports")
+        func theFrameworksErrorsReadAsTheFailuresEveryProviderReports() throws {
+            guard #available(macOS 27.0, *) else { return }
+            let context = LanguageModelSession.GenerationError.Context(debugDescription: "")
+            #expect(AppleIntelligenceClient.failure(of: .rateLimited(context)) == .rateLimited(retryAfter: nil))
+            #expect(AppleIntelligenceClient.failure(of: .assetsUnavailable(context)) == .unreachable)
+            #expect(AppleIntelligenceClient.failure(of: .guardrailViolation(context)) == .rejected(status: 0))
+            #expect(AppleIntelligenceClient.failure(of: .exceededContextWindowSize(context)) == .unexpectedResponse)
+        }
+
+        @Test("only an answer that overran or did not decode is asked for again")
+        func onlyAnAnswerThatOverranOrDidNotDecodeIsAskedForAgain() throws {
+            guard #available(macOS 27.0, *) else { return }
+            let context = LanguageModelSession.GenerationError.Context(debugDescription: "")
+            #expect(AppleIntelligenceClient.isWorthAskingAgain(.exceededContextWindowSize(context)))
+            #expect(AppleIntelligenceClient.isWorthAskingAgain(.decodingFailure(context)))
+            #expect(!AppleIntelligenceClient.isWorthAskingAgain(.rateLimited(context)))
+            #expect(!AppleIntelligenceClient.isWorthAskingAgain(.guardrailViolation(context)))
+        }
+    #endif
 }

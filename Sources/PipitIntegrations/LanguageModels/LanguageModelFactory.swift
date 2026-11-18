@@ -16,10 +16,15 @@ public enum LanguageModelFactory {
         let context = models.metadataContextTokens
         switch provider {
         case .appleIntelligence:
-            guard #available(macOS 27.0, *) else { return UnconfiguredLanguageModel(provider: provider) }
-            return ChunkedLanguageModel(
-                AppleIntelligenceClient(model: .onDevice), contextTokens: LanguageModelProvider.appleContextTokens
-            )
+            #if compiler(>=6.4)
+                guard #available(macOS 27.0, *) else { return UnconfiguredLanguageModel(provider: provider) }
+                return ChunkedLanguageModel(
+                    AppleIntelligenceClient(model: .onDevice),
+                    contextTokens: LanguageModelProvider.appleContextTokens
+                )
+            #else
+                return UnconfiguredLanguageModel(provider: provider)
+            #endif
         case .openAI:
             return openAI
         case .openRouter:

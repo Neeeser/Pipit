@@ -33,8 +33,7 @@ struct ProviderChoice: View {
     /// Apple Intelligence is left out on a Mac that can never run it, unless
     /// it is already chosen, so the choice stays visible to change.
     private var offered: [LanguageModelProvider] {
-        let unsupported: Set<AppleIntelligenceAvailability> = [.needsNewerMacOS, .deviceNotEligible]
-        guard unsupported.contains(AppleIntelligenceAvailability.current), model.provider != .appleIntelligence
+        guard AppleIntelligenceAvailability.current.isPermanent, model.provider != .appleIntelligence
         else { return LanguageModelProvider.allCases }
         return LanguageModelProvider.allCases.filter { $0 != .appleIntelligence }
     }
@@ -268,6 +267,8 @@ struct AppleIntelligenceRows: View {
         case .available:
             Label("Ready", systemImage: "checkmark.circle.fill")
                 .foregroundStyle(.green).font(.caption)
+        case .notInThisBuild:
+            unavailable("This version of Pipit cannot use Apple Intelligence")
         case .needsNewerMacOS:
             unavailable("Needs macOS 27 or later")
         case .deviceNotEligible:
