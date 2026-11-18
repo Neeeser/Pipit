@@ -242,6 +242,12 @@ public struct VoiceEnrollmentView: View {
         }
     }
 
+    /// Counted across every list, ten sentences to a list. Worked out apart
+    /// from the view, where the arithmetic made an older compiler give up.
+    private static func sentenceNumber(list: Int, line: Int) -> Int {
+        (list - 1) * 10 + line + 1
+    }
+
     private var script: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 14) {
@@ -249,7 +255,7 @@ public struct VoiceEnrollmentView: View {
                     VStack(alignment: .leading, spacing: 7) {
                         ForEach(Array(list.sentences.enumerated()), id: \.offset) { line in
                             HStack(alignment: .top, spacing: 8) {
-                                Text("\((list.number - 1) * 10 + line.offset + 1)")
+                                Text(String(Self.sentenceNumber(list: list.number, line: line.offset)))
                                     .font(.caption.monospacedDigit())
                                     .foregroundStyle(.tertiary)
                                     .frame(width: 18, alignment: .trailing)

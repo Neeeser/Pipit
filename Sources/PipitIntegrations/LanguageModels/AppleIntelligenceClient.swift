@@ -1,5 +1,8 @@
 import Foundation
-import FoundationModels
+// Internal, so the framework's conformances on standard types stay out of
+// every module that imports this one. Visible there, they slowed type checking
+// in unrelated SwiftUI views until an older compiler gave up.
+internal import FoundationModels
 import PipitCore
 
 /// Whether Apple's on-device model can be used on this Mac, and if not, why.
