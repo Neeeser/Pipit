@@ -45,6 +45,12 @@ public struct LocalModelLocations: Sendable, Equatable {
         )
     }
 
+    public var parakeetUltraDirectory: URL {
+        root.appendingPathComponent(
+            AsrModels.defaultCacheDirectory(for: .ultra).lastPathComponent, isDirectory: true
+        )
+    }
+
     /// Includes the precision subpath (`…/q8`); the compiled models and the
     /// vocabulary all land inside it.
     public var cohereDirectory: URL {
@@ -79,6 +85,7 @@ public struct LocalModelLocations: Sendable, Equatable {
         switch unit {
         case .whisper: whisperBase
         case .parakeet: parakeetDirectory
+        case .parakeetUltra: parakeetUltraDirectory
         case .cohere: cohereDirectory
         case .canary: canaryDirectory
         case .ctcAligner: alignerDirectory

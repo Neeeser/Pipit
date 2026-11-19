@@ -208,6 +208,18 @@ struct LocalModelTests {
         #expect(output.wordCount > 50, "got \(output.wordCount) words")
     }
 
+    @Test("parakeet ultra transcribes the fixture with word timings of its own")
+    func parakeetUltraTranscribesTheFixtureWithWordTimingsOfItsOwn() async throws {
+        let (support, audio) = try Self.requireModels()
+        let manager = LocalModelManager(applicationSupport: support)
+        _ = try await manager.install(units: [.parakeetUltra])
+        let output = try await ParakeetUltraTranscriptionBackend(models: manager)
+            .transcribe(audio: audio) { _ in }
+        #expect(!output.text.isEmpty)
+        #expect(output.hasWordTimings, "word timings are what attribution consumes")
+        #expect(output.wordCount > 50, "got \(output.wordCount) words")
+    }
+
     @Test("the aligner recovers timings for a text-only transcript")
     func theAlignerRecoversTimingsForATextOnlyTranscript() async throws {
         let (support, audio) = try Self.requireModels()

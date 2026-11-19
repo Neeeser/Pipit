@@ -294,6 +294,7 @@ enum BenchCommand {
                                 models: models, livePhrases: livePhrases, liveSliding: liveSliding,
                                 liveUnified: liveUnified
                             )
+                        case .parakeetUltra: ParakeetUltraTranscriptionBackend(models: models)
                         case .whisper: WhisperTranscriptionBackend(models: models)
                         }
                     },

@@ -369,12 +369,12 @@ struct SetupFlowTests {
             // Every case is offered, retired, or a bench candidate,
             // so an engine cannot go missing from the picker by
             // accident. Cohere and Whisper retired on the 2026-08-24
-            // deciding run; Canary never earned a place; Apple is
+            // deciding run; Canary and Parakeet Ultra are bench candidates; Apple is
             // offered where the OS has it.
             let unoffered: Set<LocalTranscriptionModel> =
                 AppleSpeechTranscriptionBackend.isAvailable
-                ? [.canary, .cohere, .whisper]
-                : [.canary, .cohere, .whisper, .apple]
+                ? [.canary, .cohere, .parakeetUltra, .whisper]
+                : [.canary, .cohere, .parakeetUltra, .whisper, .apple]
             #expect(
                 Set(LocalTranscriptionModel.offered).union(unoffered) == Set(LocalTranscriptionModel.allCases),
                 "every engine is offered, retired, or a named bench candidate"
