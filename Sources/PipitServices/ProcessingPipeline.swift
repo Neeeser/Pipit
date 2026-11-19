@@ -2118,7 +2118,8 @@ public actor ProcessingPipeline {
         let run = DiarizationRun(
             id: runID,
             track: track,
-            backend: backend.identifier,
+            // What actually ran: the local diarizer chooses between two models.
+            backend: output.configuration["backend"] ?? backend.identifier,
             producedAt: clock.now,
             timelineOffset: leadIn,
             configuration: output.configuration,
@@ -4862,7 +4863,8 @@ public actor ProcessingPipeline {
         let run = DiarizationRun(
             id: diarization.nextRunID(track: track),
             track: track,
-            backend: LocalSpeechStack.diarizerBackendIdentifier,
+            // What actually ran: the local diarizer chooses between two models.
+            backend: output.configuration["backend"] ?? LocalSpeechStack.diarizerBackendIdentifier,
             producedAt: clock.now,
             timelineOffset: leadIn,
             configuration: output.configuration,
