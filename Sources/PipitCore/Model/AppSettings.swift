@@ -460,6 +460,12 @@ public struct AppSettings: Codable, Sendable, Equatable {
     /// quits, from one the user never installed. Only the first is worth
     /// warning about.
     public var firefoxSensorHasConnected: Bool
+    /// Whether the Safari add-on has ever connected on this machine.
+    ///
+    /// Safari runs the add-on only while it has a page open, so with Safari
+    /// closed nothing is talking. This latch is what says the add-on is there
+    /// when Safari itself gives no answer about it.
+    public var safariSensorHasConnected: Bool
     public var firefoxProfileAccess: FirefoxProfileAccess
     /// What the Firefox add-on said about itself the last time it called in.
     ///
@@ -504,6 +510,7 @@ public struct AppSettings: Codable, Sendable, Equatable {
         meetingReconnectWindowSeconds: Double = SessionController.Configuration()
             .reconnectWindowSeconds,
         firefoxSensorHasConnected: Bool = false,
+        safariSensorHasConnected: Bool = false,
         firefoxProfileAccess: FirefoxProfileAccess = .notAsked,
         firefoxAddOnProtocol: Int? = nil,
         firefoxAddOnVersion: String? = nil,
@@ -531,6 +538,7 @@ public struct AppSettings: Codable, Sendable, Equatable {
         self.meetingEndGraceSeconds = meetingEndGraceSeconds
         self.meetingReconnectWindowSeconds = meetingReconnectWindowSeconds
         self.firefoxSensorHasConnected = firefoxSensorHasConnected
+        self.safariSensorHasConnected = safariSensorHasConnected
         self.firefoxProfileAccess = firefoxProfileAccess
         self.firefoxAddOnProtocol = firefoxAddOnProtocol
         self.firefoxAddOnVersion = firefoxAddOnVersion
@@ -631,6 +639,9 @@ public struct AppSettings: Codable, Sendable, Equatable {
         firefoxSensorHasConnected =
             try container.decodeIfPresent(Bool.self, forKey: .firefoxSensorHasConnected)
             ?? defaults.firefoxSensorHasConnected
+        safariSensorHasConnected =
+            try container.decodeIfPresent(Bool.self, forKey: .safariSensorHasConnected)
+            ?? defaults.safariSensorHasConnected
         firefoxProfileAccess =
             try container.decodeIfPresent(FirefoxProfileAccess.self, forKey: .firefoxProfileAccess)
             ?? defaults.firefoxProfileAccess

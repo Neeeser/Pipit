@@ -17,7 +17,9 @@ struct BrowsersSettingsPane: View {
     private var safariState: BrowserAddOnState {
         BrowserAddOnState(
             connection: runtime.status.browserSensors[.safari] ?? .absent,
-            isBundled: SafariAddOn.isBundled
+            isBundled: SafariAddOn.isBundled,
+            isEnabled: model.safariExtensionEnabled,
+            hasConnectedBefore: runtime.status.safariSensorHasConnected
         )
     }
 
@@ -34,7 +36,8 @@ struct BrowsersSettingsPane: View {
             isInProfile: runtime.status.firefoxAddOnInProfile,
             profileRead: runtime.settings.firefoxProfileAccess == .allowed,
             hasBundledAddOn: FirefoxAddOn.bundledAddOn != nil,
-            compatibility: runtime.status.firefoxAddOnCompatibility
+            compatibility: runtime.status.firefoxAddOnCompatibility,
+            awaitingReconnect: runtime.status.isAwaitingAddOnReconnect
         )
     }
 

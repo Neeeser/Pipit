@@ -27,10 +27,16 @@ public struct RuntimeStatus: Sendable, Equatable {
     /// Whether the Firefox add-on has ever connected on this machine, carried
     /// from settings so the menu bar can tell "dropped" from "never installed".
     public var firefoxSensorHasConnected = false
+    /// Whether the Safari add-on has ever connected, from the settings latch.
+    public var safariSensorHasConnected = false
     public var isFirefoxRunning = false
     /// Whether a Firefox profile holds the add-on, which is the answer while it
     /// is installed but has not called in yet.
     public var firefoxAddOnInProfile = false
+    /// Pipit started a moment ago and the add-on that connected before has not
+    /// called back yet. An update relaunches Pipit while the add-on waits out
+    /// its retry delay, so until then a silent add-on is not a dropped one.
+    public var isAwaitingAddOnReconnect = false
     /// The wire shape the add-on last reported, from the settings latch, so
     /// the answer is there before the add-on calls back after a restart.
     public var firefoxAddOnProtocol: Int?
@@ -71,11 +77,24 @@ public struct RuntimeStatus: Sendable, Equatable {
     /// recordings keep happening, they just start at the prejoin screen again.
     /// Nothing is claimed for a machine where the add-on was never installed.
     public var sensorNeedsAttention: Bool {
-        guard firefoxSensorHasConnected, isFirefoxRunning, !sensorConnection.isLoaded
+        guard firefoxSensorHasConnected, isFirefoxRunning, !sensorConnection.isLoaded,
+            !isAwaitingAddOnReconnect
         else { return false }
         // An add-on sitting in the profile is installed and between
         // connections, which restarting Pipit causes and which fixes itself.
         return !firefoxAddOnInProfile
+    }
+
+    /// How long after Pipit starts a silent add-on still counts as calling
+    /// back. The add-on retries a dropped connection after at most 60 seconds
+    /// (`RECONNECT_MAX_MS` in extension/shared/background.js), plus time for
+    /// the host to start and say hello.
+    public static let addOnReconnectGraceSeconds: Double = 75
+
+    public static func isAwaitingAddOnReconnect(
+        hasConnected: Bool, isLoaded: Bool, secondsSinceLaunch: Double
+    ) -> Bool {
+        hasConnected && !isLoaded && secondsSinceLaunch < addOnReconnectGraceSeconds
     }
 
     /// Where the add-on that last reported stands against this build.
@@ -148,6 +167,8 @@ public final class PipitRuntime {
     /// or removes the add-on, so a read a few seconds old is as good as a new
     /// one and the profile folder is not listed on every poll.
     @ObservationIgnored private var firefoxProfileRead: (at: Double, probe: FirefoxProfile.Probe)?
+    /// When `start()` ran, on the monotonic clock, for the add-on's reconnect window.
+    @ObservationIgnored private var launchedAt: Double?
     static let firefoxProfileReadInterval: Double = 15
     public private(set) var settings: AppSettings
     /// Whether the on-device speech models are installed, and how far a
@@ -538,6 +559,7 @@ public final class PipitRuntime {
     /// the updater starts, and the update window's second step reads this.
     private func seedStatus(from settings: AppSettings) {
         status.firefoxSensorHasConnected = settings.firefoxSensorHasConnected
+        status.safariSensorHasConnected = settings.safariSensorHasConnected
         status.firefoxAddOnProtocol = settings.firefoxAddOnProtocol
         status.firefoxAddOnVersion = settings.firefoxAddOnVersion
     }
@@ -549,6 +571,7 @@ public final class PipitRuntime {
     // MARK: - lifecycle
 
     public func start() {
+        launchedAt = clock.monotonicSeconds
         diagnostics.record(.appLaunched(DiagnosticEnvironment.current()))
         beginLaunchDiagnostics()
         startReportDelivery()
@@ -804,6 +827,11 @@ public final class PipitRuntime {
         next.firefoxAddOnInProfile =
             snapshot.browserSensor.isLoaded
             || (settings.firefoxProfileAccess == .allowed && firefoxProfileProbe() == .installed)
+        next.isAwaitingAddOnReconnect = RuntimeStatus.isAwaitingAddOnReconnect(
+            hasConnected: settings.firefoxSensorHasConnected,
+            isLoaded: snapshot.browserSensor.isLoaded,
+            secondsSinceLaunch: launchedAt.map { clock.monotonicSeconds - $0 } ?? .infinity
+        )
         if next != status { status = next }
         // The latch is written once, the first time the add-on ever reports.
         // From then on a silent sensor is a dropped add-on rather than one that
@@ -811,6 +839,11 @@ public final class PipitRuntime {
         if snapshot.browserSensor.isLoaded, !settings.firefoxSensorHasConnected {
             var updated = settings
             updated.firefoxSensorHasConnected = true
+            update(settings: updated)
+        }
+        if snapshot.browserSensors[.safari]?.isLoaded == true, !settings.safariSensorHasConnected {
+            var updated = settings
+            updated.safariSensorHasConnected = true
             update(settings: updated)
         }
         // What the add-on said about itself is kept the same way, so the
@@ -827,6 +860,7 @@ public final class PipitRuntime {
         }
         next = status
         next.firefoxSensorHasConnected = settings.firefoxSensorHasConnected
+        next.safariSensorHasConnected = settings.safariSensorHasConnected
         next.firefoxAddOnProtocol = settings.firefoxAddOnProtocol
         next.firefoxAddOnVersion = settings.firefoxAddOnVersion
         next.slackState = snapshot.slackState

@@ -692,6 +692,43 @@ struct UITests {
         #expect(!status.sensorNeedsAttention, "nothing to fix while Firefox is closed")
     }
 
+    @Test("an add-on that worked before gets time to call back after Pipit starts")
+    func anAddOnThatWorkedBeforeGetsTimeToCallBackAfterPipitStarts() async throws {
+        // After an update relaunches Pipit, the add-on is waiting out its retry
+        // delay, up to a minute, and reads as dropped until it calls back.
+        var status = RuntimeStatus()
+        status.isFirefoxRunning = true
+        status.firefoxSensorHasConnected = true
+        status.sensorConnection = .absent
+        status.isAwaitingAddOnReconnect = true
+        #expect(!status.sensorNeedsAttention, "no warning while the add-on has time to call back")
+
+        #expect(
+            FirefoxAddOnState(
+                connection: .absent, isInProfile: false, profileRead: false, hasBundledAddOn: true,
+                awaitingReconnect: true
+            ) == .connecting
+        )
+        #expect(
+            FirefoxAddOnState(
+                connection: .absent, isInProfile: false, profileRead: true, hasBundledAddOn: true,
+                awaitingReconnect: true
+            ) == .missing,
+            "a profile read that found nothing still wins"
+        )
+
+        let grace = RuntimeStatus.addOnReconnectGraceSeconds
+        #expect(RuntimeStatus.isAwaitingAddOnReconnect(hasConnected: true, isLoaded: false, secondsSinceLaunch: 5))
+        #expect(
+            !RuntimeStatus.isAwaitingAddOnReconnect(hasConnected: true, isLoaded: false, secondsSinceLaunch: grace),
+            "past the window a silent add-on is a dropped one again")
+        #expect(
+            !RuntimeStatus.isAwaitingAddOnReconnect(hasConnected: false, isLoaded: false, secondsSinceLaunch: 5),
+            "nothing to wait for on a machine that never had the add-on")
+        #expect(!RuntimeStatus.isAwaitingAddOnReconnect(hasConnected: true, isLoaded: true, secondsSinceLaunch: 5))
+        #expect(grace > 60, "longer than the add-on's longest retry delay")
+    }
+
     @Test("menu-bar icons identify the Pipit state")
     func menuBarIconsIdentifyThePipitState() async throws {
         await MainActor.run {
@@ -806,12 +843,14 @@ struct UITests {
             try JSONSerialization.jsonObject(with: Data(contentsOf: store.url)) as? [String: Any]
         )
         object.removeValue(forKey: "firefoxSensorHasConnected")
+        object.removeValue(forKey: "safariSensorHasConnected")
         try JSONSerialization.data(withJSONObject: object).write(to: store.url)
 
         let reloaded = store.load()
         #expect(reloaded.localUserName == "Marlow", "existing values must survive")
         #expect(reloaded.hasCompletedOnboarding, "onboarding must not reappear")
         #expect(!reloaded.firefoxSensorHasConnected, "the missing field takes its default")
+        #expect(!reloaded.safariSensorHasConnected, "the missing field takes its default")
     }
 
     @Test("a settings file from a build that had the echo-cancellation toggle still loads")

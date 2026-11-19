@@ -78,7 +78,8 @@ public enum FirefoxAddOnState: Equatable {
         isInProfile: Bool,
         profileRead: Bool,
         hasBundledAddOn: Bool,
-        compatibility: SensorProtocol.Compatibility? = nil
+        compatibility: SensorProtocol.Compatibility? = nil,
+        awaitingReconnect: Bool = false
     ) {
         // The number the add-on last reported outranks the connection: it is
         // known before the add-on calls back after a restart, and an add-on
@@ -98,6 +99,10 @@ public enum FirefoxAddOnState: Equatable {
         case (.fresh, _, _, _): self = .reporting
         case (.stale, _, _, _): self = .installed
         case (_, true, _, _): self = .connecting
+        // Pipit just started and the add-on that worked before has not called
+        // back yet. Only an unread profile defers to it; a read that found
+        // nothing is the better answer.
+        case (_, false, false, true) where awaitingReconnect: self = .connecting
         case (_, false, _, false): self = .unavailable
         case (_, false, false, true): self = .unknown
         case (_, false, true, true): self = .missing
