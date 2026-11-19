@@ -403,8 +403,8 @@ struct SetupFlowTests {
         await model.chooseLocalModel(.cohere)
 
         #expect(
-            await requested.all == [[.cohere, .ctcAligner, .diarizer, .voiceActivity]],
-            "the download is for the chosen engine, with the aligner it needs"
+            await requested.all == [[.cohere, .ctcAligner, .diarizer, .nemotronDiarizer, .voiceActivity]],
+            "the download is for the chosen engine, with the aligner it needs and the speaker models"
         )
         await MainActor.run {
             #expect(model.localModel == .cohere, "and the step shows what was picked")
