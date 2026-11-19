@@ -22,14 +22,27 @@ public enum LocalSpeechStack {
     /// it should be.
     public static let lseendBackendIdentifierPrefix = "fluidaudio-lseend-"
 
-    /// Nemotron 3 Diarization through FluidAudio, also a benchmark candidate:
-    /// it marks overlapping speakers like LS-EEND and tracks up to eight. The
-    /// preset name completes the identifier.
+    /// Nemotron 3 Diarization through FluidAudio. It marks overlapping
+    /// speakers like LS-EEND and tracks up to eight. The preset name completes
+    /// the identifier. The application uses the `offline` preset to diarize a
+    /// finished meeting's remote speakers; the other presets are benchmark
+    /// candidates.
     public static let nemotron3BackendIdentifierPrefix = "fluidaudio-nemotron3-"
+    /// Speaker slots the model tracks. A meeting that fills every slot may hold
+    /// more people than it can name, so the application hands it to the offline
+    /// clusterer, which has no such ceiling.
+    public static let nemotron3SpeakerSlots = 8
+    /// The checkpoint the published Core ML files were converted from, which
+    /// FluidAudio writes beside them. A cache written for another checkpoint
+    /// reads as not installed, because the file layout does not change.
+    public static let nemotron3WeightsVersion = "ga-2026-09-23"
     public static let whisperBackendIdentifier = "whisperkit-large-v3-turbo"
 
     public static let approximateWhisperBytes: Int64 = 624 * 1_024 * 1_024
     public static let approximateDiarizerBytes: Int64 = 21 * 1_024 * 1_024
+    /// The `offline` preset's Core ML bundle and the silence embedding beside
+    /// it: 199,162,403 bytes on the model hub, 189.9 MiB.
+    public static let approximateNemotron3Bytes: Int64 = 190 * 1_024 * 1_024
 
     /// Parakeet TDT v3 through FluidAudio. 25 languages, word timings, over
     /// 100x realtime on Apple Silicon, 9.4% WER on AMI meeting audio against
@@ -91,6 +104,7 @@ public enum LocalSpeechStack {
         case .canary: "canary-1b-v2-int4 @ \(diarizerPackage)"
         case .ctcAligner: "parakeet-ctc-0.6b @ \(diarizerPackage)"
         case .diarizer: diarizerPackage
+        case .nemotronDiarizer: "nemotron-3-diarization-offline \(nemotron3WeightsVersion) @ \(diarizerPackage)"
         case .voiceActivity: "\(voiceActivityIdentifier) @ \(diarizerPackage)"
         }
     }
@@ -107,6 +121,11 @@ public enum LocalModelUnit: String, Codable, CaseIterable, Sendable {
     case canary
     case ctcAligner = "ctc-aligner"
     case diarizer
+    /// Nemotron 3 Diarization, which separates a finished meeting's remote
+    /// speakers. The offline clusterer above stays installed beside it: voice
+    /// memory embeds with its models, and it diarizes the meetings Nemotron
+    /// cannot.
+    case nemotronDiarizer = "nemotron-diarizer"
     case voiceActivity = "voice-activity"
 
     /// The units the given settings actually use.
@@ -130,6 +149,11 @@ public enum LocalModelUnit: String, Codable, CaseIterable, Sendable {
         // cloud transcription of a listener's own microphone, is the one
         // shipped without the guard.
         var units: Set<LocalModelUnit> = [.diarizer, .voiceActivity]
+        // Only where diarization runs on this Mac: a cloud diarizer never
+        // reaches it, and the embedding models above are all voice memory needs.
+        if settings.processing.usesLocalDiarization {
+            units.insert(.nemotronDiarizer)
+        }
         if settings.processing.usesLocalTranscription {
             switch settings.processing.localTranscriptionModel {
             case .cohere:
@@ -164,6 +188,7 @@ public enum LocalModelUnit: String, Codable, CaseIterable, Sendable {
         case .canary: LocalSpeechStack.approximateCanaryBytes
         case .ctcAligner: LocalSpeechStack.approximateAlignerBytes
         case .diarizer: LocalSpeechStack.approximateDiarizerBytes
+        case .nemotronDiarizer: LocalSpeechStack.approximateNemotron3Bytes
         case .voiceActivity: LocalSpeechStack.approximateVoiceActivityBytes
         }
     }

@@ -181,6 +181,8 @@ public actor LocalModelManager {
             return true
         case .diarizer:
             return manager.fileExists(atPath: directory.path)
+        case .nemotronDiarizer:
+            return nemotron3FilesPresent(.offline, directory: directory)
         case .parakeet:
             return AsrModels.modelsExist(at: directory, version: .v3, encoderPrecision: .int8)
         case .cohere:
@@ -411,6 +413,9 @@ public actor LocalModelManager {
                 from: directory, configuration: Self.diarizerModelConfiguration()
             )
 
+        case .nemotronDiarizer:
+            try await installNemotron3(force: force, progress: progress)
+
         case .voiceActivity:
             // ModelHub appends the repository folder itself, as for Cohere.
             progress(0, "Downloading the voice detector")
@@ -453,6 +458,8 @@ public actor LocalModelManager {
         case .canary: canaryModels = nil
         case .ctcAligner: alignerModels = nil
         case .diarizer: diarizerModels = nil
+        // Loaded and released inside each diarization call.
+        case .nemotronDiarizer: break
         case .voiceActivity: voiceActivity = nil
         }
     }

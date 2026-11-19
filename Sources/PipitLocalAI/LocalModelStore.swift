@@ -55,6 +55,13 @@ public struct LocalModelLocations: Sendable, Equatable {
         root.appendingPathComponent(Repo.canary1bV2.folderName, isDirectory: true)
     }
 
+    /// Nemotron 3 Diarization, under the repository's own folder name for the
+    /// same reason. FluidAudio keeps the preset bundle in a subfolder and the
+    /// silence embedding at the root.
+    public var nemotronDiarizerDirectory: URL {
+        root.appendingPathComponent(Repo.nemotron3Diarization.folderName, isDirectory: true)
+    }
+
     /// Silero VAD, under the repository's own folder name for the same reason
     /// as the engines above.
     public var voiceActivityDirectory: URL {
@@ -76,6 +83,7 @@ public struct LocalModelLocations: Sendable, Equatable {
         case .canary: canaryDirectory
         case .ctcAligner: alignerDirectory
         case .diarizer: diarizerDirectory
+        case .nemotronDiarizer: nemotronDiarizerDirectory
         case .voiceActivity: voiceActivityDirectory
         }
     }
