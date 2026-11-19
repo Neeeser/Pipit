@@ -16,7 +16,7 @@ import PipitSpeakers
 //   pipit-eval gate      --meeting DIR
 //   pipit-eval echo      --meeting DIR [--json OUT] [--offset SECONDS] [--full-id]
 //   pipit-eval reprocess --meeting DIR [--recognize] [--support DIR] [--backups DIR]
-//   pipit-eval bench     [--suite ami-core] [--engine parakeet ...] [--diarizer local]
+//   pipit-eval bench     [--suite ami-core|calls] [--engine parakeet ...] [--diarizer local]
 //   pipit-eval summaries --model ollama:qwen3.5:4b [--model openai:gpt-6-luna ...]
 //   pipit-eval rewrite-summary --meeting DIR [--model openai:gpt-6-luna]
 //   pipit-eval live      --meeting DIR --engine parakeet|apple [--pace 1] [--seconds N] [--show-text] [--json OUT]

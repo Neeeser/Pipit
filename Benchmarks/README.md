@@ -34,6 +34,7 @@ no recordings. CI rejects committed audio files.
 | `icsi` | 4 | Six to nine speakers with 28% to 39% overlap |
 | `notsofar` | 5 | Recent office meetings with 4% to 46% overlap |
 | `deciding` | 14 | Held-out cases used to compare engines |
+| `calls` | 15 | Simulated two-track calls: a microphone track with laptop-speaker echo and a far-end track |
 
 Use `deciding` when ranking one engine against another. Some `ami-core` and
 `ami-overlap` cases appear in published training data for local models. Those
@@ -41,6 +42,65 @@ suites can detect a regression in one fixed configuration, but they cannot
 support a fair model ranking. `manifest.json` records each case as `ami-train`,
 `ami-dev`, `ami-eval`, `excluded`, or `clean`. Tests restrict `deciding` to
 `ami-eval` and `clean` cases.
+
+## Simulated calls
+
+Every other suite imports one recording as a file on the microphone track.
+That skips what a real call goes through: the echo canceller, the speech
+evidence and the rule that the microphone track belongs to the local person.
+The `calls` suite imports two tracks as a generic call, so those stages run.
+
+The generator in `Benchmarks/calls/` builds each case from the per-person
+headset channels of five held-out AMI meetings (`ami-eval` or `clean`):
+
+- One participant is the local person, chosen from `calls.seed` in
+  `manifest.json`. Everyone else is the far end.
+- Each headset channel is gated to its owner's reference speech, so the
+  channel carries one voice. The far-end track is the sum of the other
+  participants, passed through an Opus voice-call round trip.
+- The microphone track is the local channel plus the far-end track played
+  through a simulated laptop speaker: a high-pass and soft clip, a playback
+  delay, and a synthetic room impulse response.
+- Each variant fixes the echo level by the correlation Pipit's own measure
+  (`EchoCancellationPass.measureAlignment`) reads between the two tracks:
+  `headphones` adds no echo, `laptop` targets 0.69 (the median across real
+  recorded calls) and `laptop-strong` targets 0.89 (the 90th percentile). The
+  generator searches the echo gain until its copy of that measure lands within
+  0.002 of the target and writes the result into `case.json`.
+
+Build and run it:
+
+```sh
+scripts/fetch-bench-audio.sh calls
+Benchmarks/calls/generate.py          # writes ~/Library/Caches/pipit-bench/calls/<case>/
+scripts/eval.sh bench --suite calls --engine parakeet --diarizer local --out calls.json
+```
+
+`generate.py --verify` also runs `pipit-eval aec` on each case and compares its
+`alignmentCorrelation` with the generator's number. The generator is
+deterministic for one ffmpeg, libopus and SciPy build. The case audio is not
+checksum-pinned, because those libraries can differ between machines; the
+headset inputs are. The Python tests run with
+`uv run --with numpy --with scipy --with soundfile python -m unittest discover -s Benchmarks/calls`.
+
+Two numbers are added for each call case, both per minute of the scored
+window. They follow `Benchmarks/aec/metrics.py`:
+
+| Metric | Meaning |
+| --- | --- |
+| `farEndWordsUnderLocalPerMinute` | Far-end words that the transcript attributes to the local person and that the local person did not say within 3 seconds |
+| `localWordsLostPerMinute` | The local person's words that appear nowhere in the transcript within 3 seconds |
+
+The table groups cases by variant and also prints the echo correlation the
+cleaner measured before cleaning. It is blank when the cleaner left the track
+alone.
+
+What stays different from a real call: the local voice is a close-talk headset
+with no room sound; the tracks are aligned to the sample before the echo
+delay; there is no packet loss, gain control or clock drift; every meeting has
+four participants; and the local person's share of speech is fixed by the
+meeting, so reaching a very high echo correlation takes a louder echo than a
+real call would have. Baselines for this suite are not in `baselines.json`.
 
 ## Smoke check
 

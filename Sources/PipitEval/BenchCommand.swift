@@ -15,6 +15,10 @@ import PipitServices
 /// configured backends, and scores the meeting folder that comes out. Nothing
 /// here reimplements a pipeline stage, which is the point: a number from the
 /// harness is a number from the application.
+///
+/// The `calls` suite imports a simulated call instead: a microphone track and a
+/// far-end track, as a `.genericCall` meeting, so the echo canceller and the
+/// local-person rules run as they do in a recording.
 enum BenchCommand {
     struct Options {
         var suite = "ami-core"
