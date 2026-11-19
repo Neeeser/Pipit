@@ -55,11 +55,11 @@ OPUS_BITRATE = "24k"
 # How the laptop reproduces the call. It cannot play bass, it distorts a
 # little at its loudest, and the sound crosses the room before the microphone
 # hears it.
-SPEAKER_HIGHPASS_HZ = 300.0
+SPEAKER_HIGHPASS_HZ = 200.0
 SPEAKER_DRIVE = 1.2
 PLAYBACK_DELAY_RANGE = (0.06, 0.14)
 RT60_RANGE = (0.25, 0.5)
-DIRECT_TO_REVERB_DB = 4.0
+DIRECT_TO_REVERB_DB = 12.0
 
 ENVELOPE_WINDOW = 160  # 10 ms at 16 kHz, the window Pipit measures with
 SEARCH_SECONDS = 8.0  # how far either way Pipit looks for the far end
@@ -342,7 +342,7 @@ def render_variant(prepared: Prepared, name: str, target: float | None) -> Varia
     def at(gain: float) -> tuple[float, float]:
         return echo_correlation(base + gain * prepared.echo_unit, prepared.remote)
 
-    low, high = 1e-3, 3.0
+    low, high = 1e-3, 100.0
     top, _ = at(high)
     reached = top >= target
     if not reached:
