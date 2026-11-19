@@ -64,7 +64,9 @@ public enum BrowserAddOnState: Equatable {
     ///     on, when it can say. It outranks `hasConnectedBefore`.
     ///   - hasConnectedBefore: The add-on has reported on this machine
     ///     before, which stands for it being there when the browser gives no
-    ///     answer.
+    ///     answer. If the browser never answers, an add-on removed later keeps
+    ///     reading as installed until it is set up again; that is preferred to
+    ///     calling a working add-on missing after every restart.
     public init(
         connection: BrowserSensorTracker.Connection, isBundled: Bool, isEnabled: Bool? = nil,
         hasConnectedBefore: Bool = false

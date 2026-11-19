@@ -27,6 +27,10 @@ public final class SettingsModel {
     /// Whether Safari has Pipit's extension switched on. Nil until Safari
     /// answers, and on a build with no extension.
     var safariExtensionEnabled: Bool?
+    /// The Safari question in flight. Safari answers over XPC and nothing
+    /// bounds how long that takes, so it runs on its own and is never awaited
+    /// by `refresh` or the poll, and a new one starts only after it returns.
+    @ObservationIgnored private var safariQuery: Task<Void, Never>?
     public var apiKey = ""
     public var hasStoredKey: Bool
     public var testState = TestState.idle
@@ -96,7 +100,7 @@ public final class SettingsModel {
         statuses = await runtime.permissions.allStatuses()
         hostStatus = NativeMessagingInstaller().status()
         sensorStatus = runtime.sensorStatus
-        safariExtensionEnabled = await SafariAddOn.isEnabled()
+        askSafari()
         // Off the main actor: this call blocks until the person answers the
         // login-keychain prompt macOS raises when the item's ACL does not
         // trust the binary, which every unsigned rebuild produces. Run inline
@@ -119,7 +123,16 @@ public final class SettingsModel {
             guard !Task.isCancelled else { return }
             sensorStatus = runtime.sensorStatus
             hostStatus = NativeMessagingInstaller().status()
-            safariExtensionEnabled = await SafariAddOn.isEnabled()
+            askSafari()
+        }
+    }
+
+    private func askSafari() {
+        guard safariQuery == nil else { return }
+        safariQuery = Task { [weak self] in
+            let enabled = await SafariAddOn.isEnabled()
+            self?.safariExtensionEnabled = enabled
+            self?.safariQuery = nil
         }
     }
 
