@@ -218,7 +218,7 @@ func usage() -> Never {
                                  # store before reprocessing one
           pipit-eval bench    [--suite NAME] [--case MEETING] [--truth FILE]
                                  [--engine parakeet|cohere|whisper|<cloud model>]...
-                                 [--diarizer local|lseend|cloud] [--out FILE] [--baseline FILE]
+                                 [--diarizer local|lseend|nemotron3|cloud] [--out FILE] [--baseline FILE]
                                  [--allow-missing-baseline] [--audio-dir DIR]
                                  [--repeats N] [--keep-scratch] [--resume]
           pipit-eval summaries --model PROVIDER:MODEL [--model ...] [--case MEETING ...]
