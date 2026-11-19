@@ -67,7 +67,7 @@ enum ReanalyzeCommand {
 
         let manager = LocalModelManager(applicationSupport: applicationSupport)
         do {
-            _ = try await manager.install(units: [.diarizer, .voiceActivity])
+            _ = try await manager.install(units: [.diarizer, .nemotronDiarizer, .voiceActivity])
         } catch {
             FileHandle.standardError.write(Data("models unavailable: \(error)\n".utf8))
             return 1
@@ -103,7 +103,7 @@ enum ReanalyzeCommand {
                 },
                 prepareDiarizer: { _ = try await manager.install(units: [.diarizer]) },
                 reanalyzeDiarization: { meetingID, url, count in
-                    try await manager.reanalyze(
+                    try await manager.reanalyzeSpeakers(
                         meetingID: meetingID, audio: url, speakerCount: count
                     )
                 }

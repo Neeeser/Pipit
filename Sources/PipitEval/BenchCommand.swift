@@ -230,12 +230,16 @@ enum BenchCommand {
         init(_ description: String) { self.description = description }
     }
 
-    /// The local diarizers the bench can put under measurement. "local" is the
-    /// shipping offline pipeline; the lseend rows are the overlap-aware
-    /// candidate's checkpoints, which behave like different models: the AMI
-    /// one won AMI windows and collapsed on NOTSOFAR's far-field audio.
+    /// The local diarizers the bench can put under measurement. "local" is what
+    /// the application ships: Nemotron 3 with the offline clusterer behind it.
+    /// "vbx" is the clusterer alone, the application's previous diarizer, and
+    /// "nemotron3" is the model alone with no fallback. The lseend rows are the
+    /// overlap-aware candidate's checkpoints, which behave like different
+    /// models: the AMI one won AMI windows and collapsed on NOTSOFAR's
+    /// far-field audio.
     static let localDiarizers: Set<String> = [
-        "local", "lseend", "lseend-dihard3", "lseend-callhome", "nemotron3", "nemotron3-fast128",
+        "local", "vbx", "lseend", "lseend-dihard3", "lseend-callhome", "nemotron3",
+        "nemotron3-fast128",
     ]
 
     static func nemotron3Preset(for diarizer: String) -> Nemotron3DiarizationBackend.Preset {
@@ -301,10 +305,16 @@ enum BenchCommand {
                             return Nemotron3DiarizationBackend(
                                 models: models, preset: nemotron3Preset(for: diarizer))
                         }
-                        return diarizer.hasPrefix("lseend")
-                            ? LSEendDiarizationBackend(
+                        if diarizer.hasPrefix("lseend") {
+                            return LSEendDiarizationBackend(
                                 models: models, variant: lseendVariant(for: diarizer))
-                            : FluidAudioDiarizationBackend(models: models)
+                        }
+                        // `local` is what the application ships; `vbx` is the
+                        // offline clusterer alone, the application's previous
+                        // diarizer, kept so the two stay comparable.
+                        return diarizer == "vbx"
+                            ? FluidAudioDiarizationBackend(models: models)
+                            : LocalDiarizationBackend(models: models)
                     },
                     cloud: { OpenAIDiarizationBackend(backend: cloud, model: $0) }
                 )
@@ -911,7 +921,9 @@ enum BenchCommand {
     /// alone.
     static func installSize(engineName: String, diarizer: String) -> String {
         guard let engine = Engine.parse(engineName) else { return "      ?" }
-        let units = LocalModelUnit.required(for: settings(engine: engine, diarizer: diarizer))
+        var units = LocalModelUnit.required(for: settings(engine: engine, diarizer: diarizer))
+        // Only the shipped diarizer and the Nemotron rows install its model.
+        if diarizer != "local", !diarizer.hasPrefix("nemotron3") { units.remove(.nemotronDiarizer) }
         let bytes = units.reduce(Int64(0)) { $0 + $1.approximateBytes }
         return String(format: "%5.1fGB", Double(bytes) / (1024 * 1024 * 1024))
     }

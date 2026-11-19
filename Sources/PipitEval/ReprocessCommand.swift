@@ -106,7 +106,7 @@ enum ReprocessCommand {
             diarization: { settings, model in
                 ProcessingBackends.diarizationBackend(
                     settings: settings, model: model,
-                    local: { FluidAudioDiarizationBackend(models: manager) },
+                    local: { LocalDiarizationBackend(models: manager) },
                     cloud: { OpenAIDiarizationBackend(backend: cloud, model: $0) }
                 )
             },
