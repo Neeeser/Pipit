@@ -123,5 +123,61 @@
       "Btr001", "Bmr019", "Bsr001", "Bed016",
       "MTG_32046", "MTG_32000", "MTG_32052", "MTG_32102", "MTG_32093"
     ]
+  },
+  "calls": {
+    "seed": 20261119,
+    "mirror": "https://groups.inf.ed.ac.uk/ami/AMICorpusMirror/amicorpus/{meeting}/audio/{meeting}.Headset-{channel}.wav",
+    "variants": [
+      {"name": "headphones", "echoCorrelation": null},
+      {"name": "laptop", "echoCorrelation": 0.69},
+      {"name": "laptop-strong", "echoCorrelation": 0.89}
+    ],
+    "meetings": {
+      "IS1009a": {
+        "localAgent": "A",
+        "channels": {
+          "A": {"channel": 0, "sha256": "634f42207e488b0eab3b34a81ff16d565705f8fc5e37be7cc3c3b56617ae3257"},
+          "B": {"channel": 1, "sha256": "db98d175dda0d07613795c715667a72b99c5372aabd14ee4dcb94d1fa9c273ee"},
+          "C": {"channel": 2, "sha256": "9e28bfd55727b07d6a6020b7bf2797d113b35c69a1a3ad25cc4150be0937bf28"},
+          "D": {"channel": 3, "sha256": "7a0b041ad2f2cd9af1c8fcee08e598d6d88bd8f77a3174d7eb9e281a30ca0413"}
+        }
+      },
+      "EN2002a": {
+        "localAgent": "C",
+        "channels": {
+          "A": {"channel": 0, "sha256": "57ff80f887035ce46b1820f98c2adb67e2f8b17dd5ddf829db85c05318f0b026"},
+          "B": {"channel": 1, "sha256": "3a77a667b65a167c69d27fe9c06524aab5579bb0aff191edfad890af16638987"},
+          "C": {"channel": 2, "sha256": "ce77e415d3a72fc171989eee06527ea76d1e9f4b21ffcf2f677e88c3bad7c106"},
+          "D": {"channel": 3, "sha256": "dd4814d768b397f7cd522522e9cbb62579a09d8279a202ace3b3ae6534fec51e"}
+        }
+      },
+      "EN2002b": {
+        "localAgent": "A",
+        "channels": {
+          "A": {"channel": 0, "sha256": "c1d29d1fe2abc238ee98464fb71b0f33c9f92d8be14fce2e9857341b8f22420c"},
+          "B": {"channel": 1, "sha256": "ebf3eea1d9459b31f191593893ff30e57aed6c23da5c843162e8a0e77d1fae87"},
+          "C": {"channel": 2, "sha256": "2f01166f3895c987e91f4ad47426ac38ac80e900d4b6ee4da125112d7292b197"},
+          "D": {"channel": 3, "sha256": "68f495547ef9674d1d6848c12d7358829cc6e6d302268c0c51c3e3c470b7f692"}
+        }
+      },
+      "EN2002d": {
+        "localAgent": "D",
+        "channels": {
+          "A": {"channel": 0, "sha256": "88cf01860709899d62d9466d145838d7b64d8b959ab82c041ae73c9c6ad06b5d"},
+          "B": {"channel": 1, "sha256": "28486ee15ec50a876274ccf014992338cb68df9c5e56de7a6a670a7bb8e3dccd"},
+          "C": {"channel": 2, "sha256": "a0709a1431afe4ad336d2a82be1d73b491f96477d306863cc756a16693213902"},
+          "D": {"channel": 3, "sha256": "5e38b0f277f40107573f4492d44e2ec0bd1295e32e2cbf95ab4f3d137166f575"}
+        }
+      },
+      "IS1009c": {
+        "localAgent": "C",
+        "channels": {
+          "A": {"channel": 0, "sha256": "2d0b713a9a10ad3b3ea1719c845ab3758be092d09cfced4a37188a5084af412d"},
+          "B": {"channel": 1, "sha256": "f95638c9089e04f1c523887d18a18a612cc74ffe7805fba0ad9fecaa55ebd62d"},
+          "C": {"channel": 2, "sha256": "2a58b4c93f34daf6fdafc3f4a7f86020b9c3c7445b6804ad32540d5055081f88"},
+          "D": {"channel": 3, "sha256": "0728c2e4e6123be0151f4315303654b95e0113244654abec2ff1cffb5e339d24"}
+        }
+      }
+    }
   }
 }
