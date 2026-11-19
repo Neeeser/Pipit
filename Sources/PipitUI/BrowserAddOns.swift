@@ -11,7 +11,7 @@ import SwiftUI
 /// soon as Pipit has run. The person still turns it on in Safari's own
 /// settings and allows it on the meeting sites; Pipit can open that page and
 /// nothing more.
-enum SafariAddOn {
+public enum SafariAddOn {
     /// Whether this build carries the extension. Only the bundle
     /// scripts/bundle-app.sh assembles does.
     static var isBundled: Bool { SensorPeerVerifier.safariExtension() != nil }
@@ -29,13 +29,16 @@ enum SafariAddOn {
     /// or Safari gave no answer.
     static func isEnabled() async -> Bool? {
         guard isBundled else { return nil }
-        return await withCheckedContinuation { continuation in
-            SFSafariExtensionManager.getStateOfSafariExtension(
-                withIdentifier: SensorTransport.safariExtensionBundleIdentifier
-            ) { state, _ in
-                continuation.resume(returning: state?.isEnabled)
-            }
-        }
+        return await enabledState(identifier: SensorTransport.safariExtensionBundleIdentifier)
+    }
+
+    /// Safari's answer for one extension identifier.
+    ///
+    /// Uses the async form. The SDK marks the completion-handler form's reply
+    /// as main-actor, but Safari delivers it on its own queue, so a Swift
+    /// closure passed there made the runtime trap the app.
+    public static func enabledState(identifier: String) async -> Bool? {
+        try? await SFSafariExtensionManager.stateOfSafariExtension(withIdentifier: identifier).isEnabled
     }
 }
 
@@ -56,12 +59,19 @@ public enum BrowserAddOnState: Equatable {
     /// This build carries no add-on for the browser.
     case unavailable
 
-    /// - Parameter isEnabled: What the browser says about the add-on being
-    ///   switched on, when it can say. Nil leaves the connection to decide.
-    public init(connection: BrowserSensorTracker.Connection, isBundled: Bool, isEnabled: Bool? = nil) {
+    /// - Parameters:
+    ///   - isEnabled: What the browser says about the add-on being switched
+    ///     on, when it can say. It outranks `hasConnectedBefore`.
+    ///   - hasConnectedBefore: The add-on has reported on this machine
+    ///     before, which stands for it being there when the browser gives no
+    ///     answer.
+    public init(
+        connection: BrowserSensorTracker.Connection, isBundled: Bool, isEnabled: Bool? = nil,
+        hasConnectedBefore: Bool = false
+    ) {
         if connection.isLoaded {
             self = .on
-        } else if isBundled, isEnabled == true {
+        } else if isBundled, isEnabled ?? hasConnectedBefore {
             self = .installed
         } else {
             self = isBundled ? .off : .unavailable

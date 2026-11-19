@@ -843,12 +843,14 @@ struct UITests {
             try JSONSerialization.jsonObject(with: Data(contentsOf: store.url)) as? [String: Any]
         )
         object.removeValue(forKey: "firefoxSensorHasConnected")
+        object.removeValue(forKey: "safariSensorHasConnected")
         try JSONSerialization.data(withJSONObject: object).write(to: store.url)
 
         let reloaded = store.load()
         #expect(reloaded.localUserName == "Marlow", "existing values must survive")
         #expect(reloaded.hasCompletedOnboarding, "onboarding must not reappear")
         #expect(!reloaded.firefoxSensorHasConnected, "the missing field takes its default")
+        #expect(!reloaded.safariSensorHasConnected, "the missing field takes its default")
     }
 
     @Test("a settings file from a build that had the echo-cancellation toggle still loads")

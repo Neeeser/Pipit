@@ -18,7 +18,8 @@ struct BrowsersSettingsPane: View {
         BrowserAddOnState(
             connection: runtime.status.browserSensors[.safari] ?? .absent,
             isBundled: SafariAddOn.isBundled,
-            isEnabled: model.safariExtensionEnabled
+            isEnabled: model.safariExtensionEnabled,
+            hasConnectedBefore: runtime.status.safariSensorHasConnected
         )
     }
 

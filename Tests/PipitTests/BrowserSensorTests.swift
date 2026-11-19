@@ -186,6 +186,15 @@ struct BrowserSensorTests {
         #expect(!BrowserAddOnState(connection: .absent, isBundled: false).offersSetUp)
     }
 
+    @Test("asking Safari about an extension from the main actor returns instead of trapping")
+    @MainActor
+    func askingSafariAboutAnExtensionFromTheMainActorReturnsInsteadOfTrapping() async throws {
+        // Safari answers on its own queue. A reply closure that inherits the
+        // main actor's isolation trapped the app the moment the answer came.
+        let state = await SafariAddOn.enabledState(identifier: "com.example.no-such-extension")
+        #expect(state == nil)
+    }
+
     @Test("a Safari extension that is switched on counts as installed while Safari is closed")
     func aSafariExtensionThatIsSwitchedOnCountsAsInstalledWhileSafariIsClosed() async throws {
         // Safari starts the extension only while it has a page open, so with
@@ -200,5 +209,22 @@ struct BrowserSensorTests {
             "an answer Safari has not given yet changes nothing")
         #expect(BrowserAddOnState(connection: .fresh, isBundled: true, isEnabled: false) == .on)
         #expect(BrowserAddOnState(connection: .absent, isBundled: false, isEnabled: true) == .unavailable)
+    }
+
+    @Test("a Safari add-on that connected before reads as installed when Safari gives no answer")
+    func aSafariAddOnThatConnectedBeforeReadsAsInstalledWhenSafariGivesNoAnswer() async throws {
+        // After an update, Pipit starts with Safari closed, so nothing is
+        // talking yet. An add-on that has reported before is still there.
+        #expect(
+            BrowserAddOnState(connection: .absent, isBundled: true, isEnabled: nil, hasConnectedBefore: true)
+                == .installed)
+        #expect(
+            BrowserAddOnState(connection: .absent, isBundled: true, isEnabled: false, hasConnectedBefore: true)
+                == .off,
+            "Safari saying it is switched off outranks the memory of a connection")
+        #expect(
+            BrowserAddOnState(connection: .absent, isBundled: true, isEnabled: nil, hasConnectedBefore: false)
+                == .off,
+            "never connected and no answer from Safari: set-up is still offered")
     }
 }

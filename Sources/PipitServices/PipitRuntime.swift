@@ -27,6 +27,8 @@ public struct RuntimeStatus: Sendable, Equatable {
     /// Whether the Firefox add-on has ever connected on this machine, carried
     /// from settings so the menu bar can tell "dropped" from "never installed".
     public var firefoxSensorHasConnected = false
+    /// Whether the Safari add-on has ever connected, from the settings latch.
+    public var safariSensorHasConnected = false
     public var isFirefoxRunning = false
     /// Whether a Firefox profile holds the add-on, which is the answer while it
     /// is installed but has not called in yet.
@@ -557,6 +559,7 @@ public final class PipitRuntime {
     /// the updater starts, and the update window's second step reads this.
     private func seedStatus(from settings: AppSettings) {
         status.firefoxSensorHasConnected = settings.firefoxSensorHasConnected
+        status.safariSensorHasConnected = settings.safariSensorHasConnected
         status.firefoxAddOnProtocol = settings.firefoxAddOnProtocol
         status.firefoxAddOnVersion = settings.firefoxAddOnVersion
     }
@@ -838,6 +841,11 @@ public final class PipitRuntime {
             updated.firefoxSensorHasConnected = true
             update(settings: updated)
         }
+        if snapshot.browserSensors[.safari]?.isLoaded == true, !settings.safariSensorHasConnected {
+            var updated = settings
+            updated.safariSensorHasConnected = true
+            update(settings: updated)
+        }
         // What the add-on said about itself is kept the same way, so the
         // launch after an app update knows whether the add-on is behind
         // before the add-on has called back.
@@ -852,6 +860,7 @@ public final class PipitRuntime {
         }
         next = status
         next.firefoxSensorHasConnected = settings.firefoxSensorHasConnected
+        next.safariSensorHasConnected = settings.safariSensorHasConnected
         next.firefoxAddOnProtocol = settings.firefoxAddOnProtocol
         next.firefoxAddOnVersion = settings.firefoxAddOnVersion
         next.slackState = snapshot.slackState
