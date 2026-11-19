@@ -244,21 +244,27 @@ struct BackendSettingsTests {
         settings.processing.localTranscriptionModel = .cohere
         #expect(
             LocalModelUnit.required(for: settings)
-                == [.cohere, .ctcAligner, .diarizer, .voiceActivity],
+                == [.cohere, .ctcAligner, .diarizer, .nemotronDiarizer, .voiceActivity],
             "a text-only local model brings the aligner with it"
         )
 
         settings.processing.localTranscriptionModel = .parakeet
-        #expect(LocalModelUnit.required(for: settings) == [.parakeet, .diarizer, .voiceActivity])
+        #expect(
+            LocalModelUnit.required(for: settings)
+                == [.parakeet, .diarizer, .nemotronDiarizer, .voiceActivity],
+            "local diarization brings the Nemotron model beside the clusterer"
+        )
 
         settings.processing.transcription = .openAI
         settings.models.transcription = "gpt-transcribe"
         #expect(
-            LocalModelUnit.required(for: settings) == [.ctcAligner, .diarizer, .voiceActivity],
+            LocalModelUnit.required(for: settings)
+                == [.ctcAligner, .diarizer, .nemotronDiarizer, .voiceActivity],
             "cloud words without timings still need the local aligner"
         )
 
         settings.models.transcription = "gpt-4o-transcribe-diarize"
+        settings.coupleDiarization()
         #expect(
             LocalModelUnit.required(for: settings) == [.diarizer, .voiceActivity],
             "a self-contained cloud model brings the diarizer and the detector"

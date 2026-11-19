@@ -93,7 +93,8 @@ struct LocalConfigurationTests {
         // The diarizer and the voice detector ride along: every
         // configuration requires both.
         #expect(
-            LocalModelUnit.required(for: settings) == [.canary, .ctcAligner, .diarizer, .voiceActivity]
+            LocalModelUnit.required(for: settings)
+                == [.canary, .ctcAligner, .diarizer, .nemotronDiarizer, .voiceActivity]
         )
         #expect(
             !LocalTranscriptionModel.offered.contains(.canary),
@@ -118,7 +119,8 @@ struct LocalConfigurationTests {
         var settings = AppSettings()
         settings.processing.transcription = .local
         settings.processing.localTranscriptionModel = .apple
-        #expect(LocalModelUnit.required(for: settings) == [.diarizer, .voiceActivity])
+        #expect(
+            LocalModelUnit.required(for: settings) == [.diarizer, .nemotronDiarizer, .voiceActivity])
         #expect(
             LocalTranscriptionModel.apple.backendIdentifier == LocalSpeechStack.appleBackendIdentifier
         )
