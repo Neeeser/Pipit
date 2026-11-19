@@ -109,6 +109,55 @@ struct LocalConfigurationTests {
         )
     }
 
+    @Test("Parakeet Ultra is a bench candidate with its own weights and no aligner")
+    func parakeetUltraIsABenchCandidateWithItsOwnWeightsAndNoAligner() async throws {
+        // It returns word timings like Parakeet TDT v3, so it needs no
+        // aligner, and it stays out of `offered` until the comparative run
+        // earns it a place in the settings UI.
+        var settings = AppSettings()
+        settings.processing.transcription = .local
+        settings.processing.localTranscriptionModel = .parakeetUltra
+        #expect(
+            LocalModelUnit.required(for: settings)
+                == [.parakeetUltra, .diarizer, .nemotronDiarizer, .voiceActivity]
+        )
+        #expect(
+            !LocalTranscriptionModel.offered.contains(.parakeetUltra),
+            "the settings UI does not offer what the bench has not proven"
+        )
+        #expect(LocalTranscriptionModel.preferred != .parakeetUltra)
+        #expect(LocalTranscriptionModel(rawValue: "parakeet-ultra") == .parakeetUltra)
+        #expect(
+            LocalTranscriptionModel.parakeetUltra.backendIdentifier
+                == LocalSpeechStack.parakeetUltraBackendIdentifier
+        )
+        #expect(
+            LocalSpeechStack.parakeetUltraBackendIdentifier != LocalSpeechStack.parakeetBackendIdentifier,
+            "a row recorded for Ultra must not read as v3"
+        )
+        #expect(
+            LocalSpeechStack.revision(for: .parakeetUltra) == "parakeet-ultra-int8 @ FluidAudio 0.18.2"
+        )
+        let manager = LocalModelManager(applicationSupport: URL(fileURLWithPath: "/nonexistent"))
+        let backend = ParakeetUltraTranscriptionBackend(models: manager)
+        #expect(backend.identifier == LocalSpeechStack.parakeetUltraBackendIdentifier)
+        #expect(backend.timing == .words)
+    }
+
+    @Test("Parakeet Ultra keeps its own folder beside Parakeet's")
+    func parakeetUltraKeepsItsOwnFolderBesideParakeets() async throws {
+        let support = try TestPaths.makeTemporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: support) }
+        let locations = LocalModelLocations(applicationSupport: support)
+        #expect(locations.parakeetUltraDirectory != locations.parakeetDirectory)
+        #expect(locations.directory(for: .parakeetUltra) == locations.parakeetUltraDirectory)
+        #expect(
+            locations.containerDirectory(for: .parakeetUltra).deletingLastPathComponent().standardizedFileURL
+                == locations.root.standardizedFileURL,
+            "deleting the unit must not touch the other models"
+        )
+    }
+
     @Test("Apple speech needs no downloaded units and leads where the OS has it")
     func appleSpeechNeedsNoDownloadedUnitsAndLeadsWhereTheOSHasIt() async throws {
         // The models are system assets the OS installs and owns, so
@@ -321,7 +370,7 @@ struct LocalModelStorageTests {
         let locations = LocalModelLocations(applicationSupport: support)
         for url in [
             locations.root, locations.whisperBase, locations.whisperModelFolder,
-            locations.diarizerDirectory, locations.parakeetDirectory,
+            locations.diarizerDirectory, locations.parakeetDirectory, locations.parakeetUltraDirectory,
             locations.cohereDirectory, locations.alignerDirectory,
             locations.inventory,
         ] {

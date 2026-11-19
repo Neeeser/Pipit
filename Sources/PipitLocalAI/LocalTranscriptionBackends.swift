@@ -34,6 +34,38 @@ public struct ParakeetTranscriptionBackend: TranscriptionBackend {
     }
 }
 
+/// Parakeet Ultra behind the transcription protocol: the Parakeet pass with
+/// post-trained weights. A benchmark candidate, wired only where the
+/// evaluation tool asks for it.
+public struct ParakeetUltraTranscriptionBackend: TranscriptionBackend {
+    private let models: LocalModelManager
+
+    public init(models: LocalModelManager) {
+        self.models = models
+    }
+
+    public var identifier: String { LocalSpeechStack.parakeetUltraBackendIdentifier }
+    public var isLocal: Bool { true }
+    public var limits: BackendAudioLimits { .none }
+    public var timing: TranscriptTiming { .words }
+
+    public func transcribe(
+        audio: URL, progress: @escaping @Sendable (Double) -> Void
+    ) async throws -> TranscriptionOutput {
+        let result = try await models.transcribeParakeetUltra(audio: audio)
+        progress(1)
+        return TranscriptionOutput(
+            segments: CtcForcedAlignment.segments(
+                from: result.words,
+                pauseSeconds: LocalAlignmentTuning.segmentPauseSeconds,
+                maximumSeconds: LocalAlignmentTuning.segmentMaximumSeconds
+            ),
+            text: result.text,
+            durationSeconds: result.durationSeconds
+        )
+    }
+}
+
 /// Cohere Transcribe behind the transcription protocol.
 ///
 /// The strongest raw model on the meeting-audio leaderboard, and a text-only

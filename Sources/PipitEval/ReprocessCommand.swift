@@ -120,6 +120,7 @@ enum ReprocessCommand {
                         case .canary: CanaryTranscriptionBackend(models: manager)
                         case .apple: AppleSpeechTranscriptionBackend()
                         case .parakeet: ParakeetTranscriptionBackend(models: manager)
+                        case .parakeetUltra: ParakeetUltraTranscriptionBackend(models: manager)
                         case .whisper: WhisperTranscriptionBackend(models: manager)
                         }
                     },
