@@ -14,6 +14,12 @@ public struct AudioImporter: Sendable {
         public let segmentCount: Int
     }
 
+    /// The two tracks of an imported call.
+    public struct CallResult: Sendable, Equatable {
+        public let microphone: Result
+        public let remote: Result
+    }
+
     public let segmentSeconds: Double
     private let clock: any Clock
 
@@ -28,11 +34,90 @@ public struct AudioImporter: Sendable {
         source: URL, into store: MeetingStore, meetingID: String, session: DiagnosticSessionID? = nil
     ) throws -> Result {
         try store.createDirectories()
+        let preserved = try preserve(source, as: source.lastPathComponent, in: store)
+
+        let manifest = try ManifestWriter(url: store.layout.manifest)
+        defer { manifest.close() }
+        appendSessionStart(to: manifest, meetingID: meetingID, source: .imported, session: session)
+
+        // Imported audio is written mono: an imported recording has no separate
+        // local speaker, so the whole file is diarized as one track.
+        var decoded = 0.0
+        do {
+            let result = try write(
+                preserved, originalName: source.lastPathComponent, track: .mic, store: store,
+                manifest: manifest, hostOrigin: clock.monotonicSeconds, decodedSeconds: &decoded
+            )
+            appendSessionEnd(
+                to: manifest, reason: "import_complete", microphone: result.durationSeconds, remote: 0
+            )
+            return result
+        } catch {
+            appendSessionEnd(to: manifest, reason: "import_failed", microphone: decoded, remote: 0)
+            throw error
+        }
+    }
+
+    /// Imports a two-track call: a microphone recording and a recording of
+    /// everyone else, laid out the way a capture writes them.
+    ///
+    /// Both tracks go into one manifest under `source`, which must be a source
+    /// that records the far end separately. Each track starts at the same host
+    /// time, so the pipeline reads the two as captured together and the echo
+    /// pass lines the far end up by measurement alone. This is how the
+    /// benchmark feeds the pipeline a call whose answer is known.
+    public func importCall(
+        microphone: URL, remote: URL, source: MeetingSource, into store: MeetingStore,
+        meetingID: String, session: DiagnosticSessionID? = nil
+    ) throws -> CallResult {
+        precondition(source.capturesRemoteAudio, "a call import needs a source with a far end")
+        try store.createDirectories()
+        // Two files can share a name, and the second would then be taken for a
+        // copy of the first and never preserved.
+        let microphoneName = microphone.lastPathComponent
+        let remoteName =
+            remote.lastPathComponent == microphoneName
+            ? "remote-\(remote.lastPathComponent)" : remote.lastPathComponent
+        let preservedMicrophone = try preserve(microphone, as: microphoneName, in: store)
+        let preservedRemote = try preserve(remote, as: remoteName, in: store)
+
+        let manifest = try ManifestWriter(url: store.layout.manifest)
+        defer { manifest.close() }
+        appendSessionStart(to: manifest, meetingID: meetingID, source: source, session: session)
+
+        let origin = clock.monotonicSeconds
+        var microphoneSeconds = 0.0
+        var remoteSeconds = 0.0
+        do {
+            let first = try write(
+                preservedMicrophone, originalName: microphoneName, track: .mic, store: store,
+                manifest: manifest, hostOrigin: origin, decodedSeconds: &microphoneSeconds
+            )
+            microphoneSeconds = first.durationSeconds
+            let second = try write(
+                preservedRemote, originalName: remoteName, track: .remote, store: store,
+                manifest: manifest, hostOrigin: origin, decodedSeconds: &remoteSeconds
+            )
+            appendSessionEnd(
+                to: manifest, reason: "import_complete", microphone: first.durationSeconds,
+                remote: second.durationSeconds
+            )
+            return CallResult(microphone: first, remote: second)
+        } catch {
+            appendSessionEnd(
+                to: manifest, reason: "import_failed", microphone: microphoneSeconds,
+                remote: remoteSeconds
+            )
+            throw error
+        }
+    }
+
+    /// Copies the original into the meeting folder and returns the copy.
+    private func preserve(_ source: URL, as name: String, in store: MeetingStore) throws -> URL {
         try FileManager.default.createDirectory(
             at: store.layout.originals, withIntermediateDirectories: true
         )
-
-        let preserved = store.layout.originals.appendingPathComponent(source.lastPathComponent)
+        let preserved = store.layout.originals.appendingPathComponent(name)
         if !FileManager.default.fileExists(atPath: preserved.path) {
             do {
                 try FileManager.default.copyItem(at: source, to: preserved)
@@ -40,46 +125,67 @@ public struct AudioImporter: Sendable {
                 throw StorageError.fileWriteFailed(path: preserved.path, underlying: "\(error)")
             }
         }
+        return preserved
+    }
 
-        guard let input = try? AVAudioFile(forReading: preserved) else {
-            throw ProcessingError.audioUnreadable(path: source.lastPathComponent)
-        }
-        let sourceFormat = input.processingFormat
-        guard sourceFormat.sampleRate > 0 else {
-            throw ProcessingError.audioUnreadable(path: source.lastPathComponent)
-        }
-        // Imported audio is written mono: an imported recording has no separate
-        // local speaker, so the whole file is diarized as one track.
-        guard
-            let targetFormat = AVAudioFormat(
-                standardFormatWithSampleRate: sourceFormat.sampleRate, channels: 1
-            )
-        else {
-            throw ProcessingError.audioUnreadable(path: source.lastPathComponent)
-        }
-
-        let manifest = try ManifestWriter(url: store.layout.manifest)
-        defer { manifest.close() }
+    private func appendSessionStart(
+        to manifest: ManifestWriter, meetingID: String, source: MeetingSource,
+        session: DiagnosticSessionID?
+    ) {
         manifest.append(
             .sessionStart(
                 .init(
-                    meetingID: meetingID, source: .imported, segmentSeconds: segmentSeconds,
+                    meetingID: meetingID, source: source, segmentSeconds: segmentSeconds,
                     appVersion: PipitVersion.current,
                     processID: ProcessInfo.processInfo.processIdentifier,
                     diagnosticSession: session?.description
                 )),
             hostTime: clock.monotonicSeconds, wallClock: clock.now
         )
+    }
+
+    private func appendSessionEnd(
+        to manifest: ManifestWriter, reason: String, microphone: Double, remote: Double
+    ) {
+        manifest.append(
+            .sessionEnd(.init(reason: reason, micSeconds: microphone, remoteSeconds: remote)),
+            hostTime: clock.monotonicSeconds, wallClock: clock.now
+        )
+    }
+
+    /// Decodes one preserved file into mono segments of `track`, at the file's
+    /// own sample rate. `decodedSeconds` holds what was written so far when this
+    /// throws, so the caller's session end can say how far an import got.
+    private func write(
+        _ preserved: URL, originalName: String, track: CaptureTrack, store: MeetingStore,
+        manifest: ManifestWriter, hostOrigin: Double, decodedSeconds: inout Double
+    ) throws -> Result {
+        guard let input = try? AVAudioFile(forReading: preserved) else {
+            throw ProcessingError.audioUnreadable(path: originalName)
+        }
+        let sourceFormat = input.processingFormat
+        guard sourceFormat.sampleRate > 0,
+            let targetFormat = AVAudioFormat(
+                standardFormatWithSampleRate: sourceFormat.sampleRate, channels: 1
+            )
+        else {
+            throw ProcessingError.audioUnreadable(path: originalName)
+        }
 
         let writer = SegmentWriter(
-            track: .mic, layout: store.layout, manifest: manifest, format: targetFormat,
+            track: track, layout: store.layout, manifest: manifest, format: targetFormat,
             segmentSeconds: segmentSeconds, clock: clock
         )
+        func abandon() -> ProcessingError {
+            writer.finish(reason: "import_failed")
+            decodedSeconds = writer.stats.totalSeconds
+            return ProcessingError.audioUnreadable(path: originalName)
+        }
 
         guard let converter = AVAudioConverter(from: sourceFormat, to: targetFormat),
             let readBuffer = AVAudioPCMBuffer(pcmFormat: sourceFormat, frameCapacity: 16_384)
         else {
-            throw ProcessingError.audioUnreadable(path: source.lastPathComponent)
+            throw abandon()
         }
         // More than two channels with no surround layout has no mixdown matrix,
         // and the converter would produce silence.
@@ -87,15 +193,13 @@ public struct AudioImporter: Sendable {
             converter.channelMap = (0..<Int(targetFormat.channelCount)).map { NSNumber(value: $0) }
         }
 
-        var producedFrames: Int64 = 0
-        var hostTime = clock.monotonicSeconds
+        var hostTime = hostOrigin
         while input.framePosition < input.length {
             readBuffer.frameLength = 0
             do {
                 try input.read(into: readBuffer)
             } catch {
-                endFailedImport(writer: writer, manifest: manifest)
-                throw ProcessingError.audioUnreadable(path: source.lastPathComponent)
+                throw abandon()
             }
             guard readBuffer.frameLength > 0 else { break }
 
@@ -103,8 +207,7 @@ public struct AudioImporter: Sendable {
                 Double(readBuffer.frameLength) * targetFormat.sampleRate / sourceFormat.sampleRate + 1_024
             )
             guard let output = AVAudioPCMBuffer(pcmFormat: targetFormat, frameCapacity: capacity) else {
-                endFailedImport(writer: writer, manifest: manifest)
-                throw ProcessingError.audioUnreadable(path: source.lastPathComponent)
+                throw abandon()
             }
             // The converter calls the input block synchronously on this thread,
             // but the block is typed `@Sendable`. The box carries the buffer and
@@ -124,41 +227,19 @@ public struct AudioImporter: Sendable {
                 }
             }
             if status == .error {
-                endFailedImport(writer: writer, manifest: manifest)
-                throw ProcessingError.audioUnreadable(path: source.lastPathComponent)
+                throw abandon()
             }
             guard output.frameLength > 0 else { continue }
 
             writer.enqueueSynchronously(AudioBufferPacket(buffer: output, hostTime: hostTime))
-            producedFrames += Int64(output.frameLength)
             hostTime += Double(output.frameLength) / targetFormat.sampleRate
         }
 
         writer.finish(reason: "import_complete")
         let stats = writer.stats
-        manifest.append(
-            .sessionEnd(.init(reason: "import_complete", micSeconds: stats.totalSeconds, remoteSeconds: 0)),
-            hostTime: clock.monotonicSeconds, wallClock: clock.now
-        )
-
         return Result(
-            durationSeconds: stats.totalSeconds,
-            originalFilename: source.lastPathComponent,
+            durationSeconds: stats.totalSeconds, originalFilename: originalName,
             segmentCount: stats.segmentCount
-        )
-    }
-
-    /// Closes the segments an abandoned import wrote and records why it stopped.
-    ///
-    /// The session end says `import_failed`, so the part of the file that was
-    /// decoded before the failure is not read back as a whole meeting. The
-    /// source file is left as it is.
-    private func endFailedImport(writer: SegmentWriter, manifest: ManifestWriter) {
-        writer.finish(reason: "import_failed")
-        let stats = writer.stats
-        manifest.append(
-            .sessionEnd(.init(reason: "import_failed", micSeconds: stats.totalSeconds, remoteSeconds: 0)),
-            hostTime: clock.monotonicSeconds, wallClock: clock.now
         )
     }
 }
