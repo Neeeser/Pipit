@@ -235,8 +235,12 @@ enum BenchCommand {
     /// candidate's checkpoints, which behave like different models: the AMI
     /// one won AMI windows and collapsed on NOTSOFAR's far-field audio.
     static let localDiarizers: Set<String> = [
-        "local", "lseend", "lseend-dihard3", "lseend-callhome",
+        "local", "lseend", "lseend-dihard3", "lseend-callhome", "nemotron3", "nemotron3-fast128",
     ]
+
+    static func nemotron3Preset(for diarizer: String) -> Nemotron3DiarizationBackend.Preset {
+        diarizer == "nemotron3-fast128" ? .fast128 : .offline
+    }
 
     static func lseendVariant(for diarizer: String) -> LSEENDVariant {
         switch diarizer {
@@ -293,7 +297,11 @@ enum BenchCommand {
                 ProcessingBackends.diarizationBackend(
                     settings: settings, model: model,
                     local: { () -> any DiarizationBackend in
-                        diarizer.hasPrefix("lseend")
+                        if diarizer.hasPrefix("nemotron3") {
+                            return Nemotron3DiarizationBackend(
+                                models: models, preset: nemotron3Preset(for: diarizer))
+                        }
+                        return diarizer.hasPrefix("lseend")
                             ? LSEendDiarizationBackend(
                                 models: models, variant: lseendVariant(for: diarizer))
                             : FluidAudioDiarizationBackend(models: models)

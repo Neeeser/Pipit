@@ -47,6 +47,40 @@ struct LocalConfigurationTests {
         #expect(output.configuration["backend"] == "test")
     }
 
+    @Test("a Nemotron 3 timeline keeps two speakers talking at once")
+    func aNemotron3TimelineKeepsTwoSpeakersTalkingAtOnce() async throws {
+        // Segments arrive grouped by speaker slot, so the mapping must sort
+        // them by time and keep a simultaneous second voice as its own
+        // overlapping interval rather than flatten it to one speaker.
+        let output = Nemotron3DiarizationBackend.output(
+            segments: [
+                (speaker: 1, start: 4, end: 8),
+                (speaker: 0, start: 12, end: 15),
+                (speaker: 0, start: 0, end: 10),
+            ],
+            configuration: ["backend": "test", "variant": "offline"]
+        )
+        #expect(output.intervals.map(\.start) == [0, 4, 12], "sorted by start time")
+        let first = output.intervals[0]
+        let second = output.intervals[1]
+        #expect(first.clusterID == output.intervals[2].clusterID, "one slot keeps one key")
+        #expect(second.clusterID != first.clusterID && second.start < first.end)
+        let byID = Dictionary(uniqueKeysWithValues: output.clusters.map { ($0.id, $0) })
+        #expect(byID[first.clusterID]?.speechSeconds == 13)
+        #expect(byID[second.clusterID]?.speechSeconds == 4)
+        #expect(output.configuration["variant"] == "offline")
+    }
+
+    @Test("Nemotron 3 names its preset and package version")
+    func nemotron3NamesItsPresetAndPackageVersion() async throws {
+        let manager = LocalModelManager(applicationSupport: URL(fileURLWithPath: "/nonexistent"))
+        let offline = Nemotron3DiarizationBackend(models: manager)
+        let fast = Nemotron3DiarizationBackend(models: manager, preset: .fast128)
+        #expect(offline.identifier == "fluidaudio-nemotron3-offline-0.18.2")
+        #expect(fast.identifier == "fluidaudio-nemotron3-fast128-0.18.2")
+        #expect(!offline.producesEmbeddings)
+    }
+
     @Test("Canary is a bench candidate, not an offered model")
     func canaryIsABenchCandidateNotAnOfferedModel() async throws {
         // A text-only engine: its units are its own weights plus the

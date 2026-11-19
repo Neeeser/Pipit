@@ -21,6 +21,11 @@ public enum LocalSpeechStack {
     /// constructed anywhere in the application until the comparative run says
     /// it should be.
     public static let lseendBackendIdentifierPrefix = "fluidaudio-lseend-"
+
+    /// Nemotron 3 Diarization through FluidAudio, also a benchmark candidate:
+    /// it marks overlapping speakers like LS-EEND and tracks up to eight. The
+    /// preset name completes the identifier.
+    public static let nemotron3BackendIdentifierPrefix = "fluidaudio-nemotron3-"
     public static let whisperBackendIdentifier = "whisperkit-large-v3-turbo"
 
     public static let approximateWhisperBytes: Int64 = 624 * 1_024 * 1_024
