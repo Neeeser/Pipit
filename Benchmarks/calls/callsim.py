@@ -278,12 +278,12 @@ def prepare_meeting(
     start = truth.get("windowStart")
     seconds = truth["windowSeconds"]
     speaker_of = truth["agentToSpeaker"]
-    audio = {agent: read_channel(path, start, seconds) for agent, path in sorted(channels.items())}
+    # A whole-meeting truth scores the first `seconds`; the headset files run a
+    # little past the last annotated word, and that tail has no words to score.
+    audio = {agent: read_channel(path, start or 0.0, seconds) for agent, path in sorted(channels.items())}
     samples = min(len(a) for a in audio.values())
-    if start is None and abs(samples / RATE - seconds) > 1.0:
-        raise ValueError("%s: the channels run %.1f s, the truth scores %.1f s" % (meeting, samples / RATE, seconds))
-    if start is not None and samples / RATE < seconds - 1.0:
-        raise ValueError("%s: the window runs past the end of the channels" % meeting)
+    if samples / RATE < seconds - 1.0:
+        raise ValueError("%s: the truth scores %.1f s but the channels run %.1f s" % (meeting, seconds, samples / RATE))
 
     masks: dict[str, np.ndarray] = {}
     gated: dict[str, np.ndarray] = {}
