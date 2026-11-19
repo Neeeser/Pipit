@@ -130,7 +130,8 @@
     "variants": [
       {"name": "headphones", "echoCorrelation": null},
       {"name": "laptop", "echoCorrelation": 0.69},
-      {"name": "laptop-strong", "echoCorrelation": 0.89}
+      {"name": "laptop-strong", "echoCorrelation": 0.89},
+      {"name": "laptop-meet", "echoCorrelation": 0.69, "sensors": {"onsetDelaySeconds": 0.5, "releaseDelaySeconds": 1.0, "dropoutShare": 0.1}}
     ],
     "meetings": {
       "IS1009a": {

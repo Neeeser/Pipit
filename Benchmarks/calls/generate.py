@@ -90,7 +90,10 @@ def main() -> None:
         for spec in variants:
             variant = callsim.render_variant(prepared, spec["name"], spec["echoCorrelation"])
             directory = out / callsim.case_id(meeting, spec["name"])
-            callsim.write_case(directory, prepared, variant, seed, truth)
+            sensors = None
+            if spec.get("sensors"):
+                sensors = callsim.simulate_sensors(seed, meeting, truth, prepared.local_speaker, spec["sensors"])
+            callsim.write_case(directory, prepared, variant, seed, truth, sensors)
             target = "none" if variant.target_correlation is None else "%.2f" % variant.target_correlation
             ratio = "" if variant.echo_to_voice_db is None else "%+.1f dB" % variant.echo_to_voice_db
             line = "%-24s %8s %8.3f %8.4f %9s" % (

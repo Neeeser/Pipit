@@ -14,6 +14,9 @@ public struct BenchCallCase: Codable, Sendable, Equatable {
     public struct Files: Codable, Sendable, Equatable {
         public var mic: AudioFile
         public var remote: AudioFile
+        /// A simulated meeting-client record, written for the variants that
+        /// model a call with a sensor. It is a `RawSensors` file as stored.
+        public var sensors: AudioFile?
     }
 
     public struct Echo: Codable, Sendable, Equatable {

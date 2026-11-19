@@ -53,6 +53,15 @@ public struct BenchManifest: Codable, Sendable, Equatable {
             /// The `echoCorrelationBefore` the microphone is built to read, or
             /// nil for a microphone with no echo.
             public var echoCorrelation: Double?
+            /// Present when the variant models a call whose meeting client was
+            /// readable. Its numbers parameterise the generator, not the bench.
+            public var sensors: Sensors?
+        }
+
+        public struct Sensors: Codable, Sendable, Equatable {
+            public var onsetDelaySeconds: Double
+            public var releaseDelaySeconds: Double
+            public var dropoutShare: Double
         }
 
         public struct Channel: Codable, Sendable, Equatable {

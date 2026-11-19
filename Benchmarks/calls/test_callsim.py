@@ -149,6 +149,57 @@ class MeasureTests(unittest.TestCase):
         self.assertLess(value, 0.35)
 
 
+class SensorTests(unittest.TestCase):
+    SPEC = {"onsetDelaySeconds": 0.5, "releaseDelaySeconds": 1.0, "dropoutShare": 0.0}
+
+    def truth(self):
+        turns = []
+        for index in range(60):
+            speaker = "SPK_" + "ABCD"[index % 4]
+            turns.append({"speaker": speaker, "start": index * 10.0, "end": index * 10.0 + 6.0})
+        return {
+            "windowSeconds": 600.0,
+            "agentToSpeaker": {letter: "SPK_" + letter for letter in "ABCD"},
+            "turns": turns,
+        }
+
+    def test_the_record_has_the_fields_the_app_reads(self):
+        record = callsim.simulate_sensors(1, "SYN", self.truth(), "SPK_A", self.SPEC)
+        self.assertEqual(set(record), {"version", "source", "participants", "turns", "unmutedIDs", "selfIsAuthoritative"})
+        self.assertEqual(record["source"], "google_meet-dom")
+        self.assertFalse(record["selfIsAuthoritative"])
+        marked = [p for p in record["participants"] if p["isSelf"]]
+        self.assertEqual([p["displayName"] for p in marked], ["You"])
+        known = {p["id"] for p in record["participants"]}
+        self.assertTrue(all(t["participantID"] in known and t["end"] > t["start"] for t in record["turns"]))
+
+    def test_each_turn_starts_and_ends_late_within_the_stated_range(self):
+        truth = self.truth()
+        record = callsim.simulate_sensors(1, "SYN", truth, "SPK_A", self.SPEC)
+        self.assertEqual(len(record["turns"]), len(truth["turns"]))
+        for sensed, real in zip(record["turns"], truth["turns"]):
+            self.assertTrue(0.25 - 1e-6 <= sensed["start"] - real["start"] <= 0.75 + 1e-6)
+            self.assertTrue(0.5 - 1e-6 <= sensed["end"] - real["end"] <= 1.5 + 1e-6)
+
+    def test_dropouts_remove_only_far_end_turns_and_the_rest_keep_their_delays(self):
+        truth = self.truth()
+        full = callsim.simulate_sensors(1, "SYN", truth, "SPK_A", self.SPEC)
+        lossy = callsim.simulate_sensors(1, "SYN", truth, "SPK_A", dict(self.SPEC, dropoutShare=0.5))
+        local_id = next(p["id"] for p in lossy["participants"] if p["isSelf"])
+        count = lambda record, local: sum((t["participantID"] == local_id) == local for t in record["turns"])
+        self.assertEqual(count(lossy, True), count(full, True))
+        self.assertLess(count(lossy, False), count(full, False))
+        self.assertGreater(count(lossy, False), 0)
+        kept = {(t["participantID"], t["start"]) for t in full["turns"]}
+        self.assertTrue(all((t["participantID"], t["start"]) in kept for t in lossy["turns"]))
+
+    def test_the_record_depends_on_the_seed_and_the_meeting_only(self):
+        truth = self.truth()
+        one = callsim.simulate_sensors(1, "SYN", truth, "SPK_A", self.SPEC)
+        self.assertEqual(one, callsim.simulate_sensors(1, "SYN", truth, "SPK_A", self.SPEC))
+        self.assertNotEqual(one["turns"], callsim.simulate_sensors(2, "SYN", truth, "SPK_A", self.SPEC)["turns"])
+
+
 @unittest.skipUnless(HAS_FFMPEG, "ffmpeg is not installed")
 class CodecTests(unittest.TestCase):
     def test_the_round_trip_keeps_length_and_timing(self):
@@ -211,6 +262,25 @@ class CaseTests(unittest.TestCase):
         self.assertTrue(laptop["reachedTarget"])
         self.assertAlmostEqual(laptop["correlation"], 0.6, delta=0.02)
         self.assertGreater(laptop["gain"], 0)
+
+    def test_a_sensor_record_is_written_beside_the_audio_and_named_in_the_description(self):
+        with tempfile.TemporaryDirectory() as scratch:
+            scratch = Path(scratch)
+            (scratch / "in").mkdir()
+            truth, channels = synthetic_meeting(scratch / "in")
+            truth["turns"] = [{"speaker": "SPK_B", "start": 9.0, "end": 15.0}]
+            prepared = callsim.prepare_meeting(11, "SYN", truth, "A", channels)
+            variant = callsim.render_variant(prepared, "headphones", None)
+            spec = {"onsetDelaySeconds": 0.5, "releaseDelaySeconds": 1.0, "dropoutShare": 0.0}
+            record = callsim.simulate_sensors(11, "SYN", truth, prepared.local_speaker, spec)
+            info = callsim.write_case(scratch / "out", prepared, variant, 11, truth, record)
+            path = scratch / "out" / info["files"]["sensors"]["name"]
+            self.assertEqual(hashlib.sha256(path.read_bytes()).hexdigest(), info["files"]["sensors"]["sha256"])
+            self.assertEqual(json.loads(path.read_text()), record)
+            # Rewriting the case without sensors leaves no stale record behind.
+            callsim.write_case(scratch / "out", prepared, variant, 11, truth)
+            self.assertFalse(path.exists())
+            self.assertNotIn("sensors", json.loads((scratch / "out" / "case.json").read_text())["files"])
 
     def test_the_description_names_the_files_it_wrote(self):
         with tempfile.TemporaryDirectory() as scratch:

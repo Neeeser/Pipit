@@ -34,7 +34,7 @@ no recordings. CI rejects committed audio files.
 | `icsi` | 4 | Six to nine speakers with 28% to 39% overlap |
 | `notsofar` | 5 | Recent office meetings with 4% to 46% overlap |
 | `deciding` | 14 | Held-out cases used to compare engines |
-| `calls` | 15 | Simulated two-track calls: a microphone track with laptop-speaker echo and a far-end track |
+| `calls` | 20 | Simulated two-track calls: a microphone track with laptop-speaker echo and a far-end track |
 
 Use `deciding` when ranking one engine against another. Some `ami-core` and
 `ami-overlap` cases appear in published training data for local models. Those
@@ -67,6 +67,13 @@ headset channels of five held-out AMI meetings (`ami-eval` or `clean`):
   recorded calls) and `laptop-strong` targets 0.89 (the 90th percentile). The
   generator searches the echo gain until its copy of that measure lands within
   0.002 of the target and writes the result into `case.json`.
+- `laptop-meet` has the `laptop` audio and also writes `sensors.raw.json`, the
+  record a browser reader would keep on a Google Meet call, and the bench runs
+  it as a Meet meeting. Each reference turn becomes a sensor turn that starts
+  late and ends late, and some far-end turns are never seen. The delays and the
+  share of dropped turns are the `sensors` numbers of that variant in
+  `manifest.json`. They are chosen, not measured; set them from real sensor
+  records before reading the variant as a forecast.
 
 Build and run it:
 

@@ -285,6 +285,33 @@ struct CallBenchTests {
         #expect(description.echo.targetCorrelation == 0.69)
     }
 
+    @Test("the simulated meeting-client record reads as the app's own sensor file")
+    func theSimulatedMeetingClientRecordReadsAsTheAppsOwnSensorFile() throws {
+        // The shape `Benchmarks/calls/callsim.py` writes for a Meet call.
+        let json = """
+            {"version":1,"source":"google_meet-dom","selfIsAuthoritative":false,
+             "participants":[{"id":"spaces/sim/devices/1","displayName":"You","isSelf":true},
+                             {"id":"spaces/sim/devices/2","displayName":"SPK_B","isSelf":false}],
+             "turns":[{"start":9.5,"end":16.0,"participantID":"spaces/sim/devices/2"}],
+             "unmutedIDs":["spaces/sim/devices/2"]}
+            """
+        let sensors = try ArchiveCoding.decode(RawSensors.self, from: Data(json.utf8), path: "sensors.raw.json")
+        #expect(sensors.source == "google_meet-dom")
+        #expect(sensors.participants.filter(\.isSelf).count == 1)
+        #expect(sensors.turns.count == 1)
+        #expect(sensors.unmutedIDs == ["spaces/sim/devices/2"])
+
+        let description = """
+            {"case":"X-laptop-meet","meeting":"X","variant":"laptop-meet","localAgent":"A",
+             "localSpeaker":"S","files":{"mic":{"name":"mic.wav","sha256":"a"},
+             "remote":{"name":"remote.wav","sha256":"b"},
+             "sensors":{"name":"sensors.raw.json","sha256":"c"}},
+             "echo":{"targetCorrelation":0.69,"correlation":0.69,"reachedTarget":true}}
+            """
+        let call = try JSONDecoder().decode(BenchCallCase.self, from: Data(description.utf8))
+        #expect(call.files.sensors?.name == "sensors.raw.json")
+    }
+
     @Test("the committed calls suite is built from held-out meetings and complete channels")
     func theCommittedCallsSuiteIsBuiltFromHeldOutMeetingsAndCompleteChannels() throws {
         let layout = BenchLayout(root: Self.repositoryRoot.appendingPathComponent("Benchmarks"))
@@ -294,6 +321,7 @@ struct CallBenchTests {
         #expect(!calls.meetings.isEmpty)
         #expect(calls.variants.map(\.name).contains("headphones"))
         #expect(calls.variants.filter { $0.echoCorrelation != nil }.count >= 1)
+        #expect(calls.variants.contains { $0.sensors != nil })
         for (meeting, entry) in calls.meetings {
             // Candidate models trained on AMI's train and dev meetings, so a
             // suite that ranks them may not read those.

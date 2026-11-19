@@ -542,9 +542,12 @@ enum BenchCommand {
         let started = Date(timeIntervalSince1970: 1_787_070_000)
         // The generic-call source is how a Zoom or unknown call runs: two
         // tracks, no sensors, the microphone the local person by construction.
-        let meetingSource: MeetingSource = call == nil ? .imported : .genericCall
+        // A call with a simulated sensor record runs as Google Meet, which is
+        // the meeting client that record imitates.
+        var meetingSource: MeetingSource = call == nil ? .imported : .genericCall
+        if call?.sensors != nil { meetingSource = .googleMeet }
         let created = try repository.createMeeting(
-            source: meetingSource, provider: .unknown, startedAt: started,
+            source: meetingSource, provider: meetingSource.provider, startedAt: started,
             titles: TitleCandidates(human: benchCase.truth.meeting, timestampFallback: benchCase.truth.meeting),
             now: started
         )
@@ -558,6 +561,11 @@ enum BenchCommand {
         } else {
             imported = try importer.import(
                 source: source, into: created.store, meetingID: created.metadata.id
+            )
+        }
+        if let sensors = call?.sensors {
+            try created.store.writeRawSensors(
+                ArchiveCoding.decode(RawSensors.self, from: Data(contentsOf: sensors), path: sensors.path)
             )
         }
         var metadata = created.metadata
@@ -627,14 +635,18 @@ enum BenchCommand {
         var description: BenchCallCase
         var microphone: URL
         var remote: URL
+        var sensors: URL?
 
         init(directory: URL) throws {
             description = try BenchCallCase.read(from: directory.appendingPathComponent("case.json"))
             microphone = directory.appendingPathComponent(description.files.mic.name)
             remote = directory.appendingPathComponent(description.files.remote.name)
-            for (url, expected) in [
+            sensors = description.files.sensors.map { directory.appendingPathComponent($0.name) }
+            var checked = [
                 (microphone, description.files.mic.sha256), (remote, description.files.remote.sha256),
-            ] {
+            ]
+            if let file = description.files.sensors, let sensors { checked.append((sensors, file.sha256)) }
+            for (url, expected) in checked {
                 let actual = try BenchCommand.sha256(of: url)
                 guard actual == expected else {
                     throw BenchFailure(

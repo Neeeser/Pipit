@@ -380,11 +380,75 @@ def case_id(meeting: str, variant: str) -> str:
     return "%s-%s" % (meeting, variant)
 
 
-def write_case(directory: Path, prepared: Prepared, variant: Variant, seed: int, truth: dict) -> dict:
-    """Writes `mic.wav`, `remote.wav` and `case.json`, and returns the description."""
+SENSOR_SOURCE = "google_meet-dom"
+
+
+def simulate_sensors(seed: int, meeting: str, truth: dict, local_speaker: str, spec: dict) -> dict:
+    """What a browser reader on a Google Meet call would have written.
+
+    The reader sees a speaking indicator on each participant's tile, so each
+    reference turn becomes a sensor turn that starts late (the indicator lights
+    after the voice does) and ends late (it lingers). A turn is sometimes never
+    seen, as when the tile is off screen. The shape follows `RawSensors` in
+    `Sources/PipitCore/Detection/SensorTimeline.swift`: Meet marks the local
+    tile by the English word "You" and says nothing authoritative about it.
+
+    `spec` carries `onsetDelaySeconds`, `releaseDelaySeconds` and `dropoutShare`.
+    Each delay is drawn uniformly from half to one and a half times the value.
+    """
+    rng = seeded(seed, meeting, "sensors")
+    speakers = sorted(truth["agentToSpeaker"].values())
+    ids = {name: "spaces/sim/devices/%d" % (index + 1) for index, name in enumerate(speakers)}
+    participants = [
+        {
+            "id": ids[name],
+            "displayName": "You" if name == local_speaker else name,
+            "isSelf": name == local_speaker,
+        }
+        for name in speakers
+    ]
+    seconds = truth["windowSeconds"]
+    turns = []
+    for turn in sorted(truth["turns"], key=lambda t: (t["start"], t["end"])):
+        # One draw per quantity for every turn, kept or not, so changing the
+        # dropout share does not reshuffle the delays of the turns that remain.
+        onset = float(rng.uniform(0.5, 1.5)) * spec["onsetDelaySeconds"]
+        release = float(rng.uniform(0.5, 1.5)) * spec["releaseDelaySeconds"]
+        dropped = float(rng.uniform()) < spec["dropoutShare"] and turn["speaker"] != local_speaker
+        start = turn["start"] + onset
+        end = min(seconds, turn["end"] + release)
+        if dropped or end - start < 0.2:
+            continue
+        turns.append({"start": round(start, 3), "end": round(end, 3), "participantID": ids[turn["speaker"]]})
+    seen = {t["participantID"] for t in turns}
+    return {
+        "version": 1,
+        "source": SENSOR_SOURCE,
+        "participants": participants,
+        "turns": turns,
+        "unmutedIDs": [ids[name] for name in speakers if ids[name] in seen],
+        "selfIsAuthoritative": False,
+    }
+
+
+def write_case(
+    directory: Path, prepared: Prepared, variant: Variant, seed: int, truth: dict, sensors: dict | None = None
+) -> dict:
+    """Writes `mic.wav`, `remote.wav` and `case.json`, and returns the description.
+
+    `sensors` is a simulated reader's record, written beside the audio as
+    `sensors.raw.json`, with its checksum in `case.json`.
+    """
     directory.mkdir(parents=True, exist_ok=True)
     mic_hash = write_pcm16(directory / "mic.wav", variant.microphone)
     remote_hash = write_pcm16(directory / "remote.wav", prepared.remote)
+    sensors_hash = None
+    if sensors is not None:
+        text = json.dumps(sensors, indent=2, sort_keys=True) + "\n"
+        (directory / "sensors.raw.json").write_text(text)
+        sensors_hash = hashlib.sha256(text.encode()).hexdigest()
+    elif (directory / "sensors.raw.json").exists():
+        (directory / "sensors.raw.json").unlink()
     info = {
         "generatorVersion": GENERATOR_VERSION,
         "case": case_id(prepared.meeting, variant.name),
@@ -413,6 +477,9 @@ def write_case(directory: Path, prepared: Prepared, variant: Variant, seed: int,
             "rt60Seconds": round(prepared.path.rt60_seconds, 3),
         },
     }
+    if sensors_hash is not None:
+        info["files"]["sensors"] = {"name": "sensors.raw.json", "sha256": sensors_hash}
+        info["sensors"] = {"source": sensors["source"], "turns": len(sensors["turns"])}
     with open(directory / "case.json", "w") as handle:
         json.dump(info, handle, indent=2, sort_keys=True)
         handle.write("\n")
