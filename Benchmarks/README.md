@@ -160,6 +160,10 @@ scripts/eval.sh bench \
 
 Useful options include:
 
+- `--diarizer local` runs what the app ships for a finished meeting: Nemotron 3
+  Diarization, with the offline VBx diarizer when all eight Nemotron speaker
+  slots fill. `--diarizer vbx` runs the VBx diarizer alone, the previous
+  behavior. `nemotron3` runs Nemotron with no fallback.
 - `--repeats N` runs each configuration several times and compares the mean.
 - `--resume` continues an output file and skips completed runs.
 - `--keep-scratch` preserves meeting folders, raw model output, and transcripts.
