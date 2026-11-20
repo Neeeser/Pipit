@@ -1616,21 +1616,22 @@ private func run(_ intervals: [DiarizationInterval]) -> RawDiarization {
 
 @Suite("SensorAssembly")
 struct SensorAssemblyTests {
-    @Test("words inside a turn take the person, the rest the cluster")
-    func wordsInsideATurnTakeThePersonTheRestTheCluster() async throws {
-        // The order is the design: a turn is the client's observation of
-        // who held the floor, so where one covers a word it decides. The
-        // diarizer attributes only what no turn covers.
+    @Test("a cluster decides the words it reaches and a turn fills the rest")
+    func aClusterDecidesTheWordsItReachesAndATurnFillsTheRest() async throws {
+        // The diarizer hears the voices, so it decides who spoke where. A turn
+        // labels only what no cluster interval reaches, such as a stretch the
+        // diarizer dropped.
         let words = [
             RawTranscriptWord(start: 2, end: 3, text: "Hello "),
             RawTranscriptWord(start: 3, end: 4, text: "there. "),
+            RawTranscriptWord(start: 10, end: 11, text: "Missed "),
             RawTranscriptWord(start: 15, end: 16, text: "Later "),
             RawTranscriptWord(start: 16, end: 17, text: "words."),
         ]
         let sensors = RawSensors(
-            source: "slack-huddle-ax",
-            participants: [SensorParticipant(id: "U_ADA", displayName: "Ada")],
-            turns: [SensorTurn(start: 0, end: 10, participantID: "U_ADA")]
+            source: "google_meet-dom",
+            participants: [SensorParticipant(id: "d1", displayName: "Ada")],
+            turns: [SensorTurn(start: 0, end: 14, participantID: "d1")]
         )
         let transcript = TranscriptAssembler().assemble(
             raw: RawTranscript(chunks: [remoteChunk(words: words)]),
@@ -1643,9 +1644,41 @@ struct SensorAssemblyTests {
             generatedAt: Date(timeIntervalSince1970: 0)
         )
         let keys = transcript.utterances.map(\.speakerKey)
-        #expect(keys.count == 2, "got \(keys)")
-        #expect(keys.first == SpeakerLabel.sensor(participantID: "U_ADA"))
-        #expect(keys.last == "remote-001_speaker_01")
+        #expect(
+            keys == [
+                "remote-001_speaker_01", SpeakerLabel.sensor(participantID: "d1"),
+                "remote-001_speaker_01",
+            ], "got \(keys)")
+    }
+
+    @Test("a person the turns cover only in part stays one speaker")
+    func aPersonTheTurnsCoverOnlyInPartStaysOneSpeaker() async throws {
+        // A cluster is named from the turns only where one person covers most
+        // of it. Words a turn covers used to leave under a key of the turn's
+        // own, so where the turns reached a cluster in part the same voice
+        // showed up twice: once named, and once as a speaker nobody had named.
+        let words = [
+            RawTranscriptWord(start: 2, end: 3, text: "Hello "),
+            RawTranscriptWord(start: 3, end: 4, text: "there. "),
+            RawTranscriptWord(start: 20, end: 21, text: "Later "),
+            RawTranscriptWord(start: 21, end: 22, text: "words."),
+        ]
+        let sensors = RawSensors(
+            source: "google_meet-dom",
+            participants: [SensorParticipant(id: "d1", displayName: "Ada")],
+            turns: [SensorTurn(start: 0, end: 10, participantID: "d1")]
+        )
+        let transcript = TranscriptAssembler().assemble(
+            raw: RawTranscript(chunks: [remoteChunk(words: words)]),
+            diarization: run([
+                DiarizationInterval(start: 1, end: 9, clusterID: "1"),
+                DiarizationInterval(start: 19, end: 23, clusterID: "1"),
+            ]),
+            sensors: sensors,
+            micTrackIsLocalUser: true,
+            generatedAt: Date(timeIntervalSince1970: 0)
+        )
+        #expect(Set(transcript.utterances.map(\.speakerKey)) == ["remote-001_speaker_01"])
     }
 
     @Test("one other person in the call owns the whole far-end track")
@@ -1816,16 +1849,17 @@ struct SensorAssemblyTests {
         #expect(transcript.utterances.map(\.speakerKey).contains("remote-001_speaker_02"))
     }
 
-    @Test("a turn outranks the cluster where both cover a word")
-    func aTurnOutranksTheClusterWhereBothCoverAWord() async throws {
-        // The cluster is the diarizer's guess about the same seconds the
-        // client observed. Observation wins.
+    @Test("a cluster outranks a turn where both cover a word")
+    func aClusterOutranksATurnWhereBothCoverAWord() async throws {
+        // The turn names one floor holder at a time, so it is wrong wherever
+        // two people talk at once. The cluster is the diarizer's reading of the
+        // same seconds and keeps its own boundaries.
         let words = [
             RawTranscriptWord(start: 2, end: 3, text: "Hello "),
             RawTranscriptWord(start: 3, end: 4, text: "there."),
         ]
         let sensors = RawSensors(
-            source: "slack-huddle-ax",
+            source: "google_meet-dom",
             participants: [SensorParticipant(id: "U_ADA", displayName: "Ada")],
             turns: [SensorTurn(start: 0, end: 10, participantID: "U_ADA")]
         )
@@ -1836,9 +1870,7 @@ struct SensorAssemblyTests {
             micTrackIsLocalUser: true,
             generatedAt: Date(timeIntervalSince1970: 0)
         )
-        #expect(
-            transcript.utterances.map(\.speakerKey) == [SpeakerLabel.sensor(participantID: "U_ADA")]
-        )
+        #expect(transcript.utterances.map(\.speakerKey) == ["remote-001_speaker_01"])
     }
 
     @Test("words in a turn's tail go to the diarizer, not the last holder")
@@ -1870,7 +1902,7 @@ struct SensorAssemblyTests {
         )
         let keys = transcript.utterances.map(\.speakerKey)
         #expect(keys.count == 2, "got \(keys)")
-        #expect(keys.first == SpeakerLabel.sensor(participantID: "U_ADA"))
+        #expect(keys.first == "remote-001_speaker_01")
         #expect(keys.last == "remote-001_speaker_02", "the audio decides the tail")
     }
 

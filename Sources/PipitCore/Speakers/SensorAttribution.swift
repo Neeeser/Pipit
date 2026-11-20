@@ -3,9 +3,11 @@ import Foundation
 /// Attributes speech from what the meeting client reported.
 ///
 /// The sensor timeline is an observation, not a prediction: the client marked
-/// who held the floor while the audio was recorded. So it labels words first,
-/// directly, and the diarizer covers what the sensor did not see: gaps in the
-/// readings, overlap, and every recording made without a readable client.
+/// who held the floor while the audio was recorded. The diarizer hears the
+/// audio, so where a cluster reaches a word the cluster labels it. The sensor
+/// fills the words no cluster reaches, and `attribute` gives the clusters the
+/// participants' names. A one-to-one call is the exception: the far-end track
+/// holds only that one person, so the sensor labels all of it.
 ///
 /// Three products, all pure so they can be tested without audio or a meeting.
 ///
@@ -47,6 +49,35 @@ public enum SensorAttribution {
         public init(matches: [Match] = [], coverage: Double = 0) {
             self.matches = matches
             self.coverage = coverage
+        }
+    }
+
+    /// The sensor timeline as it labels words, in the two roles it can play.
+    public struct WordSources: Sendable, Equatable {
+        /// One participant owns the whole far-end track, so every word is
+        /// theirs whatever the diarizer says. Empty unless the client named the
+        /// only other person in the call.
+        public var authoritative: [DiarizationInterval]
+        /// The turns, which label only the words no diarization interval
+        /// reaches. See `TranscriptAssembler.assignSpans` for why they do not
+        /// outrank the diarizer.
+        public var turns: [DiarizationInterval]
+
+        public static let none = WordSources(authoritative: [], turns: [])
+
+        public var isEmpty: Bool { authoritative.isEmpty && turns.isEmpty }
+
+        /// The same intervals moved onto a chunk's own clock.
+        public func shifted(by offset: Double) -> WordSources {
+            func move(_ intervals: [DiarizationInterval]) -> [DiarizationInterval] {
+                intervals.map {
+                    DiarizationInterval(
+                        start: $0.start - offset, end: $0.end - offset,
+                        clusterID: $0.clusterID, quality: $0.quality
+                    )
+                }
+            }
+            return WordSources(authoritative: move(authoritative), turns: move(turns))
         }
     }
 
@@ -206,7 +237,7 @@ public enum SensorAttribution {
     /// everyone else. A span inside a self turn falls through to the diarizer,
     /// which hears the audio and is the right authority on speech the sensor
     /// cannot explain.
-    public static func wordIntervals(sensors: RawSensors) -> [DiarizationInterval] {
+    public static func wordSources(sensors: RawSensors) -> WordSources {
         // One other person in the call, so the track holds them and the turns
         // are not needed to say which stretches. An interval per turn would
         // leave everything between them to the diarizer, which is where the
@@ -227,12 +258,13 @@ public enum SensorAttribution {
         if let only = soleRemoteParticipant(sensors: sensors),
             let until = lastObservation(sensors: sensors), until > 0
         {
-            return [
-                DiarizationInterval(
-                    start: 0, end: until,
-                    clusterID: SpeakerLabel.sensor(participantID: only.id)
-                )
-            ]
+            return WordSources(
+                authoritative: [
+                    DiarizationInterval(
+                        start: 0, end: until,
+                        clusterID: SpeakerLabel.sensor(participantID: only.id)
+                    )
+                ], turns: [])
         }
         let selfIDs = Set(sensors.participants.filter(\.isSelf).map(\.id))
         // Only a participant this build can name. `speakerEntries` already
@@ -249,7 +281,7 @@ public enum SensorAttribution {
         let named = Set(
             sensors.participants.filter { $0.personName != nil }.map(\.id)
         )
-        return sensors.turns
+        let turns = sensors.turns
             .filter {
                 !selfIDs.contains($0.participantID)
                     && named.contains($0.participantID)
@@ -267,6 +299,13 @@ public enum SensorAttribution {
                 )
             }
             .sorted { $0.start < $1.start }
+        return WordSources(authoritative: [], turns: turns)
+    }
+
+    /// Both tiers as one list, for a caller that does not care which is which.
+    public static func wordIntervals(sensors: RawSensors) -> [DiarizationInterval] {
+        let sources = wordSources(sensors: sensors)
+        return sources.authoritative + sources.turns
     }
 
     /// The stretches safe to embed as one participant's voice.
