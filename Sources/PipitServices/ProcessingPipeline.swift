@@ -2788,6 +2788,7 @@ public actor ProcessingPipeline {
         if micIsLocalUser {
             await checkMicrophoneVoices(store: store, metadata: metadata, settings: settings)
         }
+        dropNamesOfVanishedClusters(store: store)
         do {
             try await learnLocalUserVoice(store: store, metadata: metadata, settings: settings)
         } catch {
@@ -3091,6 +3092,35 @@ public actor ProcessingPipeline {
         if speakers != before {
             Log.processing.info(
                 "platform names reconciled aliases=\(aliases.count, privacy: .public)"
+            )
+        }
+    }
+
+    /// Takes the names of clusters this meeting no longer has out of the
+    /// speaker map, so a second pass with a different diarizer does not leave
+    /// the first pass's recognised voices behind, counted as named speakers
+    /// for keys no line uses.
+    private func dropNamesOfVanishedClusters(store: MeetingStore) {
+        do {
+            let diarization = try store.readRawDiarization()
+            guard !diarization.activeRuns.isEmpty else { return }
+            var live = Set(
+                diarization.activeRuns.flatMap { run in
+                    run.clusters.map { SpeakerLabel.namespaced(chunkID: run.id, rawLabel: $0.id) }
+                })
+            for utterance in try store.readCanonicalTranscript()?.utterances ?? [] {
+                live.insert(utterance.speakerKey)
+            }
+            var speakers = try store.readSpeakerMap()
+            let dropped = speakers.dropEntriesForVanishedClusters(keeping: live)
+            guard dropped > 0 else { return }
+            try store.writeSpeakerMap(speakers)
+            Log.processing.info(
+                "speaker names dropped for vanished clusters count=\(dropped, privacy: .public)"
+            )
+        } catch {
+            Log.processing.notice(
+                "stale speaker names kept: \(logSafeDescription(error), privacy: .public)"
             )
         }
     }
