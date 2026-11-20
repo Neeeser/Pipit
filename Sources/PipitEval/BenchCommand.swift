@@ -613,8 +613,18 @@ enum BenchCommand {
                     + " \(final.processing.lastFailure?.message ?? "")"
             )
         }
-        let utterances = transcript.utterances.map {
-            BenchUtterance(start: $0.start, end: $0.end, text: $0.text, speakerKey: $0.speakerKey)
+        // The person a reader sees, not the key the words were filed under. A
+        // meeting client's name can reach one voice through a sensor key and a
+        // diarizer cluster at once, and the app shows that as one speaker, so
+        // scoring each key as a speaker counted the same person twice.
+        let names = ((try? created.store.readSpeakerMap()) ?? SpeakerMap()).entries
+        let utterances = transcript.utterances.map { utterance -> BenchUtterance in
+            let key = utterance.speakerKey
+            let person = key == SpeakerLabel.localUser ? nil : names[key]?.displayName
+            return BenchUtterance(
+                start: utterance.start, end: utterance.end, text: utterance.text,
+                speakerKey: person.flatMap { $0.isEmpty ? nil : "person:" + $0 } ?? key
+            )
         }
         let raw = try? created.store.readRawTranscript()
         let runs = (try? created.store.readRawDiarization())?.runs ?? []

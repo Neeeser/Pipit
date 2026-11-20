@@ -80,11 +80,17 @@ headset channels of five held-out AMI meetings (`ami-eval` or `clean`):
   full scale.
 - `laptop-meet` has the `laptop` audio and also writes `sensors.raw.json`, the
   record a browser reader would keep on a Google Meet call, and the bench runs
-  it as a Meet meeting. Each reference turn becomes a sensor turn that starts
-  late and ends late, and some far-end turns are never seen. The delays and the
-  share of dropped turns are the `sensors` numbers of that variant in
-  `manifest.json`. They are chosen, not measured; set them from real sensor
-  records before reading the variant as a forecast.
+  it as a Meet meeting. The generator replays the extension's speaking tracker
+  on the reference turns: a 500 ms poll, the newest voice taking the floor, a
+  1.5 s hold, so one person holds the floor at a time, a turn ends at the first
+  poll that names someone else, and a brief interjection does not take the floor
+  from a long turn. The record lists every far-end speaker, marks nobody as
+  yourself, and has no mute state, like the real ones. The poll and hold times
+  and the share of dropped far-end turns are the `sensors` numbers of that
+  variant in `manifest.json`. The poll and hold are the extension's own
+  constants; the dropped share is chosen, not measured.
+- The scorer counts a speaker per person, as the app shows it: when a case's
+  speaker map names several keys with one display name, they are one speaker.
 
 Build and run it:
 

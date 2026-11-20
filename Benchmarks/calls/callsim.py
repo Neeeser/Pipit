@@ -410,49 +410,79 @@ SENSOR_SOURCE = "google_meet-dom"
 
 
 def simulate_sensors(seed: int, meeting: str, truth: dict, local_speaker: str, spec: dict) -> dict:
-    """What a browser reader on a Google Meet call would have written.
+    """What the Meet reader in `extension/` would have written for this call.
 
-    The reader sees a speaking indicator on each participant's tile, so each
-    reference turn becomes a sensor turn that starts late (the indicator lights
-    after the voice does) and ends late (it lingers). A turn is sometimes never
-    seen, as when the tile is off screen. The shape follows `RawSensors` in
-    `Sources/PipitCore/Detection/SensorTimeline.swift`: Meet marks the local
-    tile by the English word "You" and says nothing authoritative about it.
+    The reader polls every `pollSeconds` and reports one participant as holding
+    the floor, by the rule in `createSpeakingTracker` (`extension/shared/provider.js`):
+    a tile is live while its meter changed within `holdSeconds`; the tile whose
+    meter changed most recently holds the floor; several tiles changing in the
+    same poll keep the previous holder until the hold runs out; no live tile
+    means nobody. `SensorTimelineBuilder` then closes a turn on the first poll
+    that names someone else, so a hand-over leaves no gap, and a turn is at
+    least one poll long.
 
-    `spec` carries `onsetDelaySeconds`, `releaseDelaySeconds` and `dropoutShare`.
-    Each delay is drawn uniformly from half to one and a half times the value.
+    A reference turn is audible to the reader from its start to its end, so the
+    reader's lag comes from the poll and the hold, not from a chosen delay. A
+    far-end turn is invisible to the reader with probability `dropoutShare`, as
+    when the tile is off screen. The record has no mute state and nobody marked
+    as the local user, which is what Meet records look like; Pipit finds the
+    local user from the microphone.
+
+    The shape follows `RawSensors` in `Sources/PipitCore/Detection/SensorTimeline.swift`.
+    `spec` carries `pollSeconds`, `holdSeconds` and `dropoutShare`.
     """
     rng = seeded(seed, meeting, "sensors")
     speakers = sorted(truth["agentToSpeaker"].values())
     ids = {name: "spaces/sim/devices/%d" % (index + 1) for index, name in enumerate(speakers)}
-    participants = [
-        {
-            "id": ids[name],
-            "displayName": "You" if name == local_speaker else name,
-            "isSelf": name == local_speaker,
-        }
-        for name in speakers
-    ]
+    participants = [{"id": ids[name], "displayName": name, "isSelf": False} for name in speakers]
     seconds = truth["windowSeconds"]
-    turns = []
+    poll = float(spec["pollSeconds"])
+    hold = float(spec["holdSeconds"])
+
+    audible: dict[str, list[tuple[float, float]]] = {name: [] for name in speakers}
     for turn in sorted(truth["turns"], key=lambda t: (t["start"], t["end"])):
-        # One draw per quantity for every turn, kept or not, so changing the
-        # dropout share does not reshuffle the delays of the turns that remain.
-        onset = float(rng.uniform(0.5, 1.5)) * spec["onsetDelaySeconds"]
-        release = float(rng.uniform(0.5, 1.5)) * spec["releaseDelaySeconds"]
+        # One draw per turn, kept or not, so changing the dropout share does not
+        # reshuffle which of the remaining turns the reader loses.
         dropped = float(rng.uniform()) < spec["dropoutShare"] and turn["speaker"] != local_speaker
-        start = turn["start"] + onset
-        end = min(seconds, turn["end"] + release)
-        if dropped or end - start < 0.2:
-            continue
-        turns.append({"start": round(start, 3), "end": round(end, 3), "participantID": ids[turn["speaker"]]})
-    seen = {t["participantID"] for t in turns}
+        if not dropped:
+            audible[turn["speaker"]].append((turn["start"], turn["end"]))
+    phase = float(rng.uniform(0.0, poll))
+
+    last_change: dict[str, float] = {}
+    held: str | None = None
+    held_at = float("-inf")
+    turns: list[dict] = []
+    open_id: str | None = None
+    open_start = 0.0
+    tick = phase
+    while tick <= seconds:
+        for name, spans in audible.items():
+            if any(start < tick and end > tick - poll for start, end in spans):
+                last_change[name] = tick
+        live = {name: at for name, at in last_change.items() if tick - at <= hold}
+        speaking: str | None = None
+        if live:
+            newest = max(live.values())
+            movers = [name for name, at in live.items() if at == newest]
+            if len(movers) == 1:
+                held, held_at = movers[0], newest
+                speaking = held
+            elif held is not None and tick - held_at <= hold:
+                speaking = held
+        if speaking != open_id:
+            if open_id is not None and tick > open_start:
+                turns.append({"start": round(open_start, 3), "end": round(tick, 3), "participantID": ids[open_id]})
+            open_id = speaking
+            open_start = tick
+        tick += poll
+    if open_id is not None and tick - poll > open_start:
+        turns.append({"start": round(open_start, 3), "end": round(tick - poll, 3), "participantID": ids[open_id]})
     return {
         "version": 1,
         "source": SENSOR_SOURCE,
         "participants": participants,
         "turns": turns,
-        "unmutedIDs": [ids[name] for name in speakers if ids[name] in seen],
+        "unmutedIDs": [],
         "selfIsAuthoritative": False,
     }
 
