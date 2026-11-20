@@ -150,54 +150,102 @@ class MeasureTests(unittest.TestCase):
 
 
 class SensorTests(unittest.TestCase):
-    SPEC = {"onsetDelaySeconds": 0.5, "releaseDelaySeconds": 1.0, "dropoutShare": 0.0}
+    SPEC = {"pollSeconds": 0.5, "holdSeconds": 1.5, "dropoutShare": 0.0}
 
-    def truth(self):
-        turns = []
-        for index in range(60):
-            speaker = "SPK_" + "ABCD"[index % 4]
-            turns.append({"speaker": speaker, "start": index * 10.0, "end": index * 10.0 + 6.0})
+    def truth(self, turns=None):
+        if turns is None:
+            turns = []
+            for index in range(60):
+                speaker = "SPK_" + "ABCD"[index % 4]
+                turns.append({"speaker": speaker, "start": index * 10.0, "end": index * 10.0 + 6.0})
         return {
             "windowSeconds": 600.0,
             "agentToSpeaker": {letter: "SPK_" + letter for letter in "ABCD"},
             "turns": turns,
         }
 
+    def record(self, turns=None, spec=None, seed=1):
+        return callsim.simulate_sensors(seed, "SYN", self.truth(turns), "SPK_A", spec or self.SPEC)
+
+    def names(self, record):
+        by_id = {p["id"]: p["displayName"] for p in record["participants"]}
+        return [(by_id[t["participantID"]], t["start"], t["end"]) for t in record["turns"]]
+
     def test_the_record_has_the_fields_the_app_reads(self):
-        record = callsim.simulate_sensors(1, "SYN", self.truth(), "SPK_A", self.SPEC)
+        record = self.record()
         self.assertEqual(set(record), {"version", "source", "participants", "turns", "unmutedIDs", "selfIsAuthoritative"})
         self.assertEqual(record["source"], "google_meet-dom")
         self.assertFalse(record["selfIsAuthoritative"])
-        marked = [p for p in record["participants"] if p["isSelf"]]
-        self.assertEqual([p["displayName"] for p in marked], ["You"])
         known = {p["id"] for p in record["participants"]}
         self.assertTrue(all(t["participantID"] in known and t["end"] > t["start"] for t in record["turns"]))
 
-    def test_each_turn_starts_and_ends_late_within_the_stated_range(self):
-        truth = self.truth()
-        record = callsim.simulate_sensors(1, "SYN", truth, "SPK_A", self.SPEC)
-        self.assertEqual(len(record["turns"]), len(truth["turns"]))
-        for sensed, real in zip(record["turns"], truth["turns"]):
-            self.assertTrue(0.25 - 1e-6 <= sensed["start"] - real["start"] <= 0.75 + 1e-6)
-            self.assertTrue(0.5 - 1e-6 <= sensed["end"] - real["end"] <= 1.5 + 1e-6)
+    def test_a_meet_record_marks_nobody_as_the_local_user_and_has_no_mute_state(self):
+        record = self.record()
+        self.assertFalse(any(p["isSelf"] for p in record["participants"]))
+        self.assertEqual(record["unmutedIDs"], [])
+        self.assertIn("SPK_A", [p["displayName"] for p in record["participants"]])
 
-    def test_dropouts_remove_only_far_end_turns_and_the_rest_keep_their_delays(self):
-        truth = self.truth()
-        full = callsim.simulate_sensors(1, "SYN", truth, "SPK_A", self.SPEC)
-        lossy = callsim.simulate_sensors(1, "SYN", truth, "SPK_A", dict(self.SPEC, dropoutShare=0.5))
-        local_id = next(p["id"] for p in lossy["participants"] if p["isSelf"])
+    def test_one_person_holds_the_floor_at_a_time_even_when_the_speech_overlaps(self):
+        turns = [
+            {"speaker": "SPK_B", "start": 10.0, "end": 20.0},
+            {"speaker": "SPK_C", "start": 14.0, "end": 26.0},
+            {"speaker": "SPK_D", "start": 24.0, "end": 30.0},
+        ]
+        record = self.record(turns)
+        ordered = sorted(record["turns"], key=lambda t: t["start"])
+        for before, after in zip(ordered, ordered[1:]):
+            self.assertLessEqual(before["end"], after["start"] + 1e-9)
+
+    def test_a_turn_ends_when_the_hold_runs_out_after_the_voice_stops(self):
+        record = self.record([{"speaker": "SPK_B", "start": 10.0, "end": 16.0}])
+        (name, start, end), = self.names(record)
+        self.assertEqual(name, "SPK_B")
+        self.assertTrue(10.0 <= start <= 10.5 + 1e-6)
+        # The last poll that heard the voice, then the hold, then the poll that notices.
+        self.assertTrue(16.0 + 1.5 <= end <= 16.0 + 1.5 + 1.0 + 1e-6)
+
+    def test_a_hand_over_leaves_no_gap_and_a_pause_does(self):
+        record = self.record(
+            [
+                {"speaker": "SPK_B", "start": 10.0, "end": 16.0},
+                {"speaker": "SPK_C", "start": 16.2, "end": 22.0},
+                {"speaker": "SPK_B", "start": 40.0, "end": 44.0},
+            ]
+        )
+        first, second, third = sorted(record["turns"], key=lambda t: t["start"])
+        self.assertEqual(first["end"], second["start"])
+        self.assertGreater(third["start"], second["end"])
+
+    def test_a_short_interjection_over_a_long_turn_does_not_take_the_floor(self):
+        record = self.record(
+            [
+                {"speaker": "SPK_B", "start": 10.0, "end": 40.0},
+                {"speaker": "SPK_C", "start": 20.0, "end": 20.8},
+            ]
+        )
+        self.assertEqual({name for name, _, _ in self.names(record)}, {"SPK_B"})
+
+    def test_turns_start_on_the_poll_grid(self):
+        record = self.record()
+        phase = record["turns"][0]["start"] % 0.5
+        for turn in record["turns"]:
+            for edge in (turn["start"], turn["end"]):
+                offset = (edge - phase) % 0.5
+                self.assertTrue(min(offset, 0.5 - offset) < 2e-3)
+
+    def test_dropouts_remove_only_far_end_turns(self):
+        full = self.record()
+        lossy = self.record(spec=dict(self.SPEC, dropoutShare=0.5))
+        local_id = next(p["id"] for p in lossy["participants"] if p["displayName"] == "SPK_A")
         count = lambda record, local: sum((t["participantID"] == local_id) == local for t in record["turns"])
         self.assertEqual(count(lossy, True), count(full, True))
         self.assertLess(count(lossy, False), count(full, False))
         self.assertGreater(count(lossy, False), 0)
-        kept = {(t["participantID"], t["start"]) for t in full["turns"]}
-        self.assertTrue(all((t["participantID"], t["start"]) in kept for t in lossy["turns"]))
 
     def test_the_record_depends_on_the_seed_and_the_meeting_only(self):
-        truth = self.truth()
-        one = callsim.simulate_sensors(1, "SYN", truth, "SPK_A", self.SPEC)
-        self.assertEqual(one, callsim.simulate_sensors(1, "SYN", truth, "SPK_A", self.SPEC))
-        self.assertNotEqual(one["turns"], callsim.simulate_sensors(2, "SYN", truth, "SPK_A", self.SPEC)["turns"])
+        one = self.record()
+        self.assertEqual(one, self.record())
+        self.assertNotEqual(one["turns"], self.record(seed=2)["turns"])
 
 
 @unittest.skipUnless(HAS_FFMPEG, "ffmpeg is not installed")
@@ -299,7 +347,7 @@ class CaseTests(unittest.TestCase):
             truth["turns"] = [{"speaker": "SPK_B", "start": 9.0, "end": 15.0}]
             prepared = callsim.prepare_meeting(11, "SYN", truth, "A", channels)
             variant = callsim.render_variant(prepared, "headphones", None)
-            spec = {"onsetDelaySeconds": 0.5, "releaseDelaySeconds": 1.0, "dropoutShare": 0.0}
+            spec = {"pollSeconds": 0.5, "holdSeconds": 1.5, "dropoutShare": 0.0}
             record = callsim.simulate_sensors(11, "SYN", truth, prepared.local_speaker, spec)
             info = callsim.write_case(scratch / "out", prepared, variant, 11, truth, record)
             path = scratch / "out" / info["files"]["sensors"]["name"]
