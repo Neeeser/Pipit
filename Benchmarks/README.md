@@ -202,6 +202,9 @@ Useful options include:
   Diarization, with the offline VBx diarizer when all eight Nemotron speaker
   slots fill. `--diarizer vbx` runs the VBx diarizer alone, the previous
   behavior. `nemotron3` runs Nemotron with no fallback.
+- `--engine parakeet-ultra` runs Parakeet Ultra, a post-trained Parakeet TDT v3
+  that FluidAudio loads as `AsrModelVersion.ultra`. It is a bench candidate and
+  the app does not offer it. The install is 603 MiB.
 - `--repeats N` runs each configuration several times and compares the mean.
 - `--resume` continues an output file and skips completed runs.
 - `--keep-scratch` preserves meeting folders, raw model output, and transcripts.

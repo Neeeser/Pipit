@@ -57,9 +57,9 @@ public enum LocalSpeechStack {
     /// candidate. Not offered in settings until the comparative run says it
     /// should be.
     public static let parakeetUltraBackendIdentifier = "fluidaudio-parakeet-ultra"
-    /// The int8 encoder alone is about 595 MB; the exact installed size is
-    /// recorded in `Benchmarks/README.md` once measured.
-    public static let approximateParakeetUltraBytes: Int64 = 640 * 1_024 * 1_024
+    /// Measured on disk after install: 632,314,500 bytes, 603 MiB, of which the
+    /// int8 encoder is 568 MiB. Parakeet TDT v3 is 460 MiB.
+    public static let approximateParakeetUltraBytes: Int64 = 603 * 1_024 * 1_024
 
     /// Cohere Transcribe 03-2026 through FluidAudio, the INT8 hybrid build.
     /// The most accurate local model on meeting audio as a raw model (7.0% AMI
