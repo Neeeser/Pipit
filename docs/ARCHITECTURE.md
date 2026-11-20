@@ -347,8 +347,12 @@ pass, averaged over the runs with each weighted by the audio it was measured on.
 A cleaned track whose envelope still follows the far end holds the
 speakers, and the meeting shows a line saying so, because the transcript may
 then show the other side's words as the user's. The assembler also drops a
-microphone line that is mostly the far end's own words said at the same
-moment, which is what such a track produces.
+run of microphone words that is mostly the far end's own words said at the
+same moment, which is what such a track produces. A word counts when the far
+end said the same word within a second of it, so a user who answers in the
+far end's words a few seconds later keeps them. A line the transcript joined
+from the user's sentence and an echo loses only the echo. A line without word
+timings is judged whole, by its span.
 
 That rule needs the far end's words, so it cannot see a far-end voice that
 reached the microphone while the far-end track recorded nothing, which is what

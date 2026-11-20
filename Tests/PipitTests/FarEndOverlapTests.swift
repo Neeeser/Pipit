@@ -64,6 +64,66 @@ struct FarEndOverlapTests {
         #expect(FarEndOverlap.drop([remote, later]).count == 2)
     }
 
+    @Test("a user who repeats the far end's words a few seconds later keeps the line")
+    func aUserRepeatingTheFarEndAFewSecondsLaterKeepsTheLine() {
+        // Two people in one conversation, one saying back what the other said.
+        // The two lines overlap in time, so the lines are near each other, but
+        // every shared word is spoken seconds apart. Echo is the same sound at
+        // the same moment.
+        let remote = line("we should look at the deployment plan before friday", track: .remote, from: 10)
+        let repeated = line(
+            "so look at the deployment plan before friday", track: .mic, from: 12.4)
+        #expect(FarEndOverlap.drop([remote, repeated]).count == 2)
+    }
+
+    @Test("a line is the far end only when its words fall at the far end's own moments")
+    func aLineIsTheFarEndOnlyWhenItsWordsFallAtTheFarEndsMoments() {
+        let remote = line("we should look at the deployment plan before friday", track: .remote, from: 10)
+        // The echo is slower than the far end by a fraction of a second per word,
+        // so its words drift but each stays within a second of the original.
+        let drifting = line(
+            "we should look at the deployment plan before friday", track: .mic, from: 10.3,
+            wordSeconds: 0.45)
+        #expect(FarEndOverlap.drop([remote, drifting]).map(\.id) == [remote.id])
+    }
+
+    @Test("a line that joins the user's own words to the far end's echo loses only the echo")
+    func aLineJoiningTheUsersWordsToEchoLosesOnlyTheEcho() {
+        // The transcript joins segments less than a second and a quarter apart,
+        // so the user's sentence and the echo that follows it arrive as one line.
+        let remote = line("we should look at the deployment plan before friday", track: .remote, from: 30)
+        let own = line("I checked the budget numbers yesterday morning", track: .mic, from: 26)
+        let echo = line("we should look at the deployment plan before friday", track: .mic, from: 30.1)
+        var joined = own
+        joined.words = (own.words ?? []) + (echo.words ?? [])
+        joined.text = own.text + " " + echo.text
+        joined.end = echo.end
+
+        let kept = FarEndOverlap.drop([remote, joined]).filter { $0.track == .mic }
+        #expect(kept.map(\.text) == ["I checked the budget numbers yesterday morning"])
+        #expect(kept.first?.start == own.start)
+        #expect(kept.first?.end == own.end)
+    }
+
+    @Test("echo in the middle of a line leaves the words on both sides")
+    func echoInTheMiddleLeavesBothSides() {
+        let remote = line("we should look at the deployment plan before friday", track: .remote, from: 30)
+        let before = line("I checked the budget numbers yesterday", track: .mic, from: 25)
+        let echo = line("we should look at the deployment plan before friday", track: .mic, from: 30.1)
+        let after = line("and the hiring plan next", track: .mic, from: 33.9)
+        var joined = before
+        joined.words = (before.words ?? []) + (echo.words ?? []) + (after.words ?? [])
+        joined.text = [before.text, echo.text, after.text].joined(separator: " ")
+        joined.end = after.end
+
+        let kept = FarEndOverlap.drop([remote, joined]).filter { $0.track == .mic }
+        #expect(
+            kept.map(\.text) == [
+                "I checked the budget numbers yesterday", "and the hiring plan next",
+            ])
+        #expect(Set(kept.map(\.id)).count == 2)
+    }
+
     @Test("with no far end on record nothing is dropped")
     func withNoFarEndNothingIsDropped() {
         let user = line("we should look at the deployment plan before friday", track: .mic, from: 10)
