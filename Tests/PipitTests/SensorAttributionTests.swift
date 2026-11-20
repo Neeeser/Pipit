@@ -2113,3 +2113,149 @@ struct SensorRoundTripTests {
         )
     }
 }
+
+/// The attribution modes `pipit-eval` compares. The application runs `current`
+/// whatever these do, so the first test pins what a default assembler does.
+@Suite("SensorAttributionModes")
+struct SensorAttributionModeTests {
+    private let words = [
+        RawTranscriptWord(start: 2, end: 3, text: "Hello "),
+        RawTranscriptWord(start: 3, end: 4, text: "there. "),
+        RawTranscriptWord(start: 10, end: 11, text: "Missed "),
+        RawTranscriptWord(start: 15, end: 16, text: "Later "),
+        RawTranscriptWord(start: 16, end: 17, text: "words."),
+    ]
+    private let clusters = [
+        DiarizationInterval(start: 1, end: 9, clusterID: "1"),
+        DiarizationInterval(start: 14, end: 18, clusterID: "1"),
+    ]
+
+    private func keys(
+        _ mode: SensorAttributionMode, sensors: RawSensors, clusters: [DiarizationInterval]
+    ) -> [String] {
+        TranscriptAssembler(configuration: .init(sensorMode: mode)).assemble(
+            raw: RawTranscript(chunks: [remoteChunk(words: words)]),
+            diarization: run(clusters), sensors: sensors,
+            micTrackIsLocalUser: true, generatedAt: Date(timeIntervalSince1970: 0)
+        ).utterances.map(\.speakerKey)
+    }
+
+    private var meet: RawSensors {
+        RawSensors(
+            source: "google_meet-dom",
+            participants: [SensorParticipant(id: "d1", displayName: "Ada")],
+            turns: [SensorTurn(start: 0, end: 14, participantID: "d1")]
+        )
+    }
+
+    @Test("an assembler left alone runs the current mode")
+    func anAssemblerLeftAloneRunsTheCurrentMode() async throws {
+        #expect(TranscriptAssembler.Configuration().sensorMode == .current)
+    }
+
+    @Test("diarizer-names files no word under a participant's own key")
+    func diarizerNamesFilesNoWordUnderAParticipantsOwnKey() async throws {
+        // `current` gives the stretch the diarizer dropped to the turn.
+        let current = keys(.current, sensors: meet, clusters: clusters)
+        let alone = keys(.diarizerNames, sensors: meet, clusters: clusters)
+        #expect(current.contains(SpeakerLabel.sensor(participantID: "d1")))
+        #expect(!alone.contains(SpeakerLabel.sensor(participantID: "d1")), "got \(alone)")
+    }
+
+    @Test("sensor-first lets a turn outrank the cluster that reaches the word")
+    func sensorFirstLetsATurnOutrankTheClusterThatReachesTheWord() async throws {
+        let sensorFirst = keys(.sensorFirst, sensors: meet, clusters: clusters)
+        #expect(sensorFirst.first == SpeakerLabel.sensor(participantID: "d1"), "got \(sensorFirst)")
+        #expect(keys(.current, sensors: meet, clusters: clusters).first == "remote-001_speaker_01")
+    }
+
+    @Test("diarizer-names carries a one-to-one call's name onto every far-end cluster")
+    func diarizerNamesCarriesAOneToOneCallsNameOntoEveryFarEndCluster() async throws {
+        let sensors = RawSensors(
+            source: "slack-huddle-ax",
+            participants: [
+                SensorParticipant(id: "U_ME", displayName: "Marlow Fenn", isSelf: true),
+                SensorParticipant(id: "U_ADA", displayName: "Ada"),
+            ],
+            turns: [SensorTurn(start: 0, end: 10, participantID: "U_ADA")],
+            selfIsAuthoritative: true
+        )
+        // The diarizer split the one far-end voice in two, and the second
+        // cluster is one no turn covers.
+        let split = [
+            DiarizationInterval(start: 1, end: 9, clusterID: "1"),
+            DiarizationInterval(start: 14, end: 18, clusterID: "2"),
+        ]
+        let diarization = run(split)
+        let named = SensorAttribution.assignments(
+            diarization: diarization, sensors: sensors, mode: .diarizerNames
+        )
+        #expect(Set(named.map(\.assignment.displayName)) == ["Ada"])
+        #expect(named.count == 2)
+        #expect(
+            SensorAttribution.assignments(diarization: diarization, sensors: sensors, mode: .current)
+                .count == 1)
+        #expect(
+            keys(.diarizerNames, sensors: sensors, clusters: split)
+                == ["remote-001_speaker_01", "remote-001_speaker_02"])
+    }
+
+    @Test("relaxed-names names a cluster the turns cover only in part")
+    func relaxedNamesNamesAClusterTheTurnsCoverOnlyInPart() async throws {
+        // Ada's turn reaches 3 s of a 10 s cluster and nobody else's does: not
+        // half of the cluster, but all of what the turns say about it.
+        let diarization = run([DiarizationInterval(start: 0, end: 10, clusterID: "1")])
+        let sensors = RawSensors(
+            source: "google_meet-dom",
+            participants: [
+                SensorParticipant(id: "d1", displayName: "Ada"),
+                SensorParticipant(id: "d2", displayName: "Marlow"),
+            ],
+            turns: [SensorTurn(start: 0, end: 3, participantID: "d1")]
+        )
+        #expect(SensorAttribution.assignments(diarization: diarization, sensors: sensors).isEmpty)
+        let relaxed = SensorAttribution.assignments(
+            diarization: diarization, sensors: sensors, mode: .relaxedNames)
+        #expect(relaxed.map(\.assignment.displayName) == ["Ada"])
+    }
+
+    @Test("relaxed-names still refuses a cluster the local user's turns explain")
+    func relaxedNamesStillRefusesAClusterTheLocalUsersTurnsExplain() async throws {
+        let diarization = run([DiarizationInterval(start: 0, end: 10, clusterID: "1")])
+        let sensors = RawSensors(
+            source: "google_meet-dom",
+            participants: [
+                SensorParticipant(id: "d1", displayName: "Ada"),
+                SensorParticipant(id: "me", displayName: "Marlow", isSelf: true),
+            ],
+            turns: [
+                SensorTurn(start: 0, end: 8, participantID: "me"),
+                SensorTurn(start: 8, end: 10, participantID: "d1"),
+            ]
+        )
+        #expect(
+            SensorAttribution.assignments(
+                diarization: diarization, sensors: sensors, mode: .relaxedNames
+            ).isEmpty)
+    }
+
+    @Test("relaxed-names does not let a competing speaker's turns tie")
+    func relaxedNamesDoesNotLetACompetingSpeakersTurnsTie() async throws {
+        let diarization = run([DiarizationInterval(start: 0, end: 10, clusterID: "1")])
+        let sensors = RawSensors(
+            source: "google_meet-dom",
+            participants: [
+                SensorParticipant(id: "d1", displayName: "Ada"),
+                SensorParticipant(id: "d2", displayName: "Marlow"),
+            ],
+            turns: [
+                SensorTurn(start: 0, end: 4, participantID: "d1"),
+                SensorTurn(start: 4, end: 7.5, participantID: "d2"),
+            ]
+        )
+        #expect(
+            SensorAttribution.assignments(
+                diarization: diarization, sensors: sensors, mode: .relaxedNames
+            ).isEmpty)
+    }
+}

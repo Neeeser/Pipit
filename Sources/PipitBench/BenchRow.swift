@@ -27,6 +27,14 @@ public struct BenchRow: Codable {
     /// Which simulated call this row is and what the echo pass measured on it.
     /// Absent on a one-track case.
     public var call: BenchCallRow?
+    /// How the meeting client's speaker record and the diarizer shared the far
+    /// end (`pipit-eval bench --attribution`). Absent on rows written before it
+    /// existed.
+    public var sensorAttribution: String?
+    /// Words on the far-end track, and how many of them sit under a speaker
+    /// with no name.
+    public var farEndWords: Int?
+    public var unnamedFarEndWords: Int?
 
     public init(
         engine: String, diarizer: String, score: BenchScore,

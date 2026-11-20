@@ -85,6 +85,13 @@ headset channels of five held-out AMI meetings (`ami-eval` or `clean`):
   and the share of dropped far-end turns are the `sensors` numbers of that
   variant in `manifest.json`. The poll and hold are the extension's own
   constants; the dropped share is chosen, not measured.
+- `--attribution` on `bench` and `reprocess` chooses how a meeting client's
+  speaker record and the diarizer share the far end: `current` (the app),
+  `diarizer-names` (the record only names clusters), `sensor-first` (turns
+  label words before clusters do) and `relaxed-names` (`current` with a wider
+  rule for which participant a cluster is). The app always runs `current`. Each
+  bench row records the mode and how many far-end words sit under a speaker
+  with no name.
 - The scorer counts a speaker per person, as the app shows it: when a case's
   speaker map names several keys with one display name, they are one speaker.
 

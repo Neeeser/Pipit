@@ -81,6 +81,15 @@ public enum SensorAttribution {
         }
     }
 
+    /// `relaxed-names`: the share of a cluster's speech one person's turns must
+    /// cover, and the share of the speech the turns cover at all that is theirs.
+    static let relaxedClusterCoverage: Double = 0.25
+    static let relaxedCoveredShare: Double = 0.5
+    /// `relaxed-names`: how much a turn of the local user counts against a
+    /// participant, since the local user overlapping the far end says little
+    /// about who a far-end voice is.
+    static let relaxedSelfWeight: Double = 0.5
+
     /// A cluster is named only when one person held most of it.
     public static let minimumClusterCoverage: Double = 0.5
     /// And held it by this much more than the runner-up. Two people splitting a
@@ -237,7 +246,11 @@ public enum SensorAttribution {
     /// everyone else. A span inside a self turn falls through to the diarizer,
     /// which hears the audio and is the right authority on speech the sensor
     /// cannot explain.
-    public static func wordSources(sensors: RawSensors) -> WordSources {
+    public static func wordSources(
+        sensors: RawSensors, mode: SensorAttributionMode = .current
+    ) -> WordSources {
+        // The client names clusters and labels no word itself.
+        if mode == .diarizerNames { return .none }
         // One other person in the call, so the track holds them and the turns
         // are not needed to say which stretches. An interval per turn would
         // leave everything between them to the diarizer, which is where the
@@ -303,8 +316,10 @@ public enum SensorAttribution {
     }
 
     /// Both tiers as one list, for a caller that does not care which is which.
-    public static func wordIntervals(sensors: RawSensors) -> [DiarizationInterval] {
-        let sources = wordSources(sensors: sensors)
+    public static func wordIntervals(
+        sensors: RawSensors, mode: SensorAttributionMode = .current
+    ) -> [DiarizationInterval] {
+        let sources = wordSources(sensors: sensors, mode: mode)
         return sources.authoritative + sources.turns
     }
 
@@ -380,10 +395,10 @@ public enum SensorAttribution {
     /// the enrichment prompt, and the control that confirms a voice offers a
     /// name with no audio behind it.
     public static func speakerEntries(
-        sensors: RawSensors
+        sensors: RawSensors, mode: SensorAttributionMode = .current
     ) -> [(key: String, assignment: SpeakerAssignment)] {
         let kept = Set(
-            wordIntervals(sensors: sensors).compactMap {
+            wordIntervals(sensors: sensors, mode: mode).compactMap {
                 SpeakerLabel.sensorParticipantID(from: $0.clusterID)
             })
         return kept.sorted().compactMap { id in
@@ -414,7 +429,8 @@ public enum SensorAttribution {
     }
 
     public static func attribute(
-        intervals: [DiarizationInterval], sensors: RawSensors
+        intervals: [DiarizationInterval], sensors: RawSensors,
+        mode: SensorAttributionMode = .current
     ) -> Result {
         // The local user is not in the far-end mixdown, so they are not one of
         // the voices to be found there. Their turns stay in the overlap below,
@@ -464,14 +480,25 @@ public enum SensorAttribution {
         for (clusterID, byParticipant) in perCluster {
             let seconds = clusterSeconds[clusterID] ?? 0
             guard seconds > 0 else { continue }
-            let ranked = byParticipant.sorted { lhs, rhs in
+            let relaxed = mode == .relaxedNames
+            let weighted = byParticipant.map { key, value in
+                (key: key, value: relaxed && selfIDs.contains(key) ? value * relaxedSelfWeight : value)
+            }
+            let ranked = weighted.sorted { lhs, rhs in
                 // Ties broken by identifier so the result does not depend on
                 // dictionary order.
                 lhs.value == rhs.value ? lhs.key < rhs.key : lhs.value > rhs.value
             }
             guard let winner = ranked.first else { continue }
             let runnerUp = ranked.dropFirst().first?.value ?? 0
-            guard winner.value / seconds >= minimumClusterCoverage else { continue }
+            if relaxed {
+                let covered = ranked.reduce(0) { $0 + $1.value }
+                guard winner.value / seconds >= relaxedClusterCoverage,
+                    winner.value / covered >= relaxedCoveredShare
+                else { continue }
+            } else {
+                guard winner.value / seconds >= minimumClusterCoverage else { continue }
+            }
             guard runnerUp == 0 || winner.value >= runnerUp * minimumMargin else { continue }
             // A cluster the local user best explains is a cluster this track
             // cannot contain, so it is left blank rather than handed to whoever
@@ -515,14 +542,30 @@ extension SensorAttribution {
     /// `sensorRecord`, which is where the microphone evidence lives. Marking it
     /// again here would need evidence this has no reason to take.
     public static func assignments(
-        diarization: RawDiarization, sensors: RawSensors
+        diarization: RawDiarization, sensors: RawSensors,
+        mode: SensorAttributionMode = .current
     ) -> [(key: String, assignment: SpeakerAssignment)] {
         let scoped = sensors
         guard !scoped.turns.isEmpty else { return [] }
 
         var out: [(key: String, assignment: SpeakerAssignment)] = []
         for run in diarization.activeRuns {
-            let result = attribute(intervals: run.intervals, sensors: scoped)
+            var result = attribute(intervals: run.intervals, sensors: scoped, mode: mode)
+            // Without the client labelling words, a one-to-one call reaches the
+            // diarizer, which may split the one far-end voice into several
+            // clusters. Whatever it finds on that track is the one other
+            // person, so every cluster takes their name.
+            if mode == .diarizerNames, run.track == .remote,
+                let only = soleRemoteParticipant(sensors: scoped)
+            {
+                let clusters = Set(run.intervals.map(\.clusterID))
+                result.matches = clusters.sorted().map {
+                    Match(
+                        clusterID: $0, participantID: only.id,
+                        displayName: only.personName, coverage: 1
+                    )
+                }
+            }
             for match in result.matches {
                 let name = (match.displayName ?? "")
                     .trimmingCharacters(in: .whitespacesAndNewlines)

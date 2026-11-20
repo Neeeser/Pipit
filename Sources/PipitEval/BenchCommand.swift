@@ -60,6 +60,9 @@ enum BenchCommand {
         /// Run the live engine the app uses during a call, for `--engine
         /// apple` or `--engine parakeet`, in place of the after-call pass.
         var liveEngine = false
+        /// How the meeting client's speaker record and the diarizer share the
+        /// far end, for a simulated call that carries a sensor record.
+        var attribution = SensorAttributionMode.current
     }
 
     /// Where a kept scratch directory goes: beside `--out` when there is one,
@@ -600,7 +603,8 @@ enum BenchCommand {
             backend: OpenAIClient(keyProvider: EnvironmentAPIKeyStore()),
             backends: backends,
             scratch: ProcessingScratch(root: scratchRoot.appendingPathComponent("scratch")),
-            settingsProvider: { configuration }
+            settingsProvider: { configuration },
+            sensorMode: options.attribution
         )
         let clock = Date()
         await pipeline.process(meetingID: created.metadata.id)
@@ -628,7 +632,17 @@ enum BenchCommand {
         }
         let raw = try? created.store.readRawTranscript()
         let runs = (try? created.store.readRawDiarization())?.runs ?? []
-        return Row(
+        // Far-end words left under a speaker with no name: what a reader sees
+        // as "Speaker 2" where the client or a voice profile could have said
+        // who it is.
+        var farEndWords = 0
+        var unnamedFarEndWords = 0
+        for utterance in transcript.utterances where utterance.track == .remote {
+            let count = utterance.text.split(separator: " ").count
+            farEndWords += count
+            if (names[utterance.speakerKey]?.displayName ?? "").isEmpty { unnamedFarEndWords += count }
+        }
+        var row = Row(
             engine: engine.name,
             diarizer: options.diarizer,
             score: BenchScorer.score(
@@ -657,6 +671,10 @@ enum BenchCommand {
                 )
             }
         )
+        row.sensorAttribution = options.attribution.rawValue
+        row.farEndWords = farEndWords
+        row.unnamedFarEndWords = unnamedFarEndWords
+        return row
     }
 
     /// The two tracks of a generated call and what the generator said about

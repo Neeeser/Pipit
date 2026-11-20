@@ -28,7 +28,8 @@ import PipitSpeakers
 /// starts so there is no guessing which one it was.
 enum ReprocessCommand {
     static func run(
-        meeting: URL, applicationSupport: URL, backups: URL, recognize: Bool
+        meeting: URL, applicationSupport: URL, backups: URL, recognize: Bool,
+        attribution: SensorAttributionMode = .current
     ) async -> Int32 {
         let store = MeetingStore(layout: MeetingLayout(root: meeting))
         let original: MeetingMetadata
@@ -124,7 +125,8 @@ enum ReprocessCommand {
         )
         let pipeline = ProcessingPipeline(
             repository: repository, backend: cloud, backends: backends,
-            settingsProvider: { settings }
+            settingsProvider: { settings },
+            sensorMode: attribution
         )
 
         let started = Date()
@@ -147,6 +149,7 @@ enum ReprocessCommand {
         if !recognize {
             print("voice memory    off, so no speaker is named from a voice profile (pass --recognize)")
         }
+        print("attribution     \(attribution.rawValue)")
         print("")
         for name in after.names { print("  \(name)") }
         return after.state == "complete" ? 0 : 1
