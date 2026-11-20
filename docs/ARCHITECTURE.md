@@ -527,11 +527,13 @@ tile whose overlay never resolved would otherwise outrank it.
 It is immutable like the diarization beside it, because it is evidence about a
 recording rather than a conclusion about one.
 
-Three things read it. Word attribution assigns each transcribed word on the
-remote track to the sensor turn covering it, keyed on the platform's own
-participant identifier, and the diarizer attributes only the words no turn
-covers: gaps in the readings, overlap, and every meeting recorded without a
-readable client. Voice enrollment embeds each participant's turns cut to the
+Three things read it. Word attribution goes to the diarizer's clusters first,
+because the diarizer hears the voices and a turn names one floor holder at a
+time, which is wrong wherever two people talk at once. A turn, keyed on the
+platform's own participant identifier, labels only the words no cluster reaches.
+The exception is a call the client says holds one other person, where every
+far-end word is theirs. Cluster naming (below) is what puts the client's names on
+the clusters. Voice enrollment embeds each participant's turns cut to the
 solo speech the diarizer heard inside them, so voice memory learns a
 known-identity voice without waiting for a confirmation. Cluster naming matches
 a diarization cluster to whoever's turns dominate it, which carries the name
