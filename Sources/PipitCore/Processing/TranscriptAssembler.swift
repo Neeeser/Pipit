@@ -76,19 +76,24 @@ public struct TranscriptAssembler: Sendable {
         /// wider because an aligner that squeezes a phrase onto one timestamp
         /// moves its words by seconds.
         public var overlapMatchSeconds: Double
+        /// How the client's speaker record and the diarizer divide the far end.
+        /// The application leaves this at `current`; `pipit-eval` varies it.
+        public var sensorMode: SensorAttributionMode
 
         public init(
             utteranceGapSeconds: Double = 1.2,
             duplicateSimilarity: Double = 0.62,
             duplicateSearchSeconds: Double = 12,
             maxUtteranceSeconds: Double = 30,
-            overlapMatchSeconds: Double = 3
+            overlapMatchSeconds: Double = 3,
+            sensorMode: SensorAttributionMode = .current
         ) {
             self.utteranceGapSeconds = utteranceGapSeconds
             self.duplicateSimilarity = duplicateSimilarity
             self.duplicateSearchSeconds = duplicateSearchSeconds
             self.maxUtteranceSeconds = maxUtteranceSeconds
             self.overlapMatchSeconds = overlapMatchSeconds
+            self.sensorMode = sensorMode
         }
     }
 
@@ -142,7 +147,10 @@ public struct TranscriptAssembler: Sendable {
     ) -> CanonicalTranscript {
         // Sensor turns describe the far end alone: the local user's own track
         // never needs them, and an in-person recording never has them.
-        let sensorWords = sensors.map { SensorAttribution.wordSources(sensors: $0) } ?? .none
+        let sensorWords =
+            sensors.map {
+                SensorAttribution.wordSources(sensors: $0, mode: configuration.sensorMode)
+            } ?? .none
         var utterances: [Utterance] = []
         let orderedTracks = CaptureTrack.allCases.sorted { lhs, _ in
             !(lhs == .mic && micTrackIsLocalUser)
@@ -260,35 +268,31 @@ public struct TranscriptAssembler: Sendable {
         _ spans: [TimedSpan], sensors: SensorAttribution.WordSources,
         clusters: [DiarizationInterval]
     ) -> [String?] {
-        var assigned: [String?]
-        if sensors.authoritative.isEmpty {
-            assigned = Array(repeating: nil, count: spans.count)
-        } else {
-            (assigned, _) = SpeakerAlignment.assign(
-                spans: spans, to: sensors.authoritative, nearestWithinSeconds: 0
+        var assigned: [String?] = Array(repeating: nil, count: spans.count)
+
+        /// Gives each span still unlabelled to the interval it overlaps most.
+        func fill(from intervals: [DiarizationInterval], nearestWithinSeconds: Double) {
+            guard !intervals.isEmpty else { return }
+            let open = spans.indices.filter { assigned[$0] == nil }
+            guard !open.isEmpty else { return }
+            let (filled, _) = SpeakerAlignment.assign(
+                spans: open.map { spans[$0] }, to: intervals,
+                nearestWithinSeconds: nearestWithinSeconds
             )
-        }
-        if !clusters.isEmpty {
-            let leftover = spans.indices.filter { assigned[$0] == nil }
-            if !leftover.isEmpty {
-                let (filled, _) = SpeakerAlignment.assign(
-                    spans: leftover.map { spans[$0] }, to: clusters
-                )
-                for (position, index) in leftover.enumerated() {
-                    assigned[index] = filled[position]
-                }
+            for (position, index) in open.enumerated() {
+                assigned[index] = filled[position]
             }
         }
-        guard !sensors.turns.isEmpty else { return assigned }
-        let unnamed = spans.indices.filter { assigned[$0] == nil }
-        guard !unnamed.isEmpty else { return assigned }
-        // No nearest-interval fallback for the sensor tier: a word near a turn
+
+        // No nearest-interval fallback for the sensor tiers: a word near a turn
         // but outside it is exactly the release-tail ambiguity.
-        let (filled, _) = SpeakerAlignment.assign(
-            spans: unnamed.map { spans[$0] }, to: sensors.turns, nearestWithinSeconds: 0
-        )
-        for (position, index) in unnamed.enumerated() {
-            assigned[index] = filled[position]
+        fill(from: sensors.authoritative, nearestWithinSeconds: 0)
+        if configuration.sensorMode == .sensorFirst {
+            fill(from: sensors.turns, nearestWithinSeconds: 0)
+            fill(from: clusters, nearestWithinSeconds: SpeakerAlignment.nearestFallbackSeconds)
+        } else {
+            fill(from: clusters, nearestWithinSeconds: SpeakerAlignment.nearestFallbackSeconds)
+            fill(from: sensors.turns, nearestWithinSeconds: 0)
         }
         return assigned
     }

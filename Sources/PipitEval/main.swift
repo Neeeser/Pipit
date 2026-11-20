@@ -16,6 +16,7 @@ import PipitSpeakers
 //   pipit-eval gate      --meeting DIR
 //   pipit-eval echo      --meeting DIR [--json OUT] [--offset SECONDS] [--full-id]
 //   pipit-eval reprocess --meeting DIR [--recognize] [--support DIR] [--backups DIR]
+//                        [--attribution current|diarizer-names|sensor-first|relaxed-names]
 //   pipit-eval bench     [--suite ami-core|calls] [--engine parakeet ...] [--diarizer local]
 //   pipit-eval summaries --model ollama:qwen3.5:4b [--model openai:gpt-6-luna ...]
 //   pipit-eval rewrite-summary --meeting DIR [--model openai:gpt-6-luna]
@@ -45,6 +46,9 @@ struct Arguments {
     var fullIdentifier = false
     /// `reprocess` only: read voice memory so known voices are named.
     var recognize = false
+    /// How the meeting client's speaker record and the diarizer share the far
+    /// end. `bench` and `reprocess` only; the application always runs `current`.
+    var attribution = SensorAttributionMode.current
     /// `reprocess` only: where the derived files go before they are removed.
     var backups: URL?
     var applicationSupport: URL
@@ -70,12 +74,30 @@ struct Arguments {
         ]
     }
 
-    init?(_ raw: [String]) {
+    /// Reads `--attribution MODE` out of the arguments and removes it, so the
+    /// loop below keeps its size. An unknown mode stops the run: a dropped one
+    /// would measure `current` and be written down as the mode asked for.
+    private static func takeAttribution(from raw: inout [String]) -> SensorAttributionMode {
+        guard let index = raw.firstIndex(of: "--attribution") else { return .current }
+        guard index + 1 < raw.count, let mode = SensorAttributionMode(rawValue: raw[index + 1]) else {
+            note(
+                "--attribution takes one of "
+                    + SensorAttributionMode.allCases.map(\.rawValue).joined(separator: ", "))
+            exit(2)
+        }
+        raw.removeSubrange(index...(index + 1))
+        return mode
+    }
+
+    init?(_ arguments: [String]) {
+        var raw = arguments
+        attribution = Self.takeAttribution(from: &raw)
         guard let command = raw.first else { return nil }
         self.command = command
         var support = FileManager.default.homeDirectoryForCurrentUser
             .appendingPathComponent("Library/Application Support/Pipit", isDirectory: true)
         var benchOptions = BenchCommand.Options(applicationSupport: support)
+        benchOptions.attribution = attribution
         var engines: [String] = []
         var fullIdentifier = false
         var index = 1
@@ -213,6 +235,7 @@ func usage() -> Never {
                                  # reads that folder's settings and voice memory and
                                  # writes to them, so point it at a copy
           pipit-eval reprocess --meeting MEETING_FOLDER [--recognize] [--backups DIR]
+                                 [--attribution current|diarizer-names|sensor-first|relaxed-names]
                                  [--support DIR]   # a copy of the meeting keeps its
                                  # identifier, so point this away from the app's own
                                  # store before reprocessing one
@@ -221,6 +244,7 @@ func usage() -> Never {
                                  [--diarizer local|vbx|lseend|nemotron3|cloud] [--out FILE] [--baseline FILE]
                                  [--allow-missing-baseline] [--audio-dir DIR]
                                  [--repeats N] [--keep-scratch] [--resume]
+                                 [--attribution current|diarizer-names|sensor-first|relaxed-names]
           pipit-eval summaries --model PROVIDER:MODEL [--model ...] [--case MEETING ...]
                                  [--repeats N] [--instructions FILE] [--context TOKENS]
                                  [--judge PROVIDER:MODEL | --no-judge] [--out DIR]
@@ -510,7 +534,7 @@ case "reprocess":
         backups: arguments.backups
             ?? arguments.applicationSupport
             .appendingPathComponent("Backups", isDirectory: true),
-        recognize: arguments.recognize
+        recognize: arguments.recognize, attribution: arguments.attribution
     )
     if code != 0 { exit(code) }
 

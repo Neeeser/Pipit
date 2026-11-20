@@ -101,6 +101,9 @@ public actor ProcessingPipeline {
     /// Chunk sizing, injectable so tests can exercise multi-chunk behaviour
     /// without minutes of audio.
     private let chunking: ChunkPlanner.Configuration
+    /// How the client's speaker record and the diarizer share the far end.
+    /// Always `current` in the application; `pipit-eval` varies it to compare.
+    private let sensorMode: SensorAttributionMode
 
     private var running: Set<String> = []
     /// Meetings whose current attempt has already received a paid response. An
@@ -233,7 +236,8 @@ public actor ProcessingPipeline {
         wait: @escaping @Sendable (TimeInterval) async -> Void = { seconds in
             try? await Task.sleep(nanoseconds: UInt64(seconds * 1_000_000_000))
         },
-        chunking: ChunkPlanner.Configuration = .openAIDiarization
+        chunking: ChunkPlanner.Configuration = .openAIDiarization,
+        sensorMode: SensorAttributionMode = .current
     ) {
         self.repository = repository
         self.backend = backend
@@ -262,6 +266,7 @@ public actor ProcessingPipeline {
         self.summaryBackups = summaryBackups
         self.wait = wait
         self.chunking = chunking
+        self.sensorMode = sensorMode
     }
 
     /// Removes what a stage wrote into a folder that is no longer meant to
@@ -1281,7 +1286,7 @@ public actor ProcessingPipeline {
             )
         }
         let evidence = store.readSpeechEvidence()
-        let transcript = TranscriptAssembler().assemble(
+        let transcript = makeAssembler().assemble(
             raw: try store.readRawTranscriptForAssembly(),
             diarization: try store.readRawDiarization(),
             speech: evidence,
@@ -2420,12 +2425,12 @@ public actor ProcessingPipeline {
             )
         }
         guard let marked = await sensorRecord(store: store, metadata: metadata) else { return }
-        let people = SensorAttribution.speakerEntries(sensors: marked)
+        let people = SensorAttribution.speakerEntries(sensors: marked, mode: sensorMode)
         for entry in people {
             speakers.applySuggestion(entry.assignment, for: entry.key)
         }
         let clusters = SensorAttribution.assignments(
-            diarization: diarization, sensors: marked
+            diarization: diarization, sensors: marked, mode: sensorMode
         )
         for entry in clusters {
             speakers.applySuggestion(entry.assignment, for: entry.key)
@@ -2724,6 +2729,10 @@ public actor ProcessingPipeline {
         }
     }
 
+    private func makeAssembler() -> TranscriptAssembler {
+        TranscriptAssembler(configuration: .init(sensorMode: sensorMode))
+    }
+
     private func runSpeakerResolution(
         store: MeetingStore, metadata: inout MeetingMetadata, settings: AppSettings
     ) async throws {
@@ -2734,7 +2743,7 @@ public actor ProcessingPipeline {
         let evidence = store.readSpeechEvidence()
         let micIsLocalUser = micHoldsLocalUserAlone(metadata, evidence: evidence)
 
-        let assembler = TranscriptAssembler()
+        let assembler = makeAssembler()
         let transcript = assembler.assemble(
             raw: raw, diarization: diarization,
             speech: evidence,
@@ -3943,7 +3952,7 @@ public actor ProcessingPipeline {
         // processed meeting re-assembles with every speaker collapsed into one
         // cluster, and every name in the speaker map stops matching.
         let diarization = try found.store.readRawDiarization()
-        let assembler = TranscriptAssembler()
+        let assembler = makeAssembler()
         let transcript = assembler.assemble(
             raw: raw,
             diarization: diarization,
@@ -4949,7 +4958,7 @@ public actor ProcessingPipeline {
         // a cluster.
         var metadataCopy = metadata
         let raw = try store.readRawTranscriptForAssembly()
-        let transcript = TranscriptAssembler().assemble(
+        let transcript = makeAssembler().assemble(
             raw: raw, diarization: diarization,
             speech: store.readSpeechEvidence(),
             sensors: await sensorRecord(store: store, metadata: metadata),
