@@ -249,6 +249,7 @@ public enum PipelineFixtures {
         transcriber: any TranscriptionBackend,
         diarizer: StubLocalDiarizer,
         speakers: SpeakerRecognitionService?,
+        embeddings: (any SpeakerEmbeddingExtractor)? = nil,
         aligner: (any TranscriptAligner)? = nil,
         prepareAligner: (@Sendable () async throws -> Void)? = nil,
         prepareLocalModels: (@Sendable () async throws -> Void)? = nil,
@@ -264,6 +265,7 @@ public enum PipelineFixtures {
             backends: ProcessingBackends(
                 transcription: { _, _ in transcriber },
                 diarization: { _, _ in diarizer },
+                embeddings: embeddings,
                 speakers: speakers,
                 prepareLocalModels: prepareLocalModels,
                 aligner: aligner,
