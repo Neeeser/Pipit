@@ -1731,6 +1731,35 @@ struct SensorAssemblyTests {
         #expect(keys == [SpeakerLabel.sensor(participantID: "d2")], "got \(keys)")
     }
 
+    @Test("a person no cluster passes the guard for has the gap words go to the cluster their turns overlap most")
+    func anUnmatchedPersonHasTheGapWordsGoToTheClusterTheirTurnsOverlapMost() async throws {
+        // Ada's turn covers under a third of cluster 1, which is below the naming
+        // bar, so the cluster stays unnamed. Her gap word is still hers and
+        // goes to that cluster rather than showing her a second time.
+        let words = [
+            RawTranscriptWord(start: 2, end: 3, text: "Hello "),
+            RawTranscriptWord(start: 12, end: 13, text: "dropped."),
+        ]
+        let sensors = RawSensors(
+            source: "google_meet-dom",
+            participants: [SensorParticipant(id: "d1", displayName: "Ada")],
+            turns: [SensorTurn(start: 0, end: 20, participantID: "d1")]
+        )
+        let clusters = [
+            DiarizationInterval(start: 1, end: 9, clusterID: "1"),
+            DiarizationInterval(start: 25, end: 45, clusterID: "1"),
+            DiarizationInterval(start: 60, end: 80, clusterID: "2"),
+        ]
+        #expect(
+            SensorAttribution.attribute(intervals: clusters, sensors: sensors).matches.isEmpty)
+        let transcript = TranscriptAssembler().assemble(
+            raw: RawTranscript(chunks: [remoteChunk(words: words)]),
+            diarization: run(clusters), sensors: sensors,
+            micTrackIsLocalUser: true, generatedAt: Date(timeIntervalSince1970: 0)
+        )
+        #expect(transcript.utterances.map(\.speakerKey) == ["remote-001_speaker_01"])
+    }
+
     @Test("a person with no matched cluster keeps the sensor key for the words a turn fills")
     func aPersonWithNoMatchedClusterKeepsTheSensorKey() async throws {
         let words = [RawTranscriptWord(start: 12, end: 13, text: "Hello.")]
