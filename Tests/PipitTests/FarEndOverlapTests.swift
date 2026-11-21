@@ -203,6 +203,24 @@ struct FarEndOverlapTests {
         #expect(micText(FarEndOverlap.drop([remote, user])) == ["yeah okay yes okay right"])
     }
 
+    @Test("function words in an echo count toward it, so a short echo run is still removed")
+    func functionWordsInAnEchoCount() {
+        let remote = line(
+            "and we all agree on the schedule we want to have something ready", track: .remote, from: 10)
+        let echo = line(
+            "the early schedule we want to have something", track: .mic, from: 11.3)
+        #expect(micText(FarEndOverlap.drop([remote, echo])).isEmpty)
+    }
+
+    @Test("a trailing echo with few distinctive words goes and the words before it stay")
+    func aTrailingEchoWithFewDistinctiveWordsGoes() {
+        let remote = line(
+            "around eight o'clock I want to see the news in the television", track: .remote, from: 10)
+        let mixed = line(
+            "I should look at that data to see the news in the television", track: .mic, from: 9.7)
+        #expect(micText(FarEndOverlap.drop([remote, mixed])) == ["I should look at that data"])
+    }
+
     @Test("echo split across two microphone lines goes")
     func echoSplitAcrossTwoLinesGoes() {
         let remote = line("we should look at the deployment plan before friday", track: .remote, from: 10)

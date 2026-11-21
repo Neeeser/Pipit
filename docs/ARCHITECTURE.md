@@ -352,8 +352,7 @@ same moment, which is what such a track produces. A word counts when the far
 end said the same word within a second of it, and each far-end word counts for
 one microphone word at most, so a user who answers in the far end's words a few
 seconds later, or repeats a word the far end said once, keeps them. Backchannels
-("yes", "okay") and the commonest function words are never counted either way,
-so a reply made of them stays. A run ends at the user's own content words, so a
+("yes", "okay") are never counted either way, so a reply made of them stays. A run ends at the user's own content words, so a
 line that joins an echo, the user's sentence and more echo loses both echoes and
 keeps the sentence. Lines less than two seconds apart are searched together,
 because an echo can be split across two lines. A word or two the microphone
