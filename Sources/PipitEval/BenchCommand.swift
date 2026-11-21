@@ -340,6 +340,19 @@ enum BenchCommand {
         )
     }
 
+    /// Parakeet Ultra has only the after-call pass. A live flag would be
+    /// ignored and the row written down as a plain Ultra run, so a run that
+    /// asks for one stops instead.
+    static func liveFlagConflict(engines: [Engine], options: Options) -> String? {
+        guard engines.contains(.local(.parakeetUltra)) else { return nil }
+        let asked = [
+            ("--live-phrases", options.livePhrases), ("--live-sliding", options.liveSliding),
+            ("--live-unified", options.liveUnified), ("--live-engine", options.liveEngine),
+        ].filter(\.1).map(\.0)
+        guard !asked.isEmpty else { return nil }
+        return "--engine parakeet-ultra has no live mode, so \(asked.joined(separator: ", ")) would be ignored"
+    }
+
     static func run(_ options: Options) async -> Int32 {
         let layout = BenchLayout(root: options.benchmarks)
         let manifest = try? BenchManifest.read(from: layout.manifest)
@@ -359,6 +372,10 @@ enum BenchCommand {
             engines.append(engine)
         }
         if engines.isEmpty { engines = [.local(.parakeet)] }
+        if let conflict = liveFlagConflict(engines: engines, options: options) {
+            note("bench: \(conflict)")
+            return 2
+        }
 
         let hasKey = !(ProcessInfo.processInfo.environment["OPENAI_API_KEY"] ?? "").isEmpty
         let cloudEngines = engines.filter(\.isCloud)
@@ -977,12 +994,16 @@ enum BenchCommand {
     /// constants the installer shows. Cloud engines install the diarizer unit
     /// alone.
     static func installSize(engineName: String, diarizer: String) -> String {
-        guard let engine = Engine.parse(engineName) else { return "      ?" }
+        guard let bytes = installBytes(engineName: engineName, diarizer: diarizer) else { return "      ?" }
+        return String(format: "%5.1fGB", Double(bytes) / (1024 * 1024 * 1024))
+    }
+
+    static func installBytes(engineName: String, diarizer: String) -> Int64? {
+        guard let engine = Engine.parse(engineName) else { return nil }
         var units = LocalModelUnit.recommended(for: settings(engine: engine, diarizer: diarizer))
         // Only the shipped diarizer and the Nemotron rows install its model.
         if diarizer != "local", !diarizer.hasPrefix("nemotron3") { units.remove(.nemotronDiarizer) }
-        let bytes = units.reduce(Int64(0)) { $0 + $1.approximateBytes }
-        return String(format: "%5.1fGB", Double(bytes) / (1024 * 1024 * 1024))
+        return units.reduce(Int64(0)) { $0 + $1.approximateBytes }
     }
 
     static func mean(_ values: [Double]) -> Double { BenchAggregate.mean(values) }
