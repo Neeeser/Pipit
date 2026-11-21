@@ -63,10 +63,17 @@ headset channels of five held-out AMI meetings (`ami-eval` or `clean`):
   delay, and a synthetic room impulse response.
 - Each variant fixes the echo level by the correlation Pipit's own measure
   (`EchoCancellationPass.measureAlignment`) reads between the two tracks:
-  `headphones` adds no echo, `laptop` targets 0.69 (the median across real
-  recorded calls) and `laptop-strong` targets 0.89 (the 90th percentile). The
+  `headphones` adds no echo, `laptop` targets 0.69 and `laptop-strong` targets
+  0.89. Those two numbers are the median and the 90th percentile of the same
+  measure over real calls recorded on laptop speakers; the recordings are kept
+  outside the repository, so the targets cannot be rechecked from here. The
   generator searches the echo gain until its copy of that measure lands within
-  0.002 of the target and writes the result into `case.json`.
+  0.002 of the target. It then reads the 16-bit files it wrote, records that
+  correlation and the echo power against the local voice (`echoToLocalVoiceDB`)
+  in `case.json`, and exits with an error when the stored correlation is more
+  than 0.003 from the target (the search tolerance of 0.002 plus room for the
+  rounding that 16-bit storage adds) or more than 0.01% of a track's samples sit at
+  full scale.
 - `laptop-meet` has the `laptop` audio and also writes `sensors.raw.json`, the
   record a browser reader would keep on a Google Meet call, and the bench runs
   it as a Meet meeting. Each reference turn becomes a sensor turn that starts
@@ -87,24 +94,35 @@ scripts/eval.sh bench --suite calls --engine parakeet --diarizer local --out cal
 `alignmentCorrelation` with the generator's number. The generator is
 deterministic for one ffmpeg, libopus and SciPy build. The case audio is not
 checksum-pinned, because those libraries can differ between machines; the
-headset inputs are. The Python tests run with
-`uv run --with numpy --with scipy --with soundfile python -m unittest discover -s Benchmarks/calls`.
+headset inputs are. Run the Python tests from the repository root (they need
+ffmpeg for the codec cases and skip those without it):
+
+```sh
+uv run --with numpy --with scipy --with soundfile python -m unittest discover -s Benchmarks/calls
+```
 
 Two numbers are added for each call case, both per minute of the scored
 window. They follow `Benchmarks/aec/metrics.py`:
 
 | Metric | Meaning |
 | --- | --- |
-| `farEndWordsUnderLocalPerMinute` | Far-end words that the transcript attributes to the local person and that the local person did not say within 3 seconds |
-| `localWordsLostPerMinute` | The local person's words that appear nowhere in the transcript within 3 seconds |
+| `farEndWordsUnderLocalPerMinute` | Transcript words labelled as the local person that match a far-end reference word within 3 seconds and match none of the local person's own. Words under 3 letters and common function words (articles, pronouns, "yeah", "okay" and similar) are skipped, so this count leaves those out. A transcript word is not paired with a reference word, so one word can count against several |
+| `localWordsLostPerMinute` | The local person's reference words that no transcript word accounts for. A transcript word accounts for at most one reference word: it has the same text, starts within 3 seconds, and carries any label. Every word is counted, function words included, so a mislabelled word is not lost here |
 
-The table groups cases by variant and also prints the echo correlation the
-cleaner measured before cleaning. It is blank when the cleaner left the track
-alone.
+The table groups cases by variant and prints the correlation the cleaner
+measured before cleaning (blank when it left the track alone), the correlation
+the generator recorded for the case, and the echo power against the local voice
+in dB. A `*` after a variant marks simulated sensors.
+
+How far to trust the suite: it holds five meetings from two speaker groups in
+four variants, and the variants share each meeting's audio. Use it to catch a
+regression in a fixed configuration, not to rank engines or models.
 
 What stays different from a real call: the local voice is a close-talk headset
-with no room sound; the tracks are aligned to the sample before the echo
-delay; there is no packet loss, gain control or clock drift; every meeting has
+with no room sound, and the gate keeps whatever other speakers the headset
+picked up while its owner talks, so even the `headphones` variant's microphone
+carries some other participants' voices inside the local person's speech; the
+tracks are aligned to the sample before the echo delay; there is no packet loss, gain control or clock drift; every meeting has
 four participants; and the local person's share of speech is fixed by the
 meeting, so reaching a very high echo correlation takes a louder echo than a
 real call would have. Baselines for this suite are not in `baselines.json`.
