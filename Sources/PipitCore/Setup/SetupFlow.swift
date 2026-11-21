@@ -92,13 +92,24 @@ public struct SetupSnapshot: Sendable, Equatable {
         self.hasStoredKey = hasStoredKey
     }
 
-    /// The units setup downloads for this configuration, whichever backends
-    /// are chosen.
+    /// The units this configuration cannot process a meeting without.
     public var requiredUnits: Set<LocalModelUnit> {
+        LocalModelUnit.required(for: settings)
+    }
+
+    /// The units setup downloads for this configuration: the required ones and
+    /// the recommended ones that have a fallback.
+    public var recommendedUnits: Set<LocalModelUnit> {
         LocalModelUnit.recommended(for: settings)
     }
 
+    /// What setup still has to download, recommended units included.
     public var missingUnits: Set<LocalModelUnit> {
+        recommendedUnits.subtracting(installedUnits)
+    }
+
+    /// What is missing of the units a meeting cannot be processed without.
+    public var missingRequiredUnits: Set<LocalModelUnit> {
         requiredUnits.subtracting(installedUnits)
     }
 
@@ -197,7 +208,7 @@ public enum SetupFlow {
             // A download under way counts. Recording works while models arrive,
             // and meetings that finish first are queued until they do, so holding
             // the user here for 2.1 GB buys nothing.
-            return snapshot.missingUnits.isEmpty || snapshot.isDownloadingModels
+            return snapshot.missingRequiredUnits.isEmpty || snapshot.isDownloadingModels
         case .welcome, .optionalPermissions, .aiFeatures, .firefox, .finish:
             return true
         case .microphone, .screenRecording, .accessibility:

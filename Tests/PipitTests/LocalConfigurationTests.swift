@@ -260,6 +260,13 @@ struct LocalConfigurationTests {
         #expect(LocalModelManager.diarizerConfiguration(speakerCount: nil).exposeChunkEmbeddings)
     }
 
+    @Test("the clusterer gives each instant one speaker, because words take one label")
+    func theClustererGivesEachInstantOneSpeaker() {
+        // FluidAudio recommends this for attributing ASR words. On five real
+        // calls it lowered cpWER on one and left the other four unchanged.
+        #expect(LocalModelManager.diarizerConfiguration(speakerCount: nil).postProcessing.exclusiveSegments)
+    }
+
     @Test("the run records the configuration that produced it")
     func theRunRecordsTheConfigurationThatProducedIt() async throws {
         let provenance = LocalModelManager.diarizerProvenance(speakerCount: nil)

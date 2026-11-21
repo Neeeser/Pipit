@@ -194,20 +194,33 @@ struct ModelsStep: View {
         }
     }
 
+    /// The speaker models fold into the Nemotron row when both are listed, so
+    /// setup shows speaker separation as one item.
     private var units: [LocalModelUnit] {
-        LocalModelUnit.allCases.filter { model.snapshot.requiredUnits.contains($0) }
+        let required = model.snapshot.recommendedUnits
+        return LocalModelUnit.allCases.filter {
+            required.contains($0) && !($0 == .diarizer && required.contains(.nemotronDiarizer))
+        }
+    }
+
+    private func members(_ unit: LocalModelUnit) -> Set<LocalModelUnit> {
+        unit == .nemotronDiarizer ? PipitRuntime.speakerSeparationUnits : [unit]
     }
 
     private func installed(_ unit: LocalModelUnit) -> Bool {
-        runtime.localModelState.present.bytes(for: unit) != nil
+        members(unit).allSatisfy { runtime.localModelState.present.bytes(for: $0) != nil }
     }
 
     private func status(_ unit: LocalModelUnit) -> String {
-        if let bytes = runtime.localModelState.present.bytes(for: unit) {
+        if installed(unit) {
+            let bytes = members(unit).reduce(Int64(0)) {
+                $0 + (runtime.localModelState.present.bytes(for: $1) ?? 0)
+            }
             return ProcessingSettingsPane.megabytes(bytes)
         }
         if runtime.localModelState.isBusy { return "Downloading" }
-        return ProcessingSettingsPane.megabytes(unit.approximateBytes)
+        let missing = members(unit).filter { runtime.localModelState.present.bytes(for: $0) == nil }
+        return ProcessingSettingsPane.megabytes(missing.reduce(Int64(0)) { $0 + $1.approximateBytes })
     }
 
     @ViewBuilder
@@ -226,8 +239,18 @@ struct ModelsStep: View {
             Button(downloadLabel) { Task { await model.startModelDownload() } }
                 .buttonStyle(.borderedProminent)
         case .installed, .outdated:
-            Label("Installed", systemImage: "checkmark.circle.fill")
-                .foregroundStyle(.green).font(.callout)
+            // Setup may finish without a recommended unit that did not arrive,
+            // so it is offered again here instead of reading as installed.
+            if model.snapshot.missingUnits.isEmpty {
+                Label("Installed", systemImage: "checkmark.circle.fill")
+                    .foregroundStyle(.green).font(.callout)
+            } else {
+                // Reached after a failed or interrupted download, so it says so
+                // rather than offering the button with no reason.
+                Label("Download incomplete", systemImage: "exclamationmark.triangle.fill")
+                    .foregroundStyle(.orange).font(.caption)
+                Button(downloadLabel) { Task { await model.startModelDownload() } }
+            }
         }
     }
 

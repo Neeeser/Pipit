@@ -63,6 +63,9 @@ extension LocalModelManager {
         var config = OfflineDiarizerConfig.default
         config.exposeChunkEmbeddings = true
         config.clustering.warmStartFa = LocalDiarizationTuning.warmStartFa
+        // Each transcript word takes one speaker label, so overlapping turns are
+        // trimmed to one speaker at a time, as FluidAudio advises for ASR words.
+        config.postProcessing.exclusiveSegments = true
         // Never set from a participant list, a calendar or a guess. Only a
         // person asking for a specific count on the re-analysis control reaches
         // this, and then it is their number under their review. A count too low

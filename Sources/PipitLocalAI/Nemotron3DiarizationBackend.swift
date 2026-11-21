@@ -178,20 +178,98 @@ extension LocalModelManager {
             && version == ModelNames.Nemotron3.weightsVersion
     }
 
-    /// Fetches the `offline` preset and loads it once, so the first meeting
-    /// pays neither the download nor the Core ML compile.
-    func installNemotron3(
-        force: Bool, progress: @escaping @Sendable (Double, String) -> Void
-    ) async throws {
-        if force { try? FileManager.default.removeItem(at: locations.nemotronDiarizerDirectory) }
-        progress(0, "Downloading speaker models")
-        _ = try await Nemotron3Models.loadFromHuggingFace(
-            config: .offline, cacheDirectory: locations.root,
-            computeUnits: Self.nemotron3ComputeUnits,
-            progressHandler: { update in
-                progress(update.fractionCompleted * 0.9, "Downloading speaker models")
+    /// Written beside the weights-version marker once the Core ML compile has
+    /// finished, holding the weights version it compiled, so a launch can tell a
+    /// compile that never ran from one that did.
+    static let nemotron3CompileMarkerFile = "pipit-compile-finished"
+
+    static func nemotron3CompileFinished(directory: URL) -> Bool {
+        let marker = directory.appendingPathComponent(nemotron3CompileMarkerFile)
+        let version = (try? String(contentsOf: marker, encoding: .utf8))?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        return version == ModelNames.Nemotron3.weightsVersion
+    }
+
+    /// Starts the background compile at launch for an install that has the
+    /// files and no record that the compile finished, such as one the app quit
+    /// during. A compile that already happened loads in well under a second, so
+    /// an install from before the marker existed pays almost nothing.
+    public func resumeNemotronPreparation() {
+        let directory = locations.nemotronDiarizerDirectory
+        guard receipts[.nemotronDiarizer] != nil,
+            !Self.nemotron3CompileFinished(directory: directory)
+        else { return }
+        startNemotronPreparation()
+    }
+
+    /// Compiles the model for the Neural Engine in the background, so the first
+    /// meeting after an install does not wait for it.
+    ///
+    /// Core ML caches the compiled model by location, and the first load in a
+    /// new place takes minutes. This runs once after the unit installs, at low
+    /// priority and detached from the install, so recording, processing and
+    /// the install's own completion never wait on it. A meeting that finishes
+    /// first waits for this one in `nemotron3Diarize` instead of starting a
+    /// second compile beside it. It holds a lease, so the idle release waits
+    /// for it too.
+    func startNemotronPreparation() {
+        if let running = nemotronPreparation, !running.isCancelled { return }
+        guard Self.nemotron3FilesPresent(.offline, directory: locations.nemotronDiarizerDirectory)
+        else { return }
+        nemotronPreparationGeneration &+= 1
+        let generation = nemotronPreparationGeneration
+        onPreparationChange(true)
+        let modelLease = lease()
+        let source = nemotron
+        let root = locations.root
+        nemotronPreparation = Task.detached(priority: .background) { [weak self] in
+            var compiled = false
+            do {
+                let seconds = try await source.prepare(root: root)
+                compiled = !Task.isCancelled
+                Log.processing.info("nemotron prepared seconds=\(seconds, privacy: .public)")
+            } catch {
+                // The meeting path loads the model itself, so a failure here
+                // costs the first meeting the wait and nothing else.
+                Log.processing.notice(
+                    "nemotron preparation failed error=\(String(describing: type(of: error)), privacy: .public)"
+                )
             }
-        )
+            await self?.finishNemotronPreparation(generation: generation, compiled: compiled)
+            modelLease.release()
+        }
+    }
+
+    private func finishNemotronPreparation(generation: UInt64, compiled: Bool) {
+        let directory = locations.nemotronDiarizerDirectory
+        if receipts[.nemotronDiarizer] == nil {
+            // Deleted while compiling. The load may have fetched files back
+            // before it noticed, unless a new install is putting them there.
+            if !installing.contains(.nemotronDiarizer) {
+                try? FileManager.default.removeItem(at: locations.containerDirectory(for: .nemotronDiarizer))
+            }
+        } else if compiled, Self.nemotron3FilesPresent(.offline, directory: directory) {
+            let marker = directory.appendingPathComponent(Self.nemotron3CompileMarkerFile)
+            try? Data((ModelNames.Nemotron3.weightsVersion + "\n").utf8).write(to: marker, options: .atomic)
+        }
+        guard nemotronPreparationGeneration == generation else { return }
+        nemotronPreparation = nil
+        onPreparationChange(false)
+    }
+
+    /// Stops the running preparation and drops its flag at once. The Core ML
+    /// load inside it cannot be interrupted, so the task itself ends when that
+    /// load returns, and cleans up after itself then.
+    func cancelNemotronPreparation() {
+        guard let running = nemotronPreparation, !running.isCancelled else { return }
+        running.cancel()
+        nemotronPreparationGeneration &+= 1
+        onPreparationChange(false)
+    }
+
+    /// Returns when the background preparation, if one is running, has ended.
+    public func waitForNemotronPreparation() async {
+        await nemotronPreparation?.value
     }
 
     /// Diarizes one file with Nemotron 3. Runs go through `nemotron3Runs`, one
@@ -212,6 +290,7 @@ extension LocalModelManager {
         let modelLease = lease()
         defer { modelLease.release() }
         let root = locations.root
+        await waitForNemotronPreparation()
         if preset == .offline,
             !Self.nemotron3FilesPresent(preset, directory: locations.nemotronDiarizerDirectory)
         {
