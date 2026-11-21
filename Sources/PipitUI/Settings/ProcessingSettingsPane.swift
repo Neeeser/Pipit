@@ -10,6 +10,10 @@ import SwiftUI
 struct ProcessingSettingsPane: View {
     let model: SettingsModel
     private var runtime: PipitRuntime { model.runtime }
+    /// True from the click on Update until its download ends. Held by the
+    /// runtime, so the bar survives switching to another pane and back.
+    private var updatingSpeakerSeparation: Bool { runtime.speakerSeparationUpdating }
+    private var updateBytes: Int64 { runtime.speakerSeparationUpdateBytes }
 
     var body: some View {
         Form {
@@ -131,20 +135,25 @@ struct ProcessingSettingsPane: View {
     private var modelsOnDiskSection: some View {
         Section("Models") {
             ForEach(visibleUnits, id: \.rawValue) { unit in
-                LabeledContent(Self.unitName(unit)) {
-                    HStack(spacing: 8) {
-                        Text(unitStatus(unit)).foregroundStyle(.secondary)
-                        if installedBytes(unit) != nil {
-                            Button("Delete") {
-                                Task { await runtime.removeLocalModel(unit) }
+                if unit == .nemotronDiarizer {
+                    speakerSeparationRow
+                } else {
+                    LabeledContent(Self.unitName(unit)) {
+                        HStack(spacing: 8) {
+                            Text(unitStatus(unit)).foregroundStyle(.secondary)
+                            if installedBytes(unit) != nil {
+                                Button("Delete") {
+                                    Task { await runtime.removeLocalModel(unit) }
+                                }
+                                .controlSize(.small)
                             }
-                            .controlSize(.small)
                         }
                     }
                 }
             }
             switch runtime.localModelState {
-            case .downloading(let fraction, let detail, _):
+            // The speaker separation update draws its own bar under its row.
+            case .downloading(let fraction, let detail, _) where !updatingSpeakerSeparation:
                 VStack(alignment: .leading, spacing: 4) {
                     ProgressView(value: fraction)
                     Text(detail).font(.caption).foregroundStyle(.secondary)
@@ -164,7 +173,7 @@ struct ProcessingSettingsPane: View {
                 )
                 .font(.caption).foregroundStyle(.secondary)
                 Button("Re-download") { Task { await runtime.reinstallLocalModels() } }
-            case .installed:
+            case .installed, .downloading:
                 EmptyView()
             }
             if let path = runtime.models?.locations.root.path {
@@ -177,11 +186,88 @@ struct ProcessingSettingsPane: View {
         LocalModelUnit.required(for: runtime.settings)
     }
 
-    /// Required units first, then anything else still on disk.
+    /// Required units first, then anything else still on disk. The two speaker
+    /// separation units are one row, carried by the Nemotron unit's place in
+    /// the list, whenever diarization is local or Nemotron is on disk.
     private var visibleUnits: [LocalModelUnit] {
-        LocalModelUnit.allCases.filter { unit in
-            requiredUnits.contains(unit) || installedBytes(unit) != nil
+        let grouped = showsSpeakerSeparationRow
+        return LocalModelUnit.allCases.filter { unit in
+            if unit == .nemotronDiarizer { return grouped }
+            if unit == .diarizer, grouped { return false }
+            return requiredUnits.contains(unit) || installedBytes(unit) != nil
         }
+    }
+
+    private var showsSpeakerSeparationRow: Bool {
+        runtime.settings.processing.usesLocalDiarization || installedBytes(.nemotronDiarizer) != nil
+    }
+
+    /// Nemotron 3 Diarization and the speaker models it shares a download
+    /// with, as one item with one Update button for whatever is missing.
+    private var speakerSeparationRow: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            LabeledContent(Self.unitName(.nemotronDiarizer)) {
+                HStack(spacing: 8) {
+                    Text(speakerSeparationStatus).foregroundStyle(.secondary)
+                    if runtime.speakerSeparationUpdateAvailable, !updatingSpeakerSeparation {
+                        Button("Update") {
+                            Task { await runtime.installSpeakerSeparation() }
+                        }
+                        .controlSize(.small)
+                        .disabled(runtime.localModelState.isBusy)
+                    }
+                    if runtime.speakerSeparationInstalledBytes != nil, !speakerSeparationInProgress {
+                        Button("Delete") {
+                            Task { await runtime.removeSpeakerSeparation() }
+                        }
+                        .controlSize(.small)
+                    }
+                }
+            }
+            if speakerSeparationInProgress {
+                speakerSeparationProgress
+            }
+        }
+    }
+
+    /// From the click until the model is ready, including the compile that
+    /// follows the download, so the row never sits still after Update.
+    private var speakerSeparationInProgress: Bool {
+        updatingSpeakerSeparation || runtime.preparingSpeakerSeparation
+    }
+
+    @ViewBuilder private var speakerSeparationProgress: some View {
+        if updatingSpeakerSeparation, case .downloading(let fraction, _, _) = runtime.localModelState {
+            ProgressView(value: SpeakerSeparationProgress.downloading(fraction))
+            Text(
+                "Downloading \(Self.megabytes(Int64(Double(updateBytes) * fraction))) of \(Self.megabytes(updateBytes))"
+            )
+            .font(.caption).foregroundStyle(.secondary).monospacedDigit()
+        } else if let since = runtime.speakerSeparationPreparingSince {
+            TimelineView(.periodic(from: since, by: 1)) { context in
+                ProgressView(
+                    value: SpeakerSeparationProgress.compiling(elapsed: context.date.timeIntervalSince(since))
+                )
+            }
+            Text("Installing").font(.caption).foregroundStyle(.secondary)
+        } else {
+            // Clicked, and the download has not reported yet.
+            ProgressView(value: 0)
+            Text("Downloading").font(.caption).foregroundStyle(.secondary)
+        }
+    }
+
+    private var speakerSeparationStatus: String {
+        if speakerSeparationInProgress {
+            return Self.megabytes(
+                updatingSpeakerSeparation ? updateBytes : runtime.speakerSeparationInstalledBytes ?? 0)
+        }
+        if runtime.speakerSeparationUpdateAvailable {
+            if runtime.speakerSeparationUpdateFailed { return "Download failed" }
+            let missing = runtime.speakerSeparationMissingUnits.reduce(Int64(0)) { $0 + $1.approximateBytes }
+            return Self.megabytes(missing)
+        }
+        return Self.megabytes(runtime.speakerSeparationInstalledBytes ?? 0)
     }
 
     private func installedBytes(_ unit: LocalModelUnit) -> Int64? {
@@ -211,7 +297,7 @@ struct ProcessingSettingsPane: View {
         case .canary: "Canary 1B v2"
         case .ctcAligner: "Timing aligner"
         case .diarizer: "Speaker models"
-        case .nemotronDiarizer: "Speaker separation"
+        case .nemotronDiarizer: "Nemotron 3 Diarization"
         case .voiceActivity: "Voice detector"
         }
     }
