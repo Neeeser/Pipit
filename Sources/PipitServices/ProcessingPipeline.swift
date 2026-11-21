@@ -4963,6 +4963,9 @@ public actor ProcessingPipeline {
         if micHoldsLocalUserAlone(metadata, evidence: store.readSpeechEvidence()) {
             await checkMicrophoneVoices(store: store, metadata: metadataCopy, settings: settings)
         }
+        // After recognition, which may name a person on a current key and so
+        // show that an old entry for them is the same person renumbered.
+        dropNamesOfVanishedClusters(store: store)
         try await rerenderMarkdown(store: store, metadata: metadataCopy)
 
         // A rename made while this ran was refused, correctly, because the paths

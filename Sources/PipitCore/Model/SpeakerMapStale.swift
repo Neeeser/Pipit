@@ -13,17 +13,26 @@ extension SpeakerMap {
     /// say the voice is gone. The exception is a person who has been named
     /// again on a current key: the stale entry is that same person under a
     /// number that no longer exists, so it is carried over by being dropped.
+    /// "Named again" means a person's own name or a confident recognition
+    /// (a saved voice at High confidence, or stronger), and it matches by
+    /// identity or, for a name with no voice profile, by display name. A weaker
+    /// guess on the new key does not count, since the person's own name would
+    /// then be lost for a guess that may be wrong.
     @discardableResult
     public mutating func dropEntriesForVanishedClusters(keeping liveKeys: Set<String>) -> Int {
         let stale = entries.filter { key, _ in
             key.contains("_speaker_") && !liveKeys.contains(key)
         }
-        let namedNow = Set(
-            entries.filter { liveKeys.contains($0.key) }.compactMap { $0.value.identityID }
-        )
+        let namedNow = entries.filter { key, assignment in
+            liveKeys.contains(key) && (assignment.origin == .human || assignment.origin >= .voiceProfile)
+        }.map(\.value)
+        let namedIdentities = Set(namedNow.compactMap(\.identityID))
+        let namedNames = Set(namedNow.filter { $0.origin == .human }.map { $0.displayName.lowercased() })
         var dropped = 0
         for (key, assignment) in stale {
-            let carried = assignment.identityID.map(namedNow.contains) ?? false
+            let carried =
+                (assignment.identityID.map(namedIdentities.contains) ?? false)
+                || namedNames.contains(assignment.displayName.lowercased())
             guard assignment.origin != .human || carried else { continue }
             entries.removeValue(forKey: key)
             dropped += 1
