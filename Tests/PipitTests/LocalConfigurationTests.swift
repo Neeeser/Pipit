@@ -118,9 +118,9 @@ struct LocalConfigurationTests {
         settings.processing.transcription = .local
         settings.processing.localTranscriptionModel = .parakeetUltra
         #expect(
-            LocalModelUnit.required(for: settings)
-                == [.parakeetUltra, .diarizer, .nemotronDiarizer, .voiceActivity]
+            LocalModelUnit.required(for: settings) == [.parakeetUltra, .diarizer, .voiceActivity]
         )
+        #expect(LocalModelUnit.recommended(for: settings).contains(.nemotronDiarizer))
         #expect(
             !LocalTranscriptionModel.offered.contains(.parakeetUltra),
             "the settings UI does not offer what the bench has not proven"
