@@ -74,11 +74,30 @@ struct Arguments {
         ]
     }
 
+    /// The commands that act on `--attribution`.
+    static let attributionCommands: Set<String> = ["bench", "reprocess"]
+
+    /// Why `--attribution` cannot go with `command`, or nil where it can. A
+    /// command that ignored it would run as `current` and look as though it had
+    /// run the mode asked for.
+    static func attributionRefusal(command: String) -> String? {
+        attributionCommands.contains(command)
+            ? nil
+            : "--attribution applies to \(attributionCommands.sorted().joined(separator: " and ")) only, not \(command)"
+    }
+
+    private static func refuseMisplacedAttribution(_ mode: SensorAttributionMode?, command: String) {
+        guard mode != nil, let message = attributionRefusal(command: command) else { return }
+        note(message)
+        exit(2)
+    }
+
     /// Reads `--attribution MODE` out of the arguments and removes it, so the
     /// loop below keeps its size. An unknown mode stops the run: a dropped one
-    /// would measure `current` and be written down as the mode asked for.
-    private static func takeAttribution(from raw: inout [String]) -> SensorAttributionMode {
-        guard let index = raw.firstIndex(of: "--attribution") else { return .current }
+    /// would measure `current` and be written down as the mode asked for. Nil
+    /// where the flag was not given.
+    private static func takeAttribution(from raw: inout [String]) -> SensorAttributionMode? {
+        guard let index = raw.firstIndex(of: "--attribution") else { return nil }
         guard index + 1 < raw.count, let mode = SensorAttributionMode(rawValue: raw[index + 1]) else {
             note(
                 "--attribution takes one of "
@@ -91,9 +110,11 @@ struct Arguments {
 
     init?(_ arguments: [String]) {
         var raw = arguments
-        attribution = Self.takeAttribution(from: &raw)
+        let requested = Self.takeAttribution(from: &raw)
+        attribution = requested ?? .current
         guard let command = raw.first else { return nil }
         self.command = command
+        Self.refuseMisplacedAttribution(requested, command: command)
         var support = FileManager.default.homeDirectoryForCurrentUser
             .appendingPathComponent("Library/Application Support/Pipit", isDirectory: true)
         var benchOptions = BenchCommand.Options(applicationSupport: support)
