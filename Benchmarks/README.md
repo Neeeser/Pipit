@@ -145,6 +145,17 @@ How far to trust the suite: it holds five meetings from two speaker groups in
 four variants, and the variants share each meeting's audio. Use it to catch a
 regression in a fixed configuration, not to rank engines or models.
 
+`localWordsLost` is mostly recognition error, not speech the pipeline dropped.
+It counts any reference word whose text is not written within 3 seconds, so
+hesitations (um, uh, mm), cut-off fragments, spelled-out letters, numbers the
+engine writes as digits and ordinary misrecognitions all count. On the
+headphone variant, which has no echo, the same engine run directly on the
+unprocessed microphone file loses 8.5% of the local person's words (three of
+the five meetings measured); the pipeline's 11% to 12% adds the canceller and
+the audio codec (about 2 points together) and the rule that removes runs of echo
+words from the transcript. Read the figure as a difference between runs, not as the
+share of the person's speech that is missing.
+
 What stays different from a real call: the local voice is a close-talk headset
 with no room sound, and the gate keeps whatever other speakers the headset
 picked up while its owner talks, so even the `headphones` variant's microphone
