@@ -2,6 +2,7 @@ import AVFoundation
 import CoreML
 import FluidAudio
 import Foundation
+import PipitAudio
 import PipitCore
 import PipitSpeakers
 import Synchronization
@@ -266,8 +267,10 @@ struct LocalDiarizationBackendTests {
     @Test("two Nemotron runs never overlap", .timeLimit(.minutes(1)))
     func twoNemotronRunsNeverOverlap() async throws {
         let queue = Nemotron3RunQueue()
-        let running = Mutex(0)
-        let overlapped = Mutex(false)
+        // LockedBox rather than Mutex: these cross into escaping task closures,
+        // which the Swift 6.3 compiler CI uses rejects for a noncopyable Mutex.
+        let running = LockedBox(0)
+        let overlapped = LockedBox(false)
         try await withThrowingTaskGroup(of: Void.self) { group in
             for _ in 0..<4 {
                 group.addTask {
@@ -290,8 +293,8 @@ struct LocalDiarizationBackendTests {
     @Test("cancelling the caller cancels the running job, and a queued one never starts", .timeLimit(.minutes(1)))
     func cancellingTheCallerCancelsTheRunningJob() async throws {
         let queue = Nemotron3RunQueue()
-        let started = Mutex(0)
-        let sawCancel = Mutex(false)
+        let started = LockedBox(0)
+        let sawCancel = LockedBox(false)
         let first = Task {
             try await queue.run {
                 started.withLock { $0 += 1 }
