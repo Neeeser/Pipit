@@ -73,13 +73,22 @@ extension LocalModelManager {
     }
 
     /// The provenance recorded with every run, so a result can be explained.
+    ///
+    /// `diarizer` names which diarizer ran. A count a person typed is the one
+    /// reason that is known here, since Nemotron cannot be told a count; any
+    /// other reason the clusterer ran in place of Nemotron is added by
+    /// `LocalDiarizationBackend`.
     public static func diarizerProvenance(speakerCount: Int?) -> [String: String] {
         var provenance = [
             "backend": LocalSpeechStack.diarizerBackendIdentifier,
             "warmStartFa": String(LocalDiarizationTuning.warmStartFa),
             "pipeline": "offline-vbx",
+            "diarizer": "vbx",
         ]
-        if let speakerCount { provenance["numSpeakers"] = String(speakerCount) }
+        if let speakerCount {
+            provenance["numSpeakers"] = String(speakerCount)
+            provenance["diarizerReason"] = LocalDiarizationBackend.Reason.speakerCountRequested.rawValue
+        }
         return provenance
     }
 

@@ -106,14 +106,14 @@ enum ReprocessCommand {
             diarization: { settings, model in
                 ProcessingBackends.diarizationBackend(
                     settings: settings, model: model,
-                    local: { FluidAudioDiarizationBackend(models: manager) },
+                    local: { LocalDiarizationBackend(models: manager) },
                     cloud: { OpenAIDiarizationBackend(backend: cloud, model: $0) }
                 )
             },
             embeddings: FluidAudioEmbeddingExtractor(models: manager),
             speakers: recognition,
             prepareLocalModels: {
-                _ = try await manager.install(units: LocalModelUnit.required(for: settings))
+                _ = try await manager.install(units: LocalModelUnit.recommended(for: settings))
             },
             requireLocalModels: { try await manager.ensureInstalled(units: [.diarizer]) },
             voiceActivity: FluidAudioVoiceActivityBackend(models: manager),
