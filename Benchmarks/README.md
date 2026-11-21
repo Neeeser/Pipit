@@ -8,6 +8,10 @@ assembly together.
 `pipit-eval summaries` scores the summary and notes a language model writes
 from a transcript. See [Summary evaluation](#summary-evaluation).
 
+`Benchmarks/audit/audit.py` audits Pipit's transcripts of your own recorded
+meetings against on-device reference transcribers, with nothing leaving the Mac
+by default. See [Meeting audit](audit/README.md).
+
 ## Repository data
 
 | Path | Contents |
