@@ -64,9 +64,33 @@ def main() -> None:
     started = time.time()
     uploaded = client.files.upload(file=args.audio)
     print(f"uploaded in {time.time() - started:.0f}s", flush=True)
+    undeleted = False
+    try:
+        transcribe(client, uploaded, args, started)
+    finally:
+        # The audio is a person's meeting. Whatever happened above, it must not stay
+        # on Google's servers.
+        try:
+            client.files.delete(name=uploaded.name)
+        except Exception as error:
+            undeleted = True
+            print(f"could not delete the uploaded audio {uploaded.name} ({type(error).__name__}); "
+                  "delete it from Google AI Studio", file=sys.stderr)
+    if undeleted:
+        sys.exit(1)
+
+
+def finish_reason_name(response) -> str:
+    reason = response.candidates[0].finish_reason if response.candidates else None
+    return getattr(reason, "name", str(reason))
+
+
+def transcribe(client, uploaded, args, started: float) -> None:
     while uploaded.state and uploaded.state.name == "PROCESSING":
         time.sleep(2)
         uploaded = client.files.get(name=uploaded.name)
+    if uploaded.state and uploaded.state.name == "FAILED":
+        sys.exit("Google could not process the audio")
 
     response = client.models.generate_content(
         model=args.model,
@@ -79,14 +103,18 @@ def main() -> None:
             thinking_config=None if args.thinking == "default" else types.ThinkingConfig(thinking_level=args.thinking),
         ),
     )
-    client.files.delete(name=uploaded.name)
+    # Anything but a normal stop (the token cap, a safety stop) leaves a transcript that
+    # ends early, and scoring it would count the missing tail as Pipit's errors.
+    reason = finish_reason_name(response)
+    if reason != "STOP":
+        sys.exit(f"Gemini stopped early (finish reason {reason}); no transcript written")
 
     data = json.loads(response.text)
     usage = response.usage_metadata
     data["_run"] = {
         "model": args.model,
         "seconds": round(time.time() - started, 1),
-        "finish_reason": str(response.candidates[0].finish_reason),
+        "finish_reason": reason,
         "input_tokens": usage.prompt_token_count,
         "output_tokens": usage.candidates_token_count,
     }

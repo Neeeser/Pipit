@@ -13,12 +13,25 @@ actually records, with their microphone, echo, call apps and speakers.
 
 The audit reads meetings through the `pipit` command and writes decoded audio,
 teacher transcripts and results under `--work`, by default
-`~/Library/Caches/pipit-bench/audit`. Nothing goes into the repository. Printed
-output holds identifiers, counts and rates, not what was said.
+`~/Library/Caches/pipit-bench/audit`. It refuses a `--work` folder inside a git
+repository, so nothing goes into one by accident.
+
+Meeting identifiers carry a title slug, and titles name companies and people.
+`prepare` gives each meeting a short key (the first eight characters of the
+identifier's SHA-256) and an index. File names, printed output, logs, results
+and `report.md` use only `#index key`. The one place that links a key to the
+identifier, and so to the title, is `meetings.json` in the work folder, along
+with the meeting folder paths. Do not copy that file out of the work folder.
+Printed output holds keys, counts and rates, never what was said, and a failure
+prints the exception type only, with the traceback in `logs/` under the work
+folder.
 
 The VibeVoice and MOSS teachers run on this Mac. The Gemini teacher uploads
-meeting audio to Google, runs only with `--allow-cloud`, and on the free tier
-Google may use what it receives to improve its products.
+meeting audio to Google and runs only with `--allow-cloud`. `gemini.py` deletes
+the upload when the call ends, whether it succeeded or failed, and exits with an
+error naming the uploaded file if the delete itself fails. A process killed
+mid-call cannot clean up; the file then expires on Google's side. On the free
+tier Google may use what it receives to improve its products.
 
 ## Teachers
 
@@ -47,19 +60,51 @@ python3 Benchmarks/audit/audit.py prepare --since 2026-10-01 --limit 10
 python3 Benchmarks/audit/audit.py teach --teacher vibevoice --tracks mic,system
 python3 Benchmarks/audit/audit.py teach --teacher moss --tracks mixed,mic,system \
   --moss-cli /path/to/transcribe-cli --moss-model /path/to/MOSS-Transcribe-Diarize-Q8_0.gguf
-uv run --python 3.12 --with meeteval python Benchmarks/audit/audit.py score
+uv run --python 3.12 --with meeteval==0.4.3 python Benchmarks/audit/audit.py score
 python3 Benchmarks/audit/audit.py report
 ```
 
 `prepare` skips meetings with more than one recording, since a rejoined call has
 separate timelines, and meetings missing a track. `teach` skips outputs that
-already exist, so a stopped run resumes.
+already exist, so a stopped run resumes. Every output (decoded audio, teacher
+transcripts, diarizer files, results) is written under a temporary name and
+renamed when the run succeeds, so a stopped run never leaves a partial file that
+a later run would take for a finished one.
+
+Each command ends with a line such as `score: 7 ok, 1 failed, 2 skipped` and
+exits 1 when anything failed. A teacher's error output goes to `logs/` under the
+work folder.
+
+The guards have standard-library tests on synthetic data:
+`python3 -m unittest discover -s Benchmarks/audit`.
+
+## Versions
+
+`audit.py` pins the Python packages it runs (`PINNED`: `mlx-audio`,
+`google-genai`, `meeteval`) and the model identifiers, and `uv` is given the
+exact version. `score` stops when the installed `meeteval` differs from the pin,
+so run it as `uv run --python 3.12 --with meeteval==0.4.3 ...`. `teach` writes
+the packages, the model names, the cached VibeVoice snapshot and the MOSS file's
+SHA-256 to `provenance.json`, and `score` copies that and the `meeteval` version
+into every result file. Change a pin on purpose and rerun the teachers, since
+references from different versions are not comparable.
+
+## Truncated references
+
+A reference that stops early would score its missing tail as Pipit's mistakes.
+Causes include VibeVoice's token cap, a Gemini finish reason other than a normal
+stop (the Gemini step now fails instead of writing the file), and a meeting
+longer than a model handles. `score` compares each reference with Pipit's
+transcript of the same track and sets it aside, with the reason, when its last
+word ends before 80% of where Pipit's does or it holds under half of Pipit's
+words. A meeting whose references are all set aside is skipped. A teacher file
+that cannot be read fails that meeting and the run continues with the others.
 
 To compare speaker separators on the call track with Pipit's words held fixed,
 build `fluidaudiocli` from the pinned FluidAudio checkout and run:
 
 ```sh
-uv run --python 3.12 --with meeteval python Benchmarks/audit/audit.py diarizers \
+uv run --python 3.12 --with meeteval==0.4.3 python Benchmarks/audit/audit.py diarizers \
   --fluidaudio-cli /path/to/fluidaudiocli
 ```
 
@@ -73,14 +118,18 @@ such as Zoom or an unknown app, would get from each diarizer.
 
 | Column | Meaning |
 | --- | --- |
-| Pipit word error (est.) | Pipit's own word error, estimated from the three disagreements between Pipit and two teachers from different models |
+| Pipit word error (est., one stream) | Pipit's own word error, estimated from the three disagreements between Pipit and two teachers from different models, with everyone's words in one time-ordered stream |
+| Pipit cpWER (est.) | The same estimate from the speaker-attributed error, so it does not pay the crosstalk ordering cost |
 | Words+speaker vs best reference | cpWER of Pipit against the preferred reference: words and who said them |
 | Speakers Pipit / reference | Speaker labels each one used |
 | Echo leak | Share of the words Pipit gave you that a teacher also heard on the call track at the same moment |
 
 The estimate assumes the three sources make independent mistakes, so that each
 pairwise disagreement is about the sum of the two error rates. It is a guide,
-not a measurement. Two teachers that share a model, such as VibeVoice on the
+not a measurement. When the three disagreements cannot fit that model (one is
+larger than the other two added together, so a source's estimate would be
+negative), the report prints the negative number with "assumption violated" and
+leaves that meeting out of the median; it is not rounded up to zero. Two teachers that share a model, such as VibeVoice on the
 mixed file and VibeVoice on split tracks, are never paired for it.
 
 Plain word error is computed over one time-ordered stream, so two people

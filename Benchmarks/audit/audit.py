@@ -15,9 +15,11 @@ error is likely Pipit's. Everything runs on this Mac unless you pass
     audit.py diarizers --fluidaudio-cli PATH      # optional
 
 Run it with the scoring dependency available, for example
-`uv run --python 3.12 --with meeteval Benchmarks/audit/audit.py score`.
-Output goes under --work (default ~/Library/Caches/pipit-bench/audit), never
-into the repository. Printed output holds only counts and rates.
+`uv run --python 3.12 --with meeteval==0.4.3 Benchmarks/audit/audit.py score`
+(the version is PINNED below). Output goes under --work (default
+~/Library/Caches/pipit-bench/audit), never into a git repository. Printed output
+holds a meeting's index and short key, counts and rates, never its title.
+Every command ends with an ok/failed/skipped summary and exits 1 on a failure.
 """
 
 import argparse
@@ -25,17 +27,61 @@ import json
 import os
 import subprocess
 import sys
+import traceback
+from importlib import metadata
 from itertools import combinations
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
-from sources import normalise, pipit_segments, pipit_words, split_segments, teacher_segments  # noqa: E402
+from integrity import (  # noqa: E402
+    Tally, enclosing_repository, label, meeting_key, staged, truncation, with_keys, write_atomic,
+)
+from sources import (  # noqa: E402
+    LOADERS, normalise, pipit_segments, pipit_words, split_parts, split_segments, teacher_segments,
+)
 
 DEFAULT_WORK = Path.home() / "Library" / "Caches" / "pipit-bench" / "audit"
 TRACK_FILES = {"mixed": "recording.m4a", "mic": "raw/audio/mic.cleaned.m4a", "system": "raw/audio/system.m4a"}
 # Reference preference: separate-track runs first, since they keep overlapping speech
 # and cannot mix up the local person with a remote one.
 REFERENCES = ["split-vibevoice", "split-moss", "mixed-moss", "mixed-vibevoice", "mixed-gemini"]
+
+# The Python packages the audit runs and the models it asks for. A reference is only
+# comparable across runs when these stay fixed, so a change is a deliberate edit here.
+# `teach` writes them to provenance.json and `score` copies them into every result.
+PINNED = {"mlx-audio": "0.6.4", "google-genai": "3.4.0", "meeteval": "0.4.3"}
+VIBEVOICE_MODEL = "mlx-community/VibeVoice-ASR-4bit"
+GEMINI_MODEL = "gemini-3.5-flash-lite"
+PYTHON = "3.12"
+
+
+def uv_with(package: str) -> list[str]:
+    return ["--with", f"{package}=={PINNED[package]}"]
+
+
+class UnusableReference(Exception):
+    """A teacher's output exists but cannot be read; the message names the reference."""
+
+
+def describe(error: BaseException) -> str:
+    """What to print about a failure. Exception text can quote an identifier or a path
+    (a failed `pipit` call prints its whole command), so only our own messages and the
+    type go to the terminal; the traceback goes to a log under the work folder.
+    """
+    return f"{type(error).__name__}: {error}" if isinstance(error, UnusableReference) else type(error).__name__
+
+
+def record_failure(work: Path, tally: Tally, what: str, meeting: dict, error: BaseException) -> None:
+    tally.failed += 1
+    log = work / "logs" / f"{what}-{meeting['key']}.error.log"
+    log.parent.mkdir(parents=True, exist_ok=True)
+    log.write_text("".join(traceback.format_exception(error)))
+    print(f"  failed {label(meeting)}: {describe(error)}; traceback in {log}", file=sys.stderr)
+
+
+def finish(tally: Tally, what: str) -> None:
+    print(tally.summary(what))
+    sys.exit(tally.exit_code)
 
 
 def pipit_json(*args: str) -> dict:
@@ -46,13 +92,14 @@ def meetings(work: Path) -> list[dict]:
     path = work / "meetings.json"
     if not path.exists():
         sys.exit(f"no {path}; run prepare first")
-    return json.loads(path.read_text())
+    return with_keys(json.loads(path.read_text()))
 
 
 # prepare ---------------------------------------------------------------------------
 
 def prepare(args) -> None:
     work = args.work
+    tally = Tally()
     if args.ids:
         ids = args.ids.split(",")
     else:
@@ -64,82 +111,142 @@ def prepare(args) -> None:
         ids = [m["id"] for m in items
                if m.get("processingState") == "complete"
                and (m.get("durationSeconds") or 0) >= args.min_minutes * 60]
-    chosen = []
+    chosen: list[dict] = []
     for meeting_id in ids:
         if len(chosen) >= args.limit:
             break
-        shown = pipit_json("meetings", "show", meeting_id)
-        recordings = shown["recordings"]
-        # A rejoined call has several recordings with separate timelines; scoring
-        # one timeline against another would count every word as wrong.
-        if len(recordings) != 1:
-            continue
-        directory = Path(recordings[0]["directory"])
-        if not all((directory / f).exists() for f in [*TRACK_FILES.values(), "raw/transcript.json"]):
-            continue
-        for track, name in TRACK_FILES.items():
-            out = work / "audio" / track / f"{meeting_id}.wav"
-            out.parent.mkdir(parents=True, exist_ok=True)
-            if not out.exists():
-                subprocess.run(["ffmpeg", "-loglevel", "error", "-y", "-i", str(directory / name),
-                                "-ac", "1", "-ar", "16000", str(out)], check=True)
-        meta = shown["meeting"]
-        chosen.append({"id": meeting_id, "directory": str(directory), "source": meta.get("source"),
-                       "minutes": round((meta.get("durationSeconds") or 0) / 60, 1)})
-    work.mkdir(parents=True, exist_ok=True)
-    (work / "meetings.json").write_text(json.dumps(chosen, indent=2))
+        key = meeting_key(meeting_id)
+        try:
+            shown = pipit_json("meetings", "show", meeting_id)
+            recordings = shown["recordings"]
+            # A rejoined call has several recordings with separate timelines; scoring
+            # one timeline against another would count every word as wrong.
+            if len(recordings) != 1:
+                tally.skipped += 1
+                continue
+            directory = Path(recordings[0]["directory"])
+            if not all((directory / f).exists() for f in [*TRACK_FILES.values(), "raw/transcript.json"]):
+                tally.skipped += 1
+                continue
+            for track, name in TRACK_FILES.items():
+                out = work / "audio" / track / f"{key}.wav"
+                out.parent.mkdir(parents=True, exist_ok=True)
+                if out.exists() and out.stat().st_size:
+                    continue
+                with staged(out) as target:
+                    subprocess.run(["ffmpeg", "-loglevel", "error", "-y", "-i", str(directory / name),
+                                    "-ac", "1", "-ar", "16000", str(target)],
+                                   check=True, stdin=subprocess.DEVNULL)
+            meta = shown["meeting"]
+            # The identifier carries the title slug, so this file is the only place
+            # that connects a short key to a meeting.
+            chosen.append({"id": meeting_id, "key": key, "index": len(chosen) + 1,
+                           "directory": str(directory), "source": meta.get("source"),
+                           "minutes": round((meta.get("durationSeconds") or 0) / 60, 1)})
+            tally.ok += 1
+        except Exception as error:
+            record_failure(work, tally, "prepare", {"key": key, "index": len(chosen) + 1}, error)
+    write_atomic(work / "meetings.json", json.dumps(chosen, indent=2))
     print(f"{len(chosen)} meetings prepared in {work}")
     for m in chosen:
-        print(f"  {m['id']}  {m['source']}  {m['minutes']} min")
+        print(f"  {label(m)}  {m['source']}  {m['minutes']} min")
+    finish(tally, "prepare")
 
 
 # teach -----------------------------------------------------------------------------
+
+def file_sha256(path: str) -> str:
+    import hashlib
+    digest = hashlib.sha256()
+    with open(path, "rb") as handle:
+        while block := handle.read(1 << 22):
+            digest.update(block)
+    return digest.hexdigest()
+
+
+def vibevoice_revision(model: str) -> str | None:
+    """The cached snapshot of the model, when Hugging Face has one on disk."""
+    snapshots = Path.home() / ".cache" / "huggingface" / "hub" / f"models--{model.replace('/', '--')}" / "snapshots"
+    found = sorted(p.name for p in snapshots.iterdir()) if snapshots.is_dir() else []
+    return found[-1] if found else None
+
+
+def record_provenance(work: Path, teacher: str, details: dict) -> None:
+    path = work / "provenance.json"
+    known = json.loads(path.read_text()) if path.exists() else {}
+    known[teacher] = details
+    write_atomic(path, json.dumps(known, indent=2))
+
 
 def teach(args) -> None:
     work = args.work
     tracks = args.tracks.split(",")
     if args.teacher == "gemini" and not args.allow_cloud:
         sys.exit("the gemini teacher uploads meeting audio to Google; pass --allow-cloud to agree")
+    if args.teacher == "moss":
+        if not (args.moss_cli and args.moss_model):
+            sys.exit("moss needs --moss-cli (transcribe.cpp's transcribe-cli) and --moss-model (GGUF)")
+        record_provenance(work, "moss", {"model": Path(args.moss_model).name,
+                                         "modelSha256": file_sha256(args.moss_model)})
+    elif args.teacher == "vibevoice":
+        record_provenance(work, "vibevoice", {"python": PYTHON, "mlx-audio": PINNED["mlx-audio"],
+                                              "model": args.vibevoice_model,
+                                              "modelSnapshot": vibevoice_revision(args.vibevoice_model)})
+    else:
+        record_provenance(work, "gemini", {"python": PYTHON, "google-genai": PINNED["google-genai"],
+                                           "model": args.gemini_model})
+    tally = Tally()
+    loader = LOADERS[args.teacher][0]
     for m in meetings(work):
         for track in tracks:
-            wav = work / "audio" / track / f"{m['id']}.wav"
+            wav = work / "audio" / track / f"{m['key']}.wav"
             suffix = ".txt" if args.teacher == "moss" else ".json"
-            out = work / "teachers" / f"{args.teacher}-{track}" / f"{m['id']}{suffix}"
-            if out.exists() and out.stat().st_size:
+            out = work / "teachers" / f"{args.teacher}-{track}" / f"{m['key']}{suffix}"
+            # Gemini's timestamps drift by minutes, so a split-track pairing would
+            # put the local person's words at the wrong time against the call.
+            if (args.teacher == "gemini" and track != "mixed") or (out.exists() and out.stat().st_size):
+                tally.skipped += 1
                 continue
             out.parent.mkdir(parents=True, exist_ok=True)
-            log = work / "logs" / f"{args.teacher}-{track}-{m['id']}.log"
+            log = work / "logs" / f"{args.teacher}-{track}-{m['key']}.log"
             log.parent.mkdir(parents=True, exist_ok=True)
-            print(f"{args.teacher} {track} {m['id']}", flush=True)
-            if args.teacher == "vibevoice":
-                command = ["uv", "run", "-q", "--python", "3.12", "--with", "mlx-audio", "python", "-m",
-                           "mlx_audio.stt.generate", "--model", args.vibevoice_model, "--audio", str(wav),
-                           "--output-path", str(out.with_suffix("")), "--format", "json",
-                           "--max-tokens", "32768"]
-                stdout = None
-            elif args.teacher == "moss":
-                if not (args.moss_cli and args.moss_model):
-                    sys.exit("moss needs --moss-cli (transcribe.cpp's transcribe-cli) and --moss-model (GGUF)")
-                command = [args.moss_cli, "-m", args.moss_model, "--diarize", "-l", "en",
-                           "--timestamps", "segment", "-q", str(wav)]
-                stdout = out
-            else:
-                if track != "mixed":
-                    # Gemini's timestamps drift by minutes, so a split-track pairing would
-                    # put the local person's words at the wrong time against the call.
-                    continue
-                command = ["uv", "run", "-q", "--python", "3.12", "--with", "google-genai", "python",
-                           str(Path(__file__).with_name("gemini.py")), str(work / "audio" / "mixed" / f"{m['id']}.wav"),
-                           str(out), "--model", args.gemini_model]
-                stdout = None
-            with open(log, "w") as log_file:
-                target = open(stdout, "w") if stdout else log_file
-                result = subprocess.run(command, stdout=target, stderr=log_file)
-                if stdout:
-                    target.close()
-            if result.returncode != 0:
-                print(f"  failed, see {log}")
-                out.unlink(missing_ok=True)
+            print(f"{args.teacher} {track} {label(m)}", flush=True)
+            try:
+                with staged(out) as target:
+                    stdout_to_target = False
+                    if args.teacher == "vibevoice":
+                        command = ["uv", "run", "-q", "--python", PYTHON, *uv_with("mlx-audio"), "python", "-m",
+                                   "mlx_audio.stt.generate", "--model", args.vibevoice_model, "--audio", str(wav),
+                                   "--output-path", str(target.with_suffix("")), "--format", "json",
+                                   "--max-tokens", "32768"]
+                    elif args.teacher == "moss":
+                        command = [args.moss_cli, "-m", args.moss_model, "--diarize", "-l", "en",
+                                   "--timestamps", "segment", "-q", str(wav)]
+                        stdout_to_target = True
+                    else:
+                        command = ["uv", "run", "-q", "--python", PYTHON, *uv_with("google-genai"), "python",
+                                   str(Path(__file__).with_name("gemini.py")), str(wav), str(target),
+                                   "--model", args.gemini_model]
+                    with open(log, "w") as log_file:
+                        if stdout_to_target:
+                            with open(target, "w") as handle:
+                                result = subprocess.run(command, stdout=handle, stderr=log_file,
+                                                        stdin=subprocess.DEVNULL)
+                        else:
+                            result = subprocess.run(command, stdout=log_file, stderr=log_file,
+                                                    stdin=subprocess.DEVNULL)
+                    if result.returncode != 0:
+                        raise RuntimeError(f"{args.teacher} exited with {result.returncode}")
+                    # An output that does not parse is a failed run, not a reference. The
+                    # moss text format has no empty form: a silent track writes nothing,
+                    # which `staged` already rejects, so text with no segment is garbage.
+                    if not loader(target) and args.teacher == "moss":
+                        raise ValueError("no transcript lines in the output")
+                tally.ok += 1
+            except Exception as error:
+                record_failure(work, tally, f"teach-{args.teacher}-{track}", m, error)
+                print(f"    run log: {log}", file=sys.stderr)
+    finish(tally, f"teach {args.teacher}")
 
 
 # score -----------------------------------------------------------------------------
@@ -166,15 +273,42 @@ def compare(ref: list[dict], hyp: list[dict]) -> dict:
             "cpwer": error_rate(cpwer, seglst(ref), seglst(hyp))}
 
 
-def references(work: Path, meeting_id: str) -> dict[str, list[dict]]:
-    found = {}
+def pipit_track(pipit: list[dict], track: str) -> list[dict]:
+    return [s for s in pipit if (s.get("track") == "mic") == (track == "mic")]
+
+
+def references(work: Path, key: str, pipit: list[dict]) -> tuple[dict[str, list[dict]], dict[str, str]]:
+    """The usable references, and the reasons the others were set aside.
+
+    A reference that stops well before Pipit's transcript does (a token cap, a
+    Gemini finish reason, a meeting longer than the model handles) would score its
+    missing tail as Pipit's mistakes, so it is set aside. A teacher file that
+    cannot be read raises UnusableReference.
+    """
+    found: dict[str, list[dict]] = {}
+    rejected: dict[str, str] = {}
     for name in REFERENCES:
         kind, teacher = name.split("-", 1)
-        segs = (split_segments(work, teacher, meeting_id) if kind == "split"
-                else teacher_segments(work, teacher, "mixed", meeting_id))
-        if segs:
+        try:
+            if kind == "split":
+                parts = split_parts(work, teacher, key)
+                if parts is None:
+                    continue
+                mic, call = parts
+                reason = truncation(mic, pipit_track(pipit, "mic")) or truncation(call, pipit_track(pipit, "system"))
+                segs = split_segments(work, teacher, key)
+            else:
+                segs = teacher_segments(work, teacher, "mixed", key)
+                if segs is None:
+                    continue
+                reason = truncation(segs, pipit)
+        except (ValueError, KeyError, TypeError, OSError) as error:
+            raise UnusableReference(f"{name} output cannot be read ({type(error).__name__})") from error
+        if reason:
+            rejected[name] = f"looks truncated: {reason}"
+        else:
             found[name] = segs
-    return found
+    return found, rejected
 
 
 def echo_leak(meeting_dir: Path, call: list[dict], window: float = 5.0) -> dict:
@@ -203,84 +337,142 @@ def echo_leak(meeting_dir: Path, call: list[dict], window: float = 5.0) -> dict:
     return {"micWords": total, "leakedWords": leaked, "share": leaked / total if total else None}
 
 
-def triangle(pairs: dict, a: str, b: str) -> dict | None:
+def triangle(pairs: dict, a: str, b: str, metric: str = "wer") -> dict | None:
     """Each source's own error from the three pairwise disagreements, assuming the
     sources make independent mistakes: d(x, y) is roughly e(x) + e(y).
+
+    A negative estimate means the disagreements break that assumption (the two
+    references share mistakes, or a source is truncated or mislabelled). It is
+    reported as is, with the sources named in "violates", never clamped to zero.
     """
     try:
-        pb, pa, ab = pairs[f"pipit vs {b}"]["wer"], pairs[f"pipit vs {a}"]["wer"], pairs[f"{b} vs {a}"]["wer"]
+        pb, pa, ab = (pairs[f"pipit vs {b}"][metric], pairs[f"pipit vs {a}"][metric],
+                      pairs[f"{b} vs {a}"][metric])
     except KeyError:
         return None
-    return {"pipit": max(0.0, (pa + pb - ab) / 2), a: max(0.0, (pa + ab - pb) / 2),
-            b: max(0.0, (pb + ab - pa) / 2), "using": [a, b]}
+    estimate = {"pipit": (pa + pb - ab) / 2, a: (pa + ab - pb) / 2, b: (pb + ab - pa) / 2}
+    return {**estimate, "using": [a, b], "metric": metric,
+            "violates": [name for name, value in estimate.items() if value < 0]}
 
 
 def teacher_model(name: str) -> str:
     return name.split("-", 1)[1]
 
 
+def check_meeteval() -> str:
+    installed = metadata.version("meeteval")
+    if installed != PINNED["meeteval"]:
+        sys.exit(f"meeteval {installed} is installed and the audit pins {PINNED['meeteval']}; run it with "
+                 f"`uv run --python {PYTHON} --with meeteval=={PINNED['meeteval']} ...`")
+    return installed
+
+
+def score_meeting(work: Path, m: dict, provenance: dict) -> dict | None:
+    directory = Path(m["directory"])
+    pipit = pipit_segments(directory)
+    refs, rejected = references(work, m["key"], pipit)
+    for name, reason in rejected.items():
+        print(f"  {label(m)}: set aside {name}, {reason}")
+    if not refs:
+        return None
+    sources = {"pipit": pipit, **refs}
+    # Keys read "hypothesis vs reference". Pipit is listed first in sources, so it is
+    # always the hypothesis; between two references the earlier one is the reference.
+    pairs = {}
+    for (first, first_segs), (second, second_segs) in combinations(sources.items(), 2):
+        if first == "pipit":
+            pairs[f"pipit vs {second}"] = compare(second_segs, first_segs)
+        else:
+            pairs[f"{second} vs {first}"] = compare(first_segs, second_segs)
+    names = list(refs)
+    independent = [(a, b) for a, b in combinations(names, 2) if teacher_model(a) != teacher_model(b)]
+    one_stream = triangle(pairs, *independent[0], metric="wer") if independent else None
+    attributed = triangle(pairs, *independent[0], metric="cpwer") if independent else None
+    call = next((s for t in ("moss", "vibevoice")
+                 if (s := teacher_segments(work, t, "system", m["key"]))), None)
+    return {
+        "meeting": m["key"], "index": m["index"], "source": m["source"], "minutes": m["minutes"],
+        "pipitSpeakers": len({s["speaker"] for s in pipit}),
+        "referenceSpeakers": {n: len({s["speaker"] for s in segs}) for n, segs in refs.items()},
+        "rejectedReferences": rejected,
+        "pairs": pairs, "wordErrorEstimate": one_stream, "cpWerEstimate": attributed,
+        "echoLeak": echo_leak(directory, call) if call else None,
+        "provenance": {"meeteval": PINNED["meeteval"], "teachers": provenance},
+    }
+
+
 def score(args) -> None:
     work = args.work
+    check_meeteval()
     (work / "results").mkdir(parents=True, exist_ok=True)
+    provenance_file = work / "provenance.json"
+    provenance = json.loads(provenance_file.read_text()) if provenance_file.exists() else {}
+    tally = Tally()
     for m in meetings(work):
-        directory = Path(m["directory"])
-        refs = references(work, m["id"])
-        if not refs:
-            print(f"{m['id']}: no teacher output yet")
+        result_file = work / "results" / f"{m['key']}.json"
+        # A result from an earlier run must not outlive a run that could not redo it.
+        result_file.unlink(missing_ok=True)
+        try:
+            result = score_meeting(work, m, provenance)
+        except Exception as error:
+            record_failure(work, tally, "score", m, error)
             continue
-        sources = {"pipit": pipit_segments(directory), **refs}
-        # Keys read "hypothesis vs reference". Pipit is listed first in sources, so it is
-        # always the hypothesis; between two references the earlier one is the reference.
-        pairs = {}
-        for (first, first_segs), (second, second_segs) in combinations(sources.items(), 2):
-            if first == "pipit":
-                pairs[f"pipit vs {second}"] = compare(second_segs, first_segs)
-            else:
-                pairs[f"{second} vs {first}"] = compare(first_segs, second_segs)
-        names = list(refs)
-        independent = [(a, b) for a, b in combinations(names, 2) if teacher_model(a) != teacher_model(b)]
-        estimate = triangle(pairs, *independent[0]) if independent else None
-        call = next((teacher_segments(work, t, "system", m["id"]) for t in ("moss", "vibevoice")
-                     if teacher_segments(work, t, "system", m["id"])), None)
-        result = {
-            "meeting": m["id"], "source": m["source"], "minutes": m["minutes"],
-            "pipitSpeakers": len({s["speaker"] for s in sources["pipit"]}),
-            "referenceSpeakers": {n: len({s["speaker"] for s in segs}) for n, segs in refs.items()},
-            "pairs": pairs, "wordErrorEstimate": estimate,
-            "echoLeak": echo_leak(directory, call) if call else None,
-        }
-        (work / "results" / f"{m['id']}.json").write_text(json.dumps(result, indent=2))
-        best = names[0]
-        line = f"{m['id']}  vs {best}: words {pairs[f'pipit vs {best}']['wer']:.1%}, words+speaker {pairs[f'pipit vs {best}']['cpwer']:.1%}"
-        if estimate:
-            line += f"  estimated Pipit word error {estimate['pipit']:.1%}"
+        if result is None:
+            print(f"{label(m)}: no usable reference")
+            tally.skipped += 1
+            continue
+        write_atomic(result_file, json.dumps(result, indent=2))
+        tally.ok += 1
+        best = next(iter(result["referenceSpeakers"]))
+        pair = result["pairs"][f"pipit vs {best}"]
+        line = f"{label(m)}  vs {best}: words {pair['wer']:.1%}, words+speaker {pair['cpwer']:.1%}"
+        for title, est in (("word error", result["wordErrorEstimate"]), ("cpWER", result["cpWerEstimate"])):
+            if est:
+                line += f"  estimated Pipit {title} {fmt_estimate(est)}"
         print(line)
+    finish(tally, "score")
 
 
 # report ----------------------------------------------------------------------------
+
+def fmt_estimate(est: dict | None) -> str:
+    if not est:
+        return "n/a"
+    text = f"{est['pipit']:.1%}"
+    return f"{text} (assumption violated by {', '.join(est['violates'])})" if est["violates"] else text
+
 
 def report(args) -> None:
     work = args.work
     rows = [json.loads(p.read_text()) for p in sorted((work / "results").glob("*.json"))]
     if not rows:
         sys.exit("no results; run score first")
-    lines = ["| Meeting | Source | Min | Pipit word error (est.) | Words+speaker vs best reference | "
-             "Speakers Pipit / reference | Echo leak |", "|---|---|---:|---:|---:|---|---:|"]
+    rows.sort(key=lambda r: r.get("index", 0))
+    lines = ["| Meeting | Source | Min | Pipit word error (est., one stream) | Pipit cpWER (est.) | "
+             "Words+speaker vs best reference | Speakers Pipit / reference | Echo leak |",
+             "|---|---|---:|---:|---:|---:|---|---:|"]
+    notes = []
     for r in rows:
         best = next(iter(r["referenceSpeakers"]))
-        est = r["wordErrorEstimate"]
         leak = r["echoLeak"]
-        estimate = f"{est['pipit']:.1%}" if est else "n/a"
         leak_share = f"{leak['share']:.1%}" if leak and leak["share"] is not None else "n/a"
         attributed = r["pairs"][f"pipit vs {best}"]["cpwer"]
-        lines.append(f"| {r['meeting']} | {r['source']} | {r['minutes']} | {estimate} | "
-                     f"{attributed:.1%} ({best}) | {r['pipitSpeakers']} / {r['referenceSpeakers'][best]} | "
-                     f"{leak_share} |")
-    estimates = sorted(r["wordErrorEstimate"]["pipit"] for r in rows if r["wordErrorEstimate"])
-    summary = (f"\nMedian estimated Pipit word error over {len(estimates)} meetings: "
-               f"{estimates[len(estimates) // 2]:.1%}" if estimates else "")
-    text = "\n".join(lines) + summary + "\n"
-    (work / "report.md").write_text(text)
+        name = f"#{r['index']} {r['meeting']}"
+        lines.append(f"| {name} | {r['source']} | {r['minutes']} | {fmt_estimate(r['wordErrorEstimate'])} | "
+                     f"{fmt_estimate(r.get('cpWerEstimate'))} | {attributed:.1%} ({best}) | "
+                     f"{r['pipitSpeakers']} / {r['referenceSpeakers'][best]} | {leak_share} |")
+        notes += [f"- {name}: set aside {ref}, {why}" for ref, why in r.get("rejectedReferences", {}).items()]
+
+    def median(kind: str) -> str:
+        valid = sorted(r[kind]["pipit"] for r in rows if r.get(kind) and not r[kind]["violates"])
+        broken = sum(1 for r in rows if r.get(kind) and r[kind]["violates"])
+        text = f"{valid[len(valid) // 2]:.1%} over {len(valid)} meetings" if valid else "n/a"
+        return text + (f"; {broken} more violate the independence assumption and are left out" if broken else "")
+
+    summary = (f"\nMedian estimated Pipit word error (one stream): {median('wordErrorEstimate')}\n"
+               f"Median estimated Pipit cpWER: {median('cpWerEstimate')}\n")
+    text = "\n".join(lines) + "\n" + summary + ("\n" + "\n".join(notes) + "\n" if notes else "")
+    write_atomic(work / "report.md", text)
     print(text)
     print(f"written to {work / 'report.md'}")
 
@@ -300,7 +492,7 @@ def diarizer_turns(path: Path) -> list[tuple[float, float, str]]:
     return [(s["startTimeSeconds"], s["endTimeSeconds"], s["speakerId"]) for s in data["segments"]]
 
 
-def label(start: float, end: float, turns) -> str:
+def label_turn(start: float, end: float, turns) -> str:
     best, best_overlap = None, 0.0
     for t0, t1, speaker in turns:
         overlap = min(end, t1) - max(start, t0)
@@ -320,32 +512,56 @@ DIARIZERS = {
 }
 
 
+def diarize_meeting(args, m: dict) -> bool:
+    """Returns False when the meeting had no split reference to score against."""
+    from meeteval.wer import cpwer
+    work = args.work
+    pipit = pipit_segments(Path(m["directory"]))
+    found, rejected = references(work, m["key"], pipit)
+    for name, reason in rejected.items():
+        print(f"  {label(m)}: set aside {name}, {reason}")
+    refs = {n: s for n, s in found.items() if n.startswith("split-")}
+    if not refs:
+        return False
+    rows = {"pipit as shipped": pipit}
+    for name, build in DIARIZERS.items():
+        suffix = ".rttm" if name.startswith("nemotron") else ".json"
+        out = work / "diarizers" / name / f"{m['key']}{suffix}"
+        out.parent.mkdir(parents=True, exist_ok=True)
+        if not (out.exists() and out.stat().st_size):
+            log = work / "logs" / f"diarizer-{name}-{m['key']}.log"
+            log.parent.mkdir(parents=True, exist_ok=True)
+            with staged(out) as target, open(log, "w") as log_file:
+                subprocess.run(build(args.fluidaudio_cli, str(work / "audio" / "system" / f"{m['key']}.wav"),
+                                     str(target)),
+                               check=True, stdin=subprocess.DEVNULL, stdout=log_file, stderr=log_file)
+        turns = diarizer_turns(out)
+        rows[name] = [{"speaker": "local" if w["track"] == "mic" else "call " + label_turn(w["start"], w["end"], turns),
+                       "start": w["start"], "end": w["end"], "text": w["text"]}
+                      for w in pipit_words(Path(m["directory"]))]
+    for ref_name, ref in refs.items():
+        scores = {n: error_rate(cpwer, seglst(ref), seglst(s)) for n, s in rows.items()}
+        print(f"{label(m)} vs {ref_name}  " + "  ".join(f"{n} {v:.1%}" for n, v in scores.items()))
+    return True
+
+
 def diarizers(args) -> None:
     """Hold Pipit's words fixed and relabel the call-track words with each diarizer, so
     the differences in speaker-attributed error come from the speaker labels alone.
     Mirrors a call with no meeting-app speaker data (Zoom, unknown apps).
     """
-    from meeteval.wer import cpwer
-    work = args.work
-    for m in meetings(work):
-        refs = {n: s for n, s in references(work, m["id"]).items() if n.startswith("split-")}
-        if not refs:
-            continue
-        rows = {"pipit as shipped": pipit_segments(Path(m["directory"]))}
-        for name, build in DIARIZERS.items():
-            suffix = ".rttm" if name.startswith("nemotron") else ".json"
-            out = work / "diarizers" / name / f"{m['id']}{suffix}"
-            out.parent.mkdir(parents=True, exist_ok=True)
-            if not out.exists():
-                subprocess.run(build(args.fluidaudio_cli, str(work / "audio" / "system" / f"{m['id']}.wav"), str(out)),
-                               check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-            turns = diarizer_turns(out)
-            rows[name] = [{"speaker": "local" if w["track"] == "mic" else "call " + label(w["start"], w["end"], turns),
-                           "start": w["start"], "end": w["end"], "text": w["text"]}
-                          for w in pipit_words(Path(m["directory"]))]
-        for ref_name, ref in refs.items():
-            scores = {n: error_rate(cpwer, seglst(ref), seglst(s)) for n, s in rows.items()}
-            print(f"{m['id']} vs {ref_name}  " + "  ".join(f"{n} {v:.1%}" for n, v in scores.items()))
+    check_meeteval()
+    tally = Tally()
+    for m in meetings(args.work):
+        try:
+            if diarize_meeting(args, m):
+                tally.ok += 1
+            else:
+                print(f"{label(m)}: no usable split reference")
+                tally.skipped += 1
+        except Exception as error:
+            record_failure(args.work, tally, "diarizers", m, error)
+    finish(tally, "diarizers")
 
 
 def main() -> None:
@@ -360,16 +576,20 @@ def main() -> None:
     t = sub.add_parser("teach", help="run a reference transcriber")
     t.add_argument("--teacher", choices=["vibevoice", "moss", "gemini"], required=True)
     t.add_argument("--tracks", default="mixed,mic,system")
-    t.add_argument("--vibevoice-model", default="mlx-community/VibeVoice-ASR-4bit")
+    t.add_argument("--vibevoice-model", default=VIBEVOICE_MODEL)
     t.add_argument("--moss-cli", default=os.environ.get("TRANSCRIBE_CLI"))
     t.add_argument("--moss-model", default=os.environ.get("MOSS_MODEL"))
-    t.add_argument("--gemini-model", default="gemini-3.5-flash-lite")
+    t.add_argument("--gemini-model", default=GEMINI_MODEL)
     t.add_argument("--allow-cloud", action="store_true")
     sub.add_parser("score", help="compare Pipit with every reference")
     sub.add_parser("report", help="summarise scored meetings")
     d = sub.add_parser("diarizers", help="relabel Pipit's call words with other diarizers")
     d.add_argument("--fluidaudio-cli", required=True, help="a built fluidaudiocli from FluidAudio 0.18.2")
     args = parser.parse_args()
+    repository = enclosing_repository(args.work)
+    if repository:
+        sys.exit(f"--work {args.work} is inside the git repository {repository}. The audit writes decoded "
+                 "meeting audio and transcripts there; choose a folder outside every repository.")
     {"prepare": prepare, "teach": teach, "score": score, "report": report, "diarizers": diarizers}[args.command](args)
 
 

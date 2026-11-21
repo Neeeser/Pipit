@@ -26,6 +26,7 @@ def pipit_segments(meeting_dir: Path) -> list[dict]:
             "start": float(u["start"]),
             "end": float(u["end"]),
             "text": u["text"],
+            "track": u.get("track"),
         }
         for u in utterances
         if u.get("text", "").strip()
@@ -98,15 +99,22 @@ def teacher_segments(work: Path, teacher: str, track: str, meeting_id: str) -> l
     return loader(path) if path.exists() and path.stat().st_size else None
 
 
+def split_parts(work: Path, teacher: str, meeting_id: str) -> tuple[list[dict], list[dict]] | None:
+    """A teacher's mic and call-track transcripts, or None when either is missing."""
+    mic = teacher_segments(work, teacher, "mic", meeting_id)
+    call = teacher_segments(work, teacher, "system", meeting_id)
+    return None if mic is None or call is None else (mic, call)
+
+
 def split_segments(work: Path, teacher: str, meeting_id: str) -> list[dict] | None:
     """A teacher run on each track alone: the cleaned mic is the local person and
     the call track holds everyone else. Overlapping speech survives because nothing
     was mixed, and the local person cannot be confused with a remote one.
     """
-    mic = teacher_segments(work, teacher, "mic", meeting_id)
-    call = teacher_segments(work, teacher, "system", meeting_id)
-    if mic is None or call is None:
+    parts = split_parts(work, teacher, meeting_id)
+    if parts is None:
         return None
+    mic, call = parts
     return ([dict(s, speaker="local person") for s in mic]
             + [dict(s, speaker=f"call {s['speaker']}") for s in call])
 
