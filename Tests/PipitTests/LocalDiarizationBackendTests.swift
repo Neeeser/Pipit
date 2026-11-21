@@ -305,13 +305,19 @@ struct LocalDiarizationBackendTests {
                 try Task.checkCancellation()
             }
         }
-        let second = Task {
-            try await queue.run { started.withLock { $0 += 1 } }
-        }
+        // The second job is made only once the first holds the queue: tasks start
+        // in no fixed order, and a second job that reached the queue first would
+        // run to the end before anything is cancelled.
         let giveUp = ContinuousClock.now + .seconds(3)
         while started.withLock({ $0 }) == 0, ContinuousClock.now < giveUp {
             try await Task.sleep(for: .milliseconds(5))
         }
+        let second = Task {
+            try await queue.run { started.withLock { $0 += 1 } }
+        }
+        // Long enough for it to wait in the queue; if it has not arrived yet, a
+        // cancelled job still never starts, so the expectations hold either way.
+        try await Task.sleep(for: .milliseconds(20))
         first.cancel()
         second.cancel()
         await #expect(throws: CancellationError.self) { try await first.value }
