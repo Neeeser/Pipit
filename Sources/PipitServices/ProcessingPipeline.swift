@@ -2425,7 +2425,8 @@ public actor ProcessingPipeline {
             )
         }
         guard let marked = await sensorRecord(store: store, metadata: metadata) else { return }
-        let people = SensorAttribution.speakerEntries(sensors: marked, mode: sensorMode)
+        let people = SensorAttribution.speakerEntries(
+            sensors: marked, mode: sensorMode, diarization: diarization)
         for entry in people {
             speakers.applySuggestion(entry.assignment, for: entry.key)
         }
