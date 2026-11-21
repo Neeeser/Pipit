@@ -15,7 +15,10 @@ participants' call audio replayed over laptop speakers. The remote track is
 everyone else after an Opus round trip. The echo gain of each variant is chosen
 so Pipit's own measure of how much echo a microphone holds lands on the
 variant's target. `--verify` runs the shipped echo pass over the finished
-files and prints the figure it reads, which should match.
+files and prints the figure it reads, which should match. The figure recorded
+in `case.json` is read back from the 16-bit files, and generation exits with an
+error when it is more than 0.003 from the target or more than 0.01% of a
+track's samples clip.
 
 Nothing is written into the repository, and a rerun with the same inputs writes
 the same samples.
@@ -73,6 +76,7 @@ def main() -> None:
         raise SystemExit("no variant matches %s" % args.variant)
 
     print("%-24s %8s %8s %8s %9s" % ("case", "target", "measured", "gain", "echo/voice"))
+    rejected: list[str] = []
     for meeting, entry in calls["meetings"].items():
         if args.meeting and meeting not in args.meeting:
             continue
@@ -93,17 +97,21 @@ def main() -> None:
             sensors = None
             if spec.get("sensors"):
                 sensors = callsim.simulate_sensors(seed, meeting, truth, prepared.local_speaker, spec["sensors"])
-            callsim.write_case(directory, prepared, variant, seed, truth, sensors)
+            info = callsim.write_case(directory, prepared, variant, seed, truth, sensors)
+            echo = info["echo"]
             target = "none" if variant.target_correlation is None else "%.2f" % variant.target_correlation
             ratio = "" if variant.echo_to_voice_db is None else "%+.1f dB" % variant.echo_to_voice_db
             line = "%-24s %8s %8.3f %8.4f %9s" % (
-                callsim.case_id(meeting, spec["name"]), target, variant.correlation, variant.gain, ratio,
+                callsim.case_id(meeting, spec["name"]), target, echo["correlation"], variant.gain, ratio,
             )
-            if not variant.reached_target:
-                line += "  (target not reachable)"
+            for problem in callsim.problems(info):
+                line += "  REJECTED: " + problem
+                rejected.append("%s: %s" % (callsim.case_id(meeting, spec["name"]), problem))
             if args.verify:
                 line += "  pipit-eval aec reads %.3f" % verify(directory)
             print(line, flush=True)
+    if rejected:
+        raise SystemExit("%d problem(s) in the written cases; do not benchmark them:\n  %s" % (len(rejected), "\n  ".join(rejected)))
 
 
 if __name__ == "__main__":

@@ -61,6 +61,18 @@ PLAYBACK_DELAY_RANGE = (0.06, 0.14)
 RT60_RANGE = (0.25, 0.5)
 DIRECT_TO_REVERB_DB = 12.0
 
+# The gain search stops within this distance of the target, on float samples.
+ECHO_SEARCH_TOLERANCE = 0.002
+# How far the correlation of a written case may sit from its target before the
+# case is rejected. The check reads the written 16-bit files, where rounding
+# adds a little error on top of the search tolerance.
+ECHO_TOLERANCE = 0.003
+
+# The share of stored samples that may sit at full scale. A headset channel
+# peaks there now and then; a track that clips often has been driven too hard
+# and no longer carries the levels the variant claims.
+MAX_CLIPPED_SHARE = 1e-4
+
 ENVELOPE_WINDOW = 160  # 10 ms at 16 kHz, the window Pipit measures with
 SEARCH_SECONDS = 8.0  # how far either way Pipit looks for the far end
 
@@ -351,7 +363,7 @@ def render_variant(prepared: Prepared, name: str, target: float | None) -> Varia
         for _ in range(24):
             gain = float(np.sqrt(low * high))
             value, _ = at(gain)
-            if abs(value - target) < 0.002:
+            if abs(value - target) < ECHO_SEARCH_TOLERANCE:
                 break
             if value < target:
                 low = gain
@@ -363,6 +375,20 @@ def render_variant(prepared: Prepared, name: str, target: float | None) -> Varia
     echo_power = np.mean((gain * prepared.echo_unit[prepared.remote != 0]).astype(np.float64) ** 2)
     ratio = float(10 * np.log10(echo_power / voice_power))
     return Variant(name, microphone, gain, target, correlation, lag, reached, ratio)
+
+
+FULL_SCALE_INT16 = 32767
+
+
+def read_pcm16(path: Path) -> np.ndarray:
+    """The samples exactly as stored, as float64 on the 16-bit scale."""
+    data, _ = sf.read(path, dtype="int16", always_2d=True)
+    return data[:, 0].astype(np.float64)
+
+
+def clipped_samples(samples: np.ndarray) -> int:
+    """How many stored samples sit at full scale, where a clip leaves them."""
+    return int(np.sum(np.abs(samples) >= FULL_SCALE_INT16))
 
 
 def write_pcm16(path: Path, audio: np.ndarray) -> str:
@@ -442,6 +468,12 @@ def write_case(
     directory.mkdir(parents=True, exist_ok=True)
     mic_hash = write_pcm16(directory / "mic.wav", variant.microphone)
     remote_hash = write_pcm16(directory / "remote.wav", prepared.remote)
+    # The benchmark reads the 16-bit files, so the figure recorded is the one
+    # those samples give, not the one the float search settled on.
+    stored_mic, stored_remote = read_pcm16(directory / "mic.wav"), read_pcm16(directory / "remote.wav")
+    correlation, lag = echo_correlation(stored_mic, stored_remote)
+    clipped = {"mic": clipped_samples(stored_mic), "remote": clipped_samples(stored_remote)}
+    reached = variant.target_correlation is None or abs(correlation - variant.target_correlation) <= ECHO_TOLERANCE
     sensors_hash = None
     if sensors is not None:
         text = json.dumps(sensors, indent=2, sort_keys=True) + "\n"
@@ -468,9 +500,10 @@ def write_case(
         "speakerLevelsDB": prepared.levels,
         "echo": {
             "targetCorrelation": variant.target_correlation,
-            "correlation": round(variant.correlation, 4),
-            "correlationLagSeconds": round(variant.correlation_lag_seconds, 3),
-            "reachedTarget": variant.reached_target,
+            "correlation": round(correlation, 4),
+            "correlationLagSeconds": round(lag, 3),
+            "reachedTarget": reached,
+            "clippedSamples": clipped,
             "gain": round(variant.gain, 6),
             "echoToLocalVoiceDB": None if variant.echo_to_voice_db is None else round(variant.echo_to_voice_db, 2),
             "playbackDelaySeconds": round(prepared.path.delay_seconds, 4),
@@ -484,3 +517,19 @@ def write_case(
         json.dump(info, handle, indent=2, sort_keys=True)
         handle.write("\n")
     return info
+
+
+def problems(info: dict) -> list[str]:
+    """Why a written case should not be used, empty when it is sound."""
+    found = []
+    echo = info["echo"]
+    if not echo["reachedTarget"]:
+        found.append(
+            "echo correlation %.4f is not within %.3f of the target %s"
+            % (echo["correlation"], ECHO_TOLERANCE, echo["targetCorrelation"])
+        )
+    samples = info["windowSeconds"] * RATE
+    for track, count in echo["clippedSamples"].items():
+        if count > MAX_CLIPPED_SHARE * samples:
+            found.append("%d clipped samples on the %s track, over %.0e of its samples" % (count, track, MAX_CLIPPED_SHARE))
+    return found

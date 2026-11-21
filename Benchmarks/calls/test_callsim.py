@@ -1,4 +1,4 @@
-"""Tests for the call simulator.
+"""Tests for the call simulator. Run from the repository root:
 
     uv run --with numpy --with scipy --with soundfile python -m unittest discover -s Benchmarks/calls
 
@@ -262,6 +262,34 @@ class CaseTests(unittest.TestCase):
         self.assertTrue(laptop["reachedTarget"])
         self.assertAlmostEqual(laptop["correlation"], 0.6, delta=0.02)
         self.assertGreater(laptop["gain"], 0)
+
+    def test_the_recorded_correlation_is_the_one_the_stored_samples_give(self):
+        with tempfile.TemporaryDirectory() as scratch:
+            scratch = Path(scratch)
+            (scratch / "in").mkdir()
+            _, infos = self.build(scratch / "in", scratch / "out")
+            stored, _ = callsim.echo_correlation(
+                callsim.read_pcm16(scratch / "out/laptop/mic.wav"), callsim.read_pcm16(scratch / "out/laptop/remote.wav")
+            )
+        self.assertEqual(infos[1]["echo"]["correlation"], round(stored, 4))
+        self.assertEqual(callsim.problems(infos[1]), [])
+
+    def test_a_case_off_its_target_or_with_clipped_samples_is_a_problem(self):
+        with tempfile.TemporaryDirectory() as scratch:
+            scratch = Path(scratch)
+            (scratch / "in").mkdir()
+            truth, channels = synthetic_meeting(scratch / "in")
+            prepared = callsim.prepare_meeting(11, "SYN", truth, "A", channels)
+            variant = callsim.render_variant(prepared, "laptop", 0.6)
+            # A microphone that holds far more echo than asked for.
+            off = callsim.Variant(**{**variant.__dict__, "microphone": variant.microphone + 20 * prepared.echo_unit})
+            info = callsim.write_case(scratch / "off", prepared, off, 11, truth)
+            self.assertFalse(info["echo"]["reachedTarget"])
+            self.assertTrue(any("target" in p for p in callsim.problems(info)))
+            loud = callsim.Variant(**{**variant.__dict__, "microphone": variant.microphone * 1000})
+            info = callsim.write_case(scratch / "loud", prepared, loud, 11, truth)
+            self.assertGreater(info["echo"]["clippedSamples"]["mic"], 0)
+            self.assertTrue(any("clipped" in p for p in callsim.problems(info)))
 
     def test_a_sensor_record_is_written_beside_the_audio_and_named_in_the_description(self):
         with tempfile.TemporaryDirectory() as scratch:
