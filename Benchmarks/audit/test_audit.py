@@ -1,7 +1,9 @@
-"""Tests for the audit's guards, with synthetic data only.
+"""Tests for the audit's guards and text normalisation, with synthetic data only.
 
-Run from the repository root: python3 -m unittest discover -s Benchmarks/audit
-No third-party package is needed; meeteval is imported only by the scoring step.
+Run from the repository root:
+uv run --python 3.12 --with whisper-normalizer==0.1.12 python -m unittest discover -s Benchmarks/audit
+The normaliser package is the only third-party one; meeteval is imported only by
+the scoring step.
 """
 
 import contextlib
@@ -18,6 +20,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent))
 import audit  # noqa: E402
 import integrity  # noqa: E402
+import sources  # noqa: E402
 
 WORDS = "alpha bravo charlie delta echo foxtrot golf hotel india juliet".split()
 
@@ -111,6 +114,128 @@ class WorkFolderTests(unittest.TestCase):
     def test_a_plain_folder_is_allowed(self):
         with tempfile.TemporaryDirectory() as tmp:
             self.assertIsNone(integrity.enclosing_repository(Path(tmp) / "work"))
+
+
+# Two transcribers writing the same speech in different house styles. Each pair
+# must normalise to the same words, so none of these counts as an error.
+SAME_SPEECH = {
+    "numbers": [
+        ("we need twenty five chairs", "we need 25 chairs"),
+        ("about three hundred and forty people", "about 340 people"),
+        ("two thousand five hundred units", "2,500 units"),
+        ("one point five million rows", "1.5 million rows"),
+        ("ninety-nine tickets", "99 tickets"),
+    ],
+    "ordinals": [
+        ("the twenty first item", "the 21st item"),
+        ("on the third floor", "on the 3rd floor"),
+        ("on March fifth", "on March 5th"),
+    ],
+    "years": [
+        ("back in twenty nineteen", "back in 2019"),
+        ("since nineteen ninety eight", "since 1998"),
+        ("by twenty twenty six", "by 2026"),
+    ],
+    "money": [
+        ("it costs forty dollars", "it costs $40"),
+        ("a budget of two million dollars", "a budget of $2 million"),
+        ("five dollars and fifty cents", "$5.50"),
+    ],
+    "percentages": [
+        ("growth of twelve percent", "growth of 12%"),
+        ("about 30 percent", "about 30%"),
+    ],
+    "clock times": [
+        ("meet at three thirty", "meet at 3:30"),
+        ("call at three p.m.", "call at 3 PM"),
+    ],
+    "acronyms": [
+        ("the A.P.I. is down", "the API is down"),
+        ("ask the U.S. team", "ask the US team"),
+        ("send it by E.O.D", "send it by EOD"),
+        ("that sounds O.K.", "that sounds okay"),
+    ],
+    "spelled-out letters": [
+        ("call the A P I", "call the API"),
+        ("the g c p bill", "the GCP bill"),
+        ("my initials are J K", "my initials are J.K."),
+    ],
+    "fillers and contractions": [
+        ("um so we're uh done", "so we are done"),
+        ("we'll pick a colour", "we will pick a color"),
+        ("it’s fine", "it's fine"),
+    ],
+}
+
+# Real disagreements about what was said, with how many words differ. Number and
+# acronym handling must not hide these.
+DIFFERENT_SPEECH = [
+    ("we need twenty five chairs", "we need 35 chairs", 1),
+    ("back in twenty nineteen", "back in 2018", 1),
+    ("it costs forty dollars", "it costs $14", 1),
+    ("growth of twelve percent", "growth of 20%", 1),
+    ("the A.P.I. is down", "the APP is down", 1),
+    ("I think a plan works", "I think the plan works", 1),
+]
+
+
+def word_errors(reference: list[str], hypothesis: list[str]) -> int:
+    previous = list(range(len(hypothesis) + 1))
+    for row, ref in enumerate(reference, 1):
+        current = [row]
+        for column, hyp in enumerate(hypothesis, 1):
+            current.append(min(previous[column] + 1, current[column - 1] + 1,
+                               previous[column - 1] + (ref != hyp)))
+        previous = current
+    return previous[-1]
+
+
+class NormaliseTests(unittest.TestCase):
+    def test_the_same_speech_in_another_style_scores_no_errors(self):
+        for kind, pairs in SAME_SPEECH.items():
+            for first, second in pairs:
+                with self.subTest(kind=kind, first=first, second=second):
+                    self.assertEqual(sources.normalise(first), sources.normalise(second))
+
+    def test_a_real_difference_still_counts(self):
+        for first, second, errors in DIFFERENT_SPEECH:
+            with self.subTest(first=first, second=second):
+                self.assertEqual(word_errors(sources.normalise(first), sources.normalise(second)), errors)
+
+    def test_the_pronoun_and_the_article_stay_words(self):
+        self.assertEqual(sources.normalise("so I think a plan and the A B C help"),
+                         ["so", "i", "think", "a", "plan", "and", "the", "abc", "help"])
+
+    def test_non_speech_tags_and_punctuation_go(self):
+        self.assertEqual(sources.normalise("Right. [Noise] (laughs) Next, please!"), ["right", "next", "please"])
+
+
+class ScoringPackageTests(unittest.TestCase):
+    def check(self, versions: dict[str, str]) -> str | None:
+        def version(package):
+            if package not in versions:
+                raise audit.metadata.PackageNotFoundError(package)
+            return versions[package]
+        original = audit.metadata.version
+        audit.metadata.version = version
+        try:
+            audit.check_scoring_packages()
+        except SystemExit as stopped:
+            return str(stopped.code)
+        finally:
+            audit.metadata.version = original
+        return None
+
+    def test_the_pinned_versions_pass(self):
+        self.assertIsNone(self.check({p: audit.PINNED[p] for p in audit.SCORING}))
+
+    def test_another_normaliser_version_stops_the_score(self):
+        message = self.check({"meeteval": audit.PINNED["meeteval"], "whisper-normalizer": "9.9"})
+        self.assertIn("whisper-normalizer 9.9 is installed", message)
+        self.assertIn(f"--with whisper-normalizer=={audit.PINNED['whisper-normalizer']}", message)
+
+    def test_a_missing_package_says_how_to_run(self):
+        self.assertIn("is not installed", self.check({"meeteval": audit.PINNED["meeteval"]}))
 
 
 class TriangleTests(unittest.TestCase):

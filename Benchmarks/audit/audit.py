@@ -14,12 +14,12 @@ error is likely Pipit's. Everything runs on this Mac unless you pass
     audit.py report
     audit.py diarizers --fluidaudio-cli PATH      # optional
 
-Run it with the scoring dependency available, for example
-`uv run --python 3.12 --with meeteval==0.4.3 Benchmarks/audit/audit.py score`
-(the version is PINNED below). Output goes under --work (default
-~/Library/Caches/pipit-bench/audit), never into a git repository. Printed output
-holds a meeting's index and short key, counts and rates, never its title.
-Every command ends with an ok/failed/skipped summary and exits 1 on a failure.
+Run score and diarizers with the scoring dependencies available, for example
+`uv run --python 3.12 --with meeteval==0.4.3 --with whisper-normalizer==0.1.12
+python Benchmarks/audit/audit.py score` (the versions are PINNED below). Output
+goes under --work (default ~/Library/Caches/pipit-bench/audit), never into a git
+repository. Printed output holds a meeting's index and short key, counts and
+rates, never its title. Every command ends with an ok/failed/skipped summary and exits 1 on a failure.
 """
 
 import argparse
@@ -49,7 +49,10 @@ REFERENCES = ["split-vibevoice", "split-moss", "mixed-moss", "mixed-vibevoice", 
 # The Python packages the audit runs and the models it asks for. A reference is only
 # comparable across runs when these stay fixed, so a change is a deliberate edit here.
 # `teach` writes them to provenance.json and `score` copies them into every result.
-PINNED = {"mlx-audio": "0.6.4", "google-genai": "3.4.0", "meeteval": "0.4.3"}
+PINNED = {"mlx-audio": "0.6.4", "google-genai": "3.4.0", "meeteval": "0.4.3", "whisper-normalizer": "0.1.12"}
+# The packages score and diarizers import. The normaliser decides which words count
+# as the same, so a different version changes every error rate.
+SCORING = ["meeteval", "whisper-normalizer"]
 VIBEVOICE_MODEL = "mlx-community/VibeVoice-ASR-4bit"
 GEMINI_MODEL = "gemini-3.5-flash-lite"
 PYTHON = "3.12"
@@ -359,12 +362,15 @@ def teacher_model(name: str) -> str:
     return name.split("-", 1)[1]
 
 
-def check_meeteval() -> str:
-    installed = metadata.version("meeteval")
-    if installed != PINNED["meeteval"]:
-        sys.exit(f"meeteval {installed} is installed and the audit pins {PINNED['meeteval']}; run it with "
-                 f"`uv run --python {PYTHON} --with meeteval=={PINNED['meeteval']} ...`")
-    return installed
+def check_scoring_packages() -> None:
+    command = f"`uv run --python {PYTHON} " + " ".join(f"--with {p}=={PINNED[p]}" for p in SCORING) + " python ...`"
+    for package in SCORING:
+        try:
+            installed = metadata.version(package)
+        except metadata.PackageNotFoundError:
+            sys.exit(f"{package} is not installed; run it with {command}")
+        if installed != PINNED[package]:
+            sys.exit(f"{package} {installed} is installed and the audit pins {PINNED[package]}; run it with {command}")
 
 
 def score_meeting(work: Path, m: dict, provenance: dict) -> dict | None:
@@ -397,13 +403,13 @@ def score_meeting(work: Path, m: dict, provenance: dict) -> dict | None:
         "rejectedReferences": rejected,
         "pairs": pairs, "wordErrorEstimate": one_stream, "cpWerEstimate": attributed,
         "echoLeak": echo_leak(directory, call) if call else None,
-        "provenance": {"meeteval": PINNED["meeteval"], "teachers": provenance},
+        "provenance": {**{p: PINNED[p] for p in SCORING}, "teachers": provenance},
     }
 
 
 def score(args) -> None:
     work = args.work
-    check_meeteval()
+    check_scoring_packages()
     (work / "results").mkdir(parents=True, exist_ok=True)
     provenance_file = work / "provenance.json"
     provenance = json.loads(provenance_file.read_text()) if provenance_file.exists() else {}
@@ -550,7 +556,7 @@ def diarizers(args) -> None:
     the differences in speaker-attributed error come from the speaker labels alone.
     Mirrors a call with no meeting-app speaker data (Zoom, unknown apps).
     """
-    check_meeteval()
+    check_scoring_packages()
     tally = Tally()
     for m in meetings(args.work):
         try:

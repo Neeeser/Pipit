@@ -60,7 +60,8 @@ python3 Benchmarks/audit/audit.py prepare --since 2026-10-01 --limit 10
 python3 Benchmarks/audit/audit.py teach --teacher vibevoice --tracks mic,system
 python3 Benchmarks/audit/audit.py teach --teacher moss --tracks mixed,mic,system \
   --moss-cli /path/to/transcribe-cli --moss-model /path/to/MOSS-Transcribe-Diarize-Q8_0.gguf
-uv run --python 3.12 --with meeteval==0.4.3 python Benchmarks/audit/audit.py score
+uv run --python 3.12 --with meeteval==0.4.3 --with whisper-normalizer==0.1.12 \
+  python Benchmarks/audit/audit.py score
 python3 Benchmarks/audit/audit.py report
 ```
 
@@ -75,18 +76,24 @@ Each command ends with a line such as `score: 7 ok, 1 failed, 2 skipped` and
 exits 1 when anything failed. A teacher's error output goes to `logs/` under the
 work folder.
 
-The guards have standard-library tests on synthetic data:
-`python3 -m unittest discover -s Benchmarks/audit`.
+The guards and the text normalisation have tests on synthetic data:
+
+```sh
+uv run --python 3.12 --with whisper-normalizer==0.1.12 python -m unittest discover -s Benchmarks/audit
+```
 
 ## Versions
 
 `audit.py` pins the Python packages it runs (`PINNED`: `mlx-audio`,
-`google-genai`, `meeteval`) and the model identifiers, and `uv` is given the
-exact version. `score` stops when the installed `meeteval` differs from the pin,
-so run it as `uv run --python 3.12 --with meeteval==0.4.3 ...`. `teach` writes
+`google-genai`, `meeteval`, `whisper-normalizer`) and the model identifiers, and
+`uv` is given the exact version. `score` and `diarizers` stop when the installed
+`meeteval` or `whisper-normalizer` differs from the pin, so run them as
+`uv run --python 3.12 --with meeteval==0.4.3 --with whisper-normalizer==0.1.12 ...`.
+The normaliser decides which words count as the same, so another version changes
+every error rate. `teach` writes
 the packages, the model names, the cached VibeVoice snapshot and the MOSS file's
-SHA-256 to `provenance.json`, and `score` copies that and the `meeteval` version
-into every result file. Change a pin on purpose and rerun the teachers, since
+SHA-256 to `provenance.json`, and `score` copies that and the `meeteval` and
+`whisper-normalizer` versions into every result file. Change a pin on purpose and rerun the teachers, since
 references from different versions are not comparable.
 
 ## Truncated references
@@ -104,7 +111,8 @@ To compare speaker separators on the call track with Pipit's words held fixed,
 build `fluidaudiocli` from the pinned FluidAudio checkout and run:
 
 ```sh
-uv run --python 3.12 --with meeteval==0.4.3 python Benchmarks/audit/audit.py diarizers \
+uv run --python 3.12 --with meeteval==0.4.3 --with whisper-normalizer==0.1.12 \
+  python Benchmarks/audit/audit.py diarizers \
   --fluidaudio-cli /path/to/fluidaudiocli
 ```
 
@@ -137,6 +145,32 @@ talking at once can count as errors even when every word is right. Speaker
 attributed error (cpWER) does not have that ordering cost, which is why it can
 come out lower than plain word error on calls with crosstalk.
 
-Text is normalised before scoring: lowercase, punctuation and hesitation sounds
-removed, numbers below 1000 spelled out, and spelled acronyms joined, so "G C P"
-and "GCP" match.
+## Text normalisation
+
+Transcribers write the same speech in different house styles, and each style
+difference would otherwise count as a word error. Before scoring, `normalise` in
+`sources.py` runs every transcript through Whisper's English text normaliser
+(the `whisper-normalizer` package, whose English code and spelling list are a
+copy of OpenAI Whisper's) with a few steps of its own:
+
+| What differs | Example that now matches | Done by |
+| --- | --- | --- |
+| Numbers, ordinals and years | "twenty five" and "25", "twenty first" and "21st", "twenty nineteen" and "2019" | Whisper, which writes digits |
+| Money and percentages | "forty dollars" and "$40", "twelve percent" and "12%" | Whisper |
+| Contractions and British spelling | "we're" and "we are", "colour" and "color" | Whisper |
+| Case, punctuation, bracketed tags such as `[Noise]` | | Whisper |
+| Hesitation sounds | "um", "uh", "er", "oh" dropped | Whisper, plus a short list of its own |
+| Acronyms with dots | "A.P.I." and "API", "E.O.D" and "EOD" | the audit, before Whisper |
+| Spelled-out letters | "A P I", "g c p" and "API", "GCP" | the audit: a run of capital letters before Whisper, a run of lowercase single letters after it, leaving "a" and "i" as words |
+| Clock times | "three thirty" and "3:30" | the audit, which writes "3:30" as Whisper writes "three thirty" |
+| Curly apostrophes and "OK" | "it’s" and "it's", "O.K." and "okay" | the audit |
+
+Whisper's rules apply to every source the same way, so their quirks cancel out:
+"the team's plan" becomes "the team is plan" in both transcripts. A real
+difference still counts, so "twenty five" against "35" is one error.
+
+`pipit-eval bench` (`BenchScorer.normalise` in `Sources/PipitBench`) only
+lowercases, drops punctuation, splits hyphens and keeps apostrophes, and drops
+hesitation sounds in its `werNoFiller` and `werConversational` columns. It does
+not touch numbers, acronyms, contractions or spelling, so the two tools' error
+rates on the same pair of transcripts are not directly comparable.
