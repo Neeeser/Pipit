@@ -197,7 +197,9 @@ public struct TranscriptAssembler: Sendable {
                 ? chunks
                 : attribute(
                     chunks, using: activeRun,
-                    sensors: track == .remote ? sensorWords : .none
+                    sensors: track == .remote
+                        ? farEndSensorWords(sensorWords, sensors: sensors, run: activeRun)
+                        : .none
                 )
             let assembled = assembleTrack(
                 attributed,
@@ -222,6 +224,26 @@ public struct TranscriptAssembler: Sendable {
             lhs.start == rhs.start ? lhs.track.rawValue < rhs.track.rawValue : lhs.start < rhs.start
         }
         return CanonicalTranscript(generatedAt: generatedAt, utterances: utterances)
+    }
+
+    /// The sensor turns as the far-end track's words are filled from them: each
+    /// person's turns filed under the diarization cluster matched to that
+    /// person, so a word a turn fills and a word the cluster reaches are one
+    /// speaker. A person with no matched cluster keeps the sensor key.
+    ///
+    /// `sensor-first` is what the application did before clusters took
+    /// precedence, and keeps the sensor keys it always had.
+    private func farEndSensorWords(
+        _ words: SensorAttribution.WordSources, sensors: RawSensors?, run: DiarizationRun?
+    ) -> SensorAttribution.WordSources {
+        guard configuration.sensorMode != .sensorFirst, let sensors, let run,
+            !words.turns.isEmpty
+        else { return words }
+        let owners = SensorAttribution.clusterOwners(
+            intervals: run.intervals, sensors: sensors, mode: configuration.sensorMode
+        ).mapValues { SpeakerLabel.namespaced(chunkID: run.id, rawLabel: $0) }
+        // Keyed the way `rekeyed` looks participants up: by the sensor key.
+        return words.rekeyed(owners: owners)
     }
 
     /// Splits each transcript segment at speaker changes and labels the pieces.
@@ -250,20 +272,25 @@ public struct TranscriptAssembler: Sendable {
     }
 
     /// Assigns each span to the one person the call holds, then to a diarization
-    /// cluster, then to the sensor turn covering it.
+    /// cluster it overlaps, then to the sensor turn covering it, then to the
+    /// nearest cluster within the fallback distance.
     ///
     /// The order is the design. Where the client names the only other person in
     /// the call, every word on the far end is theirs and that decides first.
     /// Otherwise the diarizer hears the voices, so it decides who spoke where,
-    /// and a turn only labels the words no cluster interval reaches: a call with
-    /// no diarization, and the stretches the diarizer dropped.
+    /// and a turn only labels the words no cluster interval overlaps: a call
+    /// with no diarization, and the stretches the diarizer dropped.
+    ///
+    /// The nearest-cluster fallback runs last. A word the turn covers and no
+    /// cluster overlaps is where the client saw somebody speak, and handing it
+    /// to a cluster that ended half a second earlier gave it to the person who
+    /// had just stopped.
     ///
     /// A turn used to outrank the cluster. A turn is the client's guess at who
     /// held the floor, one person at a time, so it is wrong wherever two people
-    /// talk at once, and it filed its words under a key of its own. The cluster
-    /// beside it is named from the same turns only where one person covers most
-    /// of it, so where the turns covered a cluster partly the person showed up
-    /// twice: once under their name and once as a speaker nobody had named.
+    /// talk at once. The words a turn fills are filed under the cluster matched
+    /// to that person (see `farEndSensorWords`), so a person the turns cover
+    /// only in part is one speaker rather than a named one and an unnamed one.
     private func assignSpans(
         _ spans: [TimedSpan], sensors: SensorAttribution.WordSources,
         clusters: [DiarizationInterval]
@@ -291,8 +318,9 @@ public struct TranscriptAssembler: Sendable {
             fill(from: sensors.turns, nearestWithinSeconds: 0)
             fill(from: clusters, nearestWithinSeconds: SpeakerAlignment.nearestFallbackSeconds)
         } else {
-            fill(from: clusters, nearestWithinSeconds: SpeakerAlignment.nearestFallbackSeconds)
+            fill(from: clusters, nearestWithinSeconds: 0)
             fill(from: sensors.turns, nearestWithinSeconds: 0)
+            fill(from: clusters, nearestWithinSeconds: SpeakerAlignment.nearestFallbackSeconds)
         }
         return assigned
     }

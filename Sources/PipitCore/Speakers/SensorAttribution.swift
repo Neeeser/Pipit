@@ -65,6 +65,28 @@ public enum SensorAttribution {
 
         public static let none = WordSources(authoritative: [], turns: [])
 
+        /// The turns refiled under the diarization cluster each person is
+        /// matched to, where they are matched to one.
+        ///
+        /// A turn fills the words no cluster interval reaches, and those words
+        /// are the same person's as the cluster that `attribute` names after
+        /// them. Filing them under a key of their own showed the person twice:
+        /// once as the cluster and once as a sensor speaker. A person with no
+        /// matched cluster keeps the sensor key, which is the only one they
+        /// have. `owners` maps a participant to the cluster key to use.
+        public func rekeyed(owners: [String: String]) -> WordSources {
+            guard !owners.isEmpty else { return self }
+            let moved = turns.map { turn -> DiarizationInterval in
+                guard let id = SpeakerLabel.sensorParticipantID(from: turn.clusterID),
+                    let cluster = owners[id]
+                else { return turn }
+                return DiarizationInterval(
+                    start: turn.start, end: turn.end, clusterID: cluster, quality: turn.quality
+                )
+            }
+            return WordSources(authoritative: authoritative, turns: moved)
+        }
+
         public var isEmpty: Bool { authoritative.isEmpty && turns.isEmpty }
 
         /// The same intervals moved onto a chunk's own clock.
@@ -197,13 +219,16 @@ public enum SensorAttribution {
     /// off the head and tail of their own sentences. Three rows for two people,
     /// and a sixth of what the other person said filed under neither.
     ///
-    /// Only where the client itself said which tile is the local user. Slack
-    /// does, and every one-to-one recording on disk is one of its huddles. A
-    /// roster scraped off a page is a reading of what rendered, and a person
-    /// whose tile never did would have their words given to somebody else here,
-    /// which is the one mistake this must not make.
+    /// Only where the local user is known, so exactly one tile is marked: by the
+    /// client's own flag (Slack's tile identifier says it outright), by the
+    /// English "You" Meet writes on the local tile, or by the microphone, which
+    /// `RawSensors.markingSelf` applies before this is asked. A roster that
+    /// marks nobody could hold the local user as the other person, and their
+    /// words would be given to somebody else here, which is the one mistake
+    /// this must not make. A third person joining, even briefly, appears in the
+    /// roster and ends the one-to-one reading, because the track is no longer
+    /// one voice.
     public static func soleRemoteParticipant(sensors: RawSensors) -> SensorParticipant? {
-        guard sensors.selfIsAuthoritative else { return nil }
         guard sensors.participants.filter(\.isSelf).count == 1 else { return nil }
         let others = sensors.participants.filter { !$0.isSelf }
         guard others.count == 1, let only = others.first, only.personName != nil else {
@@ -395,12 +420,21 @@ public enum SensorAttribution {
     /// the enrichment prompt, and the control that confirms a voice offers a
     /// name with no audio behind it.
     public static func speakerEntries(
-        sensors: RawSensors, mode: SensorAttributionMode = .current
+        sensors: RawSensors, mode: SensorAttributionMode = .current,
+        diarization: RawDiarization? = nil
     ) -> [(key: String, assignment: SpeakerAssignment)] {
+        // A participant whose turns fill words under a cluster key has no
+        // utterance under a sensor key, so no entry is made for it.
+        var owned: Set<String> = []
+        if mode != .sensorFirst, let run = diarization?.activeRun(track: .remote) {
+            owned = Set(
+                clusterOwners(intervals: run.intervals, sensors: sensors, mode: mode).keys)
+        }
         let kept = Set(
             wordIntervals(sensors: sensors, mode: mode).compactMap {
                 SpeakerLabel.sensorParticipantID(from: $0.clusterID)
-            })
+            }
+        ).subtracting(owned)
         return kept.sorted().compactMap { id in
             guard let name = sensors.participant(id)?.personName else { return nil }
             return (
@@ -426,6 +460,33 @@ public enum SensorAttribution {
     /// already the display name and a handle would add nothing to it.
     public static func handleProvider(source: String) -> String? {
         source.hasPrefix("slack") ? "slack" : nil
+    }
+
+    /// The diarization cluster each participant is matched to, by participant
+    /// identifier, as the key `attribute` names it under.
+    ///
+    /// A participant can be matched to several clusters, because the clusterer
+    /// is tuned to split a voice rather than merge two people. The one holding
+    /// the most speech stands for them: the words a turn fills go there. Ties
+    /// break on the cluster identifier so the result does not depend on
+    /// dictionary order.
+    public static func clusterOwners(
+        intervals: [DiarizationInterval], sensors: RawSensors,
+        mode: SensorAttributionMode = .current
+    ) -> [String: String] {
+        var seconds: [String: Double] = [:]
+        for interval in intervals { seconds[interval.clusterID, default: 0] += interval.duration }
+        var best: [String: (cluster: String, seconds: Double)] = [:]
+        for match in attribute(intervals: intervals, sensors: sensors, mode: mode).matches {
+            let held = seconds[match.clusterID] ?? 0
+            if let current = best[match.participantID],
+                current.seconds > held || (current.seconds == held && current.cluster < match.clusterID)
+            {
+                continue
+            }
+            best[match.participantID] = (match.clusterID, held)
+        }
+        return best.mapValues(\.cluster)
     }
 
     public static func attribute(

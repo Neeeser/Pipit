@@ -529,10 +529,16 @@ recording rather than a conclusion about one.
 
 Three things read it. Word attribution goes to the diarizer's clusters first,
 because the diarizer hears the voices and a turn names one floor holder at a
-time, which is wrong wherever two people talk at once. A turn, keyed on the
-platform's own participant identifier, labels only the words no cluster reaches.
-The exception is a call the client says holds one other person, where every
-far-end word is theirs. Cluster naming (below) is what puts the client's names on
+time, which is wrong wherever two people talk at once. A turn labels only the
+words no cluster interval overlaps, and those words go under the key of the
+cluster matched to that participant, so one person is one speaker. The key is
+the platform's own participant identifier only for a participant no cluster is
+matched to. A word near a cluster but outside it goes to a turn that covers it
+before it goes to that cluster. The exception is a call whose roster holds one
+other person and where the local user is known, from the client's own flag, the
+English "You" on a Meet tile or the microphone: every far-end word up to the last
+reading is theirs. A third person in the roster, however briefly, ends that
+reading. Cluster naming (below) is what puts the client's names on
 the clusters. Voice enrollment embeds each participant's turns cut to the
 solo speech the diarizer heard inside them, so voice memory learns a
 known-identity voice without waiting for a confirmation. Cluster naming matches
