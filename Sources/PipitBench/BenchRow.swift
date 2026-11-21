@@ -27,6 +27,25 @@ public struct BenchRow: Codable {
     /// Which simulated call this row is and what the echo pass measured on it.
     /// Absent on a one-track case.
     public var call: BenchCallRow?
+    /// How the meeting client's speaker record and the diarizer shared the far
+    /// end (`pipit-eval bench --attribution`). Absent on rows written before it
+    /// existed.
+    public var sensorAttribution: String?
+    /// Words on the far-end track, and how many of them sit under a speaker
+    /// with no name.
+    public var farEndWords: Int?
+    public var unnamedFarEndWords: Int?
+    /// The far-end words that can be checked against the reference speaker,
+    /// split by whether the name on them is the right one, a wrong one or none.
+    /// See `FarEndNameScore`. Present on a call case only.
+    public var farEndNames: FarEndNameScore?
+    /// How `score` grouped the transcript's lines into speakers: `display-name`
+    /// puts lines under one speaker when the speaker map gives them one display
+    /// name, as the app shows it, so two people sharing a name are one speaker.
+    /// Rows without it grouped by speaker key, which counted a person split
+    /// across keys once per key, and are not comparable on speaker count,
+    /// cpWER or attribution where a case names its speakers.
+    public var speakerGrouping: String?
 
     public init(
         engine: String, diarizer: String, score: BenchScore,

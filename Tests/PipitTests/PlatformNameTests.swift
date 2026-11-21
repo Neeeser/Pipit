@@ -211,8 +211,11 @@ struct PlatformNameTests {
 
         #expect(try second.farEndNames() == ["Dara K"])
         let map = try second.meeting.store.readSpeakerMap()
-        let entry = try #require(map.entries[SpeakerLabel.sensor(participantID: "d1")])
-        #expect(entry.identityID == first.dara.id)
+        // Whichever key carries the participant: the cluster the words went to,
+        // or the sensor key where no cluster is matched to them.
+        let entries = map.entries.values.filter { $0.participantID == "d1" }
+        #expect(!entries.isEmpty)
+        #expect(entries.allSatisfy { $0.identityID == first.dara.id })
         let people = try await second.store.identities(kind: .person)
         #expect(people.count == 2)
     }
