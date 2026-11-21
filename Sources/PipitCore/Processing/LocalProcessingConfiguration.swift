@@ -54,8 +54,9 @@ public enum LocalSpeechStack {
     /// Parakeet Ultra through FluidAudio, `AsrModelVersion.ultra`: a
     /// full-precision post-training of Parakeet TDT v3 with the same
     /// architecture and word timings, and an int8 encoder. A benchmark
-    /// candidate. Not offered in settings until the comparative run says it
-    /// should be.
+    /// comparison engine. It measured no more accurate than v3 through
+    /// Pipit's pipeline, so the application keeps v3 and settings never offer
+    /// Ultra.
     public static let parakeetUltraBackendIdentifier = "fluidaudio-parakeet-ultra"
     /// Measured on disk after install: 632,314,500 bytes, 603 MiB, of which the
     /// int8 encoder is 568 MiB. Parakeet TDT v3 is 460 MiB.

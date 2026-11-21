@@ -109,11 +109,11 @@ struct LocalConfigurationTests {
         )
     }
 
-    @Test("Parakeet Ultra is a bench candidate with its own weights and no aligner")
-    func parakeetUltraIsABenchCandidateWithItsOwnWeightsAndNoAligner() async throws {
+    @Test("Parakeet Ultra is a benchmark-only engine with its own weights and no aligner")
+    func parakeetUltraIsABenchmarkOnlyEngineWithItsOwnWeightsAndNoAligner() async throws {
         // It returns word timings like Parakeet TDT v3, so it needs no
-        // aligner, and it stays out of `offered` until the comparative run
-        // earns it a place in the settings UI.
+        // aligner. It stays out of `offered` for good: the comparative run
+        // found it no more accurate than v3, so the app keeps v3.
         var settings = AppSettings()
         settings.processing.transcription = .local
         settings.processing.localTranscriptionModel = .parakeetUltra
@@ -123,7 +123,7 @@ struct LocalConfigurationTests {
         #expect(LocalModelUnit.recommended(for: settings).contains(.nemotronDiarizer))
         #expect(
             !LocalTranscriptionModel.offered.contains(.parakeetUltra),
-            "the settings UI does not offer what the bench has not proven"
+            "Ultra is a benchmark comparison only and the settings UI never offers it"
         )
         #expect(LocalTranscriptionModel.preferred != .parakeetUltra)
         #expect(LocalTranscriptionModel(rawValue: "parakeet-ultra") == .parakeetUltra)
