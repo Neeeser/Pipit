@@ -407,6 +407,7 @@ def case_id(meeting: str, variant: str) -> str:
 
 
 SENSOR_SOURCE = "google_meet-dom"
+LOCAL_TILE_NAME = "You"
 
 
 def simulate_sensors(seed: int, meeting: str, truth: dict, local_speaker: str, spec: dict) -> dict:
@@ -434,7 +435,13 @@ def simulate_sensors(seed: int, meeting: str, truth: dict, local_speaker: str, s
     rng = seeded(seed, meeting, "sensors")
     speakers = sorted(truth["agentToSpeaker"].values())
     ids = {name: "spaces/sim/devices/%d" % (index + 1) for index, name in enumerate(speakers)}
-    participants = [{"id": ids[name], "displayName": name, "isSelf": False} for name in speakers]
+    # The extension writes an English-locale local tile as "You" with the self
+    # flag (`extension/shared/content.js`), and every other tile under the
+    # person's own display name, which here is the reference speaker's name.
+    participants = [
+        {"id": ids[name], "displayName": LOCAL_TILE_NAME if name == local_speaker else name, "isSelf": name == local_speaker}
+        for name in speakers
+    ]
     seconds = truth["windowSeconds"]
     poll = float(spec["pollSeconds"])
     hold = float(spec["holdSeconds"])
