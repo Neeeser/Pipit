@@ -174,6 +174,19 @@ public final class PipitRuntime {
     /// Whether the on-device speech models are installed, and how far a
     /// download has got. Recording never waits on this.
     public internal(set) var localModelState: LocalModelState = .notInstalled(LocalModelSnapshot())
+    /// Whether Nemotron 3 is compiling in the background after its install.
+    public var preparingSpeakerSeparation: Bool { speakerSeparationPreparingSince != nil }
+    /// When that compile started, for the estimated progress Settings shows.
+    public internal(set) var speakerSeparationPreparingSince: Date?
+    /// Whether the last speaker separation update stopped before it finished,
+    /// so Settings can say so beside the button that tries again.
+    public internal(set) var speakerSeparationUpdateFailed = false
+    /// Whether a speaker separation update is running, from the click until it
+    /// ends. Held here rather than in the Settings pane so leaving the pane and
+    /// coming back keeps the bar.
+    public internal(set) var speakerSeparationUpdating = false
+    /// The download size of the running update, for the bar's byte count.
+    public internal(set) var speakerSeparationUpdateBytes: Int64 = 0
 
     /// Called when a meeting's processing state changes, so an open review
     /// window can reload its files without the user refreshing by hand.
@@ -225,7 +238,7 @@ public final class PipitRuntime {
     /// vectors it would have returned, not the ability to remember a voice.
     /// It is set once in `init` and left implicitly unwrapped so that no use
     /// has to unwrap it.
-    @ObservationIgnored public private(set) var models: LocalModelManager!
+    @ObservationIgnored public internal(set) var models: LocalModelManager!
     // swiftlint:enable implicitly_unwrapped_optional
     @ObservationIgnored public private(set) var speakers: SpeakerRecognitionService?
     @ObservationIgnored public private(set) var speakerStore: SpeakerStore?
@@ -403,6 +416,11 @@ public final class PipitRuntime {
             diagnostics: diagnostics,
             onStateChange: { [weak relay] state in
                 Task { @MainActor in relay?.runtimeForCallbacks?.localModelState = state }
+            },
+            onPreparationChange: { [weak relay] preparing in
+                Task { @MainActor in
+                    relay?.runtimeForCallbacks?.speakerSeparationPreparingSince = preparing ? Date() : nil
+                }
             }
         )
         models = modelManager
@@ -612,6 +630,9 @@ public final class PipitRuntime {
             await ensureLocalUserIdentity()
             await backfillLocalUserOccurrences()
             await refreshLocalModelState()
+            // A compile the app quit during is started again, so the first
+            // meeting does not wait on it and the row shows its bar.
+            await models?.resumeNemotronPreparation()
             await consolidateVoiceTwins()
             await pruneVoiceMemory()
             // Before the rest is resumed: a trim that stopped part way has cut

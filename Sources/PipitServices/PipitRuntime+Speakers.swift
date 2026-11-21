@@ -191,7 +191,9 @@ extension PipitRuntime {
     /// picking Cohere fetched Parakeet.
     public func installLocalModels(_ units: Set<LocalModelUnit>) async {
         guard let models else { return }
-        await models.setRequired(units)
+        // Nemotron installs with the rest during setup but is never judged:
+        // a machine without it still processes meetings.
+        await models.setRequired(units.subtracting([.nemotronDiarizer]))
         do {
             _ = try await models.install(units: units)
         } catch {
@@ -219,6 +221,63 @@ extension PipitRuntime {
     /// the click rather than at the next meeting.
     public func chooseLocalTranscriptionModel(_ model: LocalTranscriptionModel) async {
         await installLocalModels(applyLocalTranscriptionModel(model))
+    }
+
+    /// The two units Settings and setup show as one item, Nemotron 3
+    /// Diarization. They stay separate units: the clusterer's embeddings serve
+    /// voice memory and the fallback, Nemotron separates the speakers.
+    public static let speakerSeparationUnits: Set<LocalModelUnit> = [.diarizer, .nemotronDiarizer]
+
+    /// The speaker separation units this Mac still needs, as a Mac does that
+    /// updated from a build that had no Nemotron unit. Empty when diarization
+    /// is not local. Meetings use the previous speaker model until the set is
+    /// installed.
+    public var speakerSeparationMissingUnits: Set<LocalModelUnit> {
+        guard settings.processing.usesLocalDiarization else { return [] }
+        return Self.speakerSeparationUnits.filter { localModelState.present.bytes(for: $0) == nil }
+    }
+
+    public var speakerSeparationUpdateAvailable: Bool { !speakerSeparationMissingUnits.isEmpty }
+
+    /// Disk used by the speaker separation units that are installed, or nil
+    /// when neither is.
+    public var speakerSeparationInstalledBytes: Int64? {
+        let sizes = Self.speakerSeparationUnits.compactMap { localModelState.present.bytes(for: $0) }
+        return sizes.isEmpty ? nil : sizes.reduce(0, +)
+    }
+
+    /// Downloads whichever speaker separation units are missing, on the
+    /// person's request. The Nemotron compile starts in the background when
+    /// its download finishes.
+    ///
+    /// Nothing else fetches Nemotron for a machine that has none, so the
+    /// download is always someone's click. It is not in the required set the
+    /// manager judges itself against, so a failed download leaves the state it
+    /// had.
+    public func installSpeakerSeparation() async {
+        await installSpeakerSeparation(units: speakerSeparationMissingUnits)
+    }
+
+    /// The update for a given set of missing units; the seam tests use.
+    func installSpeakerSeparation(units missing: Set<LocalModelUnit>) async {
+        guard let models else { return }
+        guard !missing.isEmpty, !speakerSeparationUpdating else { return }
+        speakerSeparationUpdateFailed = false
+        speakerSeparationUpdateBytes = missing.reduce(Int64(0)) { $0 + $1.approximateBytes }
+        speakerSeparationUpdating = true
+        defer { speakerSeparationUpdating = false }
+        do {
+            _ = try await models.install(units: missing)
+        } catch {
+            Log.app.error("speaker separation install failed: \(logSafeDescription(error), privacy: .public)")
+            speakerSeparationUpdateFailed = true
+        }
+        await refreshLocalModelState()
+    }
+
+    /// Removes both speaker separation units.
+    public func removeSpeakerSeparation() async {
+        for unit in Self.speakerSeparationUnits { await removeLocalModel(unit) }
     }
 
     /// Removes one unit's files. The other units stay usable.

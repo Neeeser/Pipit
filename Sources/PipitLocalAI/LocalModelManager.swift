@@ -20,7 +20,7 @@ public actor LocalModelManager {
     /// without hopping to this actor.
     public nonisolated let locations: LocalModelLocations
     private let receiptStore: LocalModelReceiptStore
-    private var receipts: [LocalModelUnit: LocalUnitReceipt]
+    private(set) var receipts: [LocalModelUnit: LocalUnitReceipt]
     /// The units the current configuration needs; what the aggregate state
     /// and `ensureInstalled` are judged against.
     private var required: Set<LocalModelUnit>
@@ -34,10 +34,10 @@ public actor LocalModelManager {
     private var voiceActivity: VadManager?
     private var installTask: Task<LocalModelSnapshot, Error>?
     /// Identifies which call owns `installTask`; see `install`.
-    private var installGeneration: UInt64 = 0
+    private(set) var installGeneration: UInt64 = 0
     /// What the running install is fetching, so deleting an unrelated unit
     /// does not cancel it.
-    private var installing: Set<LocalModelUnit> = []
+    private(set) var installing: Set<LocalModelUnit> = []
     /// Segmentation and embeddings for the meeting most recently diarized, so
     /// "re-analyze speakers" re-clusters instead of starting again.
     ///
@@ -47,6 +47,16 @@ public actor LocalModelManager {
     /// a 60-minute meeting.
     private var prepared: (key: String, value: PreparedDiarization, source: DiskBackedAudioSampleSource)?
     private let onStateChange: @Sendable (LocalModelState) -> Void
+    let onPreparationChange: @Sendable (Bool) -> Void
+    let nemotron: any Nemotron3ModelSource
+    /// The background Core ML compile of Nemotron 3 that follows its install.
+    var nemotronPreparation: Task<Void, Never>?
+    /// Identifies which compile owns the preparation flag, so a cancelled one
+    /// that is still returning from Core ML does not clear a newer one's.
+    var nemotronPreparationGeneration: UInt64 = 0
+    /// The highest overall fraction published for the running install. Progress
+    /// arrives on unordered tasks, so a late tick must not move the bar back.
+    private var highestProgress = 0.0
     private let diagnostics: DiagnosticLog
     /// Counts the work using the loaded models and releases them after they
     /// have sat unused; see `ModelUseTracker`.
@@ -56,11 +66,14 @@ public actor LocalModelManager {
         applicationSupport: URL,
         required: Set<LocalModelUnit> = [.whisper, .diarizer],
         diagnostics: DiagnosticLog = .disabled,
-        onStateChange: @escaping @Sendable (LocalModelState) -> Void = { _ in }
+        nemotron: any Nemotron3ModelSource = FluidAudioNemotron3Source(),
+        onStateChange: @escaping @Sendable (LocalModelState) -> Void = { _ in },
+        onPreparationChange: @escaping @Sendable (Bool) -> Void = { _ in }
     ) {
         self.init(
             applicationSupport: applicationSupport, required: required, diagnostics: diagnostics,
-            useTracker: ModelUseTracker(), onStateChange: onStateChange
+            useTracker: ModelUseTracker(), nemotron: nemotron, onStateChange: onStateChange,
+            onPreparationChange: onPreparationChange
         )
     }
 
@@ -69,9 +82,13 @@ public actor LocalModelManager {
         required: Set<LocalModelUnit> = [.whisper, .diarizer],
         diagnostics: DiagnosticLog = .disabled,
         useTracker: ModelUseTracker,
-        onStateChange: @escaping @Sendable (LocalModelState) -> Void = { _ in }
+        nemotron: any Nemotron3ModelSource = FluidAudioNemotron3Source(),
+        onStateChange: @escaping @Sendable (LocalModelState) -> Void = { _ in },
+        onPreparationChange: @escaping @Sendable (Bool) -> Void = { _ in }
     ) {
         self.useTracker = useTracker
+        self.nemotron = nemotron
+        self.onPreparationChange = onPreparationChange
         let locations = LocalModelLocations(applicationSupport: applicationSupport)
         self.locations = locations
         self.diagnostics = diagnostics
@@ -203,10 +220,14 @@ public actor LocalModelManager {
 
     /// A progress tick, carrying whatever is already on disk so the rows for
     /// installed units keep reporting their sizes while another downloads.
-    private func publishProgress(fraction: Double, detail: String) {
+    func publishProgress(fraction: Double, detail: String, generation: UInt64) {
+        // A tick from an install that was replaced or deleted says nothing about
+        // this one.
+        guard generation == installGeneration else { return }
+        highestProgress = max(highestProgress, fraction)
         publish(
             .downloading(
-                fraction: fraction, detail: detail,
+                fraction: highestProgress, detail: detail,
                 present: Self.computeState(
                     receipts: receipts, required: required, locations: locations
                 ).present
@@ -238,8 +259,13 @@ public actor LocalModelManager {
             _ = try? await installTask.value
         }
 
+        // A unit counts as installed only with its receipt, because the state
+        // reads receipts. Files without one (an install interrupted before
+        // units.json was written) go through the install, whose downloads
+        // skip what is already on disk and then record the receipt.
         let missing = wanted.filter { unit in
-            force || !Self.filesPresent(unit, locations: locations, receipt: receipts[unit])
+            force || receipts[unit] == nil
+                || !Self.filesPresent(unit, locations: locations, receipt: receipts[unit])
         }
         if missing.isEmpty {
             refreshState()
@@ -249,6 +275,8 @@ public actor LocalModelManager {
         // What is on disk right now, so a re-download that fails can fall back
         // to it instead of discarding a working install.
         let fallback = receipts
+
+        let generation = installGeneration &+ 1
 
         // `self` is captured strongly on purpose: the install must finish and
         // write its receipts even if nothing else is holding the manager.
@@ -266,7 +294,8 @@ public actor LocalModelManager {
                     try await installUnit(unit, force: force) { fraction, detail in
                         Task {
                             await self.publishProgress(
-                                fraction: base + share * min(max(fraction, 0), 1), detail: detail
+                                fraction: base + share * min(max(fraction, 0), 1), detail: detail,
+                                generation: generation
                             )
                         }
                     }
@@ -294,11 +323,11 @@ public actor LocalModelManager {
         // a slot another install was still running in, which dropped its
         // progress, let a third caller start a duplicate, and made Delete
         // Models cancel nothing.
-        installGeneration += 1
-        let generation = installGeneration
+        installGeneration = generation
         installTask = task
         installing = missing
-        publishProgress(fraction: 0, detail: "Preparing")
+        highestProgress = 0
+        publishProgress(fraction: 0, detail: "Preparing", generation: generation)
         defer {
             if installGeneration == generation {
                 installTask = nil
@@ -308,6 +337,7 @@ public actor LocalModelManager {
         do {
             let snapshot = try await task.value
             if installGeneration == generation { refreshState() }
+            if missing.contains(.nemotronDiarizer) { startNemotronPreparation() }
             return snapshot
         } catch {
             // Keep whatever survived: a failure on the third unit must not
@@ -414,7 +444,9 @@ public actor LocalModelManager {
             )
 
         case .nemotronDiarizer:
-            try await installNemotron3(force: force, progress: progress)
+            // Download only: the compile that a first load costs runs in the
+            // background after the install, see `startNemotronPreparation`.
+            try await nemotron.download(root: locations.root, force: force, progress: progress)
 
         case .voiceActivity:
             // ModelHub appends the repository folder itself, as for Cohere.
@@ -443,6 +475,9 @@ public actor LocalModelManager {
             installTask = nil
             installing = []
         }
+        // Only a delete stops the compile. Unloading for the idle release must
+        // not, and the compile holds a lease so that release waits for it.
+        if unit == .nemotronDiarizer { cancelNemotronPreparation() }
         unload(unit)
         try? FileManager.default.removeItem(at: locations.containerDirectory(for: unit))
         receipts[unit] = nil
@@ -450,7 +485,7 @@ public actor LocalModelManager {
         refreshState()
     }
 
-    private func unload(_ unit: LocalModelUnit) {
+    func unload(_ unit: LocalModelUnit) {
         switch unit {
         case .whisper: whisper = nil
         case .parakeet: parakeetManager = nil
@@ -458,7 +493,8 @@ public actor LocalModelManager {
         case .canary: canaryModels = nil
         case .ctcAligner: alignerModels = nil
         case .diarizer: diarizerModels = nil
-        // Loaded and released inside each diarization call.
+        // Loaded and released inside each diarization call, and the background
+        // compile is not stopped by an unload; see `remove`.
         case .nemotronDiarizer: break
         case .voiceActivity: voiceActivity = nil
         }

@@ -372,8 +372,8 @@ struct LocalDiarizationBackendTests {
         #expect(LocalSpeechStack.nemotron3SpeakerSlots == Nemotron3Config.offline.numSpeakers)
     }
 
-    @Test("setup installs the Nemotron unit for local diarization, and processing never requires it")
-    func setupInstallsTheNemotronUnitButProcessingNeverRequiresIt() {
+    @Test("setup installs the Nemotron unit for local diarization and not for a cloud diarizer")
+    func setupInstallsTheNemotronUnitForLocalDiarizationAndNotForACloudDiarizer() {
         var settings = AppSettings()
         settings.processing.diarization = .local
         #expect(LocalModelUnit.recommended(for: settings).contains(.nemotronDiarizer))
