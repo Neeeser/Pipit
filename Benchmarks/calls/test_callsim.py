@@ -179,11 +179,16 @@ class SensorTests(unittest.TestCase):
         known = {p["id"] for p in record["participants"]}
         self.assertTrue(all(t["participantID"] in known and t["end"] > t["start"] for t in record["turns"]))
 
-    def test_a_meet_record_marks_nobody_as_the_local_user_and_has_no_mute_state(self):
+    def test_the_local_tile_reads_you_with_the_self_flag_and_there_is_no_mute_state(self):
         record = self.record()
-        self.assertFalse(any(p["isSelf"] for p in record["participants"]))
+        marked = [p for p in record["participants"] if p["isSelf"]]
+        self.assertEqual([p["displayName"] for p in marked], ["You"])
         self.assertEqual(record["unmutedIDs"], [])
-        self.assertIn("SPK_A", [p["displayName"] for p in record["participants"]])
+        self.assertFalse(record["selfIsAuthoritative"])
+        # Everyone else keeps the reference speaker's name, and the local
+        # person's own name is not in the record.
+        others = sorted(p["displayName"] for p in record["participants"] if not p["isSelf"])
+        self.assertEqual(others, ["SPK_B", "SPK_C", "SPK_D"])
 
     def test_one_person_holds_the_floor_at_a_time_even_when_the_speech_overlaps(self):
         turns = [
@@ -236,7 +241,7 @@ class SensorTests(unittest.TestCase):
     def test_dropouts_remove_only_far_end_turns(self):
         full = self.record()
         lossy = self.record(spec=dict(self.SPEC, dropoutShare=0.5))
-        local_id = next(p["id"] for p in lossy["participants"] if p["displayName"] == "SPK_A")
+        local_id = next(p["id"] for p in lossy["participants"] if p["isSelf"])
         count = lambda record, local: sum((t["participantID"] == local_id) == local for t in record["turns"])
         self.assertEqual(count(lossy, True), count(full, True))
         self.assertLess(count(lossy, False), count(full, False))
