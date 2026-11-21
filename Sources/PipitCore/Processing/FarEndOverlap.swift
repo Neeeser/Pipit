@@ -21,10 +21,9 @@ import Foundation
 ///
 /// Each far-end word can be the source of one microphone word, so a person who
 /// repeats a word the far end said once does not count as echoing it again.
-/// Backchannels and the commonest function words (`ignoredWords`) are neither
-/// echo nor the person's own content: both sides say them, so they cannot show
-/// whose voice it is. A reply made of them stays. They still go with a run of
-/// echo they sit inside.
+/// Backchannels (`ignoredWords`) are neither echo nor the person's own
+/// content: both sides say them, so they cannot show whose voice it is. A reply
+/// made of them stays. They still go with a run of echo they sit inside.
 ///
 /// A run of echo is a stretch of content words that holds `minimumWords` echoed
 /// ones and `overlapShare` of its content words echoed. A run ends at a
@@ -380,13 +379,13 @@ public enum FarEndOverlap {
     /// the function words both sides say.
     static let minimumLetters = 3
 
-    /// Backchannels and the commonest function words. Both sides say them at any
-    /// moment, so a match on one is no evidence of echo and a line made of them
-    /// is the person's reply.
+    /// Backchannels. A person says them at any moment, so a match on one is no
+    /// evidence of echo and a line made of them is the person's reply. Function
+    /// words are not here: inside a run, matched one-to-one and in order, they
+    /// are part of the echo, and leaving them out left runs of a few
+    /// distinctive words under the minimum.
     static let ignoredWords: Set<String> = [
         "yes", "yeah", "yep", "yup", "okay", "right", "sure", "nope", "mhm", "uhhuh",
-        "the", "and", "but", "for", "that", "this", "with", "you", "are", "was", "not",
-        "have", "they", "then", "just", "well",
     ]
 
     /// Lowercased words of the text, without punctuation, which is the
