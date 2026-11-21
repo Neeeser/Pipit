@@ -465,6 +465,9 @@ public enum SensorAttribution {
     /// The diarization cluster each participant is matched to, by participant
     /// identifier, as the key `attribute` names it under.
     ///
+    /// A participant matched to no cluster takes the one their turns overlap
+    /// most, where they overlap any.
+    ///
     /// A participant can be matched to several clusters, because the clusterer
     /// is tuned to split a voice rather than merge two people. The one holding
     /// the most speech stands for them: the words a turn fills go there. Ties
@@ -486,7 +489,28 @@ public enum SensorAttribution {
             }
             best[match.participantID] = (match.clusterID, held)
         }
-        return best.mapValues(\.cluster)
+        var owners = best.mapValues(\.cluster)
+        // A participant no cluster passes the naming guard for still has
+        // words a turn fills, and filing them under a key of their own shows
+        // the person twice. They go to the cluster holding the largest share
+        // of their turns, which names nothing: naming keeps its guards. Only
+        // a participant whose turns overlap no cluster keeps the sensor key.
+        let selfIDs = Set(sensors.participants.filter(\.isSelf).map(\.id))
+        var overlap: [String: [String: Double]] = [:]
+        for turn in sensors.turns where isFloorObservation(turn) && !selfIDs.contains(turn.participantID) {
+            guard owners[turn.participantID] == nil else { continue }
+            for interval in intervals {
+                let shared = min(interval.end, turn.end) - max(interval.start, turn.start)
+                if shared > 0 {
+                    overlap[turn.participantID, default: [:]][interval.clusterID, default: 0] += shared
+                }
+            }
+        }
+        for (participant, byCluster) in overlap {
+            let ranked = byCluster.sorted { $0.value == $1.value ? $0.key < $1.key : $0.value > $1.value }
+            if let top = ranked.first { owners[participant] = top.key }
+        }
+        return owners
     }
 
     public static func attribute(
