@@ -80,8 +80,10 @@ headset channels of five held-out AMI meetings (`ami-eval` or `clean`):
   on the reference turns: a 500 ms poll, the newest voice taking the floor, a
   1.5 s hold, so one person holds the floor at a time, a turn ends at the first
   poll that names someone else, and a brief interjection does not take the floor
-  from a long turn. The record lists every far-end speaker, marks nobody as
-  yourself, and has no mute state, like the real ones. The poll and hold times
+  from a long turn. The record lists every far-end speaker under the reference speaker's name,
+  writes the local person's tile as "You" with the self flag, the way the
+  extension does for an English-locale client, and has no mute state, like the
+  real ones. The poll and hold times
   and the share of dropped far-end turns are the `sensors` numbers of that
   variant in `manifest.json`. The poll and hold are the extension's own
   constants; the dropped share is chosen, not measured.
@@ -89,11 +91,23 @@ headset channels of five held-out AMI meetings (`ami-eval` or `clean`):
   speaker record and the diarizer share the far end: `current` (the app),
   `diarizer-names` (the record only names clusters), `sensor-first` (turns
   label words before clusters do) and `relaxed-names` (`current` with a wider
-  rule for which participant a cluster is). The app always runs `current`. Each
-  bench row records the mode and how many far-end words sit under a speaker
-  with no name.
-- The scorer counts a speaker per person, as the app shows it: when a case's
-  speaker map names several keys with one display name, they are one speaker.
+  rule for which participant a cluster is). The app always runs `current`. Only
+  `bench` and `reprocess` accept the flag, and `reprocess` refuses a mode other
+  than `current` on a meeting in the app's own archive. Each bench row records
+  the mode, how many far-end words sit under a speaker with no name, and, on a
+  call case, how many far-end content words sit under the right display name, a
+  wrong one or none (`farEndNames`). Those counts take the words of the
+  transcript that match a far-end reference word within three seconds, and
+  compare the speaker's display name with the reference speaker's name, which is
+  what the simulated record uses.
+- Scoring method. The scorer counts a speaker per person, as the app shows it:
+  when a case's speaker map names several keys with one display name, they are
+  one speaker, and two people who share a name are also one. Rows from this
+  scorer carry `"speakerGrouping": "display-name"`. Rows without that field
+  were scored per speaker key, so on a case where the speaker map names its
+  speakers their speaker count, cpWER and attribution are not comparable with
+  rows that have it. Compare only rows with the same `speakerGrouping`, and
+  re-run a baseline before gating on it.
 
 Build and run it:
 

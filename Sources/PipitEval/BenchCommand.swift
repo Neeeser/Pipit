@@ -674,6 +674,19 @@ enum BenchCommand {
         row.sensorAttribution = options.attribution.rawValue
         row.farEndWords = farEndWords
         row.unnamedFarEndWords = unnamedFarEndWords
+        row.speakerGrouping = "display-name"
+        if let call {
+            row.farEndNames = BenchScorer.farEndNames(
+                truth: benchCase.truth,
+                utterances: transcript.utterances.filter { $0.track == .remote }.map {
+                    NamedUtterance(
+                        start: $0.start, end: $0.end, text: $0.text,
+                        name: names[$0.speakerKey]?.displayName
+                    )
+                },
+                localSpeaker: call.description.localSpeaker
+            )
+        }
         return row
     }
 
@@ -752,6 +765,11 @@ enum BenchCommand {
                 String(
                     format: "  my words lost       %5.1f/min  (%d of %d)",
                     local.localWordsLostPerMinute, local.localWordsLost, local.localWords))
+        }
+        if let names = row.farEndNames {
+            print(
+                "  far end names       \(names.right) right / \(names.wrong) wrong / "
+                    + "\(names.unnamed) unnamed   (content words matched to a far-end reference word)")
         }
         if let call = row.call {
             let target = call.targetEchoCorrelation.map { String(format: "built for %.2f", $0) } ?? "no echo"
@@ -834,11 +852,13 @@ enum BenchCommand {
         print("  person per minute; lost is the local person's words that no transcript word of the")
         print("  same text within 3 s accounts for, each transcript word counted once. Built is the")
         print("  correlation the generator wrote and dB is the echo against the local voice.")
+        print("  Names count the far end's content words under the right display name, a wrong one,")
+        print("  or none, summed over the cases of the line.")
         print("  * marks a variant whose speaker evidence is a simulated sensor record.")
         print("")
         print(
             "  engine       variant        cases     tcp    cpWER   WER  attribution"
-                + "     DER   far end/min   lost/min   echo   built   dB"
+                + "     DER   far end/min   lost/min   names right/wrong/unnamed   echo   built   dB"
         )
         for engine in Array(Set(calls.map(\.engine))).sorted() {
             let ofEngine = calls.filter { $0.engine == engine }
@@ -850,6 +870,12 @@ enum BenchCommand {
                 let ders = group.compactMap(\.score.der)
                 let leaked = group.compactMap(\.score.localTrack?.farEndWordsUnderLocalPerMinute)
                 let lost = group.compactMap(\.score.localTrack?.localWordsLostPerMinute)
+                let named = group.compactMap(\.farEndNames)
+                let nameCounts =
+                    named.isEmpty
+                    ? "-"
+                    : "\(named.reduce(0) { $0 + $1.right })/\(named.reduce(0) { $0 + $1.wrong })"
+                        + "/\(named.reduce(0) { $0 + $1.unnamed })"
                 let echoes = group.compactMap(\.call?.echoCorrelationBefore)
                 let echo = echoes.isEmpty ? "     -" : String(format: "%6.2f", median(echoes))
                 let built = String(format: "%7.2f", median(group.compactMap { $0.call?.generatedEchoCorrelation }))
@@ -868,7 +894,9 @@ enum BenchCommand {
                             median(group.map(\.score.wer)) * 100,
                             median(group.map(\.score.attribution)) * 100,
                             ders.isEmpty ? 0 : median(ders) * 100,
-                            median(leaked), median(lost)) + echo + built + "  " + level)
+                            median(leaked), median(lost))
+                        + "   " + nameCounts.padding(toLength: 24, withPad: " ", startingAt: 0)
+                        + echo + built + "  " + level)
             }
         }
         fflush(stdout)

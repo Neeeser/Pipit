@@ -408,4 +408,65 @@ struct CallBenchTests {
         #expect(calls.parse(case: "EN2002a") == nil)
         #expect(calls.parse(case: "nothing-laptop") == nil)
     }
+
+    // MARK: far-end names
+
+    private static func twoFarEndTruth() -> BenchTruth {
+        var words: [BenchTruth.Word] = []
+        for second in 0..<10 {
+            words.append(
+                .init(
+                    start: Double(second), end: Double(second) + 0.8, text: "bravo",
+                    speaker: "ADA", truncated: false))
+            words.append(
+                .init(
+                    start: 20 + Double(second), end: 20 + Double(second) + 0.8, text: "charlie",
+                    speaker: "GRACE", truncated: false))
+            words.append(
+                .init(
+                    start: 40 + Double(second), end: 40 + Double(second) + 0.8, text: "alpha",
+                    speaker: "ME", truncated: false))
+        }
+        return BenchTruth(
+            meeting: "CALL", source: "none", windowStart: nil, windowSeconds: 60,
+            speakers: ["ME", "ADA", "GRACE"], agentToSpeaker: [:], words: words,
+            turns: [
+                .init(speaker: "ADA", start: 0, end: 10), .init(speaker: "GRACE", start: 20, end: 30),
+                .init(speaker: "ME", start: 40, end: 50),
+            ])
+    }
+
+    @Test("far-end words are counted under the right name, a wrong name and no name")
+    func farEndWordsAreCountedUnderTheRightNameAWrongNameAndNoName() {
+        func line(_ start: Double, _ text: String, _ name: String?) -> NamedUtterance {
+            NamedUtterance(
+                start: start, end: start + 10,
+                text: Array(repeating: text, count: 10).joined(separator: " "), name: name)
+        }
+        let score = BenchScorer.farEndNames(
+            truth: Self.twoFarEndTruth(),
+            utterances: [
+                // Ada's ten words under her name.
+                line(0, "bravo", "ADA"),
+                // Grace's ten words under Ada's name, and ten of Ada's under no name.
+                line(20, "charlie", "ADA"),
+                line(0.5, "bravo", nil),
+            ],
+            localSpeaker: "ME")
+        #expect(score == FarEndNameScore(right: 10, wrong: 10, unnamed: 10))
+    }
+
+    @Test("the local person's words and words nobody on the far end said are not counted")
+    func theLocalPersonsWordsAreNotCounted() {
+        let score = BenchScorer.farEndNames(
+            truth: Self.twoFarEndTruth(),
+            utterances: [
+                NamedUtterance(
+                    start: 40, end: 50,
+                    text: Array(repeating: "alpha", count: 10).joined(separator: " "), name: "ADA"),
+                NamedUtterance(start: 0, end: 10, text: "zulu zulu zulu", name: "ADA"),
+            ],
+            localSpeaker: "ME")
+        #expect(score == FarEndNameScore(right: 0, wrong: 0, unnamed: 0))
+    }
 }
