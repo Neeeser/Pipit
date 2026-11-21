@@ -15,6 +15,10 @@ import PipitServices
 /// configured backends, and scores the meeting folder that comes out. Nothing
 /// here reimplements a pipeline stage, which is the point: a number from the
 /// harness is a number from the application.
+///
+/// The `calls` suite imports a simulated call instead: a microphone track and a
+/// far-end track, as a `.genericCall` meeting, so the echo canceller and the
+/// local-person rules run as they do in a recording.
 enum BenchCommand {
     struct Options {
         var suite = "ami-core"
@@ -73,6 +77,10 @@ enum BenchCommand {
         var truth: BenchTruth
         var truthPath: URL
         var audio: URL
+        /// Set on a simulated two-track call: the folder `generate.py` wrote
+        /// its `mic.wav`, `remote.wav` and `case.json` into. `audio` is then
+        /// the description file, which is what has to exist.
+        var callDirectory: URL?
     }
 
     /// The row shape lives in `PipitBench` so tests can decode a results
@@ -179,12 +187,33 @@ enum BenchCommand {
 
         var names = options.meetings
         if names.isEmpty {
-            guard let manifest, let roster = manifest.suites[options.suite] else {
-                throw BenchFailure("no suite named \(options.suite) in the manifest")
+            if options.suite == BenchManifest.Calls.suite, let calls = manifest?.calls {
+                names = calls.caseNames
+            } else {
+                guard let manifest, let roster = manifest.suites[options.suite] else {
+                    throw BenchFailure("no suite named \(options.suite) in the manifest")
+                }
+                names = roster
             }
-            names = roster
         }
         for meeting in names {
+            if let calls = manifest?.calls, let parsed = calls.parse(case: meeting) {
+                // A call case is a meeting's truth under a name of its own, so
+                // each variant is a separate row for resume and baselines.
+                let path = layout.truth(meeting: parsed.meeting)
+                var truth = try BenchTruth.read(from: path)
+                truth.meeting = meeting
+                let directory = options.audioDirectory
+                    .appendingPathComponent("calls", isDirectory: true)
+                    .appendingPathComponent(meeting, isDirectory: true)
+                cases.append(
+                    Case(
+                        truth: truth, truthPath: path,
+                        audio: directory.appendingPathComponent("case.json"),
+                        callDirectory: directory
+                    ))
+                continue
+            }
             let path = layout.truth(meeting: meeting)
             let truth = try BenchTruth.read(from: path)
             cases.append(
@@ -279,6 +308,10 @@ enum BenchCommand {
             prepareLocalModels: { [models] in
                 _ = try await models.install(units: LocalModelUnit.required(for: configuration))
             },
+            // A two-track call reads the microphone's speech before it trusts a
+            // sentence the transcriber wrote there, as the app does.
+            voiceActivity: FluidAudioVoiceActivityBackend(models: models),
+            prepareVoiceActivity: { [models] in _ = try await models.install(units: [.voiceActivity]) },
             aligner: CtcTranscriptAligner(models: models),
             prepareAligner: { [models] in _ = try await models.install(units: [.ctcAligner]) },
             prepareDiarizer: { [models] in _ = try await models.install(units: [.diarizer]) }
@@ -377,7 +410,11 @@ enum BenchCommand {
                     note("\(benchCase.truth.meeting) on \(engine.name): recorded, skipping")
                 } else {
                     guard FileManager.default.fileExists(atPath: benchCase.audio.path) else {
-                        note("missing audio for \(benchCase.truth.meeting): run scripts/fetch-bench-audio.sh")
+                        note(
+                            benchCase.callDirectory == nil
+                                ? "missing audio for \(benchCase.truth.meeting): run scripts/fetch-bench-audio.sh"
+                                : "missing call audio for \(benchCase.truth.meeting): run scripts/fetch-bench-audio.sh calls, then Benchmarks/calls/generate.py"
+                        )
                         failures.append("\(benchCase.truth.meeting): no audio")
                         continue
                     }
@@ -479,8 +516,14 @@ enum BenchCommand {
         // The truth names a window on the recording, so the harness cuts it.
         // A case with no window scores the whole file, which is what puts the
         // chunk seams under measurement.
+        //
+        // A simulated call is already cut to its window by the generator, and
+        // arrives as two tracks.
+        let call = try benchCase.callDirectory.map { try CallInputs(directory: $0) }
         let source: URL
-        if let start = benchCase.truth.windowStart {
+        if let call {
+            source = call.microphone
+        } else if let start = benchCase.truth.windowStart {
             let excerpt = scratchRoot.appendingPathComponent("\(benchCase.truth.meeting)-excerpt.wav")
             let seconds = try AudioExcerptCutter().cut(
                 source: benchCase.audio, startSeconds: start,
@@ -497,18 +540,38 @@ enum BenchCommand {
         let archive = scratchRoot.appendingPathComponent("archive", isDirectory: true)
         let repository = MeetingRepository(root: archive)
         let started = Date(timeIntervalSince1970: 1_787_070_000)
+        // The generic-call source is how a Zoom or unknown call runs: two
+        // tracks, no sensors, the microphone the local person by construction.
+        // A call with a simulated sensor record runs as Google Meet, which is
+        // the meeting client that record imitates.
+        var meetingSource: MeetingSource = call == nil ? .imported : .genericCall
+        if call?.sensors != nil { meetingSource = .googleMeet }
         let created = try repository.createMeeting(
-            source: .imported, provider: .unknown, startedAt: started,
+            source: meetingSource, provider: meetingSource.provider, startedAt: started,
             titles: TitleCandidates(human: benchCase.truth.meeting, timestampFallback: benchCase.truth.meeting),
             now: started
         )
-        let imported = try AudioImporter(segmentSeconds: 30).import(
-            source: source, into: created.store, meetingID: created.metadata.id
-        )
+        let importer = AudioImporter(segmentSeconds: 30)
+        let imported: AudioImporter.Result
+        if let call {
+            imported = try importer.importCall(
+                microphone: call.microphone, remote: call.remote, source: meetingSource,
+                into: created.store, meetingID: created.metadata.id
+            ).microphone
+        } else {
+            imported = try importer.import(
+                source: source, into: created.store, meetingID: created.metadata.id
+            )
+        }
+        if let sensors = call?.sensors {
+            try created.store.writeRawSensors(
+                ArchiveCoding.decode(RawSensors.self, from: Data(contentsOf: sensors), path: sensors.path)
+            )
+        }
         var metadata = created.metadata
         metadata.durationSeconds = imported.durationSeconds
         metadata.endedAt = started.addingTimeInterval(imported.durationSeconds)
-        metadata.importedOriginalFilename = imported.originalFilename
+        if call == nil { metadata.importedOriginalFilename = imported.originalFilename }
         metadata.processing.advance(to: .finalizing, at: started)
         metadata.processing.advance(to: .audioSafe, at: started)
         try created.store.writeMetadata(metadata)
@@ -540,7 +603,10 @@ enum BenchCommand {
         return Row(
             engine: engine.name,
             diarizer: options.diarizer,
-            score: BenchScorer.score(truth: benchCase.truth, utterances: utterances),
+            score: BenchScorer.score(
+                truth: benchCase.truth, utterances: utterances,
+                localPerson: call.map { ($0.description.localSpeaker, SpeakerLabel.localUser) }
+            ),
             processingSeconds: elapsed,
             audioSeconds: imported.durationSeconds,
             state: final.processing.state.rawValue,
@@ -548,8 +614,49 @@ enum BenchCommand {
             diarizationBackends: Array(Set(runs.map(\.backend))).sorted(),
             overlapRatio: benchCase.truth.overlapRatio,
             run: run,
-            scratch: kept?.path
+            scratch: kept?.path,
+            call: call.map {
+                BenchCallRow(
+                    variant: $0.description.variant,
+                    localSpeaker: $0.description.localSpeaker,
+                    targetEchoCorrelation: $0.description.echo.targetCorrelation,
+                    generatedEchoCorrelation: $0.description.echo.correlation,
+                    echoToLocalVoiceDB: $0.description.echo.echoToLocalVoiceDB,
+                    simulatedSensors: $0.description.files.sensors != nil,
+                    echoCorrelationBefore: final.cleanedMic?.echoCorrelationBefore,
+                    echoRemovedMedianDB: final.cleanedMic?.echoRemovedMedianDB,
+                    cleaningOutcome: final.cleaningOutcome?.rawValue
+                )
+            }
         )
+    }
+
+    /// The two tracks of a generated call and what the generator said about
+    /// them, with both files checked against the checksums it recorded.
+    struct CallInputs {
+        var description: BenchCallCase
+        var microphone: URL
+        var remote: URL
+        var sensors: URL?
+
+        init(directory: URL) throws {
+            description = try BenchCallCase.read(from: directory.appendingPathComponent("case.json"))
+            microphone = directory.appendingPathComponent(description.files.mic.name)
+            remote = directory.appendingPathComponent(description.files.remote.name)
+            sensors = description.files.sensors.map { directory.appendingPathComponent($0.name) }
+            var checked = [
+                (microphone, description.files.mic.sha256), (remote, description.files.remote.sha256),
+            ]
+            if let file = description.files.sensors, let sensors { checked.append((sensors, file.sha256)) }
+            for (url, expected) in checked {
+                let actual = try BenchCommand.sha256(of: url)
+                guard actual == expected else {
+                    throw BenchFailure(
+                        "\(url.lastPathComponent) in \(directory.lastPathComponent) hashes \(actual); regenerate it with Benchmarks/calls/generate.py"
+                    )
+                }
+            }
+        }
     }
 
     static func report(_ row: Row, of repeats: Int = 1) {
@@ -589,6 +696,27 @@ enum BenchCommand {
                 score.attributionCoverage * 100, score.attributionScored,
                 score.attributionScored + score.overlapExcluded))
         print("  speakers            \(score.hypothesisSpeakers) found / \(score.referenceSpeakers) true")
+        if let local = score.localTrack {
+            print(
+                String(
+                    format:
+                        "  far end under me    %5.1f/min  (%d of the far end's words labelled as the local person)",
+                    local.farEndWordsUnderLocalPerMinute, local.farEndWordsUnderLocal))
+            print(
+                String(
+                    format: "  my words lost       %5.1f/min  (%d of %d)",
+                    local.localWordsLostPerMinute, local.localWordsLost, local.localWords))
+        }
+        if let call = row.call {
+            let target = call.targetEchoCorrelation.map { String(format: "built for %.2f", $0) } ?? "no echo"
+            let seen = call.echoCorrelationBefore.map { String(format: "%.2f", $0) } ?? "not recorded"
+            print(
+                "  echo                correlation \(seen) in the pass (\(target), generator read "
+                    + String(format: "%.2f", call.generatedEchoCorrelation)
+                    + (call.echoToLocalVoiceDB.map { String(format: ", echo %+.1f dB against the local voice", $0) }
+                        ?? "")
+                    + "), cleaning: \(call.cleaningOutcome ?? "unknown")")
+        }
         if let der = score.der {
             print(
                 String(
@@ -649,7 +777,59 @@ enum BenchCommand {
         BenchAggregate.deciding(over: runs.map(\.score))
     }
 
+    /// The call suite's table: one line per engine and variant, with the two
+    /// local-track numbers beside the usual scores.
+    static func summariseCalls(_ rows: [Row]) {
+        let calls = rows.filter { $0.call != nil }
+        guard !calls.isEmpty else { return }
+        print("")
+        print("  Simulated calls. Echo is the correlation the cleaner measured before cleaning, where")
+        print("  it kept a cleaned microphone. Far end is the far end's words labelled as the local")
+        print("  person per minute; lost is the local person's words that no transcript word of the")
+        print("  same text within 3 s accounts for, each transcript word counted once. Built is the")
+        print("  correlation the generator wrote and dB is the echo against the local voice.")
+        print("  * marks a variant whose speaker evidence is a simulated sensor record.")
+        print("")
+        print(
+            "  engine       variant        cases     tcp    cpWER   WER  attribution"
+                + "     DER   far end/min   lost/min   echo   built   dB"
+        )
+        for engine in Array(Set(calls.map(\.engine))).sorted() {
+            let ofEngine = calls.filter { $0.engine == engine }
+            let variants = Array(Set(ofEngine.compactMap { $0.call?.variant })).sorted()
+            for variant in variants {
+                let group = ofEngine.filter { $0.call?.variant == variant }
+                let tcp = group.compactMap(\.score.tcpWer)
+                let cp = group.compactMap(\.score.cpWer)
+                let ders = group.compactMap(\.score.der)
+                let leaked = group.compactMap(\.score.localTrack?.farEndWordsUnderLocalPerMinute)
+                let lost = group.compactMap(\.score.localTrack?.localWordsLostPerMinute)
+                let echoes = group.compactMap(\.call?.echoCorrelationBefore)
+                let echo = echoes.isEmpty ? "     -" : String(format: "%6.2f", median(echoes))
+                let built = String(format: "%7.2f", median(group.compactMap { $0.call?.generatedEchoCorrelation }))
+                let levels = group.compactMap { $0.call?.echoToLocalVoiceDB }
+                let level = levels.isEmpty ? "     -" : String(format: "%+6.1f", median(levels))
+                let simulated = group.contains { $0.call?.simulatedSensors == true }
+                let name = engine.padding(toLength: 10, withPad: " ", startingAt: 0)
+                let kind = (variant + (simulated ? "*" : "")).padding(toLength: 13, withPad: " ", startingAt: 0)
+                print(
+                    "  \(name)   \(kind)  "
+                        + String(
+                            format: "%5d  %5.1f%%  %5.1f%%  %5.1f%%    %5.1f%%  %5.1f%%        %6.1f     %6.1f  ",
+                            group.count,
+                            tcp.isEmpty ? 0 : median(tcp) * 100,
+                            cp.isEmpty ? 0 : median(cp) * 100,
+                            median(group.map(\.score.wer)) * 100,
+                            median(group.map(\.score.attribution)) * 100,
+                            ders.isEmpty ? 0 : median(ders) * 100,
+                            median(leaked), median(lost)) + echo + built + "  " + level)
+            }
+        }
+        fflush(stdout)
+    }
+
     static func summarise(_ rows: [Row], repeats: Int = 1) {
+        defer { summariseCalls(rows) }
         guard rows.count > 1 else { return }
         print("")
         print("  Net is WER with the case's ordering floor taken off, which is a lower bound on")

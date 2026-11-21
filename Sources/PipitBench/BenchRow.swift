@@ -24,13 +24,17 @@ public struct BenchRow: Codable {
     /// The meeting folder this row was scored from, when `--keep-scratch`
     /// preserved it.
     public var scratch: String?
+    /// Which simulated call this row is and what the echo pass measured on it.
+    /// Absent on a one-track case.
+    public var call: BenchCallRow?
 
     public init(
         engine: String, diarizer: String, score: BenchScore,
         processingSeconds: Double, audioSeconds: Double, state: String,
         transcriptionModels: [String], diarizationBackends: [String],
-        overlapRatio: Double?, run: Int = 1, scratch: String? = nil
+        overlapRatio: Double?, run: Int = 1, scratch: String? = nil, call: BenchCallRow? = nil
     ) {
+        self.call = call
         self.engine = engine
         self.diarizer = diarizer
         self.score = score
