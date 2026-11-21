@@ -113,7 +113,7 @@ enum ReprocessCommand {
             embeddings: FluidAudioEmbeddingExtractor(models: manager),
             speakers: recognition,
             prepareLocalModels: {
-                _ = try await manager.install(units: LocalModelUnit.required(for: settings))
+                _ = try await manager.install(units: LocalModelUnit.recommended(for: settings))
             },
             requireLocalModels: { try await manager.ensureInstalled(units: [.diarizer]) },
             voiceActivity: FluidAudioVoiceActivityBackend(models: manager),

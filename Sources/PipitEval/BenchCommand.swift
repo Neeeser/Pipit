@@ -324,7 +324,7 @@ enum BenchCommand {
             // preparing for default AppSettings left a clean machine without
             // the Cohere or Whisper models the run had actually selected.
             prepareLocalModels: { [models] in
-                _ = try await models.install(units: LocalModelUnit.required(for: configuration))
+                _ = try await models.install(units: LocalModelUnit.recommended(for: configuration))
             },
             // A two-track call reads the microphone's speech before it trusts a
             // sentence the transcriber wrote there, as the app does.
@@ -921,7 +921,7 @@ enum BenchCommand {
     /// alone.
     static func installSize(engineName: String, diarizer: String) -> String {
         guard let engine = Engine.parse(engineName) else { return "      ?" }
-        var units = LocalModelUnit.required(for: settings(engine: engine, diarizer: diarizer))
+        var units = LocalModelUnit.recommended(for: settings(engine: engine, diarizer: diarizer))
         // Only the shipped diarizer and the Nemotron rows install its model.
         if diarizer != "local", !diarizer.hasPrefix("nemotron3") { units.remove(.nemotronDiarizer) }
         let bytes = units.reduce(Int64(0)) { $0 + $1.approximateBytes }

@@ -109,6 +109,23 @@ public struct Nemotron3DiarizationBackend: DiarizationBackend {
     /// or tap would carry.
     static let silencePeak: Float = 1e-4
 
+    /// Longest file the model is given, in seconds: three hours.
+    ///
+    /// A pass decodes the whole file to floats and builds the full mel matrix,
+    /// so memory grows with the meeting. Measured on synthetic 16 kHz files
+    /// (debug build, process peak footprint including the loaded model): about
+    /// 0.7 GB for one hour and 1.9 GB for three, roughly 0.6 GB per hour. The
+    /// cap keeps a pass near 2 GB; a longer file goes to the clusterer, which
+    /// streams from disk. Only the 34-minute case was measured with real
+    /// audio.
+    static let maximumSeconds: Double = 3 * 3_600
+
+    /// Why Nemotron declines a file without trying it. `LocalDiarizationBackend`
+    /// sends these to the clusterer.
+    enum Unsupported: Error {
+        case audioTooLong
+    }
+
     /// Whether the model reported a speaker in every slot it has. A meeting
     /// with that many voices may hold more than the model can keep apart, and
     /// two people sharing a slot cannot be split afterwards.
@@ -131,13 +148,13 @@ extension LocalModelManager {
     /// Where Nemotron 3's Core ML models compute: the CPU and the Neural
     /// Engine, never the GPU.
     ///
-    /// Core ML's GPU path runs the model through MPSGraph. Twice in about 200
-    /// runs on one Mac, a prediction raised an Objective-C `NSGenericException`
-    /// from that path ("MPSGraph tensor shape is missing or has unexpected
-    /// rank (expected 3, got 0)"), which Swift cannot catch and which ends the
-    /// whole process. Both happened while another process was using the GPU
-    /// heavily. A meeting finishing while a call, a video or another model
-    /// holds the GPU is the ordinary case, so the GPU stays out.
+    /// Core ML's GPU path runs the model through MPSGraph. In a run of about 40
+    /// diarizations on one Mac, two predictions raised an Objective-C
+    /// `NSGenericException` from that path ("MPSGraph tensor shape is missing
+    /// or has unexpected rank (expected 3, got 0)"), which Swift cannot catch
+    /// and which ends the whole process. Both happened while another model was
+    /// using the GPU. A meeting finishing while a call, a video or another
+    /// model holds the GPU is the ordinary case, so the GPU stays out.
     public static let nemotron3ComputeUnits: MLComputeUnits = .cpuAndNeuralEngine
 
     /// Whether the preset's bundle and its silence embedding are on disk for
@@ -177,8 +194,10 @@ extension LocalModelManager {
         )
     }
 
-    /// Diarizes one file with Nemotron 3. On the actor for the same reason
-    /// every other local model pass is: one heavy job at a time.
+    /// Diarizes one file with Nemotron 3. Runs go through `nemotron3Runs`, one
+    /// at a time: the actor lets a second call start while the first awaits
+    /// its detached task, so the actor alone does not keep two meetings from
+    /// holding two decoded copies and two models at once.
     ///
     /// The application's `offline` preset must already be installed, and this
     /// throws `LocalModelError.notInstalled` rather than download it. The
@@ -186,8 +205,10 @@ extension LocalModelManager {
     /// for its download.
     func nemotron3Diarize(
         audio: URL, preset: Nemotron3DiarizationBackend.Preset,
+        maximumSeconds: Double = Nemotron3DiarizationBackend.maximumSeconds,
         progress: @escaping @Sendable (Double) -> Void
     ) async throws -> DiarizationOutput {
+        try Task.checkCancellation()
         let modelLease = lease()
         defer { modelLease.release() }
         let root = locations.root
@@ -196,21 +217,28 @@ extension LocalModelManager {
         {
             throw LocalModelError.notInstalled
         }
-        // The model is not Sendable, so its whole lifetime stays inside one
-        // detached task and only the Sendable output crosses back.
-        return try await Task.detached(priority: .userInitiated) {
+        guard MonoAudioDecoder.durationSeconds(audio) <= maximumSeconds
+        else { throw Nemotron3DiarizationBackend.Unsupported.audioTooLong }
+        return try await Self.nemotron3Runs.run {
             var provenance = Nemotron3DiarizationBackend.provenance(preset: preset)
+            progress(0.02)
             let samples = try MonoAudioDecoder.loadMono16k(audio)
+            try Task.checkCancellation()
             guard !Nemotron3DiarizationBackend.isEffectivelySilent(samples) else {
                 provenance["silentAudio"] = "true"
                 progress(1)
                 return DiarizationOutput(intervals: [], clusters: [], configuration: provenance)
             }
+            progress(0.15)
             let config = preset.configuration
             let models = try await Nemotron3Models.loadFromHuggingFace(
                 config: config, cacheDirectory: root,
                 computeUnits: LocalModelManager.nemotron3ComputeUnits
             )
+            // The prediction loop below cannot be interrupted, so this is the
+            // last point where a cancelled job stops without finishing it.
+            try Task.checkCancellation()
+            progress(0.4)
             let diarizer = Nemotron3Diarizer(config: config, models: models)
             let result = try diarizer.processComplete(samples)
             let found = Nemotron3Diarizer.segments(
@@ -226,6 +254,39 @@ extension LocalModelManager {
                 },
                 configuration: provenance
             )
-        }.value
+        }
+    }
+
+    /// Every Nemotron run in the process, one at a time.
+    static let nemotron3Runs = Nemotron3RunQueue()
+}
+
+/// Runs Nemotron jobs one after another and passes a caller's cancellation on
+/// to the job.
+///
+/// The model is not `Sendable`, so each job keeps it inside one detached task
+/// and only the Sendable output crosses back. That task is not a child of the
+/// caller, so cancelling the caller does nothing to it unless this forwards the
+/// cancellation, and two callers' tasks run side by side unless something
+/// orders them.
+actor Nemotron3RunQueue {
+    private var tail: Task<Void, Never>?
+
+    func run<Output: Sendable>(
+        _ work: @escaping @Sendable () async throws -> Output
+    ) async throws -> Output {
+        let previous = tail
+        let task = Task.detached(priority: .userInitiated) { () async throws -> Output in
+            await previous?.value
+            try Task.checkCancellation()
+            return try await work()
+        }
+        // Set before the first suspension, so the next caller waits on this one.
+        tail = Task { _ = await task.result }
+        return try await withTaskCancellationHandler {
+            try await task.value
+        } onCancel: {
+            task.cancel()
+        }
     }
 }

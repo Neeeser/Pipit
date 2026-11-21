@@ -430,7 +430,7 @@ struct SetupFlowTests {
 
         var defaults = AppSettings()
         defaults.processing.transcription = .local
-        #expect(await requested.all == [LocalModelUnit.required(for: defaults)])
+        #expect(await requested.all == [LocalModelUnit.recommended(for: defaults)])
         await MainActor.run { model.finish() }
         #expect(
             SettingsStore(directory: root).load().processing.localTranscriptionModel

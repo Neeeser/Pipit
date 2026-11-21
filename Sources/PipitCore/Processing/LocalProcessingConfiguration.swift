@@ -148,12 +148,15 @@ public enum LocalModelUnit: String, Codable, CaseIterable, Sendable {
         // optional would mean the configuration most exposed to the defect,
         // cloud transcription of a listener's own microphone, is the one
         // shipped without the guard.
+        //
+        // The previous diarizer's unit stays required even though Nemotron
+        // separates speakers: voice profiles, recurring-voice memory and the
+        // live speaker labels all embed through `FluidAudioEmbeddingExtractor`,
+        // which reads that unit's embedding model, and Nemotron produces no
+        // embeddings of its own. It is also the fallback for a typed speaker
+        // count, a meeting that fills all of Nemotron's slots, and a machine
+        // without the Nemotron unit.
         var units: Set<LocalModelUnit> = [.diarizer, .voiceActivity]
-        // Only where diarization runs on this Mac: a cloud diarizer never
-        // reaches it, and the embedding models above are all voice memory needs.
-        if settings.processing.usesLocalDiarization {
-            units.insert(.nemotronDiarizer)
-        }
         if settings.processing.usesLocalTranscription {
             switch settings.processing.localTranscriptionModel {
             case .cohere:
@@ -177,6 +180,21 @@ public enum LocalModelUnit: String, Codable, CaseIterable, Sendable {
         {
             units.insert(.ctcAligner)
         }
+        return units
+    }
+
+    /// What a fresh install fetches: the required units, plus the ones that
+    /// improve results but have a fallback.
+    ///
+    /// Nemotron is not required because a machine that upgraded without it
+    /// diarizes with the previous model, and that machine must not download 190 MB
+    /// to process a meeting or to read as having no models. Setup installs it,
+    /// and Settings offers it to a machine that has none.
+    public static func recommended(for settings: AppSettings) -> Set<LocalModelUnit> {
+        var units = required(for: settings)
+        // Only where diarization runs on this Mac: a cloud diarizer never
+        // reaches it.
+        if settings.processing.usesLocalDiarization { units.insert(.nemotronDiarizer) }
         return units
     }
 
