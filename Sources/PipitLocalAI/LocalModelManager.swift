@@ -28,6 +28,7 @@ public actor LocalModelManager {
     private var whisper: LoadedWhisper?
     private var diarizerModels: OfflineDiarizerModels?
     private var parakeetManager: AsrManager?
+    private var parakeetUltraManager: AsrManager?
     private var cohereModels: CoherePipeline.LoadedModels?
     private var canaryModels: CanaryModels?
     private var alignerModels: (models: CtcModels, tokenizer: CtcTokenizer)?
@@ -113,6 +114,7 @@ public actor LocalModelManager {
         var units: Set<LocalModelUnit> = []
         if whisper != nil { units.insert(.whisper) }
         if parakeetManager != nil { units.insert(.parakeet) }
+        if parakeetUltraManager != nil { units.insert(.parakeetUltra) }
         if cohereModels != nil { units.insert(.cohere) }
         if canaryModels != nil { units.insert(.canary) }
         if alignerModels != nil { units.insert(.ctcAligner) }
@@ -202,6 +204,8 @@ public actor LocalModelManager {
             return nemotron3FilesPresent(.offline, directory: directory)
         case .parakeet:
             return AsrModels.modelsExist(at: directory, version: .v3, encoderPrecision: .int8)
+        case .parakeetUltra:
+            return AsrModels.modelsExist(at: directory, version: .ultra)
         case .cohere:
             return ModelNames.CohereTranscribe.requiredModels.allSatisfy {
                 manager.fileExists(atPath: directory.appendingPathComponent($0).path)
@@ -401,6 +405,17 @@ public actor LocalModelManager {
             let models = try await AsrModels.load(from: directory, version: .v3, encoderPrecision: .int8)
             parakeetManager = AsrManager(models: models)
 
+        case .parakeetUltra:
+            _ = try await AsrModels.download(
+                to: directory, force: force, version: .ultra,
+                progressHandler: { update in
+                    progress(update.fractionCompleted * 0.9, "Downloading Parakeet Ultra")
+                }
+            )
+            progress(0.9, "Preparing Parakeet Ultra")
+            let models = try await AsrModels.load(from: directory, version: .ultra)
+            parakeetUltraManager = AsrManager(models: models)
+
         case .cohere:
             // ModelHub appends the repository folder itself, so it gets the
             // base directory, unlike the per-model helpers below.
@@ -489,6 +504,7 @@ public actor LocalModelManager {
         switch unit {
         case .whisper: whisper = nil
         case .parakeet: parakeetManager = nil
+        case .parakeetUltra: parakeetUltraManager = nil
         case .cohere: cohereModels = nil
         case .canary: canaryModels = nil
         case .ctcAligner: alignerModels = nil
@@ -636,6 +652,18 @@ public actor LocalModelManager {
         return manager
     }
 
+    func loadedParakeetUltra() async throws -> AsrManager {
+        if let parakeetUltraManager { return parakeetUltraManager }
+        guard Self.filesPresent(.parakeetUltra, locations: locations, receipt: receipts[.parakeetUltra])
+        else { throw LocalModelError.notInstalled }
+        ModelHub.offlineMode = true
+        defer { ModelHub.offlineMode = false }
+        let models = try await AsrModels.load(from: locations.parakeetUltraDirectory, version: .ultra)
+        let manager = AsrManager(models: models)
+        parakeetUltraManager = manager
+        return manager
+    }
+
     private func loadedCohere() async throws -> CoherePipeline.LoadedModels {
         if let cohereModels { return cohereModels }
         guard Self.filesPresent(.cohere, locations: locations, receipt: receipts[.cohere])
@@ -699,7 +727,22 @@ public actor LocalModelManager {
     ) {
         let modelLease = lease()
         defer { modelLease.release() }
-        let manager = try await loadedParakeet()
+        return try await transcribeTdt(audio: audio, with: try await loadedParakeet())
+    }
+
+    /// Parakeet Ultra over a whole track, the same pass as `transcribeParakeet`
+    /// with the post-trained weights.
+    func transcribeParakeetUltra(audio: URL) async throws -> (
+        text: String, words: [CtcForcedAlignment.AlignedWord], durationSeconds: Double
+    ) {
+        let modelLease = lease()
+        defer { modelLease.release() }
+        return try await transcribeTdt(audio: audio, with: try await loadedParakeetUltra())
+    }
+
+    private func transcribeTdt(audio: URL, with manager: AsrManager) async throws -> (
+        text: String, words: [CtcForcedAlignment.AlignedWord], durationSeconds: Double
+    ) {
         var decoderState = TdtDecoderState.make()
         let result = try await manager.transcribe(audio, decoderState: &decoderState)
         let words = buildWordTimings(from: result.tokenTimings ?? []).map {

@@ -456,6 +456,7 @@ public final class PipitRuntime {
                             case .canary: CanaryTranscriptionBackend(models: modelManager)
                             case .apple: AppleSpeechTranscriptionBackend()
                             case .parakeet: ParakeetTranscriptionBackend(models: modelManager)
+                            case .parakeetUltra: ParakeetUltraTranscriptionBackend(models: modelManager)
                             case .whisper: WhisperTranscriptionBackend(models: modelManager)
                             }
                         },

@@ -293,6 +293,7 @@ struct ProcessingSettingsPane: View {
         switch unit {
         case .whisper: "Whisper Large-v3-Turbo"
         case .parakeet: "Parakeet TDT v3"
+        case .parakeetUltra: "Parakeet Ultra"
         case .cohere: "Cohere Transcribe"
         case .canary: "Canary 1B v2"
         case .ctcAligner: "Timing aligner"
@@ -357,6 +358,7 @@ struct LocalModelChoicePicker: View {
     static func title(_ model: LocalTranscriptionModel) -> String {
         switch model {
         case .parakeet: "Parakeet TDT v3"
+        case .parakeetUltra: "Parakeet Ultra"
         case .cohere: "Cohere Transcribe"
         case .whisper: "Whisper Large-v3-Turbo"
         case .canary: "Canary 1B v2"
@@ -375,7 +377,7 @@ struct LocalModelChoicePicker: View {
             "Slower and larger than Parakeet. 2.1 GB plus 600 MB"
         case .whisper:
             "Previous engine. 624 MB"
-        case .canary:
+        case .parakeetUltra, .canary:
             // Never rendered: not offered. Here because the switch is
             // exhaustive.
             "Not offered."

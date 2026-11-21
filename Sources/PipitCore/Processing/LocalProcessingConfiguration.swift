@@ -51,6 +51,17 @@ public enum LocalSpeechStack {
     public static let parakeetBackendIdentifier = "fluidaudio-parakeet-tdt-v3"
     public static let approximateParakeetBytes: Int64 = 460 * 1_024 * 1_024
 
+    /// Parakeet Ultra through FluidAudio, `AsrModelVersion.ultra`: a
+    /// full-precision post-training of Parakeet TDT v3 with the same
+    /// architecture and word timings, and an int8 encoder. A benchmark
+    /// comparison engine. It measured no more accurate than v3 through
+    /// Pipit's pipeline, so the application keeps v3 and settings never offer
+    /// Ultra.
+    public static let parakeetUltraBackendIdentifier = "fluidaudio-parakeet-ultra"
+    /// Measured on disk after install: 632,314,500 bytes, 603 MiB, of which the
+    /// int8 encoder is 568 MiB. Parakeet TDT v3 is 460 MiB.
+    public static let approximateParakeetUltraBytes: Int64 = 603 * 1_024 * 1_024
+
     /// Cohere Transcribe 03-2026 through FluidAudio, the INT8 hybrid build.
     /// The most accurate local model on meeting audio as a raw model (7.0% AMI
     /// WER), around 8x realtime warm, with a one-time ANE compile of several
@@ -100,6 +111,7 @@ public enum LocalSpeechStack {
         switch unit {
         case .whisper: "\(whisperModel) @ \(whisperPackage)"
         case .parakeet: "parakeet-tdt-0.6b-v3-int8 @ \(diarizerPackage)"
+        case .parakeetUltra: "parakeet-ultra-int8 @ \(diarizerPackage)"
         case .cohere: "cohere-transcribe-03-2026-q8 @ \(diarizerPackage)"
         case .canary: "canary-1b-v2-int4 @ \(diarizerPackage)"
         case .ctcAligner: "parakeet-ctc-0.6b @ \(diarizerPackage)"
@@ -117,6 +129,7 @@ public enum LocalSpeechStack {
 public enum LocalModelUnit: String, Codable, CaseIterable, Sendable {
     case whisper
     case parakeet
+    case parakeetUltra = "parakeet-ultra"
     case cohere
     case canary
     case ctcAligner = "ctc-aligner"
@@ -171,6 +184,8 @@ public enum LocalModelUnit: String, Codable, CaseIterable, Sendable {
                 break
             case .parakeet:
                 units.insert(.parakeet)
+            case .parakeetUltra:
+                units.insert(.parakeetUltra)
             case .whisper:
                 units.insert(.whisper)
             }
@@ -202,6 +217,7 @@ public enum LocalModelUnit: String, Codable, CaseIterable, Sendable {
         switch self {
         case .whisper: LocalSpeechStack.approximateWhisperBytes
         case .parakeet: LocalSpeechStack.approximateParakeetBytes
+        case .parakeetUltra: LocalSpeechStack.approximateParakeetUltraBytes
         case .cohere: LocalSpeechStack.approximateCohereBytes
         case .canary: LocalSpeechStack.approximateCanaryBytes
         case .ctcAligner: LocalSpeechStack.approximateAlignerBytes
@@ -220,6 +236,11 @@ public enum LocalTranscriptionModel: String, Codable, CaseIterable, Sendable {
     case cohere
     /// Fast, word timings of its own, 25 languages.
     case parakeet
+    /// Benchmark candidate: Parakeet TDT v3 post-trained further, with word
+    /// timings of its own. Reachable through `pipit-eval bench --engine
+    /// parakeet-ultra` alone: it is not in `offered`, so no settings surface
+    /// can select it.
+    case parakeetUltra = "parakeet-ultra"
     /// The original local engine, kept for installs that already have it.
     case whisper
     /// Benchmark candidate, beta in the pinned FluidAudio. Text only, aligned
@@ -280,7 +301,7 @@ public enum LocalTranscriptionModel: String, Codable, CaseIterable, Sendable {
         switch self {
         case .apple: .streaming
         case .parakeet: .phrases
-        case .canary, .cohere, .whisper: .none
+        case .canary, .cohere, .parakeetUltra, .whisper: .none
         }
     }
 
@@ -290,6 +311,7 @@ public enum LocalTranscriptionModel: String, Codable, CaseIterable, Sendable {
         case .canary: LocalSpeechStack.canaryBackendIdentifier
         case .cohere: LocalSpeechStack.cohereBackendIdentifier
         case .parakeet: LocalSpeechStack.parakeetBackendIdentifier
+        case .parakeetUltra: LocalSpeechStack.parakeetUltraBackendIdentifier
         case .whisper: LocalSpeechStack.whisperBackendIdentifier
         }
     }
