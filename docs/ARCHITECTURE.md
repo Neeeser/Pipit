@@ -349,10 +349,17 @@ speakers, and the meeting shows a line saying so, because the transcript may
 then show the other side's words as the user's. The assembler also drops a
 run of microphone words that is mostly the far end's own words said at the
 same moment, which is what such a track produces. A word counts when the far
-end said the same word within a second of it, so a user who answers in the
-far end's words a few seconds later keeps them. A line the transcript joined
-from the user's sentence and an echo loses only the echo. A line without word
-timings is judged whole, by its span.
+end said the same word within a second of it, and each far-end word counts for
+one microphone word at most, so a user who answers in the far end's words a few
+seconds later, or repeats a word the far end said once, keeps them. Backchannels
+("yes", "okay") and the commonest function words are never counted either way,
+so a reply made of them stays. A run ends at the user's own content words, so a
+line that joins an echo, the user's sentence and more echo loses both echoes and
+keeps the sentence. Lines less than two seconds apart are searched together,
+because an echo can be split across two lines. A word or two the microphone
+mis-heard at the edge of a run goes with it when it is spelled like the far-end
+words beside the run's source. A line without word timings is judged whole, by
+its span.
 
 That rule needs the far end's words, so it cannot see a far-end voice that
 reached the microphone while the far-end track recorded nothing, which is what

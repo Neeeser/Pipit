@@ -152,8 +152,8 @@ engine writes as digits and ordinary misrecognitions all count. On the
 headphone variant, which has no echo, the same engine run directly on the
 unprocessed microphone file loses 8.5% of the local person's words (three of
 the five meetings measured); the pipeline's 11% to 12% adds the canceller and
-the audio codec (about 2 points together) and the rule that removes echo lines
-from the transcript. Read the figure as a difference between runs, not as the
+the audio codec (about 2 points together) and the rule that removes runs of echo
+words from the transcript. Read the figure as a difference between runs, not as the
 share of the person's speech that is missing.
 
 What stays different from a real call: the local voice is a close-talk headset
