@@ -122,6 +122,27 @@ struct CallBenchTests {
         #expect(sessionEnds.first?.contains("import_failed") == true)
     }
 
+    @Test("a call import with a source that has no far end throws")
+    func aCallImportWithASourceThatHasNoFarEndThrows() throws {
+        let root = try TestPaths.makeTemporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let microphone = root.appendingPathComponent("mic.wav")
+        let remote = root.appendingPathComponent("remote.wav")
+        try Self.writeTone(microphone, seconds: 2, frequency: 440)
+        try Self.writeTone(remote, seconds: 2, frequency: 880)
+        let repository = MeetingRepository(root: root.appendingPathComponent("archive"))
+        let now = Date(timeIntervalSince1970: 1_787_070_000)
+        let created = try repository.createMeeting(
+            source: .inPerson, provider: .unknown, startedAt: now, now: now
+        )
+        #expect(throws: ProcessingError.self) {
+            try AudioImporter(segmentSeconds: 2).importCall(
+                microphone: microphone, remote: remote, source: .inPerson,
+                into: created.store, meetingID: created.metadata.id
+            )
+        }
+    }
+
     // MARK: scoring
 
     /// Two people on a call, one word per second each, in turns: the local
@@ -220,6 +241,45 @@ struct CallBenchTests {
             truth: Self.callTruth(), utterances: mislabelled, localSpeaker: "ME", localKey: "local"
         )
         #expect(kept.localWordsLost == 0)
+    }
+
+    @Test("one transcript word cannot account for several repeated reference words")
+    func oneTranscriptWordCannotAccountForSeveralRepeatedReferenceWords() {
+        // The local person says "the" four times within three seconds.
+        var truth = Self.callTruth()
+        truth.words = (0..<4).map {
+            .init(start: Double($0), end: Double($0) + 0.5, text: "the", speaker: "ME", truncated: false)
+        }
+        truth.turns = [.init(speaker: "ME", start: 0, end: 4)]
+        func lost(_ transcript: String, key: String = "speaker_1") -> Int {
+            BenchScorer.localTrack(
+                truth: truth, utterances: [BenchUtterance(start: 1, end: 2, text: transcript, speakerKey: key)],
+                localSpeaker: "ME", localKey: "local"
+            ).localWordsLost
+        }
+        // One "the" under another label covers one word, not four.
+        #expect(lost("the") == 3)
+        #expect(lost("the the") == 2)
+        #expect(lost("the the the the") == 0)
+        #expect(lost("the the the the the") == 0)
+    }
+
+    @Test("a transcript word matches a reference word three seconds away and not more")
+    func aTranscriptWordMatchesAReferenceWordThreeSecondsAwayAndNotMore() {
+        var truth = Self.callTruth()
+        truth.words = [.init(start: 10, end: 10.5, text: "alpha", speaker: "ME", truncated: false)]
+        truth.turns = [.init(speaker: "ME", start: 10, end: 11)]
+        func lost(at start: Double) -> Int {
+            BenchScorer.localTrack(
+                truth: truth,
+                utterances: [BenchUtterance(start: start, end: start + 1, text: "alpha", speakerKey: "local")],
+                localSpeaker: "ME", localKey: "local"
+            ).localWordsLost
+        }
+        #expect(lost(at: 7) == 0)
+        #expect(lost(at: 13) == 0)
+        #expect(lost(at: 6.9) == 1)
+        #expect(lost(at: 13.1) == 1)
     }
 
     @Test("a word the local person said too is not a leak")

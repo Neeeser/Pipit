@@ -26,6 +26,10 @@ public struct BenchCallCase: Codable, Sendable, Equatable {
         /// microphone.
         public var correlation: Double
         public var reachedTarget: Bool
+        /// Power of the echo against the local person's voice while they speak,
+        /// in dB. Nil for a microphone with no echo, and in a description
+        /// written before the generator recorded it.
+        public var echoToLocalVoiceDB: Double?
     }
 
     public var `case`: String
@@ -51,6 +55,12 @@ public struct BenchCallRow: Codable, Sendable, Equatable {
     public var targetEchoCorrelation: Double?
     /// What the generator measured on the finished microphone.
     public var generatedEchoCorrelation: Double
+    /// How loud the echo is against the local person's voice, in dB, nil with
+    /// no echo.
+    public var echoToLocalVoiceDB: Double?
+    /// True when the case carries a simulated meeting-client record, so a
+    /// reader knows its speaker evidence came from chosen timing numbers.
+    public var simulatedSensors: Bool
     /// What the pipeline's own cleaner stored as `cleanedMic.echoCorrelationBefore`.
     /// Nil when the cleaner kept the microphone as recorded, which it does when
     /// it finds too little echo to remove.
@@ -61,13 +71,15 @@ public struct BenchCallRow: Codable, Sendable, Equatable {
 
     public init(
         variant: String, localSpeaker: String, targetEchoCorrelation: Double?,
-        generatedEchoCorrelation: Double, echoCorrelationBefore: Double?,
-        echoRemovedMedianDB: Double?, cleaningOutcome: String?
+        generatedEchoCorrelation: Double, echoToLocalVoiceDB: Double?, simulatedSensors: Bool,
+        echoCorrelationBefore: Double?, echoRemovedMedianDB: Double?, cleaningOutcome: String?
     ) {
         self.variant = variant
         self.localSpeaker = localSpeaker
         self.targetEchoCorrelation = targetEchoCorrelation
         self.generatedEchoCorrelation = generatedEchoCorrelation
+        self.echoToLocalVoiceDB = echoToLocalVoiceDB
+        self.simulatedSensors = simulatedSensors
         self.echoCorrelationBefore = echoCorrelationBefore
         self.echoRemovedMedianDB = echoRemovedMedianDB
         self.cleaningOutcome = cleaningOutcome
@@ -114,8 +126,11 @@ extension BenchScorer {
     ///   `localKey` that matches a far-end reference word within three seconds
     ///   and matches none of the local person's own. Short and function words
     ///   are skipped because both sides say them.
-    /// - A lost word is a reference word of the local person that matches no
-    ///   transcript word within three seconds, under any label.
+    /// - A lost word is a reference word of the local person that no transcript
+    ///   word accounts for. A transcript word accounts for one reference word at
+    ///   most: it has the same text, starts within three seconds, and carries
+    ///   any label. Without that pairing one "yeah" in the transcript would
+    ///   cover every "yeah" the local person said in the same six seconds.
     ///
     /// The local key is known by construction, so this does not depend on the
     /// speaker mapping the other scores use.
@@ -136,7 +151,10 @@ extension BenchScorer {
             if leakIgnored.contains(token.text) || token.text.count < 3 { continue }
             if hasNear(token, in: farStarts) && !hasNear(token, in: localStarts) { leaked += 1 }
         }
-        let lost = local.filter { !hasNear($0, in: anyStarts) }.count
+        let found = localStarts.reduce(0) { total, entry in
+            total + pairedCount(of: entry.value, with: anyStarts[entry.key] ?? [])
+        }
+        let lost = local.count - found
         let minutes = max(truth.windowSeconds / 60, 1.0 / 60)
         return LocalTrackScore(
             localSpeaker: localSpeaker, localKey: localKey,
@@ -152,6 +170,24 @@ extension BenchScorer {
         var starts: [String: [Double]] = [:]
         for token in tokens { starts[token.text, default: []].append(token.start) }
         return starts.mapValues { $0.sorted() }
+    }
+
+    /// How many of `reference` start times can each take a different time from
+    /// `candidates` within the window. Both lists are sorted. Taking the
+    /// earliest unused candidate that is in range for each reference time, in
+    /// order, gives the largest possible pairing when every window is the same
+    /// width.
+    static func pairedCount(of reference: [Double], with candidates: [Double]) -> Int {
+        var next = 0
+        var paired = 0
+        for time in reference {
+            while next < candidates.count, candidates[next] < time - localTrackWindow { next += 1 }
+            if next < candidates.count, candidates[next] <= time + localTrackWindow {
+                paired += 1
+                next += 1
+            }
+        }
+        return paired
     }
 
     private static func hasNear(_ token: TimedToken, in starts: [String: [Double]]) -> Bool {

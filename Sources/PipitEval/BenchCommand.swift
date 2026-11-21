@@ -621,6 +621,8 @@ enum BenchCommand {
                     localSpeaker: $0.description.localSpeaker,
                     targetEchoCorrelation: $0.description.echo.targetCorrelation,
                     generatedEchoCorrelation: $0.description.echo.correlation,
+                    echoToLocalVoiceDB: $0.description.echo.echoToLocalVoiceDB,
+                    simulatedSensors: $0.description.files.sensors != nil,
                     echoCorrelationBefore: final.cleanedMic?.echoCorrelationBefore,
                     echoRemovedMedianDB: final.cleanedMic?.echoRemovedMedianDB,
                     cleaningOutcome: final.cleaningOutcome?.rawValue
@@ -711,6 +713,8 @@ enum BenchCommand {
             print(
                 "  echo                correlation \(seen) in the pass (\(target), generator read "
                     + String(format: "%.2f", call.generatedEchoCorrelation)
+                    + (call.echoToLocalVoiceDB.map { String(format: ", echo %+.1f dB against the local voice", $0) }
+                        ?? "")
                     + "), cleaning: \(call.cleaningOutcome ?? "unknown")")
         }
         if let der = score.der {
@@ -781,11 +785,14 @@ enum BenchCommand {
         print("")
         print("  Simulated calls. Echo is the correlation the cleaner measured before cleaning, where")
         print("  it kept a cleaned microphone. Far end is the far end's words labelled as the local")
-        print("  person per minute; lost is the local person's words missing from the transcript.")
+        print("  person per minute; lost is the local person's words that no transcript word of the")
+        print("  same text within 3 s accounts for, each transcript word counted once. Built is the")
+        print("  correlation the generator wrote and dB is the echo against the local voice.")
+        print("  * marks a variant whose speaker evidence is a simulated sensor record.")
         print("")
         print(
             "  engine       variant        cases     tcp    cpWER   WER  attribution"
-                + "     DER   far end/min   lost/min   echo"
+                + "     DER   far end/min   lost/min   echo   built   dB"
         )
         for engine in Array(Set(calls.map(\.engine))).sorted() {
             let ofEngine = calls.filter { $0.engine == engine }
@@ -799,8 +806,12 @@ enum BenchCommand {
                 let lost = group.compactMap(\.score.localTrack?.localWordsLostPerMinute)
                 let echoes = group.compactMap(\.call?.echoCorrelationBefore)
                 let echo = echoes.isEmpty ? "     -" : String(format: "%6.2f", median(echoes))
+                let built = String(format: "%7.2f", median(group.compactMap { $0.call?.generatedEchoCorrelation }))
+                let levels = group.compactMap { $0.call?.echoToLocalVoiceDB }
+                let level = levels.isEmpty ? "     -" : String(format: "%+6.1f", median(levels))
+                let simulated = group.contains { $0.call?.simulatedSensors == true }
                 let name = engine.padding(toLength: 10, withPad: " ", startingAt: 0)
-                let kind = variant.padding(toLength: 13, withPad: " ", startingAt: 0)
+                let kind = (variant + (simulated ? "*" : "")).padding(toLength: 13, withPad: " ", startingAt: 0)
                 print(
                     "  \(name)   \(kind)  "
                         + String(
@@ -811,7 +822,7 @@ enum BenchCommand {
                             median(group.map(\.score.wer)) * 100,
                             median(group.map(\.score.attribution)) * 100,
                             ders.isEmpty ? 0 : median(ders) * 100,
-                            median(leaked), median(lost)) + echo)
+                            median(leaked), median(lost)) + echo + built + "  " + level)
             }
         }
         fflush(stdout)

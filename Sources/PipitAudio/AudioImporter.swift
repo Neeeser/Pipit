@@ -70,7 +70,12 @@ public struct AudioImporter: Sendable {
         microphone: URL, remote: URL, source: MeetingSource, into store: MeetingStore,
         meetingID: String, session: DiagnosticSessionID? = nil
     ) throws -> CallResult {
-        precondition(source.capturesRemoteAudio, "a call import needs a source with a far end")
+        guard source.capturesRemoteAudio else {
+            throw ProcessingError.localProcessingFailed(
+                reason: "A call import needs a source that records the far end separately.",
+                retryable: false
+            )
+        }
         try store.createDirectories()
         // Two files can share a name, and the second would then be taken for a
         // copy of the first and never preserved.
