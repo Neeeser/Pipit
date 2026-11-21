@@ -17,6 +17,7 @@ struct LocalDiarizationBackendTests {
     private struct StubDiarizer: DiarizationBackend {
         var identifier: String
         var result: Result<DiarizationOutput, any Error>
+        var progressSteps: [Double] = [1]
         var isLocal: Bool { true }
         var limits: BackendAudioLimits { .none }
         var producesEmbeddings: Bool { false }
@@ -25,7 +26,7 @@ struct LocalDiarizationBackendTests {
         func diarize(
             audio: URL, progress: @escaping @Sendable (Double) -> Void
         ) async throws -> DiarizationOutput {
-            progress(1)
+            for step in progressSteps { progress(step) }
             return try result.get()
         }
     }
@@ -49,13 +50,15 @@ struct LocalDiarizationBackendTests {
     }
 
     private static func backend(
-        primary: Result<DiarizationOutput, any Error>
+        primary: Result<DiarizationOutput, any Error>,
+        primarySteps: [Double] = [1], fallbackSteps: [Double] = [1]
     ) -> LocalDiarizationBackend {
         LocalDiarizationBackend(
-            primary: StubDiarizer(identifier: "primary", result: primary),
+            primary: StubDiarizer(identifier: "primary", result: primary, progressSteps: primarySteps),
             fallback: StubDiarizer(
                 identifier: "fallback",
-                result: .success(Self.output(speakers: 12, configuration: ["diarizer": "vbx"]))
+                result: .success(Self.output(speakers: 12, configuration: ["diarizer": "vbx"])),
+                progressSteps: fallbackSteps
             )
         )
     }
@@ -102,6 +105,58 @@ struct LocalDiarizationBackendTests {
             .diarize(audio: Self.audio, progress: { _ in })
         #expect(result.configuration["diarizer"] == "vbx")
         #expect(result.configuration["diarizerReason"] == "modelFailed")
+    }
+
+    @Test("an empty answer for audible audio uses the clusterer, and for silence it stands")
+    func anEmptyAnswerForAudibleAudioUsesTheClusterer() async throws {
+        let empty = try await Self.backend(primary: .success(Self.output(speakers: 0)))
+            .diarize(audio: Self.audio, progress: { _ in })
+        #expect(empty.configuration["diarizer"] == "vbx")
+        #expect(empty.configuration["diarizerReason"] == "modelFailed")
+
+        let silent = try await Self.backend(
+            primary: .success(Self.output(speakers: 0, configuration: ["silentAudio": "true"]))
+        ).diarize(audio: Self.audio, progress: { _ in })
+        #expect(silent.clusters.isEmpty, "nobody spoke, and the empty answer is the right one")
+        #expect(silent.configuration["diarizerReason"] == "preferred")
+    }
+
+    @Test("an audio decode failure fails the stage instead of running the clusterer")
+    func anAudioDecodeFailureFailsTheStage() async throws {
+        await #expect(throws: ProcessingError.self) {
+            _ = try await Self.backend(
+                primary: .failure(ProcessingError.audioUnreadable(path: "meeting.wav"))
+            ).diarize(audio: Self.audio, progress: { _ in })
+        }
+        await #expect(throws: LocalModelError.self) {
+            _ = try await Self.backend(primary: .failure(LocalModelError.audioUnreadable("meeting.wav")))
+                .diarize(audio: Self.audio, progress: { _ in })
+        }
+    }
+
+    @Test("a file longer than Nemotron takes goes to the clusterer")
+    func aFileLongerThanNemotronTakesGoesToTheClusterer() async throws {
+        let result = try await Self.backend(primary: .failure(Nemotron3DiarizationBackend.Unsupported.audioTooLong))
+            .diarize(audio: Self.audio, progress: { _ in })
+        #expect(result.configuration["diarizer"] == "vbx")
+        #expect(result.configuration["diarizerReason"] == "audioTooLong")
+    }
+
+    @Test("progress keeps rising when the clusterer takes over")
+    func progressKeepsRisingWhenTheClustererTakesOver() async throws {
+        let seen = Mutex<[Double]>([])
+        _ = try await Self.backend(
+            primary: .failure(Unrelated()), primarySteps: [0.2, 0.6, 1],
+            fallbackSteps: [0, 0.4, 1]
+        ).diarize(audio: Self.audio, progress: { value in seen.withLock { $0.append(value) } })
+        let values = seen.withLock { $0 }
+        #expect(values == values.sorted(), "never goes back: \(values)")
+        #expect(values.last == 1)
+
+        let direct = Mutex<[Double]>([])
+        _ = try await Self.backend(primary: .success(Self.output(speakers: 2)), primarySteps: [0.3, 1])
+            .diarize(audio: Self.audio, progress: { value in direct.withLock { $0.append(value) } })
+        #expect(direct.withLock { $0 }.last == 1, "a finished Nemotron run reaches the end")
     }
 
     @Test("cancelling the job does not start the clusterer")
@@ -175,6 +230,96 @@ struct LocalDiarizationBackendTests {
         #expect(output.configuration["diarizer"] == "nemotron3")
     }
 
+    @Test("a cancelled job stops before it reads or loads anything", .timeLimit(.minutes(1)))
+    func aCancelledJobStopsBeforeItReadsOrLoadsAnything() async throws {
+        let root = try TestPaths.makeTemporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let manager = LocalModelManager(applicationSupport: root)
+        let task = Task {
+            // Bounded, so a missing cancellation check fails instead of hanging.
+            let deadline = ContinuousClock.now + .seconds(5)
+            while !Task.isCancelled, ContinuousClock.now < deadline { await Task.yield() }
+            return try await Nemotron3DiarizationBackend(models: manager).diarize(
+                audio: Self.audio, progress: { _ in })
+        }
+        task.cancel()
+        await #expect(throws: CancellationError.self) { _ = try await task.value }
+    }
+
+    @Test("a file longer than the cap is declined without being read")
+    func aFileLongerThanTheCapIsDeclinedWithoutBeingRead() async throws {
+        let root = try TestPaths.makeTemporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let long = root.appendingPathComponent("long.wav")
+        try Self.writeWave([Float](repeating: 0.1, count: 32_000), to: long)  // two seconds
+        let manager = LocalModelManager(applicationSupport: root)
+        try Self.fakeInstall(in: manager.locations.nemotronDiarizerDirectory)
+        await #expect(throws: Nemotron3DiarizationBackend.Unsupported.self) {
+            _ = try await manager.nemotron3Diarize(
+                audio: long, preset: .offline, maximumSeconds: 1, progress: { _ in })
+        }
+        #expect(Nemotron3DiarizationBackend.maximumSeconds.isFinite)
+    }
+
+    // MARK: the run queue
+
+    @Test("two Nemotron runs never overlap", .timeLimit(.minutes(1)))
+    func twoNemotronRunsNeverOverlap() async throws {
+        let queue = Nemotron3RunQueue()
+        let running = Mutex(0)
+        let overlapped = Mutex(false)
+        try await withThrowingTaskGroup(of: Void.self) { group in
+            for _ in 0..<4 {
+                group.addTask {
+                    try await queue.run {
+                        let now = running.withLock { count -> Int in
+                            count += 1
+                            return count
+                        }
+                        if now > 1 { overlapped.withLock { $0 = true } }
+                        try await Task.sleep(for: .milliseconds(40))
+                        running.withLock { $0 -= 1 }
+                    }
+                }
+            }
+            try await group.waitForAll()
+        }
+        #expect(!overlapped.withLock { $0 })
+    }
+
+    @Test("cancelling the caller cancels the running job, and a queued one never starts", .timeLimit(.minutes(1)))
+    func cancellingTheCallerCancelsTheRunningJob() async throws {
+        let queue = Nemotron3RunQueue()
+        let started = Mutex(0)
+        let sawCancel = Mutex(false)
+        let first = Task {
+            try await queue.run {
+                started.withLock { $0 += 1 }
+                // Bounded, so cancellation that never arrives fails the test.
+                let deadline = ContinuousClock.now + .seconds(3)
+                while !Task.isCancelled, ContinuousClock.now < deadline {
+                    // A cancelled sleep throws, which is also the job seeing it.
+                    try? await Task.sleep(for: .milliseconds(5))
+                }
+                sawCancel.withLock { $0 = Task.isCancelled }
+                try Task.checkCancellation()
+            }
+        }
+        let second = Task {
+            try await queue.run { started.withLock { $0 += 1 } }
+        }
+        let giveUp = ContinuousClock.now + .seconds(3)
+        while started.withLock({ $0 }) == 0, ContinuousClock.now < giveUp {
+            try await Task.sleep(for: .milliseconds(5))
+        }
+        first.cancel()
+        second.cancel()
+        await #expect(throws: CancellationError.self) { try await first.value }
+        await #expect(throws: CancellationError.self) { try await second.value }
+        #expect(sawCancel.withLock { $0 }, "the job itself saw the cancellation")
+        #expect(started.withLock { $0 } == 1, "the queued job never began")
+    }
+
     @Test("the offline preset is never downloaded from inside a diarization")
     func theOfflinePresetIsNeverDownloadedFromInsideADiarization() async throws {
         let root = try TestPaths.makeTemporaryDirectory()
@@ -218,18 +363,21 @@ struct LocalDiarizationBackendTests {
         #expect(LocalSpeechStack.nemotron3SpeakerSlots == Nemotron3Config.offline.numSpeakers)
     }
 
-    @Test("local diarization installs the Nemotron unit and a cloud diarizer does not")
-    func localDiarizationInstallsTheNemotronUnitAndACloudDiarizerDoesNot() {
+    @Test("setup installs the Nemotron unit for local diarization, and processing never requires it")
+    func setupInstallsTheNemotronUnitButProcessingNeverRequiresIt() {
         var settings = AppSettings()
         settings.processing.diarization = .local
-        #expect(LocalModelUnit.required(for: settings).contains(.nemotronDiarizer))
+        #expect(LocalModelUnit.recommended(for: settings).contains(.nemotronDiarizer))
+        #expect(
+            !LocalModelUnit.required(for: settings).contains(.nemotronDiarizer),
+            "a machine without it diarizes with the clusterer instead of downloading 190 MB mid-meeting")
         #expect(
             LocalModelUnit.required(for: settings).contains(.diarizer),
             "voice memory embeds with the clusterer's models")
 
         settings.processing.diarization = .openAI
-        #expect(!LocalModelUnit.required(for: settings).contains(.nemotronDiarizer))
-        #expect(LocalModelUnit.required(for: settings).contains(.diarizer))
+        #expect(!LocalModelUnit.recommended(for: settings).contains(.nemotronDiarizer))
+        #expect(LocalModelUnit.recommended(for: settings).contains(.diarizer))
     }
 
     @Test("the unit's size is the model hub's, and its revision names the checkpoint")

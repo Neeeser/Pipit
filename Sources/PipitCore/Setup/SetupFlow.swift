@@ -92,9 +92,10 @@ public struct SetupSnapshot: Sendable, Equatable {
         self.hasStoredKey = hasStoredKey
     }
 
-    /// The units this configuration needs, whichever backends are chosen.
+    /// The units setup downloads for this configuration, whichever backends
+    /// are chosen.
     public var requiredUnits: Set<LocalModelUnit> {
-        LocalModelUnit.required(for: settings)
+        LocalModelUnit.recommended(for: settings)
     }
 
     public var missingUnits: Set<LocalModelUnit> {

@@ -94,7 +94,7 @@ struct LocalConfigurationTests {
         // configuration requires both.
         #expect(
             LocalModelUnit.required(for: settings)
-                == [.canary, .ctcAligner, .diarizer, .nemotronDiarizer, .voiceActivity]
+                == [.canary, .ctcAligner, .diarizer, .voiceActivity]
         )
         #expect(
             !LocalTranscriptionModel.offered.contains(.canary),
@@ -120,7 +120,7 @@ struct LocalConfigurationTests {
         settings.processing.transcription = .local
         settings.processing.localTranscriptionModel = .apple
         #expect(
-            LocalModelUnit.required(for: settings) == [.diarizer, .nemotronDiarizer, .voiceActivity])
+            LocalModelUnit.required(for: settings) == [.diarizer, .voiceActivity])
         #expect(
             LocalTranscriptionModel.apple.backendIdentifier == LocalSpeechStack.appleBackendIdentifier
         )
