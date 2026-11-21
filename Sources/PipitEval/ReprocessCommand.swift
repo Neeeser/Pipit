@@ -27,6 +27,22 @@ import PipitSpeakers
 /// store the app is using, and the store a run opened is printed before it
 /// starts so there is no guessing which one it was.
 enum ReprocessCommand {
+    /// Why a run cannot go ahead, or nil where it can.
+    ///
+    /// A mode other than `current` rewrites the meeting's transcript and
+    /// speaker names with attribution the app does not use, so it must not run
+    /// over the meetings the app itself reads. The backup it takes is not a
+    /// way back that the app knows about.
+    static func refusal(
+        attribution: SensorAttributionMode, archive: URL, appArchive: URL
+    ) -> String? {
+        guard attribution != .current else { return nil }
+        func resolved(_ url: URL) -> String { url.resolvingSymlinksInPath().standardizedFileURL.path }
+        guard resolved(archive) == resolved(appArchive) else { return nil }
+        return "--attribution \(attribution.rawValue) would rewrite a meeting in the app's own archive at "
+            + "\(archive.path); reprocess a copy kept in another folder"
+    }
+
     static func run(
         meeting: URL, applicationSupport: URL, backups: URL, recognize: Bool,
         attribution: SensorAttributionMode = .current
@@ -40,6 +56,12 @@ enum ReprocessCommand {
             return 1
         }
         let root = MeetingArchiveRoot.resolve(for: meeting)
+        if let message = refusal(
+            attribution: attribution, archive: root, appArchive: MeetingArchiveLayout.defaultRoot)
+        {
+            note(message)
+            return 1
+        }
         let repository = MeetingRepository(root: root)
         guard repository.findMeeting(id: original.id, includingMerged: true) != nil else {
             note("\(original.id) is not in the archive at \(root.path)")
