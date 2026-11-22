@@ -17,7 +17,8 @@ source "$REPO_ROOT/scripts/spm-env.sh"
 CONFIG="${1:-release}"
 # scripts/app-version.sh owns the rule for all three values, so the run script
 # phase in project.yml stamps what this script stamps. Set PIPIT_RELEASE=1 for
-# the plain release version; anything else builds as <VERSION>-dev.<short sha>.
+# the plain release version; anything else builds as a -dev.<short sha> preview
+# of the next release, which scripts/app-version.sh explains.
 { read -r SHORT_VERSION; read -r BUILD_NUMBER; read -r GIT_COMMIT; } < <("$REPO_ROOT/scripts/app-version.sh")
 # Read from the plist so the signing identifier and the bundle cannot drift.
 BUNDLE_ID="$(/usr/libexec/PlistBuddy -c "Print :CFBundleIdentifier" "$REPO_ROOT/App/Info.plist")"

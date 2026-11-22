@@ -60,7 +60,8 @@ references as a local package. In a clone whose directory is not named `Pipit`,
 The Xcode build and `scripts/bundle-app.sh` read the same `App/Info.plist` and
 `App/Pipit.entitlements`. Both stamp the version and the build number over what
 that plist says, and [releasing](docs/RELEASING.md) explains where the two
-numbers come from and why a local build reads `0.1.0-dev.<sha>`.
+numbers come from and why a local build made after the `v0.1.10` tag reads
+`0.1.11-dev.<sha>`.
 
 ## Targeted checks
 
