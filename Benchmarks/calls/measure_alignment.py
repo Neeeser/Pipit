@@ -150,10 +150,9 @@ def report(results: list[dict]) -> list[str]:
     lines.append("meetings with both tracks: %d" % len(results))
     lines.append("start offset, seconds (far end minus microphone): %s" % percentiles(offsets))
     lines.append("absolute start offset, seconds:                   %s" % percentiles([abs(o) for o in offsets]))
-    for limit in (1.0,):
-        later = sum(1 for o in offsets if o > limit)
-        earlier = sum(1 for o in offsets if o < -limit)
-        lines.append("offsets over %.0f s: far end later in %d, microphone later in %d" % (limit, later, earlier))
+    later = sum(1 for o in offsets if o > 1.0)
+    earlier = sum(1 for o in offsets if o < -1.0)
+    lines.append("offsets over 1 s: far end later in %d, microphone later in %d" % (later, earlier))
     drifts = [r for r in results if "relativePPM" in r]
     lines.append("meetings long enough to measure drift: %d" % len(drifts))
     lines.append("microphone drift, ppm:          %s" % percentiles([r["micPPM"] for r in drifts]))
@@ -172,9 +171,12 @@ def report(results: list[dict]) -> list[str]:
     for step in small:
         counts[int(round(step / buffer_seconds))] = counts.get(int(round(step / buffer_seconds)), 0) + 1
     lines.append(
-        "far-end steps under %.0f ms, by whole %d-frame buffers: %s"
+        "far-end steps under %.0f ms, by nearest whole %d-frame buffers: %s"
         % (PAD_FLOOR_SECONDS * 1000, CAPTURE_BUFFER_FRAMES, ", ".join("%d: %d" % kv for kv in sorted(counts.items())))
     )
+    if small:
+        away = max(abs(step - round(step / buffer_seconds) * buffer_seconds) for step in small)
+        lines.append("largest distance of one of those steps from whole buffers, ms: %.2f" % (away * 1000))
     slides = [slide_seconds(r) for r in results]
     lines.append(
         "meetings where the far end slid earlier (steps under %.0f s): %d" % (SLIDE_STEP_LIMIT_SECONDS, sum(1 for s in slides if s > 0))

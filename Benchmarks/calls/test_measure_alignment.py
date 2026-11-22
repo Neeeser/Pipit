@@ -68,7 +68,7 @@ class MeasureTests(unittest.TestCase):
             self.measure(segments("mic", 0.0, 20) + segments("remote", 0.5, 20)),
         ]
         lines = measure_alignment.report(results)
-        self.assertIn("far-end steps under 50 ms, by whole 512-frame buffers: 1: 1, 4: 1", lines)
+        self.assertIn("far-end steps under 50 ms, by nearest whole 512-frame buffers: 1: 1, 4: 1", lines)
         self.assertIn("meetings where the far end slid earlier (steps under 1 s): 1", lines)
 
 

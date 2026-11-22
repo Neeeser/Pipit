@@ -128,10 +128,13 @@ headset channels of five held-out AMI meetings (`ami-eval` or `clean`):
     50 ms up, so shorter losses on the far end leave the rest of the track
     early. In 81 of the 197 meetings the far end slid earlier this way, and
     13 ms per minute is the 95th percentile of that rate. The sizes and their
-    weights are the counts of one to four buffers among the steps under 50 ms
-    seen between segments. A step between two segments can add up several
-    losses inside one 30 s segment, so the variant's single losses may run
-    larger than real ones while the rate stays the same.
+    weights are the counts of steps under 50 ms seen between segments, rounded
+    to the nearest one to four buffers; each sits within 5.2 ms of a whole
+    number of buffers. The 11 steps that round to five buffers (48 ms to 50 ms)
+    are left out, since one loss that long would have been padded. A step
+    between two segments can add up several losses inside one 30 s segment, so
+    the variant's single losses may run larger than real ones while the rate
+    stays the same.
 - `--attribution` on `bench` and `reprocess` chooses how a meeting client's
   speaker record and the diarizer share the far end: `current` (the app),
   `diarizer-names` (the record only names clusters), `sensor-first` (turns
