@@ -19,7 +19,7 @@ import random
 import shutil
 import subprocess
 import tempfile
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from pathlib import Path
 
 import numpy as np
@@ -377,6 +377,72 @@ def render_variant(prepared: Prepared, name: str, target: float | None) -> Varia
     return Variant(name, microphone, gain, target, correlation, lag, reached, ratio)
 
 
+# --- how the far-end track is recorded -------------------------------------
+
+# Pipit captures the far end at 48 kHz in buffers of this many frames. A loss
+# on a real call removes whole buffers, and the capture writes no silence for
+# one shorter than its 50 ms padding floor, so the rest of the track moves
+# earlier by what was lost.
+CAPTURE_RATE = 48000
+CAPTURE_BUFFER_FRAMES = 512
+
+
+@dataclass
+class FarEndRecording:
+    """How the system-audio file differs from what the speakers played.
+
+    `start_seconds` is how long after the microphone the far-end track's first
+    frame arrives; the bench imports that file at that start time, as the app
+    places a track by its first frame's host time. `dropouts` are (second on
+    the played timeline, samples lost) pairs, left unpadded, so the far end
+    slides earlier against the microphone at each one.
+    """
+
+    start_seconds: float = 0.0
+    dropouts: list[tuple[float, int]] = field(default_factory=list)
+
+
+def late_far_end(prepared: Prepared, start_seconds: float) -> Prepared:
+    """The meeting when the far end begins `start_seconds` after the microphone.
+
+    A far-end track opens on the first audio the call app plays, so nothing
+    came out of the speakers before it and the microphone holds no echo there.
+    """
+    if start_seconds <= 0:
+        return prepared
+    remote = prepared.remote.copy()
+    remote[: int(round(start_seconds * RATE))] = 0.0
+    return replace(prepared, remote=remote, echo_unit=laptop_speaker_echo(remote, prepared.path))
+
+
+def plan_dropouts(seed: int, meeting: str, seconds: float, spec: dict) -> list[tuple[float, int]]:
+    """Losses of whole capture buffers until the far end has lost the spec's rate.
+
+    `spec` carries `millisecondsPerMinute`, and `buffers` with `weights`: how
+    many buffers one loss removes and how often each count occurs. Each loss
+    falls at a uniformly drawn moment of the window.
+    """
+    rng = seeded(seed, meeting, "dropouts")
+    target = spec["millisecondsPerMinute"] / 1000 * seconds / 60
+    weights = np.array(spec["weights"], dtype=np.float64)
+    sizes: list[int] = []
+    while sum(sizes) / RATE < target:
+        buffers = int(rng.choice(spec["buffers"], p=weights / weights.sum()))
+        sizes.append(int(round(buffers * CAPTURE_BUFFER_FRAMES * RATE / CAPTURE_RATE)))
+    times = np.sort(rng.uniform(0.0, seconds, len(sizes)))
+    return [(round(float(at), 4), size) for at, size in zip(times, sizes)]
+
+
+def record_far_end(played: np.ndarray, recording: FarEndRecording) -> np.ndarray:
+    """The far-end file the capture would have written of `played`."""
+    keep = np.ones(len(played), dtype=bool)
+    keep[: int(round(recording.start_seconds * RATE))] = False
+    for at, samples in recording.dropouts:
+        first = int(round(at * RATE))
+        keep[first : first + samples] = False
+    return played[keep].copy()
+
+
 FULL_SCALE_INT16 = 32767
 
 
@@ -495,20 +561,37 @@ def simulate_sensors(seed: int, meeting: str, truth: dict, local_speaker: str, s
 
 
 def write_case(
-    directory: Path, prepared: Prepared, variant: Variant, seed: int, truth: dict, sensors: dict | None = None
+    directory: Path,
+    prepared: Prepared,
+    variant: Variant,
+    seed: int,
+    truth: dict,
+    sensors: dict | None = None,
+    far_end: FarEndRecording | None = None,
 ) -> dict:
     """Writes `mic.wav`, `remote.wav` and `case.json`, and returns the description.
 
     `sensors` is a simulated reader's record, written beside the audio as
-    `sensors.raw.json`, with its checksum in `case.json`.
+    `sensors.raw.json`, with its checksum in `case.json`. `far_end` makes the
+    far-end file start late or lose audio; the microphone stays as rendered.
     """
     directory.mkdir(parents=True, exist_ok=True)
     mic_hash = write_pcm16(directory / "mic.wav", variant.microphone)
-    remote_hash = write_pcm16(directory / "remote.wav", prepared.remote)
+    remote = prepared.remote if far_end is None else record_far_end(prepared.remote, far_end)
+    remote_hash = write_pcm16(directory / "remote.wav", remote)
     # The benchmark reads the 16-bit files, so the figure recorded is the one
     # those samples give, not the one the float search settled on.
     stored_mic, stored_remote = read_pcm16(directory / "mic.wav"), read_pcm16(directory / "remote.wav")
-    correlation, lag = echo_correlation(stored_mic, stored_remote)
+    if far_end is None:
+        correlation, lag = echo_correlation(stored_mic, stored_remote)
+    else:
+        # The microphone's echo came from what the speakers played, so the
+        # target is checked against that, on the scale of the stored samples.
+        played = np.round(np.clip(prepared.remote, -1.0, 1.0) * FULL_SCALE_INT16)
+        correlation, lag = echo_correlation(stored_mic, played)
+        # What Pipit's measure reads once the file sits at its start time.
+        lead = np.zeros(int(round(far_end.start_seconds * RATE)))
+        recorded, recorded_lag = echo_correlation(stored_mic, np.concatenate([lead, stored_remote]))
     clipped = {"mic": clipped_samples(stored_mic), "remote": clipped_samples(stored_remote)}
     reached = variant.target_correlation is None or abs(correlation - variant.target_correlation) <= ECHO_TOLERANCE
     sensors_hash = None
@@ -547,6 +630,15 @@ def write_case(
             "rt60Seconds": round(prepared.path.rt60_seconds, 3),
         },
     }
+    if far_end is not None:
+        lost = len(prepared.remote) - int(round(far_end.start_seconds * RATE)) - len(remote)
+        info["farEnd"] = {
+            "startSeconds": far_end.start_seconds,
+            "lostSeconds": round(lost / RATE, 4),
+            "dropouts": [{"atSeconds": at, "lostSeconds": round(samples / RATE, 5)} for at, samples in far_end.dropouts],
+            "correlationAsRecorded": round(recorded, 4),
+            "correlationLagAsRecordedSeconds": round(recorded_lag, 3),
+        }
     if sensors_hash is not None:
         info["files"]["sensors"] = {"name": "sensors.raw.json", "sha256": sensors_hash}
         info["sensors"] = {"source": sensors["source"], "turns": len(sensors["turns"])}

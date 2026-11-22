@@ -9,7 +9,8 @@ Reads the headset channel each annotation agent spoke into from AMI's
 `corpusResources/meetings.xml`, downloads every channel into the benchmark
 cache, and rewrites the `calls` block at the end of `Benchmarks/manifest.json`
 with the channel numbers, their SHA-256 checksums, and the local person the
-seed picks for each meeting. `scripts/fetch-bench-audio.sh calls` then fetches
+seed picks for each meeting, and keeps the variants the block already lists.
+`scripts/fetch-bench-audio.sh calls` then fetches
 and verifies exactly those files.
 
     scripts/fetch-bench-audio.sh --annotations ami
@@ -43,16 +44,6 @@ MIRROR = (
 )
 ALLOWED_PARTITIONS = {"ami-eval", "clean"}
 SEED = 20261119
-VARIANTS = [
-    {"name": "headphones", "echoCorrelation": None},
-    {"name": "laptop", "echoCorrelation": 0.69},
-    {"name": "laptop-strong", "echoCorrelation": 0.89},
-    {
-        "name": "laptop-meet",
-        "echoCorrelation": 0.69,
-        "sensors": {"onsetDelaySeconds": 0.5, "releaseDelaySeconds": 1.0, "dropoutShare": 0.1},
-    },
-]
 
 
 def channels_of(zip_path, meeting):
@@ -145,7 +136,9 @@ def main():
             "localAgent": callsim.choose_local_agent(SEED, meeting, truth),
             "channels": channels,
         }
-    calls = {"seed": SEED, "mirror": MIRROR, "variants": VARIANTS, "meetings": meetings}
+    # The variants are edited in the manifest itself, which the generator and
+    # the bench read, so a re-pin keeps them as they are.
+    calls = {"seed": SEED, "mirror": MIRROR, "variants": manifest["calls"]["variants"], "meetings": meetings}
 
     # The block is always the last key, so replacing it is a cut and an append
     # and leaves the hand-formatted rest of the file as it was.

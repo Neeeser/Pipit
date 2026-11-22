@@ -94,6 +94,34 @@ struct CallBenchTests {
         )
     }
 
+    @Test("a call import with a late far end starts that track at its start time")
+    func aCallImportWithALateFarEndStartsThatTrackAtItsStartTime() throws {
+        let root = try TestPaths.makeTemporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let microphone = root.appendingPathComponent("mic.wav")
+        let remote = root.appendingPathComponent("remote.wav")
+        try Self.writeTone(microphone, seconds: 5, frequency: 440)
+        try Self.writeTone(remote, seconds: 3.5, frequency: 880)
+        let repository = MeetingRepository(root: root.appendingPathComponent("archive"))
+        let now = Date(timeIntervalSince1970: 1_787_070_000)
+        let created = try repository.createMeeting(
+            source: .genericCall, provider: .unknown, startedAt: now, now: now
+        )
+        _ = try AudioImporter(segmentSeconds: 2).importCall(
+            microphone: microphone, remote: remote, source: .genericCall,
+            into: created.store, meetingID: created.metadata.id, remoteStartSeconds: 1.5
+        )
+
+        // A capture places a track by its first frame's host time, so the far
+        // end's audio lands 1.5 s into the meeting and the echo pass starts
+        // its search from there.
+        let timeline = try created.store.readTimeline()
+        #expect(abs(timeline.leadIn(track: .remote) - 1.5) <= 0.001)
+        #expect(abs(timeline.leadIn(track: .mic)) <= 0.001)
+        let run = try #require(timeline.runs.first)
+        #expect(abs(try #require(run.referenceOffset) - 1.5) <= 0.001)
+    }
+
     @Test("a call import with an unreadable far end is recorded as failed")
     func aCallImportWithAnUnreadableFarEndIsRecordedAsFailed() throws {
         let root = try TestPaths.makeTemporaryDirectory()
@@ -343,6 +371,24 @@ struct CallBenchTests {
         #expect(description.localSpeaker == "FEO072")
         #expect(description.files.remote.name == "remote.wav")
         #expect(description.echo.targetCorrelation == 0.69)
+        #expect(description.farEnd == nil)
+    }
+
+    @Test("a case whose far end starts late or loses audio says so")
+    func aCaseWhoseFarEndStartsLateOrLosesAudioSaysSo() throws {
+        // The block `Benchmarks/calls/callsim.py` adds for a misaligned far end.
+        let json = """
+            {"case":"X-laptop-far-end-late","meeting":"X","variant":"laptop-far-end-late",
+             "localAgent":"A","localSpeaker":"S",
+             "files":{"mic":{"name":"mic.wav","sha256":"a"},"remote":{"name":"remote.wav","sha256":"b"}},
+             "echo":{"targetCorrelation":0.69,"correlation":0.69,"reachedTarget":true},
+             "farEnd":{"startSeconds":1.12,"lostSeconds":0.107,
+                       "dropouts":[{"atSeconds":12.5,"lostSeconds":0.04267}],
+                       "correlationAsRecorded":0.66,"correlationLagAsRecordedSeconds":0.09}}
+            """
+        let description = try JSONDecoder().decode(BenchCallCase.self, from: Data(json.utf8))
+        #expect(description.farEnd?.startSeconds == 1.12)
+        #expect(description.farEnd?.lostSeconds == 0.107)
     }
 
     @Test("the simulated meeting-client record reads as the app's own sensor file")
@@ -382,6 +428,16 @@ struct CallBenchTests {
         #expect(calls.variants.map(\.name).contains("headphones"))
         #expect(calls.variants.filter { $0.echoCorrelation != nil }.count >= 1)
         #expect(calls.variants.contains { $0.sensors != nil })
+        // The misaligned variants change only the far end, so each keeps the
+        // laptop's echo and a difference against it comes from the alignment.
+        let laptop = try #require(calls.variants.first { $0.name == "laptop" })
+        let late = calls.variants.filter { ($0.farEndStartSeconds ?? 0) > 0 }
+        let dropping = calls.variants.filter { $0.farEndDropouts != nil }
+        #expect(!late.isEmpty && !dropping.isEmpty)
+        for variant in late + dropping {
+            #expect(variant.echoCorrelation == laptop.echoCorrelation)
+            #expect(variant.sensors == nil)
+        }
         for (meeting, entry) in calls.meetings {
             // Candidate models trained on AMI's train and dev meetings, so a
             // suite that ranks them may not read those.
