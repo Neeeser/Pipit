@@ -46,6 +46,38 @@ struct AudioTests {
         return buffer
     }
 
+    @Test("decoding block by block gives the whole-file samples and can stop early")
+    func decodingBlockByBlockGivesTheWholeFileSamples() throws {
+        let root = try TestPaths.makeTemporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        // 48 kHz, so the samples pass through the resampler, and long enough
+        // that the decoder hands over several blocks.
+        let url = root.appendingPathComponent("tone.wav")
+        let tone = Self.makeDiscreteTone(seconds: 10, sampleRate: 48_000, channels: 1)
+        // Its own scope, so the writer closes and the file is complete before it is read.
+        do {
+            let file = try AVAudioFile(forWriting: url, settings: tone.format.settings)
+            try file.write(from: tone)
+        }
+
+        let whole = try MonoAudioDecoder.loadMono16k(url)
+        var blocks: [[Float]] = []
+        try MonoAudioDecoder.forEachBlock(url) { block in
+            blocks.append(block)
+            return true
+        }
+        #expect(blocks.count > 1, "a ten-second file comes in more than one block")
+        #expect(blocks.allSatisfy { !$0.isEmpty })
+        #expect(blocks.flatMap { $0 } == whole)
+
+        var read = 0
+        try MonoAudioDecoder.forEachBlock(url) { block in
+            read += 1
+            return false
+        }
+        #expect(read == 1, "returning false stops after the block that said so")
+    }
+
     @Test("takes read minutes apart are judged as one reading")
     func takesReadMinutesApartAreJudgedAsOneReading() async throws {
         // Somebody read part of the script, was told they were short,
