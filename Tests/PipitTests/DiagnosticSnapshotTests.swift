@@ -255,7 +255,8 @@ struct DiagnosticSnapshotTests {
     @Test("models carry their state, a checked revision and their size")
     func modelsCarryTheirStateACheckedRevisionAndTheirSize() {
         let receipts: [LocalModelUnit: DiagnosticModelReceipt] = [
-            .parakeet: .init(revision: LocalSpeechStack.revision(for: .parakeet), bytes: 482_345_678),
+            // An older FluidAudio fetched the same files, so the unit is current.
+            .parakeet: .init(revision: "parakeet-tdt-0.6b-v3-int8 @ FluidAudio 0.15.6", bytes: 482_345_678),
             .diarizer: .init(revision: "FluidAudio 0.14.0", bytes: 32_145_678),
             .whisper: .init(revision: "/Users/sample/Library/model @ Sample Package", bytes: 10),
         ]
@@ -266,7 +267,7 @@ struct DiagnosticSnapshotTests {
             rows == [
                 .init(unit: "whisper", state: "outdated", revision: "invalid", bytes: 10),
                 .init(
-                    unit: "parakeet", state: "installed", revision: "parakeet-tdt-0.6b-v3-int8_FluidAudio-0.18.2",
+                    unit: "parakeet", state: "installed", revision: "parakeet-tdt-0.6b-v3-int8_FluidAudio-0.15.6",
                     bytes: 482_345_678
                 ),
                 .init(unit: "diarizer", state: "outdated", revision: "FluidAudio-0.14.0", bytes: 32_145_678),

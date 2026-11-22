@@ -361,6 +361,94 @@ struct LocalModelStorageTests {
         #expect(!LocalModelManager.diarizerNeedsAdoption(receipt: current))
     }
 
+    @Test("a speech model an older FluidAudio installed with the same files stays current")
+    func aSpeechModelAnOlderFluidAudioInstalledStaysCurrent() async throws {
+        // A FluidAudio bump alone used to mark Parakeet and the voice detector
+        // out of date and offer a 460 MB download of the files already on
+        // disk, because the receipt compared the package version too.
+        let olderReceipts: [LocalModelUnit: String] = [
+            .parakeet: "parakeet-tdt-0.6b-v3-int8 @ FluidAudio 0.15.6",
+            .voiceActivity: "silero-vad-unified-256ms-v6.2.1 @ FluidAudio 0.15.6",
+            .cohere: "cohere-transcribe-03-2026-q8 @ FluidAudio 0.15.6",
+            .canary: "canary-1b-v2-int4 @ FluidAudio 0.15.6",
+            .ctcAligner: "parakeet-ctc-0.6b @ FluidAudio 0.15.6",
+            .parakeetUltra: "parakeet-ultra-int8 @ FluidAudio 0.15.6",
+            .nemotronDiarizer: "nemotron-3-diarization-offline ga-2026-09-23 @ FluidAudio 0.15.6",
+        ]
+        for (unit, revision) in olderReceipts {
+            let receipt = LocalUnitReceipt(revision: revision, bytes: 1, installedAt: Date())
+            #expect(receipt.matchesCurrentBuild(for: unit), "\(unit)")
+        }
+
+        let root = try TestPaths.makeTemporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let locations = LocalModelLocations(applicationSupport: root)
+        try FileManager.default.createDirectory(
+            at: locations.diarizerDirectory, withIntermediateDirectories: true
+        )
+        for name in ModelNames.VAD.requiredModels {
+            try FileManager.default.createDirectory(
+                at: locations.voiceActivityDirectory.appendingPathComponent(name),
+                withIntermediateDirectories: true
+            )
+        }
+        try LocalModelReceiptStore(locations: locations).write([
+            .diarizer: LocalUnitReceipt(
+                revision: LocalSpeechStack.revision(for: .diarizer), bytes: 1, installedAt: Date()
+            ),
+            .voiceActivity: LocalUnitReceipt(
+                revision: "silero-vad-unified-256ms-v6.2.1 @ FluidAudio 0.15.6",
+                bytes: 1, installedAt: Date()
+            ),
+        ])
+        let manager = LocalModelManager(
+            applicationSupport: root, required: [.diarizer, .voiceActivity]
+        )
+        guard case .installed = await manager.currentState else {
+            Issue.record("expected installed, got \(await manager.currentState)")
+            return
+        }
+    }
+
+    @Test("a different model or a diarizer from another package still reads as out of date")
+    func aDifferentModelStillReadsAsOutOfDate() {
+        let stale: [(LocalModelUnit, String)] = [
+            (.parakeet, "parakeet-tdt-0.6b-v3-int8-v2 @ FluidAudio 0.18.2"),
+            (.parakeet, "parakeet-tdt-0.6b-v2 @ FluidAudio 0.15.6"),
+            (.voiceActivity, "silero-vad-unified-256ms-v6.0.0 @ FluidAudio 0.15.6"),
+            (.nemotronDiarizer, "nemotron-3-diarization-offline ga-2026-06-01 @ FluidAudio 0.18.2"),
+            (.diarizer, "FluidAudio 0.15.6"),
+            (.whisper, "\(LocalSpeechStack.whisperModel) @ argmax-oss-swift 0.9.0"),
+        ]
+        for (unit, revision) in stale {
+            let receipt = LocalUnitReceipt(revision: revision, bytes: 1, installedAt: Date())
+            #expect(!receipt.matchesCurrentBuild(for: unit), "\(unit) \(revision)")
+        }
+    }
+
+    @Test("FluidAudio still fetches the unpinned speech models from the branch head")
+    func fluidAudioStillFetchesTheUnpinnedSpeechModelsFromTheBranchHead() {
+        // A receipt for these units ignores the package version because
+        // FluidAudio fetches their repositories at `main` and loads an untagged
+        // folder offline only for `main`. If a bump pins one to a commit, as
+        // 0.18 did for the diarizer, older installs stop loading offline and
+        // need an adoption path; if it changes which files Parakeet int8 or
+        // Nemotron loads, the model identity has to change.
+        #expect(Repo.parakeetV3.revision == "main")
+        #expect(Repo.vad.revision == "main")
+        #expect(Repo.cohereTranscribeCoreml.revision == "main")
+        #expect(Repo.canary1bV2.revision == "main")
+        #expect(Repo.parakeetCtc06b.revision == "main")
+        #expect(Repo.parakeetUltra.revision == "main")
+        #expect(Repo.nemotron3Diarization.revision == "main")
+        #expect(ModelNames.Nemotron3.weightsVersion == LocalSpeechStack.nemotron3WeightsVersion)
+        #expect(Nemotron3Config.offline.hubSubdirectory == "monolithic/v2")
+        #expect(Nemotron3Config.offline.modelFileName == "Nemotron3Diarizer_offline.mlmodelc")
+        #expect(ModelNames.Nemotron3.silenceEmbeddingFile == "learnable_sil_emb.bin")
+        #expect(ParakeetEncoderPrecision.int8.encoderFileName == "Encoder.mlmodelc")
+        #expect(ModelNames.VAD.sileroVad == LocalSpeechStack.voiceActivityIdentifier)
+    }
+
     @Test("models never land in Documents")
     func modelsNeverLandInDocuments() async throws {
         // WhisperKit's own default is ~/Documents/huggingface, which puts

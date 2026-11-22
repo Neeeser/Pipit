@@ -338,8 +338,12 @@ Built by `DiagnosticSnapshot` (PipitCore) from values `DiagnosticReportCollector
   use is `restricted`.
 - `summary.models`: one row per unit that has a receipt or that the settings
   need, in `LocalModelUnit` order. `state` is `installed` (the receipt names
-  this build's pinned revision), `outdated` (another revision), or, for a
-  needed unit with no receipt, `installing`, `failed`, or `missing`.
+  the model files this build loads), `outdated` (other files), or, for a
+  needed unit with no receipt, `installing`, `failed`, or `missing`. A
+  FluidAudio model fetched from its repository's `main` branch is
+  judged by the model named before ` @ `, so a receipt an older FluidAudio
+  wrote for the same files stays `installed`. Whisper and the diarizer are
+  judged by the whole revision.
   `revision` is the receipt's with ` @ ` written `_` and any other space `-`
   (`parakeet-tdt-0.6b-v3-int8_FluidAudio-0.18.2`), and for whisper without
   WhisperKit's `openai_whisper-` prefix

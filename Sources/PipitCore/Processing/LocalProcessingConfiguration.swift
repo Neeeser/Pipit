@@ -108,17 +108,40 @@ public enum LocalSpeechStack {
     /// dependency or variant bump reads as a stale install rather than as
     /// strange results.
     public static func revision(for unit: LocalModelUnit) -> String {
+        if let identity = modelIdentity(for: unit) { return "\(identity) @ \(diarizerPackage)" }
+        return unit == .whisper ? "\(whisperModel) @ \(whisperPackage)" : diarizerPackage
+    }
+
+    /// The files a FluidAudio unit loads, for the units whose receipt is
+    /// judged by model alone. Nil for a unit whose whole revision counts.
+    ///
+    /// FluidAudio fetches these repositories at their `main` branch whatever
+    /// its own version, and the repositories add fixes under new file names
+    /// rather than changing published ones, so a package bump alone leaves the
+    /// same files on disk. Comparing the package version too offered a 460 MB
+    /// download of files already installed. The diarizer is left out: its
+    /// repository is pinned to a commit and an older install needs adopting
+    /// before it loads offline.
+    public static func modelIdentity(for unit: LocalModelUnit) -> String? {
         switch unit {
-        case .whisper: "\(whisperModel) @ \(whisperPackage)"
-        case .parakeet: "parakeet-tdt-0.6b-v3-int8 @ \(diarizerPackage)"
-        case .parakeetUltra: "parakeet-ultra-int8 @ \(diarizerPackage)"
-        case .cohere: "cohere-transcribe-03-2026-q8 @ \(diarizerPackage)"
-        case .canary: "canary-1b-v2-int4 @ \(diarizerPackage)"
-        case .ctcAligner: "parakeet-ctc-0.6b @ \(diarizerPackage)"
-        case .diarizer: diarizerPackage
-        case .nemotronDiarizer: "nemotron-3-diarization-offline \(nemotron3WeightsVersion) @ \(diarizerPackage)"
-        case .voiceActivity: "\(voiceActivityIdentifier) @ \(diarizerPackage)"
+        case .parakeet: "parakeet-tdt-0.6b-v3-int8"
+        case .parakeetUltra: "parakeet-ultra-int8"
+        case .cohere: "cohere-transcribe-03-2026-q8"
+        case .canary: "canary-1b-v2-int4"
+        case .ctcAligner: "parakeet-ctc-0.6b"
+        case .nemotronDiarizer: "nemotron-3-diarization-offline \(nemotron3WeightsVersion)"
+        case .voiceActivity: voiceActivityIdentifier
+        case .whisper, .diarizer: nil
         }
+    }
+
+    /// Whether a receipt's revision names the files this build loads.
+    public static func isCurrent(revision receipt: String, for unit: LocalModelUnit) -> Bool {
+        guard let identity = modelIdentity(for: unit) else {
+            return receipt == revision(for: unit)
+        }
+        let model = receipt.components(separatedBy: " @ ").first ?? receipt
+        return model == identity
     }
 }
 
