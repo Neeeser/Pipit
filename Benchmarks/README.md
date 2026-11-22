@@ -59,8 +59,20 @@ headset channels of five held-out AMI meetings (`ami-eval` or `clean`):
 
 - One participant is the local person, chosen from `calls.seed` in
   `manifest.json`. Everyone else is the far end.
-- Each headset channel is gated to its owner's reference speech, so the
-  channel carries one voice. The far-end track is the sum of the other
+- Each headset channel is gated to its owner's reference speech: it is silent
+  more than 0.25 s from the owner's words, and a pause shorter than 0.6 s is
+  kept. A headset also hears the other people in the room, so the local
+  channel is muted as well wherever another participant has a word and the
+  local person has none within 0.1 s. The mute never touches the local
+  person's own words, so other voices that overlap those words stay: across the
+  five meetings, 34 s to 135 s of other participants' speech falls under the
+  local person's words, at 7 dB to 32 dB below the local person, against 2.7 s
+  to 6.2 s left where they speak alone (7.3 s to 17.6 s before the mute).
+  A least-squares subtraction of the other headsets from the local one, fitted
+  on half of each meeting, took at most 4 dB off the other voices in the other
+  half, so the generator does not subtract. `case.json` records these seconds under
+  `localChannel`, and generation exits with an error if the mute silenced a
+  sample of the local person's words. The far-end track is the sum of the other
   participants, passed through an Opus voice-call round trip.
 - The microphone track is the local channel plus the far-end track played
   through a simulated laptop speaker: a high-pass and soft clip, a playback
@@ -206,9 +218,9 @@ words from the transcript. Read the figure as a difference between runs, not as 
 share of the person's speech that is missing.
 
 What stays different from a real call: the local voice is a close-talk headset
-with no room sound, and the gate keeps whatever other speakers the headset
-picked up while its owner talks, so even the `headphones` variant's microphone
-carries some other participants' voices inside the local person's speech; the
+with no room sound, and even the `headphones` variant's microphone still
+carries the other participants' voices where they overlap the local person's
+words, which a headset on a real call would not pick up; the
 tracks are aligned to the sample before the echo delay except in the two
 misaligned variants, which model a late start and lost far-end buffers but no
 steady clock drift (none was measured on the one Mac), no loss on the microphone
