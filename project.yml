@@ -12,6 +12,11 @@ options:
     macOS: "15.0"
   createIntermediateGroups: true
   groupSortPosition: top
+  # Written into the project as LastUpgradeCheck. XcodeGen 2.47 moved its
+  # default from 14.3 to 16.0, and CI installs whichever version Homebrew has
+  # for the runner, so leaving it to the default makes the generated project
+  # differ between runners.
+  xcodeVersion: "14.3"
 
 packages:
   Pipit:
