@@ -145,9 +145,11 @@ class CrosstalkTests(unittest.TestCase):
 
     def test_no_owner_word_loses_a_sample(self):
         samples = 10 * RATE
-        # One word inside the owner's speech, one ending just before an owner
-        # word, one starting just after one.
-        other = [{"start": 3.0, "end": 3.5}, {"start": 1.0, "end": 1.98}, {"start": 6.52, "end": 7.5}]
+        # One word inside the owner's speech, and two that come closer to an
+        # owner word than the fade is wide, so only the margin keeps the fade
+        # off the owner's samples.
+        gap = callsim.GATE_FADE_SECONDS / 4
+        other = [{"start": 3.0, "end": 3.5}, {"start": 1.0, "end": 2.0 - gap}, {"start": 6.5 + gap, "end": 7.5}]
         keep = callsim.crosstalk_keep(self.OWNER, other, samples)
         for word in self.OWNER:
             span = keep[int(word["start"] * RATE) : int(word["end"] * RATE)]
@@ -447,13 +449,15 @@ class CaseTests(unittest.TestCase):
         self.assertGreater(local["otherSpeechSecondsInGate"], local["otherSpeechSecondsKept"])
         self.assertEqual(callsim.problems(info), [])
 
-    def test_a_case_whose_mute_cut_the_owners_words_is_a_problem(self):
+    def test_a_case_whose_mute_cut_the_owners_words_or_that_predates_the_mute_is_a_problem(self):
         with tempfile.TemporaryDirectory() as scratch:
             scratch = Path(scratch)
             (scratch / "in").mkdir()
             _, infos = self.build(scratch / "in", scratch / "out")
         info = {**infos[0], "localChannel": {**infos[0]["localChannel"], "ownerWordSamplesMuted": 5}}
         self.assertTrue(any("own words" in p for p in callsim.problems(info)))
+        old = {key: value for key, value in infos[0].items() if key != "localChannel"}
+        self.assertTrue(any("regenerate" in p for p in callsim.problems(old)))
 
     def test_a_sensor_record_is_written_beside_the_audio_and_named_in_the_description(self):
         with tempfile.TemporaryDirectory() as scratch:

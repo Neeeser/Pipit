@@ -48,7 +48,9 @@ GATE_FADE_SECONDS = 0.02
 # distance, the local channel is muted as well, so a headphones microphone
 # carries only the local person. What stays is the others' speech under the
 # owner's own words, which no mute can take out. The distance is wider than the
-# fade, so no sample of an owner word changes.
+# fade, so no annotated sample of an owner word changes, and it leaves room for
+# word edges that the corpus's forced alignment places a few tens of
+# milliseconds off.
 CROSSTALK_PROTECT_SECONDS = 0.1
 
 # Active-speech levels, in dBFS RMS. Participants differ by a few dB.
@@ -707,8 +709,10 @@ def problems(info: dict) -> list[str]:
             "echo correlation %.4f is not within %.3f of the target %s"
             % (echo["correlation"], ECHO_TOLERANCE, echo["targetCorrelation"])
         )
-    muted = info.get("localChannel", {}).get("ownerWordSamplesMuted", 0)
-    if muted:
+    local = info.get("localChannel")
+    if local is None:
+        found.append("the case has no localChannel record; regenerate it with this generator")
+    elif muted := local["ownerWordSamplesMuted"]:
         found.append("the crosstalk mute silenced %d samples of the local person's own words" % muted)
     samples = info["windowSeconds"] * RATE
     for track, count in echo["clippedSamples"].items():
