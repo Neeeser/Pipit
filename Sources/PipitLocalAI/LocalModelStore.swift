@@ -120,9 +120,9 @@ public struct LocalModelLocations: Sendable, Equatable {
 
 /// What one unit's successful install left behind.
 public struct LocalUnitReceipt: Codable, Sendable, Equatable {
-    /// The pinned revision the files came from, compared against
-    /// `LocalSpeechStack.revision(for:)` so a dependency bump is visible as a
-    /// stale receipt rather than as strange results.
+    /// The pinned revision the files came from, judged by
+    /// `LocalSpeechStack.isCurrent(revision:for:)` so a change of model files
+    /// is visible as a stale receipt rather than as strange results.
     public var revision: String
     public var bytes: Int64
     public var installedAt: Date
@@ -137,7 +137,7 @@ public struct LocalUnitReceipt: Codable, Sendable, Equatable {
     }
 
     public func matchesCurrentBuild(for unit: LocalModelUnit) -> Bool {
-        revision == LocalSpeechStack.revision(for: unit)
+        LocalSpeechStack.isCurrent(revision: revision, for: unit)
     }
 }
 

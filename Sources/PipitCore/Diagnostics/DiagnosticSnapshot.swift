@@ -371,7 +371,7 @@ extension DiagnosticSnapshot {
     ) -> [DiagnosticReport.Model] {
         LocalModelUnit.allCases.compactMap { unit in
             if let receipt = receipts[unit] {
-                let isCurrent = receipt.revision == LocalSpeechStack.revision(for: unit)
+                let isCurrent = LocalSpeechStack.isCurrent(revision: receipt.revision, for: unit)
                 return DiagnosticReport.Model(
                     unit: unit.rawValue, state: isCurrent ? "installed" : "outdated",
                     revision: revisionToken(receipt.revision), bytes: Int(clamping: max(0, receipt.bytes))
