@@ -157,11 +157,15 @@ SAME_SPEECH = {
     ],
     "spelled-out letters": [
         ("call the A P I", "call the API"),
+        ("call the A. P. I.", "call the API"),
+        ("call the A-P-I", "call the API"),
         ("the g c p bill", "the GCP bill"),
         ("my initials are J K", "my initials are J.K."),
     ],
     "fillers and contractions": [
         ("um so we're uh done", "so we are done"),
+        ("oh, that works", "that works"),
+        ("Oh well. Oh.", "well"),
         ("we'll pick a colour", "we will pick a color"),
         ("it’s fine", "it's fine"),
     ],
@@ -205,6 +209,12 @@ class NormaliseTests(unittest.TestCase):
     def test_the_pronoun_and_the_article_stay_words(self):
         self.assertEqual(sources.normalise("so I think a plan and the A B C help"),
                          ["so", "i", "think", "a", "plan", "and", "the", "abc", "help"])
+
+    def test_oh_read_as_a_digit_stays_a_number(self):
+        self.assertEqual(sources.normalise("room one oh one"), sources.normalise("room 101"))
+
+    def test_a_sentence_ending_in_a_letter_does_not_join_the_next(self):
+        self.assertEqual(sources.normalise("plan B. C is next"), ["plan", "b", "c", "is", "next"])
 
     def test_non_speech_tags_and_punctuation_go(self):
         self.assertEqual(sources.normalise("Right. [Noise] (laughs) Next, please!"), ["right", "next", "please"])

@@ -122,9 +122,19 @@ def split_segments(work: Path, teacher: str, meeting_id: str) -> list[dict] | No
 
 # Hesitation sounds Whisper's normaliser keeps. It already drops hmm, mm, mhm, mmm,
 # uh and um.
-FILLERS = {"uhm", "umm", "ah", "er", "erm", "eh", "huh", "oh"}
+FILLERS = {"uhm", "umm", "ah", "er", "erm", "eh", "huh"}
 # Whisper turns the letter "o" into a zero, so "O.K." would become "0 k".
 SPELLINGS = {"ok": "okay"}
+# Whisper reads every "oh" as a zero. Before a digit it is one ("one oh one" is
+# 101); anywhere else it is the interjection, which is dropped like a filler.
+INTERJECTION_OH = re.compile(r"\boh\b(?!\s+(?:\d|zero|one|two|three|four|five|six|seven|eight|nine)\b)",
+                             re.IGNORECASE)
+# Single letters joined into one word, while case and dots still show an acronym:
+# "A.P.I." and "E.O.D" (a dot between letters), "A. P. I.", "A P I" and "A-P-I"
+# (capitals), and "g c p" (lowercase, leaving the words "a" and "i" alone). Only a
+# plain space or hyphen joins, so "plan B. C is next" keeps two letters.
+ACRONYMS = [re.compile(r"\b[A-Za-z](?:\.[A-Za-z])+\b\.?"), re.compile(r"\b[A-Z]\.(?: [A-Z]\.)+"),
+            re.compile(r"\b[A-Z](?:[ -][A-Z])+\b"), re.compile(r"\b[b-hj-z](?: [b-hj-z])+\b")]
 
 
 @cache
@@ -135,7 +145,7 @@ def _whisper():
 
 
 def _join_letters(match: re.Match) -> str:
-    return re.sub(r"[.\s]", "", match.group())
+    return re.sub(r"[.\s-]", "", match.group())
 
 
 def normalise(text: str) -> list[str]:
@@ -148,21 +158,11 @@ def normalise(text: str) -> list[str]:
     expands contractions, uses American spelling, and drops bracketed tags and
     punctuation. Acronyms are joined first, while case and dots still show them.
     """
-    # "A.P.I." and "E.O.D" (a dot between single letters), then "A P I" (a run of
-    # capital letters), become one word. Lone "A" and "I" are left as words.
-    text = re.sub(r"\b[A-Za-z](?:\.[A-Za-z])+\b\.?", _join_letters, text)
-    text = re.sub(r"\b[A-Z](?: [A-Z])+\b", _join_letters, text)
+    for pattern in ACRONYMS:
+        text = pattern.sub(_join_letters, text)
+    text = INTERJECTION_OH.sub(" ", text)
     # Whisper only knows the straight apostrophe, so "it’s" would split in two.
     text = text.replace("’", "'")
     # Whisper reads "three thirty" as 330 and "3:30" as two numbers.
     text = re.sub(r"\b(\d{1,2}):(\d{2})\b", r"\1\2", text)
-    words = [SPELLINGS.get(w, w) for w in _whisper()(text).split() if w not in FILLERS]
-    # Letters an engine spelled out in lowercase ("g c p") match the written "gcp".
-    joined: list[str] = []
-    for w in words:
-        single = len(w) == 1 and w.isalpha() and w not in {"a", "i"}
-        if single and joined and joined[-1].endswith("\0"):
-            joined[-1] = joined[-1][:-1] + w + "\0"
-        else:
-            joined.append(w + "\0" if single else w)
-    return [w.rstrip("\0") for w in joined]
+    return [SPELLINGS.get(w, w) for w in _whisper()(text).split() if w not in FILLERS]

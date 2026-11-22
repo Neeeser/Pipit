@@ -159,15 +159,22 @@ copy of OpenAI Whisper's) with a few steps of its own:
 | Money and percentages | "forty dollars" and "$40", "twelve percent" and "12%" | Whisper |
 | Contractions and British spelling | "we're" and "we are", "colour" and "color" | Whisper |
 | Case, punctuation, bracketed tags such as `[Noise]` | | Whisper |
-| Hesitation sounds | "um", "uh", "er", "oh" dropped | Whisper, plus a short list of its own |
-| Acronyms with dots | "A.P.I." and "API", "E.O.D" and "EOD" | the audit, before Whisper |
-| Spelled-out letters | "A P I", "g c p" and "API", "GCP" | the audit: a run of capital letters before Whisper, a run of lowercase single letters after it, leaving "a" and "i" as words |
+| Hesitation sounds | "um", "uh", "er" dropped | Whisper, plus a short list of its own |
+| "oh" | "oh, that works" and "that works", while "one oh one" stays 101 | the audit, which drops "oh" unless a number follows, since Whisper reads every "oh" as a zero |
+| Acronyms with dots | "A.P.I.", "A. P. I." and "API", "E.O.D" and "EOD" | the audit, before Whisper |
+| Spelled-out letters | "A P I", "A-P-I", "g c p" and "API", "GCP" | the audit, before Whisper: single letters joined by a plain space or hyphen, so "plan B. C" keeps two letters |
 | Clock times | "three thirty" and "3:30" | the audit, which writes "3:30" as Whisper writes "three thirty" |
 | Curly apostrophes and "OK" | "it’s" and "it's", "O.K." and "okay" | the audit |
 
 Whisper's rules apply to every source the same way, so their quirks cancel out:
 "the team's plan" becomes "the team is plan" in both transcripts. A real
 difference still counts, so "twenty five" against "35" is one error.
+
+Some styles still differ. Lowercase letters spelled out with "a" or "i" among
+them ("a p i") stay apart, since the article and the pronoun look the same. A
+capital "I" just before spelled capitals joins them ("so I A B C" gives "iabc").
+Amount suffixes ("$1.5M" against "1.5 million dollars") and some symbols ("24/7")
+do not match their spoken forms.
 
 `pipit-eval bench` (`BenchScorer.normalise` in `Sources/PipitBench`) only
 lowercases, drops punctuation, splits hyphens and keeps apostrophes, and drops
