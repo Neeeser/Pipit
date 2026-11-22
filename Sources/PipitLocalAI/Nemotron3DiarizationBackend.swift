@@ -92,16 +92,11 @@ public struct Nemotron3DiarizationBackend: DiarizationBackend {
     /// call is the real case. The model never sees such a file, so a meeting
     /// where nobody spoke gets an empty diarization, the answer the offline
     /// clusterer gives through `LocalModelManager.silentMeeting`.
-    static func isEffectivelySilent(_ samples: [Float]) -> Bool {
-        var probe = SilenceProbe()
-        _ = probe.add(samples)
-        return probe.isSilent
-    }
-
-    /// The same answer for a file, decoded block by block and only as far as
-    /// the answer needs. Audio with a voice in it is audible within its first
-    /// block, so a meeting of any length costs one block of decoding. Also
-    /// returns how many samples it read.
+    ///
+    /// The file is decoded block by block and only as far as the answer needs.
+    /// Audio with a voice in it is audible within its first block, so a meeting
+    /// of any length costs one block of decoding. Also returns how many samples
+    /// it read.
     static func isEffectivelySilent(audio: URL) throws -> (silent: Bool, samplesRead: Int) {
         var probe = SilenceProbe()
         try MonoAudioDecoder.forEachBlock(audio) { probe.add($0) }

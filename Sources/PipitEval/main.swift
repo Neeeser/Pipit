@@ -98,6 +98,14 @@ struct Arguments {
         exit(2)
     }
 
+    /// `--embed` measures the pass after a Nemotron run, so anywhere else it
+    /// would be ignored and the run written down as having included it.
+    private static func refuseMisplacedEmbed(_ embed: Bool, command: String, diarizer: String) {
+        guard embed, command != "diarize" || !diarizer.hasPrefix("nemotron3") else { return }
+        note("--embed applies to diarize --diarizer nemotron3 only")
+        exit(2)
+    }
+
     /// Reads `--attribution MODE` out of the arguments and removes it, so the
     /// loop below keeps its size. An unknown mode stops the run: a dropped one
     /// would measure `current` and be written down as the mode asked for. Nil
@@ -203,6 +211,7 @@ struct Arguments {
         showText = switchedOn.contains("--show-text")
         cleanedMic = switchedOn.contains("--cleaned-mic")
         embedVectors = switchedOn.contains("--embed")
+        Self.refuseMisplacedEmbed(embedVectors, command: command, diarizer: benchOptions.diarizer)
         // `bench` takes engines repeatably; the single-engine commands read the
         // last one, which is what `--engine` meant before.
         benchOptions.engines = engines
@@ -368,6 +377,12 @@ case "align":
 case "diarize":
     guard let audio = arguments.audio.first else { usage() }
     if arguments.bench.diarizer.hasPrefix("nemotron3") {
+        // Nemotron takes no acoustic scaling and no speaker count, and a run
+        // that ignored them would be written down as having used them.
+        guard arguments.acousticScalings.isEmpty, arguments.speakerCount == nil else {
+            note("--fa and --speakers apply to the clusterer, not --diarizer nemotron3")
+            exit(2)
+        }
         try await NemotronDiarizeCommand.run(
             audio: audio, manager: manager,
             preset: BenchCommand.nemotron3Preset(for: arguments.bench.diarizer),

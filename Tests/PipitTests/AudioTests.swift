@@ -68,7 +68,14 @@ struct AudioTests {
         }
         #expect(blocks.count > 1, "a ten-second file comes in more than one block")
         #expect(blocks.allSatisfy { !$0.isEmpty })
-        #expect(blocks.flatMap { $0 } == whole)
+        let joined = blocks.flatMap { $0 }
+        #expect(joined == whole)
+        // Checked against the tone itself, since `loadMono16k` is built on the
+        // block decoder: ten seconds at 16 kHz, at the tone's level.
+        #expect(abs(joined.count - 160_000) <= 160, "\(joined.count) samples")
+        let middle = joined[16_000..<144_000]
+        let rms = (middle.reduce(0) { $0 + Double($1) * Double($1) } / Double(middle.count)).squareRoot()
+        #expect(abs(rms - 0.5 / 2.0.squareRoot()) < 0.01, "rms \(rms)")
 
         var read = 0
         try MonoAudioDecoder.forEachBlock(url) { block in
