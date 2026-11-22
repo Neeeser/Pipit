@@ -62,13 +62,15 @@ public struct AudioImporter: Sendable {
     /// everyone else, laid out the way a capture writes them.
     ///
     /// Both tracks go into one manifest under `source`, which must be a source
-    /// that records the far end separately. Each track starts at the same host
-    /// time, so the pipeline reads the two as captured together and the echo
-    /// pass lines the far end up by measurement alone. This is how the
-    /// benchmark feeds the pipeline a call whose answer is known.
+    /// that records the far end separately. The far end's first frame is
+    /// stamped `remoteStartSeconds` after the microphone's, the way a capture
+    /// stamps a far-end track that opened late, so the pipeline places it on
+    /// the meeting timeline from that host time and the echo pass measures
+    /// only what is left. This is how the benchmark feeds the pipeline a call
+    /// whose answer is known.
     public func importCall(
         microphone: URL, remote: URL, source: MeetingSource, into store: MeetingStore,
-        meetingID: String, session: DiagnosticSessionID? = nil
+        meetingID: String, session: DiagnosticSessionID? = nil, remoteStartSeconds: Double = 0
     ) throws -> CallResult {
         guard source.capturesRemoteAudio else {
             throw ProcessingError.localProcessingFailed(
@@ -101,7 +103,8 @@ public struct AudioImporter: Sendable {
             microphoneSeconds = first.durationSeconds
             let second = try write(
                 preservedRemote, originalName: remoteName, track: .remote, store: store,
-                manifest: manifest, hostOrigin: origin, decodedSeconds: &remoteSeconds
+                manifest: manifest, hostOrigin: origin + remoteStartSeconds,
+                decodedSeconds: &remoteSeconds
             )
             appendSessionEnd(
                 to: manifest, reason: "import_complete", microphone: first.durationSeconds,

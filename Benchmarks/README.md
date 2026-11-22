@@ -38,7 +38,7 @@ no recordings. CI rejects committed audio files.
 | `icsi` | 4 | Six to nine speakers with 28% to 39% overlap |
 | `notsofar` | 5 | Recent office meetings with 4% to 46% overlap |
 | `deciding` | 14 | Held-out cases used to compare engines |
-| `calls` | 20 | Simulated two-track calls: a microphone track with laptop-speaker echo and a far-end track |
+| `calls` | 30 | Simulated two-track calls: a microphone track with laptop-speaker echo and a far-end track, aligned or not |
 
 Use `deciding` when ranking one engine against another. Some `ami-core` and
 `ami-overlap` cases appear in published training data for local models. Those
@@ -91,6 +91,50 @@ headset channels of five held-out AMI meetings (`ami-eval` or `clean`):
   and the share of dropped far-end turns are the `sensors` numbers of that
   variant in `manifest.json`. The poll and hold are the extension's own
   constants; the dropped share is chosen, not measured.
+- `laptop-far-end-late` and `laptop-far-end-dropouts` put the two tracks out
+  of line. Both reach the `laptop` echo level, so a difference from `laptop`
+  comes from the alignment.
+  - In `laptop-far-end-late` the far end begins 1.12 s after the microphone,
+    and the bench imports it at that start time, the way a capture stamps a
+    track that opened late. A far-end track opens on the first audio the call
+    app plays, so nothing is played before then and the microphone holds no
+    echo there. Far-end words in those 1.12 s are lost with it.
+  - In `laptop-far-end-dropouts` the microphone is the `laptop` one, byte for
+    byte. The far-end file loses whole capture buffers (one to four buffers of
+    512 frames at 48 kHz) at random moments, 13 ms of audio per minute, with
+    nothing in their place, so it slides earlier against the microphone as the
+    call goes on: 85 ms to 117 ms by the end of a six-minute window and 395 ms
+    by the end of the 30-minute one. The pipeline is not told about the losses,
+    as in the app.
+  - `case.json` records the start, every loss, and the correlation Pipit's
+    measure reads on the file as recorded (`farEnd.correlationAsRecorded`). The
+    echo target is checked against what the speakers played.
+
+  The numbers come from `Benchmarks/calls/measure_alignment.py`, run over 197
+  meetings recorded on one Mac. It reads each meeting's `raw/manifest.jsonl`,
+  where every segment records its first frame's host time and its frame count,
+  and stops at the first pause. The recordings stay outside the repository; the
+  script prints only counts and percentiles.
+  - Start offset: the far end started a median 0.04 s after the microphone, and
+    1.12 s is the 90th percentile of the absolute offset (the largest was
+    64 s). Of the 20 offsets over a second, 14 had the far end starting later,
+    the direction the variant takes. A microphone that starts later is not
+    simulated.
+  - Steady clock drift between the two tracks was negligible on that Mac: at
+    most 2.5 parts per million, 6 ms over a whole meeting. A microphone on its
+    own clock, such as a USB one, can drift where these did not, and no
+    variant models that.
+  - Lost buffers do move the tracks apart. The capture pads a gap only from
+    50 ms up, so shorter losses on the far end leave the rest of the track
+    early. In 81 of the 197 meetings the far end slid earlier this way, and
+    13 ms per minute is the 95th percentile of that rate. The sizes and their
+    weights are the counts of steps under 50 ms seen between segments, rounded
+    to the nearest one to four buffers; each sits within 5.2 ms of a whole
+    number of buffers. The 11 steps that round to five buffers (48 ms to 50 ms)
+    are left out, since one loss that long would have been padded. A step
+    between two segments can add up several losses inside one 30 s segment, so
+    the variant's single losses may run larger than real ones while the rate
+    stays the same.
 - `--attribution` on `bench` and `reprocess` chooses how a meeting client's
   speaker record and the diarizer share the far end: `current` (the app),
   `diarizer-names` (the record only names clusters), `sensor-first` (turns
@@ -119,6 +163,7 @@ Build and run it:
 scripts/fetch-bench-audio.sh calls
 Benchmarks/calls/generate.py          # writes ~/Library/Caches/pipit-bench/calls/<case>/
 scripts/eval.sh bench --suite calls --engine parakeet --diarizer local --out calls.json
+Benchmarks/calls/measure_alignment.py ~/Documents/Pipit/Meetings   # recheck the start offset and loss figures
 ```
 
 `generate.py --verify` also runs `pipit-eval aec` on each case and compares its
@@ -146,7 +191,7 @@ the generator recorded for the case, and the echo power against the local voice
 in dB. A `*` after a variant marks simulated sensors.
 
 How far to trust the suite: it holds five meetings from two speaker groups in
-four variants, and the variants share each meeting's audio. Use it to catch a
+six variants, and the variants share each meeting's audio. Use it to catch a
 regression in a fixed configuration, not to rank engines or models.
 
 `localWordsLost` is mostly recognition error, not speech the pipeline dropped.
@@ -164,7 +209,11 @@ What stays different from a real call: the local voice is a close-talk headset
 with no room sound, and the gate keeps whatever other speakers the headset
 picked up while its owner talks, so even the `headphones` variant's microphone
 carries some other participants' voices inside the local person's speech; the
-tracks are aligned to the sample before the echo delay; there is no packet loss, gain control or clock drift; every meeting has
+tracks are aligned to the sample before the echo delay except in the two
+misaligned variants, which model a late start and lost far-end buffers but no
+steady clock drift (none was measured on the one Mac), no loss on the microphone
+track and no microphone that starts after the far end;
+there is no packet loss in the codec and no gain control; every meeting has
 four participants; and the local person's share of speech is fixed by the
 meeting, so reaching a very high echo correlation takes a louder echo than a
 real call would have. Baselines for this suite are not in `baselines.json`.

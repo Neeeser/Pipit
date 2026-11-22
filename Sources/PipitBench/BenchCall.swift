@@ -32,6 +32,16 @@ public struct BenchCallCase: Codable, Sendable, Equatable {
         public var echoToLocalVoiceDB: Double?
     }
 
+    /// How the far-end file was made to disagree with the microphone in time.
+    public struct FarEnd: Codable, Sendable, Equatable {
+        /// How long after the microphone the far-end file begins. The bench
+        /// imports it at that start time, as a capture stamps a late track.
+        public var startSeconds: Double
+        /// Far-end audio removed with nothing in its place, which moves the
+        /// rest of the track earlier against the microphone by this much.
+        public var lostSeconds: Double
+    }
+
     public var `case`: String
     public var meeting: String
     public var variant: String
@@ -40,6 +50,8 @@ public struct BenchCallCase: Codable, Sendable, Equatable {
     public var localSpeaker: String
     public var files: Files
     public var echo: Echo
+    /// Nil when the two tracks are aligned to the sample.
+    public var farEnd: FarEnd?
 
     public static func read(from url: URL) throws -> BenchCallCase {
         try JSONDecoder().decode(BenchCallCase.self, from: Data(contentsOf: url))

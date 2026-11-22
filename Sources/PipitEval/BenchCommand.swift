@@ -595,7 +595,8 @@ enum BenchCommand {
         if let call {
             imported = try importer.importCall(
                 microphone: call.microphone, remote: call.remote, source: meetingSource,
-                into: created.store, meetingID: created.metadata.id
+                into: created.store, meetingID: created.metadata.id,
+                remoteStartSeconds: call.description.farEnd?.startSeconds ?? 0
             ).microphone
         } else {
             imported = try importer.import(
@@ -874,8 +875,12 @@ enum BenchCommand {
         print("  or none, summed over the cases of the line.")
         print("  * marks a variant whose speaker evidence is a simulated sensor record.")
         print("")
+        // Wide enough for the longest variant name and its sensor mark, so two
+        // variants that share a prefix never print as one.
+        let kindWidth = max(13, (calls.compactMap { $0.call?.variant.count }.max() ?? 0) + 1)
         print(
-            "  engine       variant        cases     tcp    cpWER   WER  attribution"
+            "  engine       " + "variant".padding(toLength: kindWidth + 2, withPad: " ", startingAt: 0)
+                + "cases     tcp    cpWER   WER  attribution"
                 + "     DER   far end/min   lost/min   names right/wrong/unnamed   echo   built   dB"
         )
         for engine in Array(Set(calls.map(\.engine))).sorted() {
@@ -901,7 +906,8 @@ enum BenchCommand {
                 let level = levels.isEmpty ? "     -" : String(format: "%+6.1f", median(levels))
                 let simulated = group.contains { $0.call?.simulatedSensors == true }
                 let name = engine.padding(toLength: 10, withPad: " ", startingAt: 0)
-                let kind = (variant + (simulated ? "*" : "")).padding(toLength: 13, withPad: " ", startingAt: 0)
+                let kind = (variant + (simulated ? "*" : "")).padding(
+                    toLength: kindWidth, withPad: " ", startingAt: 0)
                 print(
                     "  \(name)   \(kind)  "
                         + String(
