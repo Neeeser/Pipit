@@ -16,8 +16,8 @@ import Foundation
 /// - `enrollmentIntervals` picks the stretches safe to embed as one person's
 ///   voice, for the profile that recognises them next time.
 /// - `attribute` matches diarization clusters to participants, which names the
-///   fallback stretches: a cluster mostly covered by one person's turns names
-///   that person's uncovered words too.
+///   fallback stretches: a cluster whose turns point at one person names that
+///   person's uncovered words too.
 ///
 /// Every rule below exists to make a wrong answer read as no answer. A blank
 /// name asks to be filled in; a confident wrong one does not.
@@ -103,20 +103,51 @@ public enum SensorAttribution {
         }
     }
 
-    /// `relaxed-names`: the share of a cluster's speech one person's turns must
-    /// cover, and the share of the speech the turns cover at all that is theirs.
-    static let relaxedClusterCoverage: Double = 0.25
-    static let relaxedCoveredShare: Double = 0.5
-    /// `relaxed-names`: how much a turn of the local user counts against a
-    /// participant, since the local user overlapping the far end says little
-    /// about who a far-end voice is.
-    static let relaxedSelfWeight: Double = 0.5
-
-    /// A cluster is named only when one person held most of it.
-    public static let minimumClusterCoverage: Double = 0.5
-    /// And held it by this much more than the runner-up. Two people splitting a
-    /// cluster evenly means the diarizer merged them, and picking the longer
-    /// half would be a coin flip dressed as a decision.
+    /// A cluster takes a participant's name when that participant's turns
+    /// cover this share of the cluster's speech and hold
+    /// `minimumCoveredShare` of the speech any turn covers in it.
+    ///
+    /// The client marks one floor holder at a time and holds the mark while
+    /// several tiles move at once, so on a call where people talk over each
+    /// other its turns reach only part of each voice. In the simulated Meet
+    /// calls with the most overlap (each far-end person talked over for 58 to
+    /// 75% of their speech) the right person's turns covered 28 to 45% of
+    /// the large clusters, each one person's voice, 32 to 45% of each cluster
+    /// sat under no turn, and a bar of half the cluster left every far-end
+    /// word in those calls unnamed.
+    public static let minimumClusterCoverage: Double = 0.25
+    /// The share of the speech the turns cover in a cluster that the named
+    /// participant must hold.
+    ///
+    /// With the coverage bar this low, the turns that do reach a cluster have
+    /// to agree. Against one rival the margin already demands more than this;
+    /// the share decides where turns of three or more people reach the
+    /// cluster, as when a tile that flickers on from background noise cuts
+    /// into everyone's turns. In a replay of the simulated calls with such a
+    /// tile on for a second every five seconds, the bar without this share
+    /// put wrong names on two clusters and this rule on none. Neither rule
+    /// survives a tile on half the time: with two seconds of every four the
+    /// half-cluster rule misnamed 17 of 33 clusters and this one 27 of 44.
+    public static let minimumCoveredShare: Double = 0.5
+    /// How much a turn of the local user counts against a participant. The
+    /// local user is not in the far-end mixdown and talks over the far end
+    /// all the time, so their turn says little about whose voice a far-end
+    /// cluster is. Half weight rather than none, because a cluster the local
+    /// user's turns explain best must stay blank (see `attribute`), and
+    /// dropping their turns would let second place win it outright.
+    public static let selfTurnWeight: Double = 0.5
+    /// The bar voice enrolment keeps, and `strict-names` names with: half of
+    /// the whole cluster, with the local user's turns at full weight.
+    ///
+    /// Enrolment stays here because a wrong name on a cluster shows once and
+    /// a person can correct it, while a wrong voice in a profile carries the
+    /// mistake into every later meeting. The thresholds were set after a
+    /// wrong name was enrolled against someone's voice.
+    public static let enrollmentClusterCoverage: Double = 0.5
+    /// Under either rule, the winner must hold this much more than the
+    /// runner-up. Two people splitting a cluster evenly means the diarizer
+    /// merged them, and picking the longer half would be a coin flip dressed
+    /// as a decision.
     public static let minimumMargin: Double = 1.5
     /// Below this share of speech covered, the two clocks do not describe the
     /// same call and nothing is named.
@@ -352,7 +383,8 @@ public enum SensorAttribution {
     ///
     /// Three facts have to agree before a second of audio reaches a profile.
     /// The turn says the client heard this person holding the floor. The
-    /// matched clusters, found under `attribute`'s coverage and margin guards,
+    /// matched clusters, found under the strict coverage and margin guards
+    /// (`enrollmentClusterCoverage`),
     /// say which diarized voices those turns dominate, and there can be more
     /// than one: the clusterer is tuned to split a speaker rather than merge
     /// two people. And `soloSpeech` says nobody talked over it. The
@@ -377,7 +409,7 @@ public enum SensorAttribution {
         // voice landing in two clusters is the expected case, and keeping only
         // one of them threw away most of that person's enrollable audio.
         var clustersOf: [String: Set<String>] = [:]
-        for match in attribute(intervals: diarized, sensors: sensors).matches {
+        for match in attribute(intervals: diarized, sensors: sensors, mode: .strictNames).matches {
             clustersOf[match.participantID, default: []].insert(match.clusterID)
         }
         let solo = DiarizationInterval.soloSpeech(diarized)
@@ -565,9 +597,10 @@ public enum SensorAttribution {
         for (clusterID, byParticipant) in perCluster {
             let seconds = clusterSeconds[clusterID] ?? 0
             guard seconds > 0 else { continue }
-            let relaxed = mode == .relaxedNames
+            let strict = mode == .strictNames
+            let selfWeight = strict ? 1 : selfTurnWeight
             let weighted = byParticipant.map { key, value in
-                (key: key, value: relaxed && selfIDs.contains(key) ? value * relaxedSelfWeight : value)
+                (key: key, value: selfIDs.contains(key) ? value * selfWeight : value)
             }
             let ranked = weighted.sorted { lhs, rhs in
                 // Ties broken by identifier so the result does not depend on
@@ -576,13 +609,13 @@ public enum SensorAttribution {
             }
             guard let winner = ranked.first else { continue }
             let runnerUp = ranked.dropFirst().first?.value ?? 0
-            if relaxed {
-                let covered = ranked.reduce(0) { $0 + $1.value }
-                guard winner.value / seconds >= relaxedClusterCoverage,
-                    winner.value / covered >= relaxedCoveredShare
-                else { continue }
+            if strict {
+                guard winner.value / seconds >= enrollmentClusterCoverage else { continue }
             } else {
-                guard winner.value / seconds >= minimumClusterCoverage else { continue }
+                let covered = ranked.reduce(0) { $0 + $1.value }
+                guard winner.value / seconds >= minimumClusterCoverage,
+                    winner.value / covered >= minimumCoveredShare
+                else { continue }
             }
             guard runnerUp == 0 || winner.value >= runnerUp * minimumMargin else { continue }
             // A cluster the local user best explains is a cluster this track

@@ -153,8 +153,9 @@ headset channels of five held-out AMI meetings (`ami-eval` or `clean`):
 - `--attribution` on `bench` and `reprocess` chooses how a meeting client's
   speaker record and the diarizer share the far end: `current` (the app),
   `diarizer-names` (the record only names clusters), `sensor-first` (turns
-  label words before clusters do) and `relaxed-names` (`current` with a wider
-  rule for which participant a cluster is). The app always runs `current`. Only
+  label words before clusters do) and `strict-names` (`current` with the
+  narrower rule for which participant a cluster is that the app used before:
+  half of the whole cluster). The app always runs `current`. Only
   `bench` and `reprocess` accept the flag, and `reprocess` refuses a mode other
   than `current` on a meeting in the app's own archive. Each bench row records
   the mode, how many far-end words sit under a speaker with no name, and, on a

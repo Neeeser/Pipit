@@ -551,9 +551,15 @@ reading is theirs. A third person in the roster, however briefly, ends that
 reading. Cluster naming (below) is what puts the client's names on
 the clusters. Voice enrollment embeds each participant's turns cut to the
 solo speech the diarizer heard inside them, so voice memory learns a
-known-identity voice without waiting for a confirmation. Cluster naming matches
-a diarization cluster to whoever's turns dominate it, which carries the name
-onto the stretches the sensor did not see.
+known-identity voice without waiting for a confirmation. Cluster naming gives a
+diarization cluster a participant's name when that participant's turns cover a
+quarter of the cluster, hold half of what the turns cover in it, and lead the
+runner-up by 1.5 times, with the local user's turns counted at half weight. That
+carries the name onto the stretches the sensor did not see. The client marks one
+floor holder at a time, so where people talk over each other its turns reach
+only part of each voice. Enrollment keeps the stricter bar of half the whole
+cluster with the local user at full weight, because a wrong voice in a profile
+carries into later meetings.
 
 Sensor names sit at an origin above a voice match and below the microphone
 track, so a person's own correction always wins. The sensor never sets the
