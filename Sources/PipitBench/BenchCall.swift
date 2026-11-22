@@ -201,3 +201,101 @@ extension BenchScorer {
         return low < times.count && times[low] <= token.start + localTrackWindow
     }
 }
+
+/// A far-end line of a transcript with the display name a reader sees on it.
+public struct NamedUtterance: Sendable, Equatable {
+    public var start: Double
+    public var end: Double
+    public var text: String
+    /// The speaker's display name, or nil where the line has none.
+    public var name: String?
+
+    public init(start: Double, end: Double, text: String, name: String?) {
+        self.start = start
+        self.end = end
+        self.text = text
+        self.name = name
+    }
+}
+
+/// How the far end's words fared on naming, on the words that can be checked.
+///
+/// The checked words are the content words of the transcript that match a
+/// reference word of a far-end speaker within three seconds. Short and function
+/// words are skipped because several speakers say them at the same moment.
+public struct FarEndNameScore: Codable, Sendable, Equatable {
+    /// Under the display name of the reference speaker who said them.
+    public var right: Int
+    /// Under a different name.
+    public var wrong: Int
+    /// Under no name.
+    public var unnamed: Int
+
+    public init(right: Int, wrong: Int, unnamed: Int) {
+        self.right = right
+        self.wrong = wrong
+        self.unnamed = unnamed
+    }
+}
+
+extension BenchScorer {
+    /// Compares the name on each far-end word with the name of the reference
+    /// speaker who said it.
+    ///
+    /// A simulated call names a participant after the reference speaker, so the
+    /// two names are equal where the transcript is right. The reference speaker
+    /// of a word is the one whose same word lies nearest in time, within three
+    /// seconds, among the far-end speakers. An utterance's words are spread
+    /// evenly across its span, as the other scores do.
+    public static func farEndNames(
+        truth: BenchTruth, utterances: [NamedUtterance], localSpeaker: String
+    ) -> FarEndNameScore {
+        var byText: [String: [(start: Double, speaker: String)]] = [:]
+        for (speaker, tokens) in referenceSpeakerStreams(truth) where speaker != localSpeaker {
+            for token in tokens { byText[token.text, default: []].append((token.start, speaker)) }
+        }
+        let sorted = byText.mapValues { $0.sorted { $0.start < $1.start } }
+
+        var score = FarEndNameScore(right: 0, wrong: 0, unnamed: 0)
+        for utterance in utterances {
+            let parts = normalise(utterance.text)
+            guard !parts.isEmpty else { continue }
+            let width = max(0, utterance.end - utterance.start) / Double(parts.count)
+            let name = (utterance.name ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+            for (index, part) in parts.enumerated() {
+                if leakIgnored.contains(part) || part.count < 3 { continue }
+                guard let times = sorted[part] else { continue }
+                let start = utterance.start + Double(index) * width
+                guard let speaker = nearest(to: start, in: times) else { continue }
+                if name.isEmpty {
+                    score.unnamed += 1
+                } else if name == speaker {
+                    score.right += 1
+                } else {
+                    score.wrong += 1
+                }
+            }
+        }
+        return score
+    }
+
+    /// The speaker of the entry closest to `time`, within the window.
+    private static func nearest(
+        to time: Double, in entries: [(start: Double, speaker: String)]
+    ) -> String? {
+        var low = 0
+        var high = entries.count
+        while low < high {
+            let middle = (low + high) / 2
+            if entries[middle].start < time { low = middle + 1 } else { high = middle }
+        }
+        var best: (gap: Double, speaker: String)?
+        for index in [low - 1, low] where entries.indices.contains(index) {
+            let gap = abs(entries[index].start - time)
+            if gap <= localTrackWindow, best.map({ gap < $0.gap }) ?? true {
+                best = (gap, entries[index].speaker)
+            }
+        }
+        return best?.speaker
+    }
+}

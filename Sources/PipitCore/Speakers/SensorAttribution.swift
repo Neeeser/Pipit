@@ -3,9 +3,11 @@ import Foundation
 /// Attributes speech from what the meeting client reported.
 ///
 /// The sensor timeline is an observation, not a prediction: the client marked
-/// who held the floor while the audio was recorded. So it labels words first,
-/// directly, and the diarizer covers what the sensor did not see: gaps in the
-/// readings, overlap, and every recording made without a readable client.
+/// who held the floor while the audio was recorded. The diarizer hears the
+/// audio, so where a cluster reaches a word the cluster labels it. The sensor
+/// fills the words no cluster reaches, and `attribute` gives the clusters the
+/// participants' names. A one-to-one call is the exception: the far-end track
+/// holds only that one person, so the sensor labels all of it.
 ///
 /// Three products, all pure so they can be tested without audio or a meeting.
 ///
@@ -49,6 +51,66 @@ public enum SensorAttribution {
             self.coverage = coverage
         }
     }
+
+    /// The sensor timeline as it labels words, in the two roles it can play.
+    public struct WordSources: Sendable, Equatable {
+        /// One participant owns the whole far-end track, so every word is
+        /// theirs whatever the diarizer says. Empty unless the client named the
+        /// only other person in the call.
+        public var authoritative: [DiarizationInterval]
+        /// The turns, which label only the words no diarization interval
+        /// reaches. See `TranscriptAssembler.assignSpans` for why they do not
+        /// outrank the diarizer.
+        public var turns: [DiarizationInterval]
+
+        public static let none = WordSources(authoritative: [], turns: [])
+
+        /// The turns refiled under the diarization cluster each person is
+        /// matched to, where they are matched to one.
+        ///
+        /// A turn fills the words no cluster interval reaches, and those words
+        /// are the same person's as the cluster that `attribute` names after
+        /// them. Filing them under a key of their own showed the person twice:
+        /// once as the cluster and once as a sensor speaker. A person with no
+        /// matched cluster keeps the sensor key, which is the only one they
+        /// have. `owners` maps a participant to the cluster key to use.
+        public func rekeyed(owners: [String: String]) -> WordSources {
+            guard !owners.isEmpty else { return self }
+            let moved = turns.map { turn -> DiarizationInterval in
+                guard let id = SpeakerLabel.sensorParticipantID(from: turn.clusterID),
+                    let cluster = owners[id]
+                else { return turn }
+                return DiarizationInterval(
+                    start: turn.start, end: turn.end, clusterID: cluster, quality: turn.quality
+                )
+            }
+            return WordSources(authoritative: authoritative, turns: moved)
+        }
+
+        public var isEmpty: Bool { authoritative.isEmpty && turns.isEmpty }
+
+        /// The same intervals moved onto a chunk's own clock.
+        public func shifted(by offset: Double) -> WordSources {
+            func move(_ intervals: [DiarizationInterval]) -> [DiarizationInterval] {
+                intervals.map {
+                    DiarizationInterval(
+                        start: $0.start - offset, end: $0.end - offset,
+                        clusterID: $0.clusterID, quality: $0.quality
+                    )
+                }
+            }
+            return WordSources(authoritative: move(authoritative), turns: move(turns))
+        }
+    }
+
+    /// `relaxed-names`: the share of a cluster's speech one person's turns must
+    /// cover, and the share of the speech the turns cover at all that is theirs.
+    static let relaxedClusterCoverage: Double = 0.25
+    static let relaxedCoveredShare: Double = 0.5
+    /// `relaxed-names`: how much a turn of the local user counts against a
+    /// participant, since the local user overlapping the far end says little
+    /// about who a far-end voice is.
+    static let relaxedSelfWeight: Double = 0.5
 
     /// A cluster is named only when one person held most of it.
     public static let minimumClusterCoverage: Double = 0.5
@@ -157,13 +219,16 @@ public enum SensorAttribution {
     /// off the head and tail of their own sentences. Three rows for two people,
     /// and a sixth of what the other person said filed under neither.
     ///
-    /// Only where the client itself said which tile is the local user. Slack
-    /// does, and every one-to-one recording on disk is one of its huddles. A
-    /// roster scraped off a page is a reading of what rendered, and a person
-    /// whose tile never did would have their words given to somebody else here,
-    /// which is the one mistake this must not make.
+    /// Only where the local user is known, so exactly one tile is marked: by the
+    /// client's own flag (Slack's tile identifier says it outright), by the
+    /// English "You" Meet writes on the local tile, or by the microphone, which
+    /// `RawSensors.markingSelf` applies before this is asked. A roster that
+    /// marks nobody could hold the local user as the other person, and their
+    /// words would be given to somebody else here, which is the one mistake
+    /// this must not make. A third person joining, even briefly, appears in the
+    /// roster and ends the one-to-one reading, because the track is no longer
+    /// one voice.
     public static func soleRemoteParticipant(sensors: RawSensors) -> SensorParticipant? {
-        guard sensors.selfIsAuthoritative else { return nil }
         guard sensors.participants.filter(\.isSelf).count == 1 else { return nil }
         let others = sensors.participants.filter { !$0.isSelf }
         guard others.count == 1, let only = others.first, only.personName != nil else {
@@ -206,7 +271,11 @@ public enum SensorAttribution {
     /// everyone else. A span inside a self turn falls through to the diarizer,
     /// which hears the audio and is the right authority on speech the sensor
     /// cannot explain.
-    public static func wordIntervals(sensors: RawSensors) -> [DiarizationInterval] {
+    public static func wordSources(
+        sensors: RawSensors, mode: SensorAttributionMode = .current
+    ) -> WordSources {
+        // The client names clusters and labels no word itself.
+        if mode == .diarizerNames { return .none }
         // One other person in the call, so the track holds them and the turns
         // are not needed to say which stretches. An interval per turn would
         // leave everything between them to the diarizer, which is where the
@@ -227,12 +296,13 @@ public enum SensorAttribution {
         if let only = soleRemoteParticipant(sensors: sensors),
             let until = lastObservation(sensors: sensors), until > 0
         {
-            return [
-                DiarizationInterval(
-                    start: 0, end: until,
-                    clusterID: SpeakerLabel.sensor(participantID: only.id)
-                )
-            ]
+            return WordSources(
+                authoritative: [
+                    DiarizationInterval(
+                        start: 0, end: until,
+                        clusterID: SpeakerLabel.sensor(participantID: only.id)
+                    )
+                ], turns: [])
         }
         let selfIDs = Set(sensors.participants.filter(\.isSelf).map(\.id))
         // Only a participant this build can name. `speakerEntries` already
@@ -249,7 +319,7 @@ public enum SensorAttribution {
         let named = Set(
             sensors.participants.filter { $0.personName != nil }.map(\.id)
         )
-        return sensors.turns
+        let turns = sensors.turns
             .filter {
                 !selfIDs.contains($0.participantID)
                     && named.contains($0.participantID)
@@ -267,6 +337,15 @@ public enum SensorAttribution {
                 )
             }
             .sorted { $0.start < $1.start }
+        return WordSources(authoritative: [], turns: turns)
+    }
+
+    /// Both tiers as one list, for a caller that does not care which is which.
+    public static func wordIntervals(
+        sensors: RawSensors, mode: SensorAttributionMode = .current
+    ) -> [DiarizationInterval] {
+        let sources = wordSources(sensors: sensors, mode: mode)
+        return sources.authoritative + sources.turns
     }
 
     /// The stretches safe to embed as one participant's voice.
@@ -341,12 +420,21 @@ public enum SensorAttribution {
     /// the enrichment prompt, and the control that confirms a voice offers a
     /// name with no audio behind it.
     public static func speakerEntries(
-        sensors: RawSensors
+        sensors: RawSensors, mode: SensorAttributionMode = .current,
+        diarization: RawDiarization? = nil
     ) -> [(key: String, assignment: SpeakerAssignment)] {
+        // A participant whose turns fill words under a cluster key has no
+        // utterance under a sensor key, so no entry is made for it.
+        var owned: Set<String> = []
+        if mode != .sensorFirst, let run = diarization?.activeRun(track: .remote) {
+            owned = Set(
+                clusterOwners(intervals: run.intervals, sensors: sensors, mode: mode).keys)
+        }
         let kept = Set(
-            wordIntervals(sensors: sensors).compactMap {
+            wordIntervals(sensors: sensors, mode: mode).compactMap {
                 SpeakerLabel.sensorParticipantID(from: $0.clusterID)
-            })
+            }
+        ).subtracting(owned)
         return kept.sorted().compactMap { id in
             guard let name = sensors.participant(id)?.personName else { return nil }
             return (
@@ -374,8 +462,60 @@ public enum SensorAttribution {
         source.hasPrefix("slack") ? "slack" : nil
     }
 
+    /// The diarization cluster each participant is matched to, by participant
+    /// identifier, as the key `attribute` names it under.
+    ///
+    /// A participant matched to no cluster takes the one their turns overlap
+    /// most, where they overlap any.
+    ///
+    /// A participant can be matched to several clusters, because the clusterer
+    /// is tuned to split a voice rather than merge two people. The one holding
+    /// the most speech stands for them: the words a turn fills go there. Ties
+    /// break on the cluster identifier so the result does not depend on
+    /// dictionary order.
+    public static func clusterOwners(
+        intervals: [DiarizationInterval], sensors: RawSensors,
+        mode: SensorAttributionMode = .current
+    ) -> [String: String] {
+        var seconds: [String: Double] = [:]
+        for interval in intervals { seconds[interval.clusterID, default: 0] += interval.duration }
+        var best: [String: (cluster: String, seconds: Double)] = [:]
+        for match in attribute(intervals: intervals, sensors: sensors, mode: mode).matches {
+            let held = seconds[match.clusterID] ?? 0
+            if let current = best[match.participantID],
+                current.seconds > held || (current.seconds == held && current.cluster < match.clusterID)
+            {
+                continue
+            }
+            best[match.participantID] = (match.clusterID, held)
+        }
+        var owners = best.mapValues(\.cluster)
+        // A participant no cluster passes the naming guard for still has
+        // words a turn fills, and filing them under a key of their own shows
+        // the person twice. They go to the cluster holding the largest share
+        // of their turns, which names nothing: naming keeps its guards. Only
+        // a participant whose turns overlap no cluster keeps the sensor key.
+        let selfIDs = Set(sensors.participants.filter(\.isSelf).map(\.id))
+        var overlap: [String: [String: Double]] = [:]
+        for turn in sensors.turns where isFloorObservation(turn) && !selfIDs.contains(turn.participantID) {
+            guard owners[turn.participantID] == nil else { continue }
+            for interval in intervals {
+                let shared = min(interval.end, turn.end) - max(interval.start, turn.start)
+                if shared > 0 {
+                    overlap[turn.participantID, default: [:]][interval.clusterID, default: 0] += shared
+                }
+            }
+        }
+        for (participant, byCluster) in overlap {
+            let ranked = byCluster.sorted { $0.value == $1.value ? $0.key < $1.key : $0.value > $1.value }
+            if let top = ranked.first { owners[participant] = top.key }
+        }
+        return owners
+    }
+
     public static func attribute(
-        intervals: [DiarizationInterval], sensors: RawSensors
+        intervals: [DiarizationInterval], sensors: RawSensors,
+        mode: SensorAttributionMode = .current
     ) -> Result {
         // The local user is not in the far-end mixdown, so they are not one of
         // the voices to be found there. Their turns stay in the overlap below,
@@ -425,14 +565,25 @@ public enum SensorAttribution {
         for (clusterID, byParticipant) in perCluster {
             let seconds = clusterSeconds[clusterID] ?? 0
             guard seconds > 0 else { continue }
-            let ranked = byParticipant.sorted { lhs, rhs in
+            let relaxed = mode == .relaxedNames
+            let weighted = byParticipant.map { key, value in
+                (key: key, value: relaxed && selfIDs.contains(key) ? value * relaxedSelfWeight : value)
+            }
+            let ranked = weighted.sorted { lhs, rhs in
                 // Ties broken by identifier so the result does not depend on
                 // dictionary order.
                 lhs.value == rhs.value ? lhs.key < rhs.key : lhs.value > rhs.value
             }
             guard let winner = ranked.first else { continue }
             let runnerUp = ranked.dropFirst().first?.value ?? 0
-            guard winner.value / seconds >= minimumClusterCoverage else { continue }
+            if relaxed {
+                let covered = ranked.reduce(0) { $0 + $1.value }
+                guard winner.value / seconds >= relaxedClusterCoverage,
+                    winner.value / covered >= relaxedCoveredShare
+                else { continue }
+            } else {
+                guard winner.value / seconds >= minimumClusterCoverage else { continue }
+            }
             guard runnerUp == 0 || winner.value >= runnerUp * minimumMargin else { continue }
             // A cluster the local user best explains is a cluster this track
             // cannot contain, so it is left blank rather than handed to whoever
@@ -476,14 +627,30 @@ extension SensorAttribution {
     /// `sensorRecord`, which is where the microphone evidence lives. Marking it
     /// again here would need evidence this has no reason to take.
     public static func assignments(
-        diarization: RawDiarization, sensors: RawSensors
+        diarization: RawDiarization, sensors: RawSensors,
+        mode: SensorAttributionMode = .current
     ) -> [(key: String, assignment: SpeakerAssignment)] {
         let scoped = sensors
         guard !scoped.turns.isEmpty else { return [] }
 
         var out: [(key: String, assignment: SpeakerAssignment)] = []
         for run in diarization.activeRuns {
-            let result = attribute(intervals: run.intervals, sensors: scoped)
+            var result = attribute(intervals: run.intervals, sensors: scoped, mode: mode)
+            // Without the client labelling words, a one-to-one call reaches the
+            // diarizer, which may split the one far-end voice into several
+            // clusters. Whatever it finds on that track is the one other
+            // person, so every cluster takes their name.
+            if mode == .diarizerNames, run.track == .remote,
+                let only = soleRemoteParticipant(sensors: scoped)
+            {
+                let clusters = Set(run.intervals.map(\.clusterID))
+                result.matches = clusters.sorted().map {
+                    Match(
+                        clusterID: $0, participantID: only.id,
+                        displayName: only.personName, coverage: 1
+                    )
+                }
+            }
             for match in result.matches {
                 let name = (match.displayName ?? "")
                     .trimmingCharacters(in: .whitespacesAndNewlines)

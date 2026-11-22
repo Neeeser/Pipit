@@ -60,6 +60,9 @@ enum BenchCommand {
         /// Run the live engine the app uses during a call, for `--engine
         /// apple` or `--engine parakeet`, in place of the after-call pass.
         var liveEngine = false
+        /// How the meeting client's speaker record and the diarizer share the
+        /// far end, for a simulated call that carries a sensor record.
+        var attribution = SensorAttributionMode.current
     }
 
     /// Where a kept scratch directory goes: beside `--out` when there is one,
@@ -600,7 +603,8 @@ enum BenchCommand {
             backend: OpenAIClient(keyProvider: EnvironmentAPIKeyStore()),
             backends: backends,
             scratch: ProcessingScratch(root: scratchRoot.appendingPathComponent("scratch")),
-            settingsProvider: { configuration }
+            settingsProvider: { configuration },
+            sensorMode: options.attribution
         )
         let clock = Date()
         await pipeline.process(meetingID: created.metadata.id)
@@ -613,12 +617,32 @@ enum BenchCommand {
                     + " \(final.processing.lastFailure?.message ?? "")"
             )
         }
-        let utterances = transcript.utterances.map {
-            BenchUtterance(start: $0.start, end: $0.end, text: $0.text, speakerKey: $0.speakerKey)
+        // The person a reader sees, not the key the words were filed under. A
+        // meeting client's name can reach one voice through a sensor key and a
+        // diarizer cluster at once, and the app shows that as one speaker, so
+        // scoring each key as a speaker counted the same person twice.
+        let names = ((try? created.store.readSpeakerMap()) ?? SpeakerMap()).entries
+        let utterances = transcript.utterances.map { utterance -> BenchUtterance in
+            let key = utterance.speakerKey
+            let person = key == SpeakerLabel.localUser ? nil : names[key]?.displayName
+            return BenchUtterance(
+                start: utterance.start, end: utterance.end, text: utterance.text,
+                speakerKey: person.flatMap { $0.isEmpty ? nil : "person:" + $0 } ?? key
+            )
         }
         let raw = try? created.store.readRawTranscript()
         let runs = (try? created.store.readRawDiarization())?.runs ?? []
-        return Row(
+        // Far-end words left under a speaker with no name: what a reader sees
+        // as "Speaker 2" where the client or a voice profile could have said
+        // who it is.
+        var farEndWords = 0
+        var unnamedFarEndWords = 0
+        for utterance in transcript.utterances where utterance.track == .remote {
+            let count = utterance.text.split(separator: " ").count
+            farEndWords += count
+            if (names[utterance.speakerKey]?.displayName ?? "").isEmpty { unnamedFarEndWords += count }
+        }
+        var row = Row(
             engine: engine.name,
             diarizer: options.diarizer,
             score: BenchScorer.score(
@@ -647,6 +671,23 @@ enum BenchCommand {
                 )
             }
         )
+        row.sensorAttribution = options.attribution.rawValue
+        row.farEndWords = farEndWords
+        row.unnamedFarEndWords = unnamedFarEndWords
+        row.speakerGrouping = "display-name"
+        if let call {
+            row.farEndNames = BenchScorer.farEndNames(
+                truth: benchCase.truth,
+                utterances: transcript.utterances.filter { $0.track == .remote }.map {
+                    NamedUtterance(
+                        start: $0.start, end: $0.end, text: $0.text,
+                        name: names[$0.speakerKey]?.displayName
+                    )
+                },
+                localSpeaker: call.description.localSpeaker
+            )
+        }
+        return row
     }
 
     /// The two tracks of a generated call and what the generator said about
@@ -724,6 +765,11 @@ enum BenchCommand {
                 String(
                     format: "  my words lost       %5.1f/min  (%d of %d)",
                     local.localWordsLostPerMinute, local.localWordsLost, local.localWords))
+        }
+        if let names = row.farEndNames {
+            print(
+                "  far end names       \(names.right) right / \(names.wrong) wrong / "
+                    + "\(names.unnamed) unnamed   (content words matched to a far-end reference word)")
         }
         if let call = row.call {
             let target = call.targetEchoCorrelation.map { String(format: "built for %.2f", $0) } ?? "no echo"
@@ -806,11 +852,13 @@ enum BenchCommand {
         print("  person per minute; lost is the local person's words that no transcript word of the")
         print("  same text within 3 s accounts for, each transcript word counted once. Built is the")
         print("  correlation the generator wrote and dB is the echo against the local voice.")
+        print("  Names count the far end's content words under the right display name, a wrong one,")
+        print("  or none, summed over the cases of the line.")
         print("  * marks a variant whose speaker evidence is a simulated sensor record.")
         print("")
         print(
             "  engine       variant        cases     tcp    cpWER   WER  attribution"
-                + "     DER   far end/min   lost/min   echo   built   dB"
+                + "     DER   far end/min   lost/min   names right/wrong/unnamed   echo   built   dB"
         )
         for engine in Array(Set(calls.map(\.engine))).sorted() {
             let ofEngine = calls.filter { $0.engine == engine }
@@ -822,6 +870,12 @@ enum BenchCommand {
                 let ders = group.compactMap(\.score.der)
                 let leaked = group.compactMap(\.score.localTrack?.farEndWordsUnderLocalPerMinute)
                 let lost = group.compactMap(\.score.localTrack?.localWordsLostPerMinute)
+                let named = group.compactMap(\.farEndNames)
+                let nameCounts =
+                    named.isEmpty
+                    ? "-"
+                    : "\(named.reduce(0) { $0 + $1.right })/\(named.reduce(0) { $0 + $1.wrong })"
+                        + "/\(named.reduce(0) { $0 + $1.unnamed })"
                 let echoes = group.compactMap(\.call?.echoCorrelationBefore)
                 let echo = echoes.isEmpty ? "     -" : String(format: "%6.2f", median(echoes))
                 let built = String(format: "%7.2f", median(group.compactMap { $0.call?.generatedEchoCorrelation }))
@@ -840,7 +894,9 @@ enum BenchCommand {
                             median(group.map(\.score.wer)) * 100,
                             median(group.map(\.score.attribution)) * 100,
                             ders.isEmpty ? 0 : median(ders) * 100,
-                            median(leaked), median(lost)) + echo + built + "  " + level)
+                            median(leaked), median(lost))
+                        + "   " + nameCounts.padding(toLength: 24, withPad: " ", startingAt: 0)
+                        + echo + built + "  " + level)
             }
         }
         fflush(stdout)

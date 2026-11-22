@@ -59,8 +59,8 @@ public struct BenchManifest: Codable, Sendable, Equatable {
         }
 
         public struct Sensors: Codable, Sendable, Equatable {
-            public var onsetDelaySeconds: Double
-            public var releaseDelaySeconds: Double
+            public var pollSeconds: Double
+            public var holdSeconds: Double
             public var dropoutShare: Double
         }
 
