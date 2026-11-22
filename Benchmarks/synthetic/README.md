@@ -24,9 +24,13 @@ invented.
 
 The reference words are the script's words, not a transcription of the audio.
 Text to speech sometimes skips, repeats or changes a word, and each such slip
-counts against every engine. `check_audio.py` has a cheap Gemini model listen
-to each line and report lines it hears differently from the script; review
-those before using a meeting.
+counts against every engine. `check_audio.py` sends each person's lines to a
+cheap Gemini model that takes audio (Flash-Lite by default) and compares its
+transcript with the script. The model is not shown the script: when it was, it
+copied the script back and passed lines that had been swapped. It is also not
+told how many lines to expect, since it then left speech out to fit that
+number. Its own hearing errors show up as flags too, so listen to a flagged
+line, or transcribe it with `pipit-eval asr`, before changing a meeting.
 
 Gemini does not leave a reliable pause between the lines of one request, so
 `synthesize.py` finds the line boundaries by aligning Parakeet's transcript of

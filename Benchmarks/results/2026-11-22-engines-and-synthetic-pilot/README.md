@@ -115,6 +115,31 @@ Pipit's speaker separation tells the far-end voices apart depends on small
 details of timing, so a single run of one meeting says little about how often
 it fails. More meetings, and several layouts of each, are needed to measure it.
 
+## Checking the synthetic voices
+
+`check_audio.py` with Gemini 3.5 Flash-Lite transcribed each of the ten voices
+(ten requests) and compared the transcripts with the script. Of 125 lines, 101
+matched, 21 differed by one or two words, and 2 differed by more. One more, a
+lone "Mm-hmm", cannot be scored, because the normaliser drops hesitation
+sounds; Flash-Lite heard it as "Mhm". S08's second and third lines overlap by
+1.6 s in this layout (the fault listed under Limits), so the second line's clip
+ends with the first words of the third. Parakeet, run on the two lines that
+differed by more, heard the same slips Flash-Lite did:
+
+- In S03's fifth line the voice says "live at the math" for "look at the
+  math", and says "Elena" so that both listeners heard another name.
+- In S03's nineteenth line the voice says "Tariq" so that both listeners heard
+  "to reek".
+
+The truth keeps the script's words for those two lines, so every engine is
+charged for them. `syn001-audio-check.json` has each line's verdict and
+Flash-Lite's transcripts.
+
+A control, run by hand and not stored, showed why the check must not see the
+script. Given the script, the same model called every line of S05 a match even
+with two lines swapped. Without it, scoring the stored S05 transcript against
+the swapped script flags the moved lines.
+
 ## Limits
 
 - Every engine makes fewer errors on synthetic speech than on AMI: 2.7 to 3.9
