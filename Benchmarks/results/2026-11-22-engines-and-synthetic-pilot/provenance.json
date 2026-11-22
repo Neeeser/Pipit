@@ -1,0 +1,147 @@
+{
+ "recordedAt": "2026-11-22T08:33:00Z",
+ "commit": "d7f304b493accda9b67a0ca2e6fe35a25b0d2e23",
+ "uncommittedChanges": [
+  "?? Benchmarks/synthetic/"
+ ],
+ "machine": {
+  "chip": "Apple M5 Max",
+  "memoryGB": 48,
+  "macOS": "27.2"
+ },
+ "swiftPackages": {
+  "argmax-oss-swift": "1.1.0",
+  "fluidaudio": "0.18.2",
+  "sparkle": "2.9.6",
+  "swift-argument-parser": "1.8.2"
+ },
+ "huggingFaceModels": {
+  "mlx-community/Qwen3-ASR-1.7B-8bit": "a8379a2e2f9e313c9292cdf1af4055ab56d50d55",
+  "ibm-granite/granite-speech-5.0-2b": "ec49ca6b1a5e7e9176127e09cb303ab78cbacdf7",
+  "ibm-granite/granite-speech-5.0-470m-turboctc": "91dcb0605daf65f88dbb04fef015c423241d941d",
+  "nvidia/NVIDIA-Nemotron-3.5-Transcribe-30B-A4B-NVFP4": "66c6adc4020179567074d0399cda2a4eeb2bb347"
+ },
+ "note": "The app was built from this commit. The engine and scoring scripts were untracked at the time and are in the commit that added this folder, in a later revision. The SYN001 audio came from an earlier version of Benchmarks/synthetic/synthesize.py and the AMI call audio from call generator version 1; the checksums identify that audio. The Whisper size and decode-setting runs also used a temporary local patch (an environment variable choosing the WhisperKit variant, and decode options), since reverted.",
+ "pythonPackages": {
+  "mlx": "0.32.4",
+  "mlx-audio": "0.6.7",
+  "meeteval": "0.4.3",
+  "whisper-normalizer": "0.1.12"
+ },
+ "pipitEngines": {
+  "parakeet": "fluidaudio-parakeet-tdt-v3 (int8 encoder)",
+  "whisper": "openai_whisper-large-v3-v20240930_turbo_632MB",
+  "diarizer": "fluidaudio-nemotron3-offline-0.18.2"
+ },
+ "gemini": {
+  "script": "gemini-3.8-flash",
+  "speech": "gemini-3.8-flash-tts"
+ },
+ "callAudio": {
+  "amiCases": "Benchmarks/calls generator version 1 (before the #191 crosstalk change)",
+  "syntheticCases": "Benchmarks/calls generator version 2"
+ },
+ "inputs": [
+  {
+   "id": "EN2002a-far-end",
+   "group": "ami far end",
+   "seconds": 360.0,
+   "audio": "calls/EN2002a-laptop/remote.wav",
+   "sha256": "8b42ec2793ce88d633cee9aa8f90aa52a500a93a1a69d4fd40be29c5fdd118b4"
+  },
+  {
+   "id": "EN2002a-mic",
+   "group": "ami local mic",
+   "seconds": 360.0,
+   "audio": "calls/EN2002a-headphones/mic.wav",
+   "sha256": "f32f54a1fe29f89d1bef04b5147194903bcd0feaed00bd3b7276394a0474d6e1"
+  },
+  {
+   "id": "EN2002b-far-end",
+   "group": "ami far end",
+   "seconds": 360.0,
+   "audio": "calls/EN2002b-laptop/remote.wav",
+   "sha256": "ee9a0052a56b70f62b63754cda89fe759c40967bca4254df63828534e24b7bbe"
+  },
+  {
+   "id": "EN2002b-mic",
+   "group": "ami local mic",
+   "seconds": 360.0,
+   "audio": "calls/EN2002b-headphones/mic.wav",
+   "sha256": "bf8e4ba51058d019b2c99ecc16a93088cb8a9fdb4f97f954ef39ed34cd06e490"
+  },
+  {
+   "id": "EN2002d-far-end",
+   "group": "ami far end",
+   "seconds": 360.0,
+   "audio": "calls/EN2002d-laptop/remote.wav",
+   "sha256": "f3fe76c1266eb1278701460ab9c3c633a6de1df9de0c474528d5d68a17619632"
+  },
+  {
+   "id": "EN2002d-mic",
+   "group": "ami local mic",
+   "seconds": 360.0,
+   "audio": "calls/EN2002d-headphones/mic.wav",
+   "sha256": "1f7220fb43629f3ca980834d43d3070984e83034e2a02f5698bbcd9f490e9e5f"
+  },
+  {
+   "id": "IS1009a-far-end",
+   "group": "ami far end",
+   "seconds": 360.0,
+   "audio": "calls/IS1009a-laptop/remote.wav",
+   "sha256": "5964c1c4e45877616cf7055510d644856a6a602ca399820290054974bf4a3cee"
+  },
+  {
+   "id": "IS1009a-mic",
+   "group": "ami local mic",
+   "seconds": 360.0,
+   "audio": "calls/IS1009a-headphones/mic.wav",
+   "sha256": "9516a6af886ddefa11e9741539fb4a19c79120c629580790fb3d53bb1fe14e5c"
+  },
+  {
+   "id": "SYN001-far-end",
+   "group": "synthetic far end",
+   "seconds": 1145.67,
+   "audio": "synthetic/bench/calls/SYN001-laptop/remote.wav",
+   "sha256": "69c41a2ef46a5a2f76dc4766bf3df9902108840e39c731af3bd81b4291c5daa7"
+  },
+  {
+   "id": "SYN001-mic",
+   "group": "synthetic local mic",
+   "seconds": 1145.67,
+   "audio": "synthetic/bench/calls/SYN001-headphones/mic.wav",
+   "sha256": "cceb674416688f0be96bb761b972bf8123888dcfdb3b5cbcedcceb9984cf07f9"
+  },
+  {
+   "id": "SYN001-room",
+   "group": "synthetic in person",
+   "seconds": 1145.67,
+   "audio": "synthetic/bench/ground-truth/SYN001.mix.wav",
+   "sha256": "7f9e5f246e7e86c8100a474aad15d531019a1d894b5a172f46ccdd938839e638"
+  }
+ ],
+ "syntheticTracks": {
+  "SYN001.S01.wav": "4d5a7adead8b5863ce25603999f9373e0c4e8de57b6a484e6a495be3a92cca5e",
+  "SYN001.S02.wav": "2b8b86c276ba1ebf5af30aa0fc2e9020ebb3d126d25d34f875d00e73f692fea6",
+  "SYN001.S03.wav": "7c374c816f08941d7a90e0f839ed9c10c87de9d68294ca2475762de5b7c9dd80",
+  "SYN001.S04.wav": "3e7e5f5ff414e91aae52796d13ebc5bd22a2d6a65e060b232f6fd709f53546fe",
+  "SYN001.S05.wav": "eba4f91550e44acbd49ebd044ea052ae727dc4daebc8d813682ee82e61a63b0e",
+  "SYN001.S06.wav": "cb6409380eea469f77c38bbf719ceba5232f6c76be40ce82d0ff3027b1699a58",
+  "SYN001.S07.wav": "a15862ef98ac3e6ccb29787938bd3dc8c4997aab85f5fbce8d26c532c258a9a8",
+  "SYN001.S08.wav": "f616bf2422d25d08a549bdec55d802847694f6e69b83f0b9bd7cbda69c00408e",
+  "SYN001.S09.wav": "2435071d23136eafe77ef818db049370699d80cd4d142ceb9ebd9cd0f8cc9450",
+  "SYN001.S10.wav": "f67099c53af8580bd68120fcd6b20bbe4da334c88b8179ef58a2e62f84e16748"
+ },
+ "syntheticVoiceFiles": {
+  "S01.wav": "f320b0971673a656e02b518e6f8ffd47cea34fdedbdf29144315654fc1608306",
+  "S02.wav": "d3b7d792380e6aca98042b6e46265c0ff520f190de73c9310900475b2c9c8853",
+  "S03.wav": "76b9f3481b00545d761c01b9d7cbafd75b2f40e41cb47750caf9d9d6487edfba",
+  "S04.wav": "5149868680826050805466e02edc545d960a6ed1f232147daa4edd2107875c7c",
+  "S05.wav": "6fe1d4aa02bb254d6a31fd8ac6af3e190217fab3cb1e4632d021cde65bd2f609",
+  "S06.wav": "a88214bd93cbe739ceb5ea9a3287b1e241d0bedcc763fe69e8a8dcfce09e4096",
+  "S07.wav": "580285ff5968ac53ad332f72feee1189eb7485dbd7320a96f3f194bb904d8ed5",
+  "S08.wav": "b06bae28e16e6c7169e859b1b518aa9431db02bb8018363e3fbb4c09856a38a7",
+  "S09.wav": "5b1d5f605c327457f315b8a3440587948a77b854f29c4a301f4692e36bccc501",
+  "S10.wav": "1263ac424946fde2a9a6d258eb74eda5cf84c60d4ea211a7c850bd283ea211d8"
+ }
+}

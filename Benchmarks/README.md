@@ -22,6 +22,9 @@ by default. See [Meeting audit](audit/README.md).
 | `summaries/transcripts/*.txt` | Full AMI meeting transcripts in the form Pipit sends a model |
 | `summaries/truth/*.json` | Answer keys: action items, decisions, open questions, and topics |
 | `summaries/human/*.json` | The summaries the AMI annotators wrote, kept for comparison |
+| `results/` | Dated benchmark runs kept as records, with commit, versions and transcripts. See [Recorded results](results/README.md) |
+| `synthetic/` | Generator for invented meetings voiced by Gemini text to speech. See [Synthetic meetings](synthetic/README.md) |
+| `engines/` | Runs other speech engines on single tracks and scores their words |
 
 Audio is downloaded into `~/Library/Caches/pipit-bench`. The repository contains
 no recordings. CI rejects committed audio files.
