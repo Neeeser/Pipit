@@ -6,6 +6,7 @@ scorer compares any two sources the same way.
 
 import json
 import re
+from functools import cache
 from pathlib import Path
 
 
@@ -119,41 +120,49 @@ def split_segments(work: Path, teacher: str, meeting_id: str) -> list[dict] | No
             + [dict(s, speaker=f"call {s['speaker']}") for s in call])
 
 
-FILLERS = {"um", "uh", "uhm", "umm", "hmm", "mm", "mhm", "ah", "er", "erm", "eh", "huh", "oh"}
-ONES = ("zero one two three four five six seven eight nine ten eleven twelve thirteen fourteen "
-        "fifteen sixteen seventeen eighteen nineteen").split()
-TENS = "_ _ twenty thirty forty fifty sixty seventy eighty ninety".split()
+# Hesitation sounds Whisper's normaliser keeps. It already drops hmm, mm, mhm, mmm,
+# uh and um.
+FILLERS = {"uhm", "umm", "ah", "er", "erm", "eh", "huh"}
+# Whisper turns the letter "o" into a zero, so "O.K." would become "0 k".
+SPELLINGS = {"ok": "okay"}
+# Whisper reads every "oh" as a zero. Before a digit it is one ("one oh one" is
+# 101); anywhere else it is the interjection, which is dropped like a filler.
+INTERJECTION_OH = re.compile(r"\boh\b(?!\s+(?:\d|zero|one|two|three|four|five|six|seven|eight|nine)\b)",
+                             re.IGNORECASE)
+# Single letters joined into one word, while case and dots still show an acronym:
+# "A.P.I." and "E.O.D" (a dot between letters), "A. P. I.", "A P I" and "A-P-I"
+# (capitals), and "g c p" (lowercase, leaving the words "a" and "i" alone). Only a
+# plain space or hyphen joins, so "plan B. C is next" keeps two letters.
+ACRONYMS = [re.compile(r"\b[A-Za-z](?:\.[A-Za-z])+\b\.?"), re.compile(r"\b[A-Z]\.(?: [A-Z]\.)+"),
+            re.compile(r"\b[A-Z](?:[ -][A-Z])+\b"), re.compile(r"\b[b-hj-z](?: [b-hj-z])+\b")]
 
 
-def spell_number(n: int) -> str:
-    """Digits as words so "20" and "twenty" compare equal; years and larger stay digits."""
-    if n < 20:
-        return ONES[n]
-    if n < 100:
-        return TENS[n // 10] + ("" if n % 10 == 0 else " " + ONES[n % 10])
-    if n < 1000:
-        rest = n % 100
-        return ONES[n // 100] + " hundred" + ("" if rest == 0 else " " + spell_number(rest))
-    return str(n)
+@cache
+def _whisper():
+    # Imported on first use so prepare and teach run without the package.
+    from whisper_normalizer.english import EnglishTextNormalizer
+    return EnglishTextNormalizer()
+
+
+def _join_letters(match: re.Match) -> str:
+    return re.sub(r"[.\s-]", "", match.group())
 
 
 def normalise(text: str) -> list[str]:
     """Lowercase words without punctuation, hesitation sounds or formatting choices.
 
-    Transcribers disagree on fillers, punctuation, number style and acronym spacing
-    far more than on content, and none of those change what a reader understands.
+    Transcribers disagree on number style, contractions, spelling and acronym
+    spacing far more than on content, and none of those change what a reader
+    understands. Whisper's English normaliser writes numbers, ordinals, years,
+    money and percentages as digits ("twenty five" and "25" both become "25"),
+    expands contractions, uses American spelling, and drops bracketed tags and
+    punctuation. Acronyms are joined first, while case and dots still show them.
     """
-    text = text.lower().replace("-", " ").replace("’", "'").replace("%", " percent")
-    text = re.sub(r"(?<=\d),(?=\d{3})", "", text)
-    text = re.sub(r"\d+", lambda m: spell_number(int(m.group())), text)
-    words = [w.strip("'") for w in re.findall(r"[a-z0-9']+", text)]
-    words = [w for w in words if w and w not in FILLERS]
-    # Spelled-out acronyms ("g c p") and written ones ("gcp") should match.
-    joined: list[str] = []
-    for w in words:
-        single = len(w) == 1 and w not in {"a", "i"}
-        if single and joined and joined[-1].endswith("\0"):
-            joined[-1] = joined[-1][:-1] + w + "\0"
-        else:
-            joined.append(w + "\0" if single else w)
-    return [w.rstrip("\0") for w in joined]
+    for pattern in ACRONYMS:
+        text = pattern.sub(_join_letters, text)
+    text = INTERJECTION_OH.sub(" ", text)
+    # Whisper only knows the straight apostrophe, so "it’s" would split in two.
+    text = text.replace("’", "'")
+    # Whisper reads "three thirty" as 330 and "3:30" as two numbers.
+    text = re.sub(r"\b(\d{1,2}):(\d{2})\b", r"\1\2", text)
+    return [SPELLINGS.get(w, w) for w in _whisper()(text).split() if w not in FILLERS]
