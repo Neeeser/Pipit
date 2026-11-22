@@ -252,7 +252,7 @@ struct BackendSettingsTests {
         #expect(
             LocalModelUnit.required(for: settings)
                 == [.parakeet, .diarizer, .voiceActivity],
-            "Nemotron is installed by setup, not required, so processing never downloads it"
+            "Nemotron is installed by setup and the update, not required"
         )
 
         settings.processing.transcription = .openAI

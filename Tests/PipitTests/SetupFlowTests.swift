@@ -22,7 +22,7 @@ struct SetupFlowTests {
         snapshot.permissions = [
             .microphone: .granted, .screenRecording: .granted, .accessibility: .granted,
         ]
-        snapshot.installedUnits = snapshot.requiredUnits
+        snapshot.installedUnits = snapshot.recommendedUnits
         return snapshot
     }
 
@@ -119,6 +119,24 @@ struct SetupFlowTests {
 
         snapshot.installedUnits = []
         #expect(!SetupFlow.isSatisfied(.models, in: snapshot))
+        #expect(!SetupFlow.canFinish(snapshot))
+    }
+
+    @Test("a recommended unit that is missing does not block finishing setup")
+    func aRecommendedUnitThatIsMissingDoesNotBlockFinishingSetup() async throws {
+        // Nemotron has a fallback. When its download fails after the required
+        // units installed, or the app quit during it, the step read Installed
+        // with no way to retry and Done stayed disabled.
+        var snapshot = Self.ready()
+        snapshot.installedUnits.remove(.nemotronDiarizer)
+        #expect(snapshot.missingUnits == [.nemotronDiarizer], "the retry still has something to fetch")
+        #expect(snapshot.missingRequiredUnits.isEmpty)
+        #expect(!snapshot.isDownloadingModels)
+        #expect(SetupFlow.isSatisfied(.models, in: snapshot))
+        #expect(SetupFlow.canFinish(snapshot))
+
+        snapshot.installedUnits.remove(.diarizer)
+        #expect(!SetupFlow.isSatisfied(.models, in: snapshot), "a required unit still blocks")
         #expect(!SetupFlow.canFinish(snapshot))
     }
 
@@ -269,7 +287,7 @@ struct SetupFlowTests {
         #expect(SetupFlow.openingStep(for: snapshot) == .models)
 
         snapshot.permissions[.accessibility] = .grantedButNotEffective
-        snapshot.installedUnits = snapshot.requiredUnits
+        snapshot.installedUnits = snapshot.recommendedUnits
         #expect(SetupFlow.openingStep(for: snapshot) == .accessibility)
     }
 
