@@ -196,8 +196,8 @@ private struct DiskReading: Sendable {
                 storageVolume: volume,
                 defaultStorageRoot: MeetingArchiveLayout.defaultRoot
             ),
-            homeFreeBytes: freeBytes(home),
-            archiveFreeBytes: freeBytes(existingRoot)
+            homeFreeBytes: VolumeSpace.freeBytes(at: home),
+            archiveFreeBytes: VolumeSpace.freeBytes(at: existingRoot)
         )
 
         for directory in repository.meetingDirectories() {
@@ -243,11 +243,6 @@ private struct DiskReading: Sendable {
     static func hasKey(_ keys: LanguageModelKeyring, _ provider: LanguageModelProvider) -> Bool {
         guard let store = keys.store(for: provider) else { return false }
         return !store.isKnownAbsent
-    }
-
-    private static func freeBytes(_ url: URL) -> Int64? {
-        let values = try? url.resourceValues(forKeys: [.volumeAvailableCapacityForImportantUsageKey])
-        return values?.volumeAvailableCapacityForImportantUsage
     }
 
     /// The folder itself, or the nearest folder above it that exists, which
