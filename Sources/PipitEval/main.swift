@@ -16,7 +16,7 @@ import PipitSpeakers
 //   pipit-eval gate      --meeting DIR
 //   pipit-eval echo      --meeting DIR [--json OUT] [--offset SECONDS] [--full-id]
 //   pipit-eval reprocess --meeting DIR [--recognize] [--support DIR] [--backups DIR]
-//                        [--attribution current|diarizer-names|sensor-first|relaxed-names]
+//                        [--attribution current|diarizer-names|sensor-first|strict-names]
 //   pipit-eval bench     [--suite ami-core|calls] [--engine parakeet ...] [--diarizer local]
 //   pipit-eval summaries --model ollama:qwen3.5:4b [--model openai:gpt-6-luna ...]
 //   pipit-eval rewrite-summary --meeting DIR [--model openai:gpt-6-luna]
@@ -256,7 +256,7 @@ func usage() -> Never {
                                  # reads that folder's settings and voice memory and
                                  # writes to them, so point it at a copy
           pipit-eval reprocess --meeting MEETING_FOLDER [--recognize] [--backups DIR]
-                                 [--attribution current|diarizer-names|sensor-first|relaxed-names]
+                                 [--attribution current|diarizer-names|sensor-first|strict-names]
                                  [--support DIR]   # a copy of the meeting keeps its
                                  # identifier, so point this away from the app's own
                                  # store before reprocessing one
@@ -265,7 +265,7 @@ func usage() -> Never {
                                  [--diarizer local|vbx|lseend|nemotron3|cloud] [--out FILE] [--baseline FILE]
                                  [--allow-missing-baseline] [--audio-dir DIR]
                                  [--repeats N] [--keep-scratch] [--resume]
-                                 [--attribution current|diarizer-names|sensor-first|relaxed-names]
+                                 [--attribution current|diarizer-names|sensor-first|strict-names]
           pipit-eval summaries --model PROVIDER:MODEL [--model ...] [--case MEETING ...]
                                  [--repeats N] [--instructions FILE] [--context TOKENS]
                                  [--judge PROVIDER:MODEL | --no-judge] [--out DIR]

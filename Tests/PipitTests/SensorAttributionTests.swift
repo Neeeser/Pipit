@@ -1733,8 +1733,8 @@ struct SensorAssemblyTests {
 
     @Test("a person no cluster passes the guard for has the gap words go to the cluster their turns overlap most")
     func anUnmatchedPersonHasTheGapWordsGoToTheClusterTheirTurnsOverlapMost() async throws {
-        // Ada's turn covers under a third of cluster 1, which is below the naming
-        // bar, so the cluster stays unnamed. Her gap word is still hers and
+        // Ada's turn covers 8 of cluster 1's 38 s, under the quarter the naming
+        // bar asks for, so the cluster stays unnamed. Her gap word is still hers and
         // goes to that cluster rather than showing her a second time.
         let words = [
             RawTranscriptWord(start: 2, end: 3, text: "Hello "),
@@ -1747,8 +1747,8 @@ struct SensorAssemblyTests {
         )
         let clusters = [
             DiarizationInterval(start: 1, end: 9, clusterID: "1"),
-            DiarizationInterval(start: 25, end: 45, clusterID: "1"),
-            DiarizationInterval(start: 60, end: 80, clusterID: "2"),
+            DiarizationInterval(start: 25, end: 55, clusterID: "1"),
+            DiarizationInterval(start: 60, end: 70, clusterID: "2"),
         ]
         #expect(
             SensorAttribution.attribute(intervals: clusters, sensors: sensors).matches.isEmpty)
@@ -2456,8 +2456,8 @@ struct SensorAttributionModeTests {
                 == ["remote-001_speaker_01", "remote-001_speaker_02"])
     }
 
-    @Test("relaxed-names names a cluster the turns cover only in part")
-    func relaxedNamesNamesAClusterTheTurnsCoverOnlyInPart() async throws {
+    @Test("a cluster the turns cover only in part takes the name strict-names refuses")
+    func aClusterTheTurnsCoverOnlyInPartTakesTheNameStrictNamesRefuses() async throws {
         // Ada's turn reaches 3 s of a 10 s cluster and nobody else's does: not
         // half of the cluster, but all of what the turns say about it.
         let diarization = run([DiarizationInterval(start: 0, end: 10, clusterID: "1")])
@@ -2469,14 +2469,16 @@ struct SensorAttributionModeTests {
             ],
             turns: [SensorTurn(start: 0, end: 3, participantID: "d1")]
         )
-        #expect(SensorAttribution.assignments(diarization: diarization, sensors: sensors).isEmpty)
-        let relaxed = SensorAttribution.assignments(
-            diarization: diarization, sensors: sensors, mode: .relaxedNames)
-        #expect(relaxed.map(\.assignment.displayName) == ["Ada"])
+        #expect(
+            SensorAttribution.assignments(
+                diarization: diarization, sensors: sensors, mode: .strictNames
+            ).isEmpty)
+        let named = SensorAttribution.assignments(diarization: diarization, sensors: sensors)
+        #expect(named.map(\.assignment.displayName) == ["Ada"])
     }
 
-    @Test("relaxed-names still refuses a cluster the local user's turns explain")
-    func relaxedNamesStillRefusesAClusterTheLocalUsersTurnsExplain() async throws {
+    @Test("the naming rule still refuses a cluster the local user's turns explain")
+    func theNamingRuleStillRefusesAClusterTheLocalUsersTurnsExplain() async throws {
         let diarization = run([DiarizationInterval(start: 0, end: 10, clusterID: "1")])
         let sensors = RawSensors(
             source: "google_meet-dom",
@@ -2491,12 +2493,12 @@ struct SensorAttributionModeTests {
         )
         #expect(
             SensorAttribution.assignments(
-                diarization: diarization, sensors: sensors, mode: .relaxedNames
+                diarization: diarization, sensors: sensors
             ).isEmpty)
     }
 
-    @Test("relaxed-names does not let a competing speaker's turns tie")
-    func relaxedNamesDoesNotLetACompetingSpeakersTurnsTie() async throws {
+    @Test("the naming rule does not let a competing speaker's turns tie")
+    func theNamingRuleDoesNotLetACompetingSpeakersTurnsTie() async throws {
         let diarization = run([DiarizationInterval(start: 0, end: 10, clusterID: "1")])
         let sensors = RawSensors(
             source: "google_meet-dom",
@@ -2511,7 +2513,110 @@ struct SensorAttributionModeTests {
         )
         #expect(
             SensorAttribution.assignments(
-                diarization: diarization, sensors: sensors, mode: .relaxedNames
+                diarization: diarization, sensors: sensors
+            ).isEmpty)
+    }
+
+    @Test("a cluster an overlapping call's turns cover only in part takes its name")
+    func aClusterAnOverlappingCallsTurnsCoverOnlyInPartTakesItsName() async throws {
+        // The shape of a call where people talk over each other: the client
+        // marks one floor holder at a time, so Ada's turns reach 4 s of her
+        // 10 s cluster, the local user talking over her reaches 2 s, and no
+        // turn covers the rest. Nothing points at anyone but Ada.
+        let diarization = run([DiarizationInterval(start: 0, end: 10, clusterID: "1")])
+        let sensors = RawSensors(
+            source: "google_meet-dom",
+            participants: [
+                SensorParticipant(id: "d1", displayName: "Ada"),
+                SensorParticipant(id: "d2", displayName: "Grace"),
+                SensorParticipant(id: "me", displayName: "You", isSelf: true),
+            ],
+            turns: [
+                SensorTurn(start: 0, end: 4, participantID: "d1"),
+                SensorTurn(start: 5, end: 7, participantID: "me"),
+            ]
+        )
+        let named = SensorAttribution.assignments(diarization: diarization, sensors: sensors)
+        #expect(named.map(\.assignment.displayName) == ["Ada"])
+        #expect(
+            SensorAttribution.assignments(
+                diarization: diarization, sensors: sensors, mode: .strictNames
+            ).isEmpty)
+    }
+
+    @Test("a voice is enrolled only from a cluster the strict rule matches")
+    func aVoiceIsEnrolledOnlyFromAClusterTheStrictRuleMatches() async throws {
+        // Ada's turn covers 8 s of a 20 s cluster: enough to name it, not
+        // enough to put its audio in her profile. A wrong name shows once and
+        // can be corrected; a wrong voice in a profile reaches every later
+        // meeting.
+        let partial = [DiarizationInterval(start: 0, end: 20, clusterID: "1")]
+        let sensors = RawSensors(
+            source: "google_meet-dom",
+            participants: [
+                SensorParticipant(id: "d1", displayName: "Ada"),
+                SensorParticipant(id: "d2", displayName: "Grace"),
+            ],
+            turns: [SensorTurn(start: 0, end: 8, participantID: "d1")]
+        )
+        #expect(
+            SensorAttribution.assignments(diarization: run(partial), sensors: sensors)
+                .map(\.assignment.displayName) == ["Ada"])
+        #expect(SensorAttribution.enrollmentIntervals(sensors: sensors, diarized: partial).isEmpty)
+        // The same turn over a cluster it covers in full enrolls.
+        let covered = [DiarizationInterval(start: 0, end: 8, clusterID: "1")]
+        #expect(!SensorAttribution.enrollmentIntervals(sensors: sensors, diarized: covered).isEmpty)
+    }
+
+    @Test("the local user counts in full against a name only under the strict rule")
+    func theLocalUserCountsInFullAgainstANameOnlyUnderTheStrictRule() async throws {
+        // Ada holds 6 s of the cluster and the local user, talking over her,
+        // 4.5 s. At full weight that is a 1.33 lead, under the 1.5 margin; at
+        // half weight it is 2.67. Enrolment keeps the full weight, so none of
+        // this audio reaches Ada's profile.
+        let intervals = [DiarizationInterval(start: 0, end: 10, clusterID: "1")]
+        let sensors = RawSensors(
+            source: "google_meet-dom",
+            participants: [
+                SensorParticipant(id: "d1", displayName: "Ada"),
+                SensorParticipant(id: "me", displayName: "You", isSelf: true),
+            ],
+            turns: [
+                SensorTurn(start: 0, end: 6, participantID: "d1"),
+                SensorTurn(start: 5.5, end: 10, participantID: "me"),
+            ]
+        )
+        #expect(
+            SensorAttribution.assignments(diarization: run(intervals), sensors: sensors)
+                .map(\.assignment.displayName) == ["Ada"])
+        #expect(
+            SensorAttribution.assignments(
+                diarization: run(intervals), sensors: sensors, mode: .strictNames
+            ).isEmpty)
+        #expect(SensorAttribution.enrollmentIntervals(sensors: sensors, diarized: intervals).isEmpty)
+    }
+
+    @Test("turns scattered over three people name nobody")
+    func turnsScatteredOverThreePeopleNameNobody() async throws {
+        // Ada clears the coverage bar (3 s of 10) and leads each rival by more
+        // than 1.5 times, but holds only 3 of the 6.8 s the turns cover.
+        let sensors = RawSensors(
+            source: "google_meet-dom",
+            participants: [
+                SensorParticipant(id: "d1", displayName: "Ada"),
+                SensorParticipant(id: "d2", displayName: "Grace"),
+                SensorParticipant(id: "d3", displayName: "Hal"),
+            ],
+            turns: [
+                SensorTurn(start: 0, end: 3, participantID: "d1"),
+                SensorTurn(start: 3, end: 4.9, participantID: "d2"),
+                SensorTurn(start: 4.9, end: 6.8, participantID: "d3"),
+            ]
+        )
+        #expect(
+            SensorAttribution.assignments(
+                diarization: run([DiarizationInterval(start: 0, end: 10, clusterID: "1")]),
+                sensors: sensors
             ).isEmpty)
     }
 }
