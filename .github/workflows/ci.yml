@@ -62,6 +62,14 @@ jobs:
         # through scripts/format.sh, and on a SwiftLint error.
         run: ./scripts/lint.sh
 
+      - name: Self-test the release scripts
+        # The version label, the version bump and the release notes extraction
+        # each check themselves against a table of cases.
+        run: |
+          ./scripts/app-version.sh --self-test
+          ./scripts/bump-version.sh --self-test
+          ./scripts/release-notes.sh --self-test
+
       - name: Check the Xcode project matches project.yml
         # project.yml is the source. A hand edit in Xcode that is not mirrored
         # there is lost on the next generate, so the job fails on a difference.

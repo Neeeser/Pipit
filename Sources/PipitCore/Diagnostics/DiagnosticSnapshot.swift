@@ -88,7 +88,8 @@ extension DiagnosticSnapshot {
     ///
     /// The channel is read from the version: a local build is stamped
     /// `<version>-dev.<sha>` by `scripts/app-version.sh`, a pre-release
-    /// carries any other suffix, and a release has none.
+    /// carries any other suffix, and a release has none. A local build of a
+    /// tagged release commit reads the plain version, so it counts as release.
     public static func app(_ launch: DiagnosticEvent.AppLaunch, isDebugBuild: Bool) -> DiagnosticReport.App {
         let version = launch.version.value
         let channel: String

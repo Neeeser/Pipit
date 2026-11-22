@@ -21,8 +21,23 @@ holds one commit and would number every build 1.
 
 `CFBundleShortVersionString` is the contents of `VERSION` when `PIPIT_RELEASE=1`
 is set, which the release workflow does on its build step. Every other build
-reads `<VERSION>-dev.<short sha>`, such as `0.1.0-dev.2b410e6`. A dirty working
-tree adds nothing, so the sha names the commit the build started from.
+names the release it leads up to, so under SemVer it sorts after the release it
+was built from and before the next one:
+
+| Checkout | `VERSION` | Short version |
+| --- | --- | --- |
+| Commits after the `v0.1.10` tag | `0.1.10` | `0.1.11-dev.2b410e6` |
+| The commit `v0.1.10` names | `0.1.10` | `0.1.10` |
+| A release pull request, before its tag | `0.1.11` | `0.1.11-dev.2b410e6` |
+| A source copy with no git | `0.1.10` | `0.1.10-dev` |
+| A tree with no `VERSION` | none | `0.0.0-dev.2b410e6` |
+
+The script reads the `v<VERSION>` tag to tell the first and third rows apart,
+so a clone that never fetched tags reads as the third row. A build of the
+tagged commit reads plain `VERSION` because its source is the release;
+`PipitGitCommit` and the build configuration still tell it from the published
+build. A release build of a tree with no `VERSION` fails. A dirty working tree
+adds nothing, so the sha names the commit the build started from.
 
 Sparkle orders by the build number, so a dev build made after the last release
 sees no update, and one made before it is offered that release.
@@ -159,6 +174,7 @@ Check the scripts locally at any time:
 ./scripts/bump-version.sh minor
 ./scripts/bump-version.sh --self-test
 ./scripts/release-notes.sh --self-test
+./scripts/app-version.sh --self-test
 ```
 
 ### Tag by hand instead
