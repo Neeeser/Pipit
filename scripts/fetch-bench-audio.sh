@@ -8,6 +8,9 @@
 #
 # Usage: scripts/fetch-bench-audio.sh [suite] [--audio-dir DIR]
 #        scripts/fetch-bench-audio.sh --annotations [ami|icsi|notsofar]
+#
+# The suite `calls` downloads the per-person headset channels that
+# Benchmarks/calls/generate.py mixes into simulated two-track calls.
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -23,7 +26,7 @@ while [ $# -gt 0 ]; do
             ANNOTATIONS="ami"
             if [ $# -gt 1 ] && [ "${2#-}" = "$2" ]; then ANNOTATIONS="$2"; shift; fi
             shift ;;
-        -h|--help) sed -n '2,10p' "$0"; exit 0 ;;
+        -h|--help) sed -n '2,13p' "$0"; exit 0 ;;
         *) SUITE="$1"; shift ;;
     esac
 done
@@ -54,6 +57,15 @@ if what.startswith("annotations:"):
         sys.exit("no annotations for %s" % corpus)
     url = archives[corpus]["url"]
     print("%s %s %s" % (url, archives[corpus]["sha256"], posixpath.basename(url)))
+    sys.exit(0)
+if what == "calls":
+    # One close-talk channel per participant. The suite is built from these by
+    # Benchmarks/calls/generate.py, not run on them directly.
+    calls = manifest["calls"]
+    for meeting, entry in sorted(calls["meetings"].items()):
+        for agent, channel in sorted(entry["channels"].items()):
+            url = calls["mirror"].replace("{meeting}", meeting).replace("{channel}", str(channel["channel"]))
+            print("%s %s %s" % (url, channel["sha256"], posixpath.basename(url)))
     sys.exit(0)
 if what not in manifest["suites"]:
     sys.exit("no suite named %s" % what)
@@ -114,6 +126,9 @@ done
 
 if [ -n "$ANNOTATIONS" ]; then
     echo "$ANNOTATIONS annotations in $AUDIO_DIR"
+elif [ "$SUITE" = "calls" ]; then
+    echo "headset channels ready in $AUDIO_DIR"
+    echo "next: Benchmarks/calls/generate.py --audio-dir $AUDIO_DIR"
 else
     echo "suite $SUITE ready in $AUDIO_DIR"
 fi

@@ -124,6 +124,10 @@ public struct BenchScore: Codable, Sendable, Equatable {
     /// pasted at the wrong time are charged. The CHiME convention, which makes
     /// the figure comparable with published meeting-transcription systems.
     public var tcpWer: Double?
+    /// How the person holding the microphone fared on a two-track call: the far
+    /// end's words under their name, and their own words missing. Nil on a
+    /// one-track case, where there is no local person to ask about.
+    public var localTrack: LocalTrackScore?
 
     /// `wer` with the ordering floor taken off, clamped at zero.
     ///
@@ -837,7 +841,13 @@ public enum BenchScorer {
 
     // MARK: - the whole report
 
-    public static func score(truth: BenchTruth, utterances rawUtterances: [BenchUtterance]) -> BenchScore {
+    /// - Parameter localPerson: on a two-track call, the reference speaker who
+    ///   held the microphone and the key the transcript gives the microphone
+    ///   track. Nil scores the case as one track.
+    public static func score(
+        truth: BenchTruth, utterances rawUtterances: [BenchUtterance],
+        localPerson: (speaker: String, key: String)? = nil
+    ) -> BenchScore {
         let utterances = rawUtterances.sorted(by: utteranceOrder)
 
         let ordered = referenceStream(truth)
@@ -917,7 +927,12 @@ public enum BenchScorer {
             speechCoverage: (shape.coverage * 10000).rounded() / 10000,
             wordsPerMinute: (shape.wordsPerMinute * 100).rounded() / 100,
             cpWer: perSpeaker.cp,
-            tcpWer: perSpeaker.tcp
+            tcpWer: perSpeaker.tcp,
+            localTrack: localPerson.map {
+                localTrack(
+                    truth: truth, utterances: utterances, localSpeaker: $0.speaker, localKey: $0.key
+                )
+            }
         )
     }
 }
