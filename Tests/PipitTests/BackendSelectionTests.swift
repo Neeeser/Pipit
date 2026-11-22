@@ -249,16 +249,22 @@ struct BackendSettingsTests {
         )
 
         settings.processing.localTranscriptionModel = .parakeet
-        #expect(LocalModelUnit.required(for: settings) == [.parakeet, .diarizer, .voiceActivity])
+        #expect(
+            LocalModelUnit.required(for: settings)
+                == [.parakeet, .diarizer, .voiceActivity],
+            "Nemotron is installed by setup, not required, so processing never downloads it"
+        )
 
         settings.processing.transcription = .openAI
         settings.models.transcription = "gpt-transcribe"
         #expect(
-            LocalModelUnit.required(for: settings) == [.ctcAligner, .diarizer, .voiceActivity],
+            LocalModelUnit.required(for: settings)
+                == [.ctcAligner, .diarizer, .voiceActivity],
             "cloud words without timings still need the local aligner"
         )
 
         settings.models.transcription = "gpt-4o-transcribe-diarize"
+        settings.coupleDiarization()
         #expect(
             LocalModelUnit.required(for: settings) == [.diarizer, .voiceActivity],
             "a self-contained cloud model brings the diarizer and the detector"

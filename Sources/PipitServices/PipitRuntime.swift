@@ -452,7 +452,7 @@ public final class PipitRuntime {
                 diarization: { settings, model in
                     ProcessingBackends.diarizationBackend(
                         settings: settings, model: model,
-                        local: { FluidAudioDiarizationBackend(models: modelManager) },
+                        local: { LocalDiarizationBackend(models: modelManager) },
                         cloud: { OpenAIDiarizationBackend(backend: cloud, model: $0) }
                     )
                 },
@@ -478,7 +478,7 @@ public final class PipitRuntime {
                     try await modelManager.embedSingleSpeaker(audio: url)
                 },
                 reanalyzeDiarization: { meetingID, url, count in
-                    try await modelManager.reanalyze(
+                    try await modelManager.reanalyzeSpeakers(
                         meetingID: meetingID, audio: url, speakerCount: count
                     )
                 }

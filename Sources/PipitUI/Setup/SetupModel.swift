@@ -226,16 +226,17 @@ public final class SetupModel {
     /// engine's units. A 2.1 GB download arrives because someone chose it here,
     /// never because a default or an upgrade decided for them.
     public func chooseLocalModel(_ model: LocalTranscriptionModel) async {
-        await install(runtime, runtime.applyLocalTranscriptionModel(model))
+        runtime.applyLocalTranscriptionModel(model)
+        await install(runtime, requiredUnits)
     }
 
     public func startModelDownload() async {
         await install(runtime, requiredUnits)
     }
 
-    /// What the current settings need on disk.
+    /// What setup puts on disk for the current settings.
     private var requiredUnits: Set<LocalModelUnit> {
-        LocalModelUnit.required(for: runtime.settings)
+        LocalModelUnit.recommended(for: runtime.settings)
     }
 
     /// Whether an unverified key may be accepted.
