@@ -51,7 +51,7 @@ struct LiveTranscriptionSupportTests {
     func engineCapabilities() {
         #expect(LocalTranscriptionModel.apple.liveTranscription == .streaming)
         #expect(LocalTranscriptionModel.parakeet.liveTranscription == .phrases)
-        for model in [LocalTranscriptionModel.cohere, .whisper, .canary] {
+        for model in [LocalTranscriptionModel.cohere, .whisper, .canary, .parakeetUltra] {
             #expect(model.liveTranscription == LiveTranscriptionSupport.none)
         }
     }
