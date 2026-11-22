@@ -144,6 +144,9 @@ enum ReprocessCommand {
         print("far-end words   \(pad("\(before.remoteWords)", 12))\(after.remoteWords)")
         print("utterances      \(pad("\(before.utterances)", 12))\(after.utterances)")
         print("named speakers  \(pad("\(before.named)", 12))\(after.named)")
+        if !recognize {
+            print("voice memory    off, so no speaker is named from a voice profile (pass --recognize)")
+        }
         print("")
         for name in after.names { print("  \(name)") }
         return after.state == "complete" ? 0 : 1

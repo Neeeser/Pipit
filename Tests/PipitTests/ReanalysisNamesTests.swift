@@ -37,6 +37,15 @@ struct ReanalysisNamesTests {
     private static func reanalyse(
         into reclustered: [DiarizationInterval], cloudLabelled: Bool = false
     ) async throws -> [String: String] {
+        try await reanalyseWithMap(into: reclustered, cloudLabelled: cloudLabelled).names
+    }
+
+    /// As `reanalyse`, also returning the speaker map left behind, and taking
+    /// entries to add to the map just before the re-analysis.
+    private static func reanalyseWithMap(
+        into reclustered: [DiarizationInterval], cloudLabelled: Bool = false,
+        extraEntries: [String: SpeakerAssignment] = [:]
+    ) async throws -> (names: [String: String], map: SpeakerMap) {
         let root = try TestPaths.makeTemporaryDirectory()
         defer { try? FileManager.default.removeItem(at: root) }
         let meeting = try PipelineFixtures.makeRecordedMeeting(
@@ -74,6 +83,7 @@ struct ReanalysisNamesTests {
         }
         var map = try store.readSpeakerMap()
         map.assign("Synthetic Person", to: named)
+        for (key, assignment) in extraEntries { map.entries[key] = assignment }
         try store.writeSpeakerMap(map)
 
         try await pipeline.reanalyzeSpeakers(meetingID: id, speakerCount: nil)
@@ -85,7 +95,7 @@ struct ReanalysisNamesTests {
         for utterance in transcript.utterances where utterance.track == .remote {
             out[utterance.text.trimmingCharacters(in: .whitespaces)] = names.resolvedName(for: utterance)
         }
-        return out
+        return (out, names)
     }
 
     @Test("a name a person gave a voice stays on that voice after re-analysis renumbers it")
@@ -114,6 +124,23 @@ struct ReanalysisNamesTests {
     func aMergedVoiceTakesNoName() async throws {
         let names = try await Self.reanalyse(into: [DiarizationInterval(start: 0, end: 30, clusterID: "S1")])
         #expect(!names.values.contains("Synthetic Person"), "half of this voice is somebody else, got \(names)")
+    }
+
+    @Test("re-analysis leaves no name behind for a cluster the new run does not have")
+    func staleNamesAreRemovedByReanalysis() async throws {
+        let result = try await Self.reanalyseWithMap(
+            into: [
+                DiarizationInterval(start: 0, end: 15, clusterID: "S2"),
+                DiarizationInterval(start: 15, end: 30, clusterID: "S1"),
+            ],
+            extraEntries: [
+                "remote-001_speaker_01": SpeakerAssignment(displayName: "Old Guess", origin: .voiceProfile)
+            ])
+        #expect(result.map.entries["remote-001_speaker_01"] == nil, "got \(result.map.entries)")
+        #expect(
+            result.map.entries.values.filter { $0.displayName == "Synthetic Person" }.count == 1,
+            "the carried name is on one key only, got \(result.map.entries)")
+        #expect(result.names["alphaword"] == "Synthetic Person")
     }
 }
 
