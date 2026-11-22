@@ -92,14 +92,30 @@ public struct Nemotron3DiarizationBackend: DiarizationBackend {
     /// call is the real case. The model never sees such a file, so a meeting
     /// where nobody spoke gets an empty diarization, the answer the offline
     /// clusterer gives through `LocalModelManager.silentMeeting`.
-    static func isEffectivelySilent(_ samples: [Float]) -> Bool {
-        guard samples.count >= minimumSamples else { return true }
-        var peak: Float = 0
-        for sample in samples {
-            peak = max(peak, abs(sample))
-            if peak >= silencePeak { return false }
+    ///
+    /// The file is decoded block by block and only as far as the answer needs.
+    /// Audio with a voice in it is audible within its first block, so a meeting
+    /// of any length costs one block of decoding. Also returns how many samples
+    /// it read.
+    static func isEffectivelySilent(audio: URL) throws -> (silent: Bool, samplesRead: Int) {
+        var probe = SilenceProbe()
+        try MonoAudioDecoder.forEachBlock(audio) { probe.add($0) }
+        return (probe.isSilent, probe.samples)
+    }
+
+    /// Counts samples and watches for one audible one, block by block.
+    struct SilenceProbe {
+        private(set) var samples = 0
+        private(set) var heardSound = false
+
+        var isSilent: Bool { !heardSound || samples < minimumSamples }
+
+        /// Takes the next block and returns whether more could change the answer.
+        mutating func add(_ block: [Float]) -> Bool {
+            samples += block.count
+            if !heardSound { heardSound = block.contains { abs($0) >= silencePeak } }
+            return !heardSound || samples < minimumSamples
         }
-        return true
     }
 
     /// 0.2 s at 16 kHz, the shortest segment `Nemotron3Diarizer.segments`
@@ -109,21 +125,41 @@ public struct Nemotron3DiarizationBackend: DiarizationBackend {
     /// or tap would carry.
     static let silencePeak: Float = 1e-4
 
-    /// Longest file the model is given, in seconds: three hours.
+    /// Runs the model over a file while it decodes, one block at a time.
     ///
-    /// A pass decodes the whole file to floats and builds the full mel matrix,
-    /// so memory grows with the meeting. Measured on synthetic 16 kHz files
-    /// (debug build, process peak footprint including the loaded model): about
-    /// 0.7 GB for one hour and 1.9 GB for three, roughly 0.6 GB per hour. The
-    /// cap keeps a pass near 2 GB; a longer file goes to the clusterer, which
-    /// streams from disk. Only the 34-minute case was measured with real
-    /// audio.
-    static let maximumSeconds: Double = 3 * 3_600
-
-    /// Why Nemotron declines a file without trying it. `LocalDiarizationBackend`
-    /// sends these to the clusterer.
-    enum Unsupported: Error {
-        case audioTooLong
+    /// FluidAudio's `processComplete` takes the whole file as floats and builds
+    /// its full mel matrix before the first prediction, so its memory grew
+    /// with the meeting, about 0.6 GB per hour, and Pipit refused files over
+    /// three hours. The streaming calls run the same chunks in the same order
+    /// with the same speaker state, so the output matches a whole-file pass,
+    /// and the eight speaker slots carry across the whole file: a person keeps
+    /// one label for the whole meeting, however long it runs. What still grows
+    /// with length is the per-frame speaker activity, eight floats every 10 ms,
+    /// about 12 MB per hour.
+    static func streamedSegments(
+        audio: URL, diarizer: Nemotron3Diarizer, progress: (Double) -> Void
+    ) throws -> [Nemotron3Segment] {
+        let expectedSamples = max(MonoAudioDecoder.durationSeconds(audio) * 16_000, 1)
+        var probabilities: [Float] = []
+        probabilities.reserveCapacity(Int(expectedSamples / 160) * LocalSpeechStack.nemotron3SpeakerSlots)
+        var frames = 0
+        var fed = 0
+        func keep(_ chunks: [Nemotron3ChunkResult]) {
+            for chunk in chunks {
+                probabilities.append(contentsOf: chunk.probabilities)
+                frames += chunk.frameCount
+            }
+        }
+        try MonoAudioDecoder.forEachBlock(audio) { block in
+            try Task.checkCancellation()
+            diarizer.appendAudio(block)
+            keep(try diarizer.processBufferedAudio())
+            fed += block.count
+            progress(min(Double(fed) / expectedSamples, 1))
+            return true
+        }
+        keep(try diarizer.finishStream())
+        return Nemotron3Diarizer.segments(probabilities: probabilities, frameCount: frames)
     }
 
     /// Whether the model reported a speaker in every slot it has. A meeting
@@ -272,10 +308,11 @@ extension LocalModelManager {
         await nemotronPreparation?.value
     }
 
-    /// Diarizes one file with Nemotron 3. Runs go through `nemotron3Runs`, one
-    /// at a time: the actor lets a second call start while the first awaits
-    /// its detached task, so the actor alone does not keep two meetings from
-    /// holding two decoded copies and two models at once.
+    /// Diarizes one file with Nemotron 3, streamed from disk, so a file of any
+    /// length fits in about the memory of a short one. Runs go through
+    /// `nemotron3Runs`, one at a time: the actor lets a second call start while
+    /// the first awaits its detached task, so the actor alone does not keep two
+    /// meetings from holding two models at once.
     ///
     /// The application's `offline` preset must already be installed, and this
     /// throws `LocalModelError.notInstalled` rather than download it. The
@@ -283,7 +320,6 @@ extension LocalModelManager {
     /// for its download.
     func nemotron3Diarize(
         audio: URL, preset: Nemotron3DiarizationBackend.Preset,
-        maximumSeconds: Double = Nemotron3DiarizationBackend.maximumSeconds,
         progress: @escaping @Sendable (Double) -> Void
     ) async throws -> DiarizationOutput {
         try Task.checkCancellation()
@@ -296,32 +332,29 @@ extension LocalModelManager {
         {
             throw LocalModelError.notInstalled
         }
-        guard MonoAudioDecoder.durationSeconds(audio) <= maximumSeconds
-        else { throw Nemotron3DiarizationBackend.Unsupported.audioTooLong }
         return try await Self.nemotron3Runs.run {
             var provenance = Nemotron3DiarizationBackend.provenance(preset: preset)
             progress(0.02)
-            let samples = try MonoAudioDecoder.loadMono16k(audio)
+            let silent = try Nemotron3DiarizationBackend.isEffectivelySilent(audio: audio).silent
             try Task.checkCancellation()
-            guard !Nemotron3DiarizationBackend.isEffectivelySilent(samples) else {
+            guard !silent else {
                 provenance["silentAudio"] = "true"
                 progress(1)
                 return DiarizationOutput(intervals: [], clusters: [], configuration: provenance)
             }
-            progress(0.15)
+            progress(0.05)
             let config = preset.configuration
             let models = try await Nemotron3Models.loadFromHuggingFace(
                 config: config, cacheDirectory: root,
                 computeUnits: LocalModelManager.nemotron3ComputeUnits
             )
-            // The prediction loop below cannot be interrupted, so this is the
-            // last point where a cancelled job stops without finishing it.
             try Task.checkCancellation()
-            progress(0.4)
+            progress(0.1)
+            // Cancellation is checked between blocks, so a cancelled job stops
+            // within a few seconds of audio instead of finishing the file.
             let diarizer = Nemotron3Diarizer(config: config, models: models)
-            let result = try diarizer.processComplete(samples)
-            let found = Nemotron3Diarizer.segments(
-                probabilities: result.probabilities, frameCount: result.frameCount
+            let found = try Nemotron3DiarizationBackend.streamedSegments(
+                audio: audio, diarizer: diarizer, progress: { progress(0.1 + 0.9 * $0) }
             )
             progress(1)
             return Nemotron3DiarizationBackend.output(

@@ -73,6 +73,21 @@ public enum MonoAudioDecoder {
 
     /// Full-file decode to 16 kHz mono Float32 in [-1, 1].
     public static func loadMono16k(_ url: URL) throws -> [Float] {
+        var samples = [Float]()
+        samples.reserveCapacity(Int(durationSeconds(url) * 16_000) + 16_000)
+        try forEachBlock(url) { block in
+            samples.append(contentsOf: block)
+            return true
+        }
+        return samples
+    }
+
+    /// Decodes to 16 kHz mono Float32 in [-1, 1] one block at a time and hands
+    /// each block to `body`, which returns false to stop. A caller that uses
+    /// the audio as it arrives holds one block, about four seconds of a 16 kHz
+    /// source, instead of the whole file. The blocks joined are exactly what
+    /// `loadMono16k` returns.
+    public static func forEachBlock(_ url: URL, _ body: ([Float]) throws -> Bool) throws {
         let file: AVAudioFile
         do {
             file = try AVAudioFile(forReading: url)
@@ -88,10 +103,6 @@ public enum MonoAudioDecoder {
         }
         converter.sampleRateConverterQuality = AVAudioQuality.high.rawValue
 
-        var samples = [Float]()
-        samples.reserveCapacity(
-            Int(Double(file.length) / file.processingFormat.sampleRate * 16_000) + 16_000
-        )
         let inputFrames: AVAudioFrameCount = 65_536
         let outputCapacity =
             AVAudioFrameCount(Double(inputFrames) * 16_000 / file.processingFormat.sampleRate) + 4_096
@@ -130,14 +141,12 @@ public enum MonoAudioDecoder {
                 throw ProcessingError.audioUnreadable(path: url.lastPathComponent)
             }
             if outputBuffer.frameLength > 0, let channel = outputBuffer.floatChannelData?[0] {
-                samples.append(
-                    contentsOf: UnsafeBufferPointer(start: channel, count: Int(outputBuffer.frameLength))
-                )
+                let block = Array(UnsafeBufferPointer(start: channel, count: Int(outputBuffer.frameLength)))
+                guard try body(block) else { return }
             }
             if status == .endOfStream || status == .error { finished = true }
             if status == .inputRanDry, outputBuffer.frameLength == 0 { finished = true }
         }
-        return samples
     }
 
     /// The peak and mean level of a file, in dBFS.

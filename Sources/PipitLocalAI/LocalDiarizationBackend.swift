@@ -13,9 +13,8 @@ import PipitCore
 ///
 /// - The model's eight speaker slots all filled, so the meeting may hold more
 ///   people than it can keep apart.
-/// - Its files are not installed, the file is longer than it takes in one
-///   pass, or the model failed on this audio, which includes returning no
-///   speakers for audio loud enough to hold speech.
+/// - Its files are not installed, or the model failed on this audio, which
+///   includes returning no speakers for audio loud enough to hold speech.
 /// - A person asked for a speaker count, which Nemotron cannot be told. That
 ///   path never reaches this type; `LocalModelManager.reanalyzeSpeakers` sends
 ///   it straight to the clusterer.
@@ -30,8 +29,6 @@ public struct LocalDiarizationBackend: DiarizationBackend {
         case allSpeakerSlotsUsed
         case modelNotInstalled
         case modelFailed
-        /// The file is longer than Nemotron takes in one pass.
-        case audioTooLong
         /// Nemotron ran and the meeting was within its limits.
         case preferred
     }
@@ -92,8 +89,6 @@ public struct LocalDiarizationBackend: DiarizationBackend {
             throw CancellationError()
         } catch LocalModelError.notInstalled {
             reason = .modelNotInstalled
-        } catch Nemotron3DiarizationBackend.Unsupported.audioTooLong {
-            reason = .audioTooLong
         } catch {
             if Task.isCancelled { throw error }
             // The clusterer reads the same file the same way, so an audio

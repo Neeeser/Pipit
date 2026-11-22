@@ -135,14 +135,6 @@ struct LocalDiarizationBackendTests {
         }
     }
 
-    @Test("a file longer than Nemotron takes goes to the clusterer")
-    func aFileLongerThanNemotronTakesGoesToTheClusterer() async throws {
-        let result = try await Self.backend(primary: .failure(Nemotron3DiarizationBackend.Unsupported.audioTooLong))
-            .diarize(audio: Self.audio, progress: { _ in })
-        #expect(result.configuration["diarizer"] == "vbx")
-        #expect(result.configuration["diarizerReason"] == "audioTooLong")
-    }
-
     @Test("progress keeps rising when the clusterer takes over")
     func progressKeepsRisingWhenTheClustererTakesOver() async throws {
         let seen = Mutex<[Double]>([])
@@ -202,15 +194,51 @@ struct LocalDiarizationBackendTests {
 
     @Test("empty and near-silent audio never reaches the model")
     func emptyAndNearSilentAudioNeverReachesTheModel() {
-        #expect(Nemotron3DiarizationBackend.isEffectivelySilent([]))
-        #expect(Nemotron3DiarizationBackend.isEffectivelySilent([Float](repeating: 0.5, count: 100)))
-        #expect(Nemotron3DiarizationBackend.isEffectivelySilent([Float](repeating: 0, count: 160_000)))
-        #expect(Nemotron3DiarizationBackend.isEffectivelySilent([Float](repeating: 5e-5, count: 160_000)))
-        #expect(!Nemotron3DiarizationBackend.isEffectivelySilent([Float](repeating: 0.01, count: 160_000)))
+        #expect(Self.isSilent([]))
+        #expect(Self.isSilent([Float](repeating: 0.5, count: 100)))
+        #expect(Self.isSilent([Float](repeating: 0, count: 160_000)))
+        #expect(Self.isSilent([Float](repeating: 5e-5, count: 160_000)))
+        #expect(!Self.isSilent([Float](repeating: 0.01, count: 160_000)))
 
         var burst = [Float](repeating: 0, count: 160_000)
         burst[150_000] = 0.2
-        #expect(!Nemotron3DiarizationBackend.isEffectivelySilent(burst), "one audible sample is speech enough to look")
+        #expect(!Self.isSilent(burst), "one audible sample is speech enough to look")
+    }
+
+    /// The silence check's answer for samples already in memory.
+    private static func isSilent(_ samples: [Float]) -> Bool {
+        var probe = Nemotron3DiarizationBackend.SilenceProbe()
+        _ = probe.add(samples)
+        return probe.isSilent
+    }
+
+    @Test("the silence check on a file stops reading once it hears sound")
+    func theSilenceCheckOnAFileStopsReadingOnceItHearsSound() throws {
+        let root = try TestPaths.makeTemporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let quiet = root.appendingPathComponent("quiet.wav")
+        try Self.writeWave([Float](repeating: 5e-5, count: 160_000), to: quiet)
+        let short = root.appendingPathComponent("short.wav")
+        try Self.writeWave([Float](repeating: 0.5, count: 100), to: short)
+        let lateBurst = root.appendingPathComponent("late.wav")
+        var late = [Float](repeating: 0, count: 600_000)
+        late[590_000] = 0.2
+        try Self.writeWave(late, to: lateBurst)
+        let loud = root.appendingPathComponent("loud.wav")
+        try Self.writeWave([Float](repeating: 0.01, count: 1_600_000), to: loud)
+
+        #expect(try Nemotron3DiarizationBackend.isEffectivelySilent(audio: quiet).silent)
+        #expect(try Nemotron3DiarizationBackend.isEffectivelySilent(audio: short).silent)
+        #expect(try !Nemotron3DiarizationBackend.isEffectivelySilent(audio: lateBurst).silent)
+
+        // A meeting is loud from its first seconds, so the check costs one block
+        // of decoding however long the file is. A block is one converter
+        // buffer: 65,536 input frames plus 4,096 of headroom at 16 kHz.
+        let check = try Nemotron3DiarizationBackend.isEffectivelySilent(audio: loud)
+        #expect(!check.silent)
+        #expect(check.samplesRead <= 69_632, "read \(check.samplesRead) of 1,600,000 samples")
+        let lateCheck = try Nemotron3DiarizationBackend.isEffectivelySilent(audio: lateBurst)
+        #expect(lateCheck.samplesRead == 600_000, "a file quiet until its end is read to its end")
     }
 
     @Test("a silent file gives an empty diarization without loading anything")
@@ -245,21 +273,6 @@ struct LocalDiarizationBackendTests {
         }
         task.cancel()
         await #expect(throws: CancellationError.self) { _ = try await task.value }
-    }
-
-    @Test("a file longer than the cap is declined without being read")
-    func aFileLongerThanTheCapIsDeclinedWithoutBeingRead() async throws {
-        let root = try TestPaths.makeTemporaryDirectory()
-        defer { try? FileManager.default.removeItem(at: root) }
-        let long = root.appendingPathComponent("long.wav")
-        try Self.writeWave([Float](repeating: 0.1, count: 32_000), to: long)  // two seconds
-        let manager = LocalModelManager(applicationSupport: root)
-        try Self.fakeInstall(in: manager.locations.nemotronDiarizerDirectory)
-        await #expect(throws: Nemotron3DiarizationBackend.Unsupported.self) {
-            _ = try await manager.nemotron3Diarize(
-                audio: long, preset: .offline, maximumSeconds: 1, progress: { _ in })
-        }
-        #expect(Nemotron3DiarizationBackend.maximumSeconds.isFinite)
     }
 
     // MARK: the run queue

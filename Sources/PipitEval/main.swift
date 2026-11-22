@@ -11,6 +11,7 @@ import PipitSpeakers
 //   pipit-eval asr       --audio FILE [--engine whisper|parakeet|cohere]
 //   pipit-eval align     --audio FILE --transcript FILE
 //   pipit-eval diarize   --audio FILE [--fa 0.07 --fa 0.20] [--speakers N]
+//   pipit-eval diarize   --audio FILE --diarizer nemotron3 [--embed] [--json OUT]
 //   pipit-eval identity  --audio FILE [--audio FILE ...]
 //   pipit-eval voices
 //   pipit-eval gate      --meeting DIR
@@ -59,6 +60,8 @@ struct Arguments {
     var limitSeconds: Double?
     var showText = false
     var cleanedMic = false
+    /// `diarize --diarizer nemotron3` only: also run the voice-vector pass.
+    var embedVectors = false
     var maximumPhraseSeconds: Double?
 
     /// Bench flags that take no value.
@@ -73,6 +76,9 @@ struct Arguments {
             "--live-engine": \.liveEngine,
         ]
     }
+
+    /// Flags of the other commands that take no value.
+    static let switches: Set<String> = ["--full-id", "--recognize", "--show-text", "--cleaned-mic", "--embed"]
 
     /// The commands that act on `--attribution`.
     static let attributionCommands: Set<String> = ["bench", "reprocess"]
@@ -89,6 +95,14 @@ struct Arguments {
     private static func refuseMisplacedAttribution(_ mode: SensorAttributionMode?, command: String) {
         guard mode != nil, let message = attributionRefusal(command: command) else { return }
         note(message)
+        exit(2)
+    }
+
+    /// `--embed` measures the pass after a Nemotron run, so anywhere else it
+    /// would be ignored and the run written down as having included it.
+    private static func refuseMisplacedEmbed(_ embed: Bool, command: String, diarizer: String) {
+        guard embed, command != "diarize" || !diarizer.hasPrefix("nemotron3") else { return }
+        note("--embed applies to diarize --diarizer nemotron3 only")
         exit(2)
     }
 
@@ -120,7 +134,7 @@ struct Arguments {
         var benchOptions = BenchCommand.Options(applicationSupport: support)
         benchOptions.attribution = attribution
         var engines: [String] = []
-        var fullIdentifier = false
+        var switchedOn: Set<String> = []
         var index = 1
         while index < raw.count {
             let flag = raw[index]
@@ -132,24 +146,12 @@ struct Arguments {
                 benchOptions[keyPath: option] = true
                 continue
             }
-            if flag == "--full-id" {
-                fullIdentifier = true
-                continue
-            }
-            if flag == "--recognize" {
-                recognize = true
+            if Self.switches.contains(flag) {
+                switchedOn.insert(flag)
                 continue
             }
             if flag == "--no-judge" {
                 summaries.judge = nil
-                continue
-            }
-            if flag == "--show-text" {
-                showText = true
-                continue
-            }
-            if flag == "--cleaned-mic" {
-                cleanedMic = true
                 continue
             }
             // Every flag left takes a value. A trailing one used to fall off
@@ -204,7 +206,12 @@ struct Arguments {
             }
         }
         applicationSupport = support
-        self.fullIdentifier = fullIdentifier
+        fullIdentifier = switchedOn.contains("--full-id")
+        recognize = switchedOn.contains("--recognize")
+        showText = switchedOn.contains("--show-text")
+        cleanedMic = switchedOn.contains("--cleaned-mic")
+        embedVectors = switchedOn.contains("--embed")
+        Self.refuseMisplacedEmbed(embedVectors, command: command, diarizer: benchOptions.diarizer)
         // `bench` takes engines repeatably; the single-engine commands read the
         // last one, which is what `--engine` meant before.
         benchOptions.engines = engines
@@ -247,6 +254,7 @@ func usage() -> Never {
                                  [--json OUT]
           pipit-eval align    --audio FILE --transcript FILE
           pipit-eval diarize  --audio FILE [--fa 0.07 --fa 0.20] [--speakers N]
+          pipit-eval diarize  --audio FILE --diarizer nemotron3 [--embed] [--json OUT]
           pipit-eval identity --audio FILE [--audio FILE ...]
           pipit-eval voices
           pipit-eval gate     --meeting MEETING_FOLDER
@@ -368,6 +376,19 @@ case "align":
 
 case "diarize":
     guard let audio = arguments.audio.first else { usage() }
+    if arguments.bench.diarizer.hasPrefix("nemotron3") {
+        // Nemotron takes no acoustic scaling and no speaker count, and a run
+        // that ignored them would be written down as having used them.
+        guard arguments.acousticScalings.isEmpty, arguments.speakerCount == nil else {
+            note("--fa and --speakers apply to the clusterer, not --diarizer nemotron3")
+            exit(2)
+        }
+        try await NemotronDiarizeCommand.run(
+            audio: audio, manager: manager,
+            preset: BenchCommand.nemotron3Preset(for: arguments.bench.diarizer),
+            embed: arguments.embedVectors, json: arguments.json)
+        break
+    }
     _ = try await manager.install(units: [.diarizer])
     let scalings =
         arguments.acousticScalings.isEmpty
