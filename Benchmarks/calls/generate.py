@@ -19,8 +19,9 @@ so Pipit's own measure of how much echo a microphone holds lands on the
 variant's target. `--verify` runs the shipped echo pass over the finished
 files and prints the figure it reads, which should match. The figure recorded
 in `case.json` is read back from the 16-bit files, and generation exits with an
-error when it is more than 0.003 from the target or more than 0.01% of a
-track's samples clip.
+error when it is more than 0.003 from the target, when more than 0.01% of a
+track's samples clip, or when the mute that takes other voices off the local
+channel touched a sample of the local person's own words.
 
 Nothing is written into the repository, and a rerun with the same inputs writes
 the same samples.
@@ -93,6 +94,12 @@ def main() -> None:
                 raise SystemExit("missing %s: run scripts/fetch-bench-audio.sh calls" % path.name)
             channels[letter] = path
         prepared = callsim.prepare_meeting(seed, meeting, truth, agent, channels)
+        local = prepared.local_channel
+        print(
+            "%s local channel: %.1f s where only others speak inside the gate, %.1f s kept after the mute,"
+            " %.1f s of others under the local person's words"
+            % (meeting, local["otherSpeechSecondsInGate"], local["otherSpeechSecondsKept"], local["otherSpeechSecondsUnderOwnerWords"])
+        )
         for spec in variants:
             heard = callsim.late_far_end(prepared, spec.get("farEndStartSeconds", 0.0))
             variant = callsim.render_variant(heard, spec["name"], spec["echoCorrelation"])

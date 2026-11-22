@@ -28,7 +28,7 @@ import scipy.signal
 import soundfile as sf
 
 RATE = 16000
-GENERATOR_VERSION = 1
+GENERATOR_VERSION = 2
 
 # One person is the local user. A person who says almost nothing makes the
 # "local words lost" number meaningless, so the pick only considers people who
@@ -42,6 +42,16 @@ MIN_LOCAL_WORD_SHARE = 0.15
 GATE_PAD_SECONDS = 0.25
 GATE_MERGE_GAP_SECONDS = 0.6
 GATE_FADE_SECONDS = 0.02
+
+# Inside the owner's gated speech the headset still hears the rest of the room.
+# Where another participant has a word and the owner has none within this
+# distance, the local channel is muted as well, so a headphones microphone
+# carries only the local person. What stays is the others' speech under the
+# owner's own words, which no mute can take out. The distance is wider than the
+# fade, so no annotated sample of an owner word changes, and it leaves room for
+# word edges that the corpus's forced alignment places a few tens of
+# milliseconds off.
+CROSSTALK_PROTECT_SECONDS = 0.1
 
 # Active-speech levels, in dBFS RMS. Participants differ by a few dB.
 REMOTE_LEVEL_DB = -23.0
@@ -131,6 +141,22 @@ def speech_mask(words: list[dict], samples: int) -> np.ndarray:
         mask[int(start * RATE) : int(end * RATE)] = 1.0
     width = max(1, int(GATE_FADE_SECONDS * RATE))
     return scipy.ndimage.uniform_filter1d(mask, width, mode="constant").astype(np.float32)
+
+
+def word_spans(words: list[dict], samples: int, pad: float = 0.0) -> np.ndarray:
+    """True inside any of the words, widened by `pad` on each side."""
+    inside = np.zeros(samples, dtype=bool)
+    for w in words:
+        inside[max(0, int((w["start"] - pad) * RATE)) : max(0, int((w["end"] + pad) * RATE))] = True
+    return inside
+
+
+def crosstalk_keep(owner_words: list[dict], other_words: list[dict], samples: int) -> np.ndarray:
+    """0 where someone else speaks away from the owner's words, 1 elsewhere, soft edges."""
+    keep = word_spans(owner_words, samples, CROSSTALK_PROTECT_SECONDS) | ~word_spans(other_words, samples)
+    width = max(1, int(GATE_FADE_SECONDS * RATE))
+    soft = scipy.ndimage.uniform_filter1d(keep.astype(np.float32), width, mode="nearest")
+    return np.where(keep & (soft > 0.999), 1.0, soft).astype(np.float32)
 
 
 def active_level_db(audio: np.ndarray, mask: np.ndarray) -> float:
@@ -276,6 +302,24 @@ class Prepared:
     echo_unit: np.ndarray = field(repr=False)
     path: EchoPath
     levels: dict[str, float]
+    # How much of the others' speech the local channel keeps; see `local_channel_report`.
+    local_channel: dict[str, float] = field(default_factory=dict)
+
+
+def local_channel_report(owner_words: list[dict], other_words: list[dict], gate: np.ndarray, keep: np.ndarray) -> dict:
+    """Seconds where only others speak inside the gate, before and after the mute,
+    seconds where others speak over the owner's words, which the mute keeps, and
+    how many samples of the owner's own words the mute touched."""
+    samples = len(gate)
+    owner = word_spans(owner_words, samples)
+    others = word_spans(other_words, samples)
+    others_only = others & ~owner
+    return {
+        "otherSpeechSecondsUnderOwnerWords": round(float(np.sum(others & owner)) / RATE, 2),
+        "otherSpeechSecondsInGate": round(float(np.sum((gate > 0.5) & others_only)) / RATE, 2),
+        "otherSpeechSecondsKept": round(float(np.sum((gate * keep > 0.5) & others_only)) / RATE, 2),
+        "ownerWordSamplesMuted": int(np.sum(owner & (keep < 1.0))),
+    }
 
 
 def prepare_meeting(
@@ -300,9 +344,15 @@ def prepare_meeting(
     masks: dict[str, np.ndarray] = {}
     gated: dict[str, np.ndarray] = {}
     levels: dict[str, float] = {}
+    local_channel: dict[str, float] = {}
     for agent in sorted(audio):
         words = [w for w in truth["words"] if w["agent"] == agent]
         masks[agent] = speech_mask(words, samples)
+        if agent == local_agent:
+            others_words = [w for w in truth["words"] if w["agent"] != agent]
+            keep = crosstalk_keep(words, others_words, samples)
+            local_channel = local_channel_report(words, others_words, masks[agent], keep)
+            masks[agent] = masks[agent] * keep
         voice = audio[agent][:samples] * masks[agent]
         jitter = float(rng.uniform(-LEVEL_JITTER_DB, LEVEL_JITTER_DB))
         target = (LOCAL_LEVEL_DB if agent == local_agent else REMOTE_LEVEL_DB) + jitter
@@ -329,6 +379,7 @@ def prepare_meeting(
         echo_unit=laptop_speaker_echo(remote, path),
         path=path,
         levels=levels,
+        local_channel=local_channel,
     )
 
 
@@ -618,6 +669,7 @@ def write_case(
         },
         "codec": {"name": "opus", "bitrate": OPUS_BITRATE, "application": "voip"},
         "speakerLevelsDB": prepared.levels,
+        "localChannel": prepared.local_channel,
         "echo": {
             "targetCorrelation": variant.target_correlation,
             "correlation": round(correlation, 4),
@@ -657,6 +709,11 @@ def problems(info: dict) -> list[str]:
             "echo correlation %.4f is not within %.3f of the target %s"
             % (echo["correlation"], ECHO_TOLERANCE, echo["targetCorrelation"])
         )
+    local = info.get("localChannel")
+    if local is None:
+        found.append("the case has no localChannel record; regenerate it with this generator")
+    elif muted := local["ownerWordSamplesMuted"]:
+        found.append("the crosstalk mute silenced %d samples of the local person's own words" % muted)
     samples = info["windowSeconds"] * RATE
     for track, count in echo["clippedSamples"].items():
         if count > MAX_CLIPPED_SHARE * samples:

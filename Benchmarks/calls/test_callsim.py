@@ -49,10 +49,10 @@ def words_in(agent: str, speaker: str, bursts: list[tuple[float, float]]) -> lis
     return words
 
 
-def synthetic_meeting(directory: Path, seconds: float = 40.0):
+def synthetic_meeting(directory: Path, seconds: float = 40.0, bursts: dict | None = None):
     """Four channels where each person talks in their own bursts, and the truth."""
     rng = np.random.default_rng(7)
-    bursts = {
+    bursts = bursts or {
         "A": [(2.0, 8.0), (30.0, 36.0)],
         "B": [(9.0, 15.0), (24.0, 28.0)],
         "C": [(16.0, 22.0)],
@@ -128,6 +128,33 @@ class GateTests(unittest.TestCase):
         self.assertGreater(mask[int((10.0 - callsim.GATE_PAD_SECONDS / 2) * RATE)], 0.99)
         edge = mask[int((10.0 - callsim.GATE_PAD_SECONDS) * RATE) - 40 : int((10.0 - callsim.GATE_PAD_SECONDS) * RATE) + 40]
         self.assertTrue(np.any((edge > 0.05) & (edge < 0.95)), "the gate has a hard edge")
+
+
+class CrosstalkTests(unittest.TestCase):
+    OWNER = [{"start": 2.0, "end": 3.9}, {"start": 4.5, "end": 6.5}]
+
+    def test_another_voice_in_a_pause_of_the_owner_is_muted(self):
+        samples = 10 * RATE
+        other = [{"start": 4.0, "end": 4.4}]
+        gate = callsim.speech_mask(self.OWNER, samples)
+        keep = callsim.crosstalk_keep(self.OWNER, other, samples)
+        at = lambda mask, seconds: mask[int(seconds * RATE)]
+        self.assertEqual(at(gate, 4.2), 1.0, "the gate alone should keep the pause")
+        self.assertEqual(at(gate * keep, 4.2), 0.0)
+        self.assertEqual(at(keep, 8.0), 1.0, "a stretch nobody else speaks in was muted")
+
+    def test_no_owner_word_loses_a_sample(self):
+        samples = 10 * RATE
+        # One word inside the owner's speech, and two that come closer to an
+        # owner word than the fade is wide, so only the margin keeps the fade
+        # off the owner's samples.
+        gap = callsim.GATE_FADE_SECONDS / 4
+        other = [{"start": 3.0, "end": 3.5}, {"start": 1.0, "end": 2.0 - gap}, {"start": 6.5 + gap, "end": 7.5}]
+        keep = callsim.crosstalk_keep(self.OWNER, other, samples)
+        for word in self.OWNER:
+            span = keep[int(word["start"] * RATE) : int(word["end"] * RATE)]
+            self.assertEqual(float(span.min()), 1.0)
+        self.assertEqual(keep[int(7.0 * RATE)], 0.0)
 
 
 class MeasureTests(unittest.TestCase):
@@ -398,6 +425,39 @@ class CaseTests(unittest.TestCase):
             info = callsim.write_case(scratch / "loud", prepared, loud, 11, truth)
             self.assertGreater(info["echo"]["clippedSamples"]["mic"], 0)
             self.assertTrue(any("clipped" in p for p in callsim.problems(info)))
+
+    def test_the_microphone_is_silent_where_only_someone_else_speaks_inside_the_local_speech(self):
+        # A pauses from 3.9 s to 4.5 s, short enough for the gate to keep, and
+        # B says one word in it, 4.0 s to 4.3 s. Every channel hears a little of the others.
+        bursts = {"A": [(2.0, 4.0), (4.5, 8.0)], "B": [(4.0, 4.4), (10.0, 14.0)], "C": [(16.0, 22.0)], "D": [(24.0, 28.0)]}
+        with tempfile.TemporaryDirectory() as scratch:
+            scratch = Path(scratch)
+            (scratch / "in").mkdir()
+            truth, channels = synthetic_meeting(scratch / "in", bursts=bursts)
+            prepared = callsim.prepare_meeting(11, "SYN", truth, "A", channels)
+            variant = callsim.render_variant(prepared, "headphones", None)
+            info = callsim.write_case(scratch / "out", prepared, variant, 11, truth)
+        voice = prepared.local_voice
+
+        def loud(start, end):
+            return float(np.sqrt(np.mean(voice[int(start * RATE) : int(end * RATE)] ** 2)))
+
+        self.assertEqual(loud(4.05, 4.28), 0.0, "B's word is still on the local channel")
+        self.assertGreater(loud(2.0, 3.9), 0.01)
+        local = info["localChannel"]
+        self.assertEqual(local["ownerWordSamplesMuted"], 0)
+        self.assertGreater(local["otherSpeechSecondsInGate"], local["otherSpeechSecondsKept"])
+        self.assertEqual(callsim.problems(info), [])
+
+    def test_a_case_whose_mute_cut_the_owners_words_or_that_predates_the_mute_is_a_problem(self):
+        with tempfile.TemporaryDirectory() as scratch:
+            scratch = Path(scratch)
+            (scratch / "in").mkdir()
+            _, infos = self.build(scratch / "in", scratch / "out")
+        info = {**infos[0], "localChannel": {**infos[0]["localChannel"], "ownerWordSamplesMuted": 5}}
+        self.assertTrue(any("own words" in p for p in callsim.problems(info)))
+        old = {key: value for key, value in infos[0].items() if key != "localChannel"}
+        self.assertTrue(any("regenerate" in p for p in callsim.problems(old)))
 
     def test_a_sensor_record_is_written_beside_the_audio_and_named_in_the_description(self):
         with tempfile.TemporaryDirectory() as scratch:
