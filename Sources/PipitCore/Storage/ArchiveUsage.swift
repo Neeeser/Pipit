@@ -31,7 +31,7 @@ extension MeetingRepository {
     /// File-bound work over every meeting ever recorded, so callers run it off
     /// whichever actor they are on and show the last answer while it runs.
     public func usage() -> ArchiveUsage {
-        var usage = ArchiveUsage(freeBytes: Self.freeBytes(on: archive.root))
+        var usage = ArchiveUsage(freeBytes: VolumeSpace.freeBytes(at: archive.root))
         for directory in meetingDirectories() {
             // A part's bytes are already in the walk of the folder it sits in.
             if !Self.isPartDirectory(directory) {
@@ -60,12 +60,5 @@ extension MeetingRepository {
             total += Int64(values?.totalFileAllocatedSize ?? 0)
         }
         return total
-    }
-
-    private static func freeBytes(on url: URL) -> Int64? {
-        let values = try? url.resourceValues(
-            forKeys: [.volumeAvailableCapacityForImportantUsageKey]
-        )
-        return values?.volumeAvailableCapacityForImportantUsage
     }
 }
