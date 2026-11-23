@@ -77,19 +77,18 @@ struct LocalDiarizationBackendTests {
         #expect(result.configuration["diarizer"] == nil, "the stub names no diarizer of its own")
     }
 
-    @Test("a meeting that fills all eight speaker slots goes to the clusterer")
-    func aMeetingThatFillsAllEightSlotsGoesToTheClusterer() async throws {
-        // Seven slots are still a trustworthy count. Eight may be a ceiling,
-        // and two people sharing a slot cannot be split afterwards.
-        let seven = try await Self.backend(primary: .success(Self.output(speakers: 7)))
+    @Test("a meeting that fills every speaker slot keeps Nemotron's answer")
+    func aMeetingThatFillsEverySlotKeepsNemotronsAnswer() async throws {
+        // Nemotron usually merges voices and reports fewer than eight when a
+        // meeting has more people, and its count was right on a real
+        // eight-person meeting, so a full set of slots is not a reason to
+        // switch to the clusterer, which over-counts.
+        let slots = LocalSpeechStack.nemotron3SpeakerSlots
+        let result = try await Self.backend(primary: .success(Self.output(speakers: slots)))
             .diarize(audio: Self.audio, progress: { _ in })
-        #expect(seven.clusters.count == 7, "seven slots stay with Nemotron")
-
-        let eight = try await Self.backend(primary: .success(Self.output(speakers: 8)))
-            .diarize(audio: Self.audio, progress: { _ in })
-        #expect(eight.clusters.count == 12, "the clusterer's answer, which has no ceiling")
-        #expect(eight.configuration["diarizer"] == "vbx")
-        #expect(eight.configuration["diarizerReason"] == "allSpeakerSlotsUsed")
+        #expect(result.clusters.count == slots)
+        #expect(result.configuration["diarizerReason"] == "preferred")
+        #expect(result.configuration["diarizer"] == nil, "the clusterer was not called")
     }
 
     @Test("a machine without the Nemotron files uses the clusterer")
@@ -156,7 +155,7 @@ struct LocalDiarizationBackendTests {
     func aRejectedAnswerLeavesRoom() async throws {
         let seen = Mutex<[Double]>([])
         _ = try await Self.backend(
-            primary: .success(Self.output(speakers: 8)), primarySteps: [0.5, 1], fallbackSteps: [0, 0.5, 1]
+            primary: .success(Self.output(speakers: 0)), primarySteps: [0.5, 1], fallbackSteps: [0, 0.5, 1]
         ).diarize(audio: Self.audio, progress: { value in seen.withLock { $0.append(value) } })
         let values = seen.withLock { $0 }
         #expect(values == values.sorted(), "never goes back: \(values)")
@@ -575,7 +574,7 @@ struct LocalDiarizationBackendTests {
                             speakers: 2,
                             configuration: [
                                 "backend": LocalSpeechStack.diarizerBackendIdentifier,
-                                "diarizer": "vbx", "diarizerReason": "allSpeakerSlotsUsed",
+                                "diarizer": "vbx", "diarizerReason": "modelNotInstalled",
                             ]))
                 }
             ),
@@ -589,7 +588,7 @@ struct LocalDiarizationBackendTests {
         #expect(
             run.backend == LocalSpeechStack.diarizerBackendIdentifier,
             "the model that ran, not the identifier of the wrapper that chose it")
-        #expect(run.configuration["diarizerReason"] == "allSpeakerSlotsUsed")
+        #expect(run.configuration["diarizerReason"] == "modelNotInstalled")
     }
 
     /// A local backend whose identifier differs from the model its output

@@ -1,0 +1,621 @@
+{
+ "topic": "CareFlow scheduling system rollout strategy across five hospital sites, addressing staffing shortages and planned system downtime",
+ "participants": [
+  {
+   "id": "S01",
+   "name": "Marcus Chen",
+   "role": "IT Project Director"
+  },
+  {
+   "id": "S02",
+   "name": "Sarah Jenkins",
+   "role": "VP of Clinical Operations"
+  },
+  {
+   "id": "S03",
+   "name": "Dr. Robert Vance",
+   "role": "Chief Medical Officer"
+  },
+  {
+   "id": "S04",
+   "name": "Brenda Kowalski",
+   "role": "Nurse Staffing Coordinator"
+  },
+  {
+   "id": "S05",
+   "name": "David Patel",
+   "role": "Valley General Site Administrator"
+  },
+  {
+   "id": "S06",
+   "name": "Karen Morales",
+   "role": "Finance Director"
+  },
+  {
+   "id": "S07",
+   "name": "Tom Hayes",
+   "role": "St. Jude Facility Operations Director"
+  },
+  {
+   "id": "S08",
+   "name": "Rachel Green",
+   "role": "Enterprise Training Lead"
+  },
+  {
+   "id": "S09",
+   "name": "Greg Foster",
+   "role": "HIPAA and Regulatory Compliance Officer"
+  }
+ ],
+ "turns": [
+  {
+   "speaker": "S01",
+   "text": "Alright team, um, looks like the recording is started on my laptop here. Thanks everyone for jumping on. We have a pretty tight hour today to settle the rollout plan for the CareFlow appointment scheduling module. As you know, we are trying to decide whether we do a big bang deployment across all five sites on October fourteenth or stick to a phased approach over six weeks.",
+   "kind": "turn"
+  },
+  {
+   "speaker": "S02",
+   "text": "Marcus, if I can jump in right away, from a clinical operations perspective, we really, really need to just rip the Band-Aid off. Operating two parallel scheduling engines like we have been doing with Legacy Scheduler and the old paper back-ups is costing us roughly forty-five thousand dollars a week in administrative overhead alone.",
+   "kind": "turn"
+  },
+  {
+   "speaker": "S03",
+   "text": "Yeah, but Sarah, ripping off the Band-Aid is fine until the patient bleeds out. Uh, frankly, our physicians at Valley General and Eastside are already completely underwater with the new EHR upgrade.",
+   "kind": "turn"
+  },
+  {
+   "speaker": "S02",
+   "text": "Robert, we have been talking about CareFlow for eight months now. The staff had trained, well, at least the core clinical leads had training back in August.",
+   "kind": "turn"
+  },
+  {
+   "speaker": "S04",
+   "text": "Wait, sorry, can I interrupt there?",
+   "kind": "interrupt"
+  },
+  {
+   "speaker": "S01",
+   "text": "Go ahead Brenda.",
+   "kind": "turn"
+  },
+  {
+   "speaker": "S04",
+   "text": "Yeah, Sarah, core leads training in August is not floor nurses and floor schedulers knowing how to run the clinic on a Monday morning. The nursing staff union has already flagged that seventy percent of floor staff feel completely unprepared for a full October fourteenth launch.",
+   "kind": "turn"
+  },
+  {
+   "speaker": "S05",
+   "text": "mm-hmm",
+   "kind": "backchannel"
+  },
+  {
+   "speaker": "S07",
+   "text": "Right, exactly.",
+   "kind": "backchannel"
+  },
+  {
+   "speaker": "S05",
+   "text": "Look, at Valley General, we have three call center agents who resigned last week. We are literally operating at sixty percent capacity in central intake right now. If CareFlow goes live on October fourteenth in a big bang, our hold times will jump from four minutes to thirty minutes overnight.",
+   "kind": "turn"
+  },
+  {
+   "speaker": "S06",
+   "text": "David, I hear you on staffing, but let us look at the numbers. The total implementation contract with the vendor is capped at one point four million dollars, and that contingency buffer of three hundred thousand dollars will get eaten alive if we extend the dual-run period past November thirtieth.",
+   "kind": "turn"
+  },
+  {
+   "speaker": "S02",
+   "text": "Exactly Karen! That is what I am trying to say.",
+   "kind": "interrupt"
+  },
+  {
+   "speaker": "S06",
+   "text": "If we push the final phase into Q1 of next year, we incur a penalty clause of twelve percent on the remaining license maintenance fees. That is money we simply do not have in the Q4 budget.",
+   "kind": "turn"
+  },
+  {
+   "speaker": "S03",
+   "text": "okay but",
+   "kind": "backchannel"
+  },
+  {
+   "speaker": "S03",
+   "text": "Money is one thing Karen, but patient safety and double-booking oncology slots is a whole different ballgame. If an outpatient chemotherapy patient gets dropped from the queue because CareFlow glitches during cutover, that is a direct risk. <laugh> We cannot put a dollar figure on a clinical error like that.",
+   "kind": "turn"
+  },
+  {
+   "speaker": "S01",
+   "text": "Let us pause for a second. Um, Marcus here. Let me address the technical cutover timeline. The technical team can do the database migration during a twelve-hour downtime window. We were proposing starting at eight PM on Saturday, October twelfth, and wrapping up by eight AM on Sunday, October thirteenth. That gives us twenty-four hours of buffer before the Monday rush.",
+   "kind": "turn"
+  },
+  {
+   "speaker": "S07",
+   "text": "Hold on, Marcus, did you say twelve hours?",
+   "kind": "interrupt"
+  },
+  {
+   "speaker": "S01",
+   "text": "Yes, twelve hours planned system downtime for all internal API integrations.",
+   "kind": "turn"
+  },
+  {
+   "speaker": "S07",
+   "text": "That is absolutely impossible for St. Jude. We run our urgent care weekend admissions through the main scheduling gateway. If the gateway goes down for twelve hours, we will be writing paper charts for over three hundred walk-in patients on Saturday night.",
+   "kind": "turn"
+  },
+  {
+   "speaker": "S02",
+   "text": "Tom, every hospital migration requires some downtime paper protocols. We did the exact same thing when we moved from Legacy 2.0 to Legacy 3.1 five years ago.",
+   "kind": "turn"
+  },
+  {
+   "speaker": "S07",
+   "text": "Five years ago we had half the patient volume, Sarah! You know that. We were seeing ninety patients a weekend then, now it is over three hundred.",
+   "kind": "turn"
+  },
+  {
+   "speaker": "S04",
+   "text": "Yeah, and back then we had extra float pool nurses to handle the paper chart reconciliation. Right now, there is zero float pool.",
+   "kind": "turn"
+  },
+  {
+   "speaker": "S05",
+   "text": "mm-hmm",
+   "kind": "backchannel"
+  },
+  {
+   "speaker": "S01",
+   "text": "What if we, uh, what if we split the cutover? What if we cut over Valley General and Northbrook first, say on October nineteenth, and then bring St. Jude, Mercy Health, and Eastside online on November ninth?",
+   "kind": "turn"
+  },
+  {
+   "speaker": "S02",
+   "text": "Wait, Marcus, if you split it like that, how do cross-site referrals work during those three weeks between October nineteenth and November ninth?",
+   "kind": "turn"
+  },
+  {
+   "speaker": "S01",
+   "text": "Well, we would have to build a temporary HL7 bridge. IT can build an interface engine patch to sync records, but...",
+   "kind": "turn"
+  },
+  {
+   "speaker": "S06",
+   "text": "How much does the patch cost?",
+   "kind": "interrupt"
+  },
+  {
+   "speaker": "S01",
+   "text": "Uh, it is not just cost, Karen, it is development time. It would take my senior integration engineer about eighty hours to script and test that bridge.",
+   "kind": "turn"
+  },
+  {
+   "speaker": "S06",
+   "text": "Right, so eighty hours of vendor consultant rates at two hundred and twenty dollars an hour, so that is another seventeen thousand six hundred dollars out of the contingency budget.",
+   "kind": "turn"
+  },
+  {
+   "speaker": "S03",
+   "text": "Seventeen thousand dollars is a drop in the bucket compared to shutting down emergency referrals across five facilities because of a database lockup!",
+   "kind": "turn"
+  },
+  {
+   "speaker": "S02",
+   "text": "Robert, nobody is talking about shutting down emergency referrals.",
+   "kind": "interrupt"
+  },
+  {
+   "speaker": "S03",
+   "text": "It happens, Sarah! You know as well as I do that when the intake queue freezes, the triage desk stops taking transfers from outside clinics. We saw it in 2019 at Mercy Health.",
+   "kind": "turn"
+  },
+  {
+   "speaker": "S04",
+   "text": "Right.",
+   "kind": "backchannel"
+  },
+  {
+   "speaker": "S05",
+   "text": "Yeah, I remember that. That was a total disaster.",
+   "kind": "backchannel"
+  },
+  {
+   "speaker": "S07",
+   "text": "It was a night-mare.",
+   "kind": "backchannel"
+  },
+  {
+   "speaker": "S01",
+   "text": "Okay, look, let us re-evaluate the site order if we go with phased. If we go phased, why not start with the site that has the lowest volume? That would be Eastside Clinic.",
+   "kind": "turn"
+  },
+  {
+   "speaker": "S05",
+   "text": "Eastside is small, but their specialty pediatrics department has a custom scheduling workflow for cardiology. CareFlow does not even have that module fully configured yet.",
+   "kind": "turn"
+  },
+  {
+   "speaker": "S01",
+   "text": "Wait, I thought the vendor delivered the pediatric cardiology workflow template last Tuesday?",
+   "kind": "turn"
+  },
+  {
+   "speaker": "S05",
+   "text": "They delivered a draft template, Marcus. We tested it in sandbox on Thursday. It fails to map multi-provider appointment blocks when two specialists are in the room at the same time.",
+   "kind": "turn"
+  },
+  {
+   "speaker": "S03",
+   "text": "Oh great. That is just great.",
+   "kind": "turn"
+  },
+  {
+   "speaker": "S02",
+   "text": "Okay, but can we turn off multi-provider block booking at Eastside for two weeks and just do manual overrides?",
+   "kind": "turn"
+  },
+  {
+   "speaker": "S04",
+   "text": "No! Absolutely not! Manual overrides mean nurses sitting in front of screens typing notes twice, which means overtime. We are already over our quarterly overtime allowance by eighteen percent at Eastside.",
+   "kind": "turn"
+  },
+  {
+   "speaker": "S06",
+   "text": "Eighteen percent over budget on nurse overtime is already unsustainable, Brenda. If we add more manual work, Karen's budget forecast for Q4 goes completely red.",
+   "kind": "turn"
+  },
+  {
+   "speaker": "S04",
+   "text": "Well then fix the software before asking my nurses to work sixty-hour weeks to fix IT mistakes!",
+   "kind": "turn"
+  },
+  {
+   "speaker": "S01",
+   "text": "Alright, alright, let us calm down for a second. Let us figure out where training stands. Oh, wait, is Rachel on the call yet? I see a user named Guest 1.",
+   "kind": "turn"
+  },
+  {
+   "speaker": "S08",
+   "text": "Hi, yes! Sorry everyone, I am here. Rachel here. I was stuck on the executive committee call until just now. I caught the tail end of what Brenda was saying.",
+   "kind": "turn"
+  },
+  {
+   "speaker": "S01",
+   "text": "Hey Rachel. Can you give us an honest update on completion rates for the CareFlow web-based training modules across all sites?",
+   "kind": "turn"
+  },
+  {
+   "speaker": "S08",
+   "text": "Sure thing, Marcus. So, uh, across the whole network, total completion is sitting at fifty-two percent as of nine AM today. But the spread is really uneven. St. Jude is at seventy-eight percent completion, which is great. Northbrook is at sixty-four percent. Valley General is at forty-one percent. Mercy Health is at thirty-eight percent. And Eastside is lagging way behind at twenty-nine percent.",
+   "kind": "turn"
+  },
+  {
+   "speaker": "S02",
+   "text": "Twenty-nine percent? Why is Eastside so low?",
+   "kind": "turn"
+  },
+  {
+   "speaker": "S08",
+   "text": "Because Eastside had that system-wide internet outage three weeks ago during their scheduled training window, and we have not been able to get them rescheduled because of staff cover issues.",
+   "kind": "turn"
+  },
+  {
+   "speaker": "S04",
+   "text": "Exactly what I was saying five minutes ago.",
+   "kind": "turn"
+  },
+  {
+   "speaker": "S03",
+   "text": "See? Rushing a big bang launch on October fourteenth with a twenty-nine percent training completion rate at Eastside is recipe for total operational failure.",
+   "kind": "turn"
+  },
+  {
+   "speaker": "S02",
+   "text": "Okay, but look at St. Jude. St. Jude is almost at eighty percent! Why can we not launch St. Jude first as a pilot on October fourteenth, get the kinks out, and then roll to Valley General and Northbrook two weeks later?",
+   "kind": "turn"
+  },
+  {
+   "speaker": "S07",
+   "text": "Wait a minute, Sarah, do not volunteer St. Jude as the guinea pig just because our staff actually completed their homework! <laugh>",
+   "kind": "turn"
+  },
+  {
+   "speaker": "S02",
+   "text": "Tom, it is not being a guinea pig, it is taking advantage of your team's readiness. Your staff is trained, your intake volume outside of urgent care is steady, and your IT infrastructure was updated last year.",
+   "kind": "turn"
+  },
+  {
+   "speaker": "S07",
+   "text": "Yeah, but what about the twelve-hour weekend downtime Marcus mentioned? If St. Jude goes first on October fourteenth, my weekend urgent care staff bears the brunt of the initial paper-chart cutover chaos.",
+   "kind": "turn"
+  },
+  {
+   "speaker": "S01",
+   "text": "Actually, Tom, if we only launch St. Jude on October fourteenth, the database cutover is much smaller. The downtime would not be twelve hours, it would probably only be four to five hours on Saturday night.",
+   "kind": "turn"
+  },
+  {
+   "speaker": "S07",
+   "text": "Four to five hours? Between midnight and five AM?",
+   "kind": "turn"
+  },
+  {
+   "speaker": "S01",
+   "text": "Yeah, exactly. Midnight to five AM Sunday morning, October thirteenth.",
+   "kind": "turn"
+  },
+  {
+   "speaker": "S07",
+   "text": "Hmm. Five hours is much more manageable. Our overnight walk-in count at urgent care between midnight and five AM is usually under fifteen patients.",
+   "kind": "turn"
+  },
+  {
+   "speaker": "S04",
+   "text": "Fifteen patients is doable on paper charts. We can pull two extra nurses for five hours without breaking the overtime bank.",
+   "kind": "turn"
+  },
+  {
+   "speaker": "S06",
+   "text": "Now we are talking. Marcus, if we do St. Jude first on October fourteenth, what does that do to the overall project timeline and budget finish line?",
+   "kind": "turn"
+  },
+  {
+   "speaker": "S01",
+   "text": "Okay, so let us sketch this out. St. Jude pilot goes live Monday, October fourteenth. We run St. Jude solo for two full weeks to monitor system stability, API calls, and patient portal scheduling sync.",
+   "kind": "turn"
+  },
+  {
+   "speaker": "S02",
+   "text": "uh-huh",
+   "kind": "backchannel"
+  },
+  {
+   "speaker": "S08",
+   "text": "Right, and during those two weeks, my team focuses super heavily on blitzing training at Valley General and Northbrook to get them up from forty percent to eighty-five percent.",
+   "kind": "turn"
+  },
+  {
+   "speaker": "S03",
+   "text": "That actually sounds somewhat rational. But what about Eastside and Mercy Health?",
+   "kind": "turn"
+  },
+  {
+   "speaker": "S01",
+   "text": "Phase two: Valley General and Northbrook go live on November fourth. That is three weeks after St. Jude. Phase three: Mercy Health and Eastside go live on November twenty-fifth, right after Thanksgiving.",
+   "kind": "turn"
+  },
+  {
+   "speaker": "S06",
+   "text": "November twenty-fifth gets us fully deployed across all five sites six days before the end of November deadline. That avoids the twelve percent financial penalty from the vendor!",
+   "kind": "turn"
+  },
+  {
+   "speaker": "S05",
+   "text": "Wait, November twenty-fifth is the Monday right after Thanksgiving weekend. Are you crazy? Half of our administrative staff takes paid time off that Monday!",
+   "kind": "interrupt"
+  },
+  {
+   "speaker": "S04",
+   "text": "David is right. Holiday PTO blackout requests for Thanksgiving week were already approved back in July. You will have a skeleton crew in administration at Eastside and Mercy.",
+   "kind": "turn"
+  },
+  {
+   "speaker": "S02",
+   "text": "Can we cancel non-essential PTO for that specific Monday?",
+   "kind": "turn"
+  },
+  {
+   "speaker": "S04",
+   "text": "Sarah, if you attempt to cancel approved holiday PTO four weeks out, you will have a union grievance on your desk before five PM today. I guarantee it.",
+   "kind": "turn"
+  },
+  {
+   "speaker": "S03",
+   "text": "<laugh> Yeah, good luck with that Sarah.",
+   "kind": "turn"
+  },
+  {
+   "speaker": "S02",
+   "text": "Alright, fine. I am just looking for options here.",
+   "kind": "turn"
+  },
+  {
+   "speaker": "S01",
+   "text": "Okay, what if phase three goes live on December second instead of November twenty-fifth? That is the Monday after Thanksgiving week.",
+   "kind": "turn"
+  },
+  {
+   "speaker": "S06",
+   "text": "Marcus, December second pushes us two days into December. Does the vendor charge us the full twelve percent penalty if we miss November thirtieth by forty-eight hours?",
+   "kind": "turn"
+  },
+  {
+   "speaker": "S01",
+   "text": "I would have to check with the vendor account executive, but usually there is a grace period if phase one and two are already live in production.",
+   "kind": "turn"
+  },
+  {
+   "speaker": "S09",
+   "text": "Sorry to interrupt everyone, Greg here from Compliance. I have been listening quietly, but I need to bring up a significant legal and regulatory blocker that nobody has mentioned yet.",
+   "kind": "turn"
+  },
+  {
+   "speaker": "S01",
+   "text": "Oh, hey Greg. Go ahead, what is the blocker?",
+   "kind": "turn"
+  },
+  {
+   "speaker": "S09",
+   "text": "If you split the deployment into three phases across October, November, and December, you are going to be transmitting live Protected Health Information between two separate scheduling systems across different domain networks. Have we performed a formal HIPAA Risk Assessment for the temporary data bridge that Marcus mentioned building?",
+   "kind": "turn"
+  },
+  {
+   "speaker": "S02",
+   "text": "Greg, it is internal network traffic within our own hospital system firewall.",
+   "kind": "turn"
+  },
+  {
+   "speaker": "S09",
+   "text": "It does not matter, Sarah. Legacy Scheduler and CareFlow store encryption keys differently. CareFlow uses AES two-fifty-six bit encryption at rest, whereas Legacy 3.1 is using an older SHA-1 hashing protocol for patient demographic fields. If we bridge those systems without an encrypted translation layer, we are in direct violation of the updated HHS security guidelines that took effect in June.",
+   "kind": "turn"
+  },
+  {
+   "speaker": "S03",
+   "text": "Whoa. That sounds serious.",
+   "kind": "turn"
+  },
+  {
+   "speaker": "S06",
+   "text": "What is the penalty if we fail a compliance audit on that?",
+   "kind": "turn"
+  },
+  {
+   "speaker": "S09",
+   "text": "Tier three HIPAA violations carry fines up to fifty thousand dollars per day of non-compliance, capped at one point five million dollars annually per violation type. So saving seventeen thousand dollars on bridge development by rushing a quick-and-dirty patch could potentially cost us hundreds of thousands in regulatory fines.",
+   "kind": "turn"
+  },
+  {
+   "speaker": "S05",
+   "text": "Wow.",
+   "kind": "backchannel"
+  },
+  {
+   "speaker": "S07",
+   "text": "That settles that.",
+   "kind": "backchannel"
+  },
+  {
+   "speaker": "S01",
+   "text": "Okay... wow. I am glad you brought that up Greg. Marcus here. Let me ask: how long does it take your compliance team to audit and approve an encrypted translation layer for the HL7 bridge?",
+   "kind": "turn"
+  },
+  {
+   "speaker": "S09",
+   "text": "If IT provides the technical specifications and data mapping sheet by this Friday, my team can complete the security audit within five business days. So we could sign off by Friday, October fourth.",
+   "kind": "turn"
+  },
+  {
+   "speaker": "S01",
+   "text": "Okay, that still leaves us ten days before the proposed St. Jude pilot on October fourteenth. That is workable from an IT engineering standpoint.",
+   "kind": "turn"
+  },
+  {
+   "speaker": "S08",
+   "text": "From a training perspective, if we lock in this three-stage plan right now, here is what my schedule looks like: October fourteenth is St. Jude. Then three weeks later, November fourth, we do Valley General and Northbrook. Then four weeks after that, December second, we do Mercy Health and Eastside. That gives us ample time to conduct in-person super-user labs at Eastside.",
+   "kind": "turn"
+  },
+  {
+   "speaker": "S04",
+   "text": "Rachel, if you hold in-person super-user labs at Eastside, will those be scheduled during day shifts or do my night shift nurses get shafted again?",
+   "kind": "turn"
+  },
+  {
+   "speaker": "S08",
+   "text": "We will run dedicated night shift sessions from seven PM to eleven PM and five AM to seven AM, Brenda. I will personally stay on site at Eastside for those night sessions.",
+   "kind": "turn"
+  },
+  {
+   "speaker": "S04",
+   "text": "Okay. If you put that in writing, the union will support the revised training timeline.",
+   "kind": "turn"
+  },
+  {
+   "speaker": "S02",
+   "text": "Alright, so let us recap where we are landing here because I have to jump off for a cabinet meeting in five minutes. Sarah here.",
+   "kind": "turn"
+  },
+  {
+   "speaker": "S01",
+   "text": "Go ahead Sarah.",
+   "kind": "turn"
+  },
+  {
+   "speaker": "S02",
+   "text": "We are scrapping the big bang deployment for October fourteenth. Instead, we are approving a phased rollout strategy across three tranches.",
+   "kind": "turn"
+  },
+  {
+   "speaker": "S02",
+   "text": "Tranche one is St. Jude on October fourteenth, with a five-hour downtime window on Sunday morning October thirteenth from midnight to five AM.",
+   "kind": "turn"
+  },
+  {
+   "speaker": "S07",
+   "text": "Agreed from St. Jude operations side.",
+   "kind": "turn"
+  },
+  {
+   "speaker": "S02",
+   "text": "Tranche two is Valley General and Northbrook on November fourth. Tranche three is Mercy Health and Eastside on December second. Karen will negotiate with the software vendor to waive any late-deployment penalty fees for that two-day overrun into December, citing our staggered rollout plan.",
+   "kind": "turn"
+  },
+  {
+   "speaker": "S06",
+   "text": "I will call our vendor account representative, Tim, immediately after this call and push hard on that grace period.",
+   "kind": "turn"
+  },
+  {
+   "speaker": "S02",
+   "text": "And Marcus and Greg will collaborate on the technical specs for the encrypted HL7 data bridge to ensure HIPAA compliance, getting sign-off by October fourth.",
+   "kind": "turn"
+  },
+  {
+   "speaker": "S09",
+   "text": "Correct. Send me the data mapping by Friday afternoon, Marcus.",
+   "kind": "turn"
+  },
+  {
+   "speaker": "S01",
+   "text": "Will do, Greg. My integration lead Dave is already working on the schema.",
+   "kind": "turn"
+  },
+  {
+   "speaker": "S03",
+   "text": "From the clinical governance side, I am much more comfortable with this phased plan. It gives us time to catch any interface bugs at St. Jude before we touch high-volume centers like Valley General.",
+   "kind": "turn"
+  },
+  {
+   "speaker": "S05",
+   "text": "Yeah, Valley General definitely needs that extra three weeks of prep time.",
+   "kind": "backchannel"
+  },
+  {
+   "speaker": "S01",
+   "text": "Fantastic. Are there any objections to this motion before we wrap up?",
+   "kind": "turn"
+  },
+  {
+   "speaker": "S04",
+   "text": "No objections from nursing, as long as Rachel's night shift training schedule is delivered as promised.",
+   "kind": "turn"
+  },
+  {
+   "speaker": "S08",
+   "text": "I will send out the published training calendar by end of day tomorrow.",
+   "kind": "turn"
+  },
+  {
+   "speaker": "S01",
+   "text": "Awesome. Thank you everybody for your time and working through this tough discussion. I will send out the updated master timeline document and the meeting minutes in about an hour. Have a great rest of your day.",
+   "kind": "turn"
+  },
+  {
+   "speaker": "S02",
+   "text": "Thanks Marcus. Bye everyone.",
+   "kind": "turn"
+  },
+  {
+   "speaker": "S07",
+   "text": "Thanks all.",
+   "kind": "backchannel"
+  },
+  {
+   "speaker": "S03",
+   "text": "Bye bye.",
+   "kind": "backchannel"
+  }
+ ],
+ "meeting": "SYN002",
+ "localSpeaker": "S01",
+ "writer": "gemini-3.6-flash",
+ "prompt": "Write the transcript of an invented work meeting, as it would really sound when spoken.\nIt is for testing speech recognition and speaker separation, so it must be hard in the ways real meetings are hard.\n\n- 9 participants with ids S01 to S09. Invent first names and roles. S01 is the person whose\n  laptop records the call; the others join remotely.\n- About 1800 spoken words in total, which is about 12 minutes.\n- Topic: a hospital network deciding how to roll out a new patient scheduling system across five sites, with staffing and downtime disagreements\n- Speak like people really talk: fillers (um, uh, like, you know), false starts and self-corrections\n  (\"we should, well, we could\"), repeated words, trailing off, laughing at something, numbers, dates, money,\n  percentages, product names and acronyms said out loud, and a few names of the participants.\n- Uneven talk time: two people dominate, most speak sometimes, one person says almost nothing until the last\n  quarter of the meeting, and one joins the conversation only in the second half.\n- kind \"turn\" is a normal turn after the previous one ends. kind \"interrupt\" starts while the previous speaker\n  is still talking. kind \"backchannel\" is a short reply (\"yeah\", \"mm-hmm\", \"right\", \"okay\", \"sure\") said over\n  someone else's turn. Use about 12% interrupts and 15% backchannels, spread through the meeting, and include\n  stretches where several people talk over each other.\n- Write words only: no stage directions, brackets, emoji or markup, except the tag <laugh> where someone laughs.\n"
+}

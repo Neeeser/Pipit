@@ -9,16 +9,20 @@ import Synchronization
 /// On the held-out `deciding` suite, leaving out the ICSI cases Nemotron trained
 /// on, Nemotron cut mean tcpWER from 53.6% to 38.2% and found the right speaker
 /// count on 10 of 10 cases against 2 of 10, at word error unchanged and similar
-/// speed. The clusterer still runs in three places, and the run's provenance
+/// speed. The clusterer still runs in two places, and the run's provenance
 /// says which one it was:
 ///
-/// - The model's eight speaker slots all filled, so the meeting may hold more
-///   people than it can keep apart.
 /// - Its files are not installed, or the model failed on this audio, which
 ///   includes returning no speakers for audio loud enough to hold speech.
 /// - A person asked for a speaker count, which Nemotron cannot be told. That
 ///   path never reaches this type; `LocalModelManager.reanalyzeSpeakers` sends
 ///   it straight to the clusterer.
+///
+/// A meeting that fills all eight of Nemotron's speaker slots keeps Nemotron's
+/// answer. With more than eight people Nemotron usually merges voices and
+/// reports fewer than eight, so a full set of slots is not a reliable sign of
+/// a crowded meeting, and the clusterer over-counts real meetings. A person who
+/// knows the count types it, which sends the meeting to the clusterer.
 ///
 /// Live diarization during a call stays on the clusterer: it reruns on growing
 /// scratch files and has not been measured with Nemotron.
@@ -27,24 +31,18 @@ public struct LocalDiarizationBackend: DiarizationBackend {
     /// run's `diarizerReason`.
     public enum Reason: String, Sendable {
         case speakerCountRequested
-        case allSpeakerSlotsUsed
         case modelNotInstalled
         case modelFailed
-        /// Nemotron ran and the meeting was within its limits.
+        /// Nemotron ran and its answer was kept.
         case preferred
     }
 
     private let primary: any DiarizationBackend
     private let fallback: any DiarizationBackend
-    private let slotLimit: Int
 
-    public init(
-        primary: any DiarizationBackend, fallback: any DiarizationBackend,
-        slotLimit: Int = LocalSpeechStack.nemotron3SpeakerSlots
-    ) {
+    public init(primary: any DiarizationBackend, fallback: any DiarizationBackend) {
         self.primary = primary
         self.fallback = fallback
-        self.slotLimit = slotLimit
     }
 
     /// `cacheKey` keeps the clusterer's segmentation and embeddings when it
@@ -90,8 +88,6 @@ public struct LocalDiarizationBackend: DiarizationBackend {
             if Self.foundNoSpeakerInLoudAudio(output) {
                 reason = .modelFailed
                 Log.processing.notice("nemotron diarization found no speaker in audible audio, using the clusterer")
-            } else if output.clusters.count >= slotLimit {
-                reason = .allSpeakerSlotsUsed
             } else {
                 send(1)
                 return Self.recording(.preferred, in: output)

@@ -97,6 +97,20 @@ class SplitOneWordLine(unittest.TestCase):
             self.assertAlmostEqual(len(piece) / RATE, spoken, delta=0.1)
 
 
+    def test_a_one_word_line_timed_early_is_not_cut_as_silence(self) -> None:
+        # The recogniser puts "yes" and the word after it about 0.4 s before they are said, which leaves
+        # the pause after "yes" outside the usual cutting window.
+        lines = ["alpha one", "yes", "charlie three"]
+        audio = np.concatenate([tone(1.0), silence(0.6), tone(0.3), silence(0.6), tone(1.0), silence(0.3)])
+        heard = [{"text": "alpha", "start": 0.0, "end": 0.5}, {"text": "one", "start": 0.5, "end": 1.0},
+                 {"text": "yes", "start": 1.2, "end": 1.6},
+                 {"text": "charlie", "start": 2.15, "end": 2.6}, {"text": "three", "start": 2.6, "end": 3.1}]
+        pieces = SplitByAlignment.split(self, audio, lines, heard)
+        self.assertIsNotNone(pieces)
+        for piece, spoken in zip(pieces, [1.0, 0.3, 1.0], strict=True):
+            self.assertAlmostEqual(len(piece) / RATE, spoken, delta=0.1)
+
+
 class Voiced(unittest.TestCase):
     def test_a_single_loud_frame_after_a_line_does_not_extend_it(self) -> None:
         audio = np.concatenate([tone(1.0), silence(0.8), tone(0.01), silence(0.2)])
@@ -199,6 +213,27 @@ class ScriptChecks(unittest.TestCase):
     def test_a_participant_with_no_turns_is_a_problem(self) -> None:
         found = write_script.problems(self.script(["S01", "S02", "S03"], ["S01", "S02"]), 3)
         self.assertTrue(any("S03" in p for p in found), found)
+
+
+class VoiceChoice(unittest.TestCase):
+    speakers = ["S01", "S02", "S03"]
+
+    def test_the_default_roster_is_used_in_speaker_order(self) -> None:
+        self.assertEqual(synthesize.assign_voices(self.speakers, None),
+                         dict(zip(self.speakers, synthesize.VOICES, strict=False)))
+
+    def test_chosen_voices_go_to_speakers_in_order(self) -> None:
+        chosen = ["Umbriel", "Kore", "Despina"]
+        self.assertEqual(synthesize.assign_voices(self.speakers, chosen), dict(zip(self.speakers, chosen, strict=True)))
+
+    def test_a_repeated_unknown_or_miscounted_choice_is_refused(self) -> None:
+        for chosen in (["Kore", "Kore", "Puck"], ["Kore", "Puck", "Nobody"], ["Kore", "Puck"]):
+            with self.subTest(chosen=chosen), self.assertRaises(SystemExit):
+                synthesize.assign_voices(self.speakers, chosen)
+
+    def test_more_speakers_than_voices_is_refused(self) -> None:
+        with self.assertRaises(SystemExit):
+            synthesize.assign_voices(["S%02d" % n for n in range(1, len(synthesize.VOICES) + 2)], None)
 
 
 class RejectedSpeech(unittest.TestCase):

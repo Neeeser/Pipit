@@ -1,0 +1,531 @@
+{
+ "topic": "University Research Computing Cluster Procurement: On-Premise vs Cloud Deployment",
+ "participants": [
+  {
+   "id": "S01",
+   "name": "Ellen Vance",
+   "role": "Department Chair"
+  },
+  {
+   "id": "S02",
+   "name": "Marcus Chen",
+   "role": "Professor of Computer Science"
+  },
+  {
+   "id": "S03",
+   "name": "Sarah Jenkins",
+   "role": "Director of IT Infrastructure"
+  },
+  {
+   "id": "S04",
+   "name": "Alex Rivera",
+   "role": "Lab Manager"
+  },
+  {
+   "id": "S05",
+   "name": "David Ross",
+   "role": "Professor of Computational Biology"
+  },
+  {
+   "id": "S06",
+   "name": "Maya Patel",
+   "role": "Postdoctoral Research Fellow"
+  },
+  {
+   "id": "S07",
+   "name": "Rachel Kim",
+   "role": "Financial Grants Officer"
+  },
+  {
+   "id": "S08",
+   "name": "Thomas Wright",
+   "role": "Senior Research Professor"
+  },
+  {
+   "id": "S09",
+   "name": "Greg Lawson",
+   "role": "Lead Systems Administrator"
+  },
+  {
+   "id": "S10",
+   "name": "Nina Gomez",
+   "role": "Data Security Compliance Officer"
+  },
+  {
+   "id": "S11",
+   "name": "Ben Foster",
+   "role": "Graduate Student Representative"
+  },
+  {
+   "id": "S12",
+   "name": "Priya Sharma",
+   "role": "Associate Dean of Research"
+  }
+ ],
+ "turns": [
+  {
+   "speaker": "S01",
+   "text": "Okay I think we are all here or well most of us anyway on the laptop audio here in the conference room. Welcome everyone. Let us get started because we have a pretty tight deadline on this NSF MRI grant proposal.",
+   "kind": "turn"
+  },
+  {
+   "speaker": "S07",
+   "text": "Right so the submission window closes October twenty-fourth at five p.m. Eastern time. That gives us basically eleven days to finalize the equipment request and budget narrative.",
+   "kind": "turn"
+  },
+  {
+   "speaker": "S03",
+   "text": "Yeah",
+   "kind": "backchannel"
+  },
+  {
+   "speaker": "S07",
+   "text": "And just as a reminder the total cap on the request is one point two million dollars with an eighty-five percent cost-share covered by the grant program and fifteen percent coming from departmental and dean matching funds.",
+   "kind": "turn"
+  },
+  {
+   "speaker": "S02",
+   "text": "Thanks Rachel. So look I think we need to cut straight to the chase here. The working group evaluated the two vendor proposals we received last week. Option A from Apex High Performance Systems for an on-premise cluster and Option B from CloudScale Research for a managed hybrid cloud environment. In my view as PI on three of the major computational projects that will use this hardware we really need to go with Apex.",
+   "kind": "turn"
+  },
+  {
+   "speaker": "S03",
+   "text": "Marcus if I can just jump in there. I think calling Apex the obvious choice completely ignores our long-term operating costs and staff overhead.",
+   "kind": "interrupt"
+  },
+  {
+   "speaker": "S02",
+   "text": "Well wait let me finish Sarah. The Apex system gives us ninety-six nodes each with dual AMD EPYC processors and eight NVIDIA H100 GPUs connected over Quantum-Two InfiniBand. We own the iron. We get dedicated throughput without any noisy neighbor issues or unexpected billing spikes. The raw hardware proposal came in at one million one hundred and forty-five thousand dollars which fits under our one point two million budget.",
+   "kind": "turn"
+  },
+  {
+   "speaker": "S09",
+   "text": "Mm-hmm",
+   "kind": "backchannel"
+  },
+  {
+   "speaker": "S04",
+   "text": "What about power and cooling in the basement data center though? Last summer we had that huge AC failure during the heatwave in July.",
+   "kind": "turn"
+  },
+  {
+   "speaker": "S09",
+   "text": "We upgraded the CRAC units in August Alex. Facilities installed two new sixty-ton chillers so thermal management for another three racks isn't, well, it shouldn't be an issue anymore.",
+   "kind": "turn"
+  },
+  {
+   "speaker": "S03",
+   "text": "It is not just cooling Greg it is the ongoing maintenance. CloudScale's proposal is three hundred and twenty thousand dollars annually for a committed cloud reservation. Over three years that is nine hundred and sixty thousand dollars. They handle hardware refreshes, driver updates, facility risk, everything. Plus we get elasticity. When Maya or David need to burst to two hundred nodes for a paper deadline they can just scale up.",
+   "kind": "turn"
+  },
+  {
+   "speaker": "S06",
+   "text": "That bursting capability would actually be really helpful for the genomics pipelines because--",
+   "kind": "interrupt"
+  },
+  {
+   "speaker": "S02",
+   "text": "But Maya look at the egress costs! Have you actually calculated the data egress charges for transferring fifty terabytes of raw sequencing data back down from the AWS or CloudScale environment?",
+   "kind": "interrupt"
+  },
+  {
+   "speaker": "S06",
+   "text": "Well I mean we sort of estimated around--",
+   "kind": "turn"
+  },
+  {
+   "speaker": "S02",
+   "text": "It is astronomical! It is not just three hundred and twenty thousand a year. CloudScale put a small asterisk on page fourteen of their proposal. Egress is priced at five cents per gigabyte after the first five terabytes per month. If we transfer forty or fifty terabytes a month we are talking about another fifteen to twenty thousand dollars a year in unaccounted opex!",
+   "kind": "turn"
+  },
+  {
+   "speaker": "S05",
+   "text": "Wait is that true Rachel? Did finance look at the variable egress rates?",
+   "kind": "turn"
+  },
+  {
+   "speaker": "S07",
+   "text": "Um yeah so we did review that section. The grant allows equipment purchases under capital expenditure but operating expenses like monthly cloud subscriptions and data egress after year one cannot be paid directly from NSF MRI grant funds. They would have to come out of internal departmental funds or faculty overhead accounts.",
+   "kind": "turn"
+  },
+  {
+   "speaker": "S01",
+   "text": "Wait sorry say that again Rachel? The NSF won't cover cloud costs past year one?",
+   "kind": "turn"
+  },
+  {
+   "speaker": "S07",
+   "text": "They cover initial setup and year one subscription under the grant as capital acquisition. But years two, three, and four cloud recurring charges fall under operational expenses which MRI explicitly restricts.",
+   "kind": "turn"
+  },
+  {
+   "speaker": "S03",
+   "text": "Right",
+   "kind": "backchannel"
+  },
+  {
+   "speaker": "S02",
+   "text": "Exactly! Thank you! <laugh> That right there completely kills the cloud option unless Sarah wants to hand over her departmental IT budget to pay three hundred grand a year!",
+   "kind": "interrupt"
+  },
+  {
+   "speaker": "S03",
+   "text": "Marcus come on that is simply unfair. We can structure the grant line items under managed research infrastructure services. Other universities have done this. Stanford and Michigan both used MRI funding for multi-year cloud commitments by setting up a prepaid credits model.",
+   "kind": "turn"
+  },
+  {
+   "speaker": "S11",
+   "text": "Yeah",
+   "kind": "backchannel"
+  },
+  {
+   "speaker": "S03",
+   "text": "If we prepay CloudScale upfront for thirty-six months under a single master service contract it counts as a capital service contract for research equipment. That solves the year two and year three operational restriction.",
+   "kind": "turn"
+  },
+  {
+   "speaker": "S11",
+   "text": "From a student perspective though like speaking for the grad students in the department who actually run these jobs day to day the local queuing system on the old cluster is just... it is really clunky. Slurm on local bare metal gives us full control over job scheduling and interactive debugging. When we tried using the cloud portal during the workshop last fall we had all kinds of licensing issues with MATLAB and Ansys.",
+   "kind": "turn"
+  },
+  {
+   "speaker": "S09",
+   "text": "Right because license servers require fixed IP addresses and local subnets.",
+   "kind": "interrupt"
+  },
+  {
+   "speaker": "S11",
+   "text": "Yeah exactly! We spent like three days trying to route license keys through the virtual private cloud link.",
+   "kind": "turn"
+  },
+  {
+   "speaker": "S04",
+   "text": "That was a nightmare.",
+   "kind": "backchannel"
+  },
+  {
+   "speaker": "S05",
+   "text": "Look I think we need to separate two things here. One is the computational sheer power for heavy machine learning models and molecular dynamics simulations and the second is convenience. Marcus how long would it take Apex to deliver and rack the hardware if we submit the order on November first?",
+   "kind": "turn"
+  },
+  {
+   "speaker": "S02",
+   "text": "Apex guaranteed lead time of twelve weeks post purchase order. So if funds are released in March we would be fully operational by late May or early June.",
+   "kind": "turn"
+  },
+  {
+   "speaker": "S09",
+   "text": "Assuming supply chain on the H100s doesn't slip again like it did last year.",
+   "kind": "interrupt"
+  },
+  {
+   "speaker": "S02",
+   "text": "They have guaranteed allocations Greg. I spoke directly with their vice president of sales, Dave Miller, last Tuesday. Apex has reserved forty-eight dual-socket chassis with H100 SXM5 modules specifically for academic orders in Q1.",
+   "kind": "turn"
+  },
+  {
+   "speaker": "S03",
+   "text": "Vendors promise lead times all the time Marcus. Remember when Dell promised us eight weeks for the storage expansion in twenty twenty-two and it took nine months?",
+   "kind": "turn"
+  },
+  {
+   "speaker": "S01",
+   "text": "<laugh> Oh God don't remind me of that. That was awful.",
+   "kind": "turn"
+  },
+  {
+   "speaker": "S03",
+   "text": "With CloudScale we can provision instances within forty-eight hours of grant approval. Zero deployment delay. Our postdocs and graduate students start running code in April instead of waiting around until June or July or September.",
+   "kind": "turn"
+  },
+  {
+   "speaker": "S06",
+   "text": "That would be huge for my project because our paper submission for NeurIPS is in late May. If we don't have compute until June I miss the deadline for the entire academic year.",
+   "kind": "turn"
+  },
+  {
+   "speaker": "S02",
+   "text": "Maya you can use the national supercomputing centers like XSEDE or ACCESS in the interim! We have twenty thousand node-hours allocated on Bridges-Two at Pittsburgh Supercomputing Center right now that are sitting sixty percent unused!",
+   "kind": "turn"
+  },
+  {
+   "speaker": "S06",
+   "text": "Sure but the queue wait times on Bridges-Two are sometimes forty-eight hours for a single eight-GPU job. It is impossible to iterate quickly when you wait two days just to find out your script had a syntax error in line forty-two.",
+   "kind": "turn"
+  },
+  {
+   "speaker": "S12",
+   "text": "Hi everyone sorry to jump in. This is Priya from the Dean's Office. I have been listening in for the last ten minutes.",
+   "kind": "turn"
+  },
+  {
+   "speaker": "S01",
+   "text": "Oh hi Priya thanks for joining us.",
+   "kind": "turn"
+  },
+  {
+   "speaker": "S12",
+   "text": "I want to clarify the matching funds aspect. The Dean's office has agreed to provide one hundred and thirty thousand dollars toward the fifteen percent match required by NSF. However that commitment is conditional on the cluster serving multi-departmental needs including materials science, biomedical engineering, and data science.",
+   "kind": "turn"
+  },
+  {
+   "speaker": "S03",
+   "text": "Which CloudScale does much better because of multi-tenant isolation and cloud security compliance.",
+   "kind": "interrupt"
+  },
+  {
+   "speaker": "S02",
+   "text": "Apex supports multi-tenancy too! We can set up Kubernetes clusters with strict namespace isolation or Slurm bank accounts with fair-share scheduling. It is standard practice. Every national lab does it.",
+   "kind": "turn"
+  },
+  {
+   "speaker": "S10",
+   "text": "Hi everyone. Sorry I'm late joining the call. Nina Gomez from compliance here. I just got off a call with institutional review.",
+   "kind": "turn"
+  },
+  {
+   "speaker": "S01",
+   "text": "Thanks Nina. Perfect timing. We were just discussing security and multi-tenancy.",
+   "kind": "turn"
+  },
+  {
+   "speaker": "S10",
+   "text": "Right so I reviewed the vendor docs for both Apex and CloudScale regarding controlled unclassified information and genomic data privacy. The biomedical engineering data set that Dr. Ross's team works with contains de-identified patient genomic data subject to NIH dbGaP security requirements.",
+   "kind": "turn"
+  },
+  {
+   "speaker": "S05",
+   "text": "Right.",
+   "kind": "backchannel"
+  },
+  {
+   "speaker": "S10",
+   "text": "If we place dbGaP data on a third-party public cloud environment like CloudScale even with their hybrid setup we have to execute a Business Associate Agreement and submit a full FISMA Moderate security assessment to the university information security office. That process takes six to nine months minimum.",
+   "kind": "turn"
+  },
+  {
+   "speaker": "S02",
+   "text": "Aha! See! Nine months for compliance approval on the cloud!",
+   "kind": "interrupt"
+  },
+  {
+   "speaker": "S03",
+   "text": "Wait Nina doesn't CloudScale have FedRAMP High certification already? Their documentation says their AWS GovCloud enclave is fully FedRAMP High compliant.",
+   "kind": "turn"
+  },
+  {
+   "speaker": "S10",
+   "text": "Their infrastructure is certified yes Sarah. But our institutional deployment architecture, the way our local networks connect to their cloud bridge, still requires an internal audit. On-premise hardware inside our existing data center on the third floor of Hall Hall is already covered under our existing departmental security boundary.",
+   "kind": "turn"
+  },
+  {
+   "speaker": "S09",
+   "text": "Which means zero delay for compliance audit. We just extend the existing firewall rules.",
+   "kind": "turn"
+  },
+  {
+   "speaker": "S04",
+   "text": "Exactly.",
+   "kind": "backchannel"
+  },
+  {
+   "speaker": "S07",
+   "text": "Can I step back to the budget for a minute? We need to look at the exact numbers. The Apex proposal comes out to one million one hundred and forty-five thousand six hundred dollars. That includes hardware, three years of four-hour response on-site warranty support, and three years of software stack support from NVIDIA.",
+   "kind": "turn"
+  },
+  {
+   "speaker": "S01",
+   "text": "Okay.",
+   "kind": "backchannel"
+  },
+  {
+   "speaker": "S07",
+   "text": "The remaining fifty-four thousand four hundred dollars of the one point two million grant ceiling would be allocated for high-speed network switches and top-of-rack patching which Greg estimated at around thirty-eight thousand dollars. That leaves about sixteen thousand dollars in unallocated buffer.",
+   "kind": "turn"
+  },
+  {
+   "speaker": "S03",
+   "text": "And what about the power costs? Who pays the electricity bill for eighty-four thousand kilowatt hours a year? Has anyone calculated that? That is about twenty-two thousand dollars every year in power and cooling electricity costs alone!",
+   "kind": "turn"
+  },
+  {
+   "speaker": "S09",
+   "text": "Facilities absorbs central utility costs for academic buildings Sarah. It doesn't come out of departmental operational accounts.",
+   "kind": "turn"
+  },
+  {
+   "speaker": "S03",
+   "text": "Facilities is pushing back on central utility allocation Greg! You know Dean Miller sent that memo last month about energy conservation and carbon footprint reduction goals. Adding a hundred-kilowatt load to Hall Hall runs directly counter to the university's twenty-thirty net-zero sustainability target!",
+   "kind": "turn"
+  },
+  {
+   "speaker": "S02",
+   "text": "Oh come on! We are a research university! Are we going to stop doing cutting-edge artificial intelligence research because of an electric bill? <laugh> That is absurd!",
+   "kind": "turn"
+  },
+  {
+   "speaker": "S12",
+   "text": "Marcus let us keep the tone constructive please. Sarah raises a valid point about central administration priorities. Sustainability targets are being tracked at the Provost level now.",
+   "kind": "turn"
+  },
+  {
+   "speaker": "S08",
+   "text": "If I may say something...",
+   "kind": "turn"
+  },
+  {
+   "speaker": "S01",
+   "text": "Oh Professor Wright! Yes please go ahead Thomas.",
+   "kind": "turn"
+  },
+  {
+   "speaker": "S08",
+   "text": "I have been listening quietly here. You know thirty years ago when we bought our first Cray vector processor in ninety-four we had the exact same argument about local infrastructure versus central computing facilities. And over three decades I have watched the pendulum swing back and forth four times.",
+   "kind": "turn"
+  },
+  {
+   "speaker": "S02",
+   "text": "Mm-hmm",
+   "kind": "backchannel"
+  },
+  {
+   "speaker": "S08",
+   "text": "The reality is this. Cloud services are convenient for elasticity but when you have continuous sustained baseline workloads like training large language models or performing molecular dynamics simulations running them twenty-four seven on public cloud infrastructure is financially foolish. You end up renting hardware at three times the cost of buying it outright over a three to five year lifecycle.",
+   "kind": "turn"
+  },
+  {
+   "speaker": "S05",
+   "text": "I agree with Thomas on the sustained workload math. My lab runs jobs that run continuously for three weeks straight. Cloud spot instances get preempted and dedicated cloud instances are twice as expensive.",
+   "kind": "turn"
+  },
+  {
+   "speaker": "S08",
+   "text": "However we must address Sarah's concern about management burden. Greg and his team of two system admins are already overworked maintaining the existing forty-node cluster, the department storage arrays, and faculty workstations. If we add ninety-six high-density nodes who is going to manage the software environment, user tickets, and failed drives?",
+   "kind": "turn"
+  },
+  {
+   "speaker": "S09",
+   "text": "We requested a half-time graduate student assistant position in the grant budget narrative for cluster administration.",
+   "kind": "turn"
+  },
+  {
+   "speaker": "S08",
+   "text": "A graduate student assistant changes every two years Greg. You lose institutional memory every time someone graduates. If we go with Apex we should negotiate with the Dean's office to convert part of the grant overhead return into a full-time staff systems engineer position.",
+   "kind": "turn"
+  },
+  {
+   "speaker": "S12",
+   "text": "That is something the Dean's office might be willing to consider Thomas if the department commits to sharing ten percent of the cluster capacity with external university departments like Physics and Atmospheric Sciences.",
+   "kind": "turn"
+  },
+  {
+   "speaker": "S02",
+   "text": "Ten percent is completely reasonable! We can easily allocate ten percent off-peak capacity to external departments. That is standard fair-share scheduling.",
+   "kind": "turn"
+  },
+  {
+   "speaker": "S03",
+   "text": "What about storage though? The Apex proposal includes two hundred terabytes of NVMe storage. Two hundred terabytes is nothing! Maya's lab alone generates thirty terabytes of raw image data every six months. In eighteen months the cluster storage will be ninety-five percent full and we will be scrambling for more disk space.",
+   "kind": "turn"
+  },
+  {
+   "speaker": "S04",
+   "text": "Sarah is right about storage growth. We filled the current Ceph storage pool way faster than we planned.",
+   "kind": "turn"
+  },
+  {
+   "speaker": "S09",
+   "text": "Apex offered an optional expansion chassis with one point two petabytes of usable ZFS storage for an additional sixty-two thousand dollars. We could request that in the budget revision.",
+   "kind": "turn"
+  },
+  {
+   "speaker": "S07",
+   "text": "If we add sixty-two thousand for storage Greg we exceed the one point two million dollar NSF cap by eight thousand dollars. We would have to cut something else from the budget.",
+   "kind": "turn"
+  },
+  {
+   "speaker": "S02",
+   "text": "We can cut two of the compute nodes! Dropping from ninety-six nodes to ninety-four nodes saves about twenty-four thousand dollars. That covers the storage expansion chassis easily and keeps us under the one point two million cap!",
+   "kind": "turn"
+  },
+  {
+   "speaker": "S06",
+   "text": "Ninety-four nodes is still plenty of compute for us. That is over seven hundred high-end GPU cores.",
+   "kind": "turn"
+  },
+  {
+   "speaker": "S01",
+   "text": "Okay so let me try to summarize where we are landing because we have only about ten minutes left before the department seminar starts. It sounds like there is strong consensus from the research PIs, Thomas, David, Marcus, and Maya, that on-premise hardware via Apex provides significantly better compute economy for our sustained long-term workloads.",
+   "kind": "turn"
+  },
+  {
+   "speaker": "S03",
+   "text": "I still have strong reservations about the operational burden on IT staff and the energy efficiency profile Ellen.",
+   "kind": "turn"
+  },
+  {
+   "speaker": "S01",
+   "text": "Understood Sarah and I want to make sure your points are documented in the internal review section of our proposal. But given the regulatory compliance hurdles Nina pointed out with dbGaP genomic data on CloudScale, plus the NSF MRI restrictions on multi-year cloud opex funding that Rachel mentioned, on-premise hardware appears to be the only feasible path that meets both the grant guidelines and our security requirements.",
+   "kind": "turn"
+  },
+  {
+   "speaker": "S10",
+   "text": "From a compliance perspective on-premise is definitely the path of least resistance and lowest risk for October twenty-fourth submission.",
+   "kind": "turn"
+  },
+  {
+   "speaker": "S12",
+   "text": "And from the Dean's office if you include the ten percent multi-departmental access provision and reallocate budget for the petabyte storage expansion we will confirm the one hundred and thirty thousand dollar matching contribution by Friday morning.",
+   "kind": "turn"
+  },
+  {
+   "speaker": "S07",
+   "text": "That is great Priya. I will need the official signed commitment letter from Dean Miller's office by Thursday at noon so I can upload it into the FastLane portal.",
+   "kind": "turn"
+  },
+  {
+   "speaker": "S12",
+   "text": "I will have my executive assistant route it for signature tomorrow morning Rachel.",
+   "kind": "turn"
+  },
+  {
+   "speaker": "S02",
+   "text": "Awesome! Thank you Priya!",
+   "kind": "turn"
+  },
+  {
+   "speaker": "S09",
+   "text": "I will send the revised bill of materials to Apex today to drop two nodes and add the one point two petabyte storage shelf.",
+   "kind": "turn"
+  },
+  {
+   "speaker": "S03",
+   "text": "Fine. But Greg you and I need to sit down tomorrow to draft a realistic maintenance plan because IT cannot absorb middle-of-the-night drive replacements without clear operational guidelines.",
+   "kind": "turn"
+  },
+  {
+   "speaker": "S09",
+   "text": "Sure Sarah let us meet at nine a.m. tomorrow over coffee. My treat. <laugh>",
+   "kind": "turn"
+  },
+  {
+   "speaker": "S11",
+   "text": "Can we make sure the Slurm configuration includes dedicated interactive queues for grad students so we don't get blocked out by Marcus's massive batch jobs? <laugh>",
+   "kind": "turn"
+  },
+  {
+   "speaker": "S02",
+   "text": "<laugh> Don't worry Ben we will give the students high-priority short-job queues!",
+   "kind": "turn"
+  },
+  {
+   "speaker": "S01",
+   "text": "Alright excellent work everyone. Rachel, Marcus, Greg, and Sarah please stay on the document edit loop for the next forty-eight hours. We will do a final review of the PDF package next Monday at two p.m. Thanks everyone!",
+   "kind": "turn"
+  }
+ ],
+ "meeting": "SYN005",
+ "localSpeaker": "S01",
+ "writer": "gemini-3.6-flash",
+ "prompt": "Write the transcript of an invented work meeting, as it would really sound when spoken.\nIt is for testing speech recognition and speaker separation, so it must be hard in the ways real meetings are hard.\n\n- 12 participants with ids S01 to S12. Invent first names and roles. S01 is the person whose\n  laptop records the call; the others join remotely.\n- About 1800 spoken words in total, which is about 12 minutes.\n- Topic: a university department choosing between two vendors for a new research computing cluster, with a grant deadline and a disagreement about cloud versus on-site\n- Speak like people really talk: fillers (um, uh, like, you know), false starts and self-corrections\n  (\"we should, well, we could\"), repeated words, trailing off, laughing at something, numbers, dates, money,\n  percentages, product names and acronyms said out loud, and a few names of the participants.\n- Uneven talk time: two people dominate, most speak sometimes, one person says almost nothing until the last\n  quarter of the meeting, and one joins the conversation only in the second half.\n- kind \"turn\" is a normal turn after the previous one ends. kind \"interrupt\" starts while the previous speaker\n  is still talking. kind \"backchannel\" is a short reply (\"yeah\", \"mm-hmm\", \"right\", \"okay\", \"sure\") said over\n  someone else's turn. Use about 12% interrupts and 15% backchannels, spread through the meeting, and include\n  stretches where several people talk over each other.\n- Write words only: no stage directions, brackets, emoji or markup, except the tag <laugh> where someone laughs.\n"
+}

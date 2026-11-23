@@ -28,9 +28,9 @@ public enum LocalSpeechStack {
     /// finished meeting's remote speakers; the other presets are benchmark
     /// candidates.
     public static let nemotron3BackendIdentifierPrefix = "fluidaudio-nemotron3-"
-    /// Speaker slots the model tracks. A meeting that fills every slot may hold
-    /// more people than it can name, so the application hands it to the offline
-    /// clusterer, which has no such ceiling.
+    /// Speaker slots the model tracks. A meeting with more people than this
+    /// keeps Nemotron's answer, which usually merges some voices, unless the
+    /// person types a speaker count, which goes to the offline clusterer.
     public static let nemotron3SpeakerSlots = 8
     /// The checkpoint the published Core ML files were converted from, which
     /// FluidAudio writes beside them. A cache written for another checkpoint
@@ -190,8 +190,7 @@ public enum LocalModelUnit: String, Codable, CaseIterable, Sendable {
         // live speaker labels all embed through `FluidAudioEmbeddingExtractor`,
         // which reads that unit's embedding model, and Nemotron produces no
         // embeddings of its own. It is also the fallback for a typed speaker
-        // count, a meeting that fills all of Nemotron's slots, and a machine
-        // without the Nemotron unit.
+        // count and a machine without the Nemotron unit.
         var units: Set<LocalModelUnit> = [.diarizer, .voiceActivity]
         if settings.processing.usesLocalTranscription {
             switch settings.processing.localTranscriptionModel {

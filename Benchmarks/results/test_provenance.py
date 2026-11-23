@@ -32,5 +32,14 @@ class CodeFiles(unittest.TestCase):
             self.assertEqual(hashes[str(path)], provenance.sha256(path))
 
 
+class Inputs(unittest.TestCase):
+    def test_an_input_under_the_home_directory_is_named_from_tilde(self) -> None:
+        with tempfile.TemporaryDirectory() as scratch:
+            path = Path(scratch) / "meeting.wav"
+            path.write_bytes(b"audio")
+            hashes = provenance.input_checksums([path], scratch)
+            self.assertEqual(hashes, {"~/meeting.wav": provenance.sha256(path)})
+
+
 if __name__ == "__main__":
     unittest.main()

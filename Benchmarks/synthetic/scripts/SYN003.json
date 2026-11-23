@@ -1,0 +1,521 @@
+{
+ "topic": "Delayed bus route redesign review and overtime budget dispute following rider complaints",
+ "participants": [
+  {
+   "id": "S01",
+   "name": "Marcus Vance",
+   "role": "Transit Operations Director"
+  },
+  {
+   "id": "S02",
+   "name": "Brenda Zhao",
+   "role": "Chief Financial Officer"
+  },
+  {
+   "id": "S03",
+   "name": "David Miller",
+   "role": "Scheduling Manager"
+  },
+  {
+   "id": "S04",
+   "name": "Carlos Gomez",
+   "role": "Labor Relations Representative"
+  },
+  {
+   "id": "S05",
+   "name": "Sarah Jenkins",
+   "role": "Community Engagement Lead"
+  },
+  {
+   "id": "S06",
+   "name": "Anita Patel",
+   "role": "Senior Data Analyst"
+  },
+  {
+   "id": "S07",
+   "name": "Tom Richards",
+   "role": "Fleet Operations Director"
+  },
+  {
+   "id": "S08",
+   "name": "Karen White",
+   "role": "Regional Planning Specialist"
+  },
+  {
+   "id": "S09",
+   "name": "Greg Kowalski",
+   "role": "Deputy General Manager"
+  },
+  {
+   "id": "S10",
+   "name": "Rachel Adams",
+   "role": "Legal Counsel"
+  }
+ ],
+ "turns": [
+  {
+   "speaker": "S01",
+   "text": "Okay uh welcome everyone thanks for jumping on short notice. I think we have mostly everyone here on the call. So as you know we are here to talk about the system redesign that went live on uh October twelfth, specifically the Route 44 and Route 12 corridors. We are seeing some pretty significant delays, a ton of rider complaints coming into public affairs, and honestly a massive cost overrun on driver overtime for the last two pay periods.",
+   "kind": "turn"
+  },
+  {
+   "speaker": "S03",
+   "text": "Yeah and if I can jump in Marcus, the headways on the 44 are just totally destroyed during peak hours because of the left turn restriction on Fifth Avenue.",
+   "kind": "turn"
+  },
+  {
+   "speaker": "S02",
+   "text": "Right, but David, the issue isn't just headways. My team got the payroll dump yesterday and we are looking at sixty-eight thousand dollars in unbudgeted overtime just for October.",
+   "kind": "turn"
+  },
+  {
+   "speaker": "S04",
+   "text": "Well hang on Brenda, that's not, I mean, that is not on the operators. The drivers are working the runs they were assigned.",
+   "kind": "turn"
+  },
+  {
+   "speaker": "S03",
+   "text": "Exactly, because the run cut didn't account for the construction detour near the medical center. We told planning back in August that three minutes was not enough slack.",
+   "kind": "turn"
+  },
+  {
+   "speaker": "S08",
+   "text": "Mm-hmm.",
+   "kind": "backchannel"
+  },
+  {
+   "speaker": "S01",
+   "text": "Okay let's uh, let's step back for a second. Sarah can you give us the exact numbers on what public engagement is seeing right now? Like how bad is the community reaction?",
+   "kind": "turn"
+  },
+  {
+   "speaker": "S05",
+   "text": "Sure Marcus. So since October twelfth, we have logged four hundred and twelve formal complaints through the portal. That is a three hundred percent increase over our baseline. About sixty percent of those are about skipped stops on the Route 12 express, and the rest are just general outrage about the schedule reliability. People are missing connections at the central transit hub by like two minutes and then waiting forty minutes for the next feeder bus.",
+   "kind": "turn"
+  },
+  {
+   "speaker": "S02",
+   "text": "It's unacceptable.",
+   "kind": "interrupt"
+  },
+  {
+   "speaker": "S05",
+   "text": "Yeah it's, <laugh> it's pretty rough out there right now. We had two neighborhood council meetings where people were literally yelling at our staff.",
+   "kind": "turn"
+  },
+  {
+   "speaker": "S06",
+   "text": "If I can add to Sarah's point, the GTFS data shows our on-time performance dropped from eighty-two percent down to sixty-one point four percent across the restructured lines.",
+   "kind": "turn"
+  },
+  {
+   "speaker": "S03",
+   "text": "Sixty-one percent? Wow.",
+   "kind": "interrupt"
+  },
+  {
+   "speaker": "S06",
+   "text": "Yeah, sixty-one point four. The main bottleneck is the dwell time at the Metro Hospital stop. Buses are queuing up four deep because the platform loading zone was reduced.",
+   "kind": "turn"
+  },
+  {
+   "speaker": "S04",
+   "text": "Yeah.",
+   "kind": "backchannel"
+  },
+  {
+   "speaker": "S04",
+   "text": "And our operators are taking the brunt of that aggression from angry passengers, Marcus. They're getting yelled at while sitting in traffic, and then when their shift ends at four thirty, they're stuck in traffic three miles from the garage.",
+   "kind": "turn"
+  },
+  {
+   "speaker": "S01",
+   "text": "Right, which brings us to the financial issue. Brenda, walking through that sixty-eight thousand figure, where is that sitting relative to our contingency fund?",
+   "kind": "turn"
+  },
+  {
+   "speaker": "S02",
+   "text": "We don't have contingency for this. That's the problem. The board capped operating reserves at two point five percent for Q4. If this rate continues through November, we are going to hit over one hundred and forty thousand dollars in excess labor costs.",
+   "kind": "turn"
+  },
+  {
+   "speaker": "S08",
+   "text": "Uh, can I ask a quick question?",
+   "kind": "interrupt"
+  },
+  {
+   "speaker": "S01",
+   "text": "Go ahead Karen.",
+   "kind": "turn"
+  },
+  {
+   "speaker": "S08",
+   "text": "Did the regional planning committee approve the micro-transit pilot funding that was supposed to offset some of the Route 12 feeder demand?",
+   "kind": "turn"
+  },
+  {
+   "speaker": "S03",
+   "text": "No, that got delayed in committee until January third. So we are entirely dependent on fixed route right now.",
+   "kind": "turn"
+  },
+  {
+   "speaker": "S07",
+   "text": "Right.",
+   "kind": "backchannel"
+  },
+  {
+   "speaker": "S07",
+   "text": "And from a fleet perspective, we have twelve Forty-foot Gillig buses sitting in maintenance waiting for AVL unit upgrades, so we can't even throw extra trippers out there even if David had the drivers.",
+   "kind": "turn"
+  },
+  {
+   "speaker": "S04",
+   "text": "We don't have the drivers anyway Tom. Operators are already hitting their maximum hour caps under the CBA.",
+   "kind": "turn"
+  },
+  {
+   "speaker": "S02",
+   "text": "Wait, Carlos, are you saying drivers are hitting the sixty-hour weekly cap already?",
+   "kind": "interrupt"
+  },
+  {
+   "speaker": "S04",
+   "text": "Some of them, yes. We have extra board drivers working six days a week because the schedule times in Hastus are completely unrealistic.",
+   "kind": "turn"
+  },
+  {
+   "speaker": "S03",
+   "text": "Look, Hastus built the schedules based on traffic data from March! We told everyone that October travel speeds drop by fifteen percent due to school starting up and seasonal rain.",
+   "kind": "turn"
+  },
+  {
+   "speaker": "S01",
+   "text": "Okay look, blaming the model doesn't fix the fact that we're losing money and burning out drivers today. We need immediate mitigation. David, what does an emergency schedule pad look like?",
+   "kind": "turn"
+  },
+  {
+   "speaker": "S03",
+   "text": "Well, we can insert four minutes of recovery time at the Northgate terminal and cut two stops on the 44 local segment. But to do that, we need to file a service modification with the city DOT.",
+   "kind": "turn"
+  },
+  {
+   "speaker": "S05",
+   "text": "Uh, wait, if you cut stops without public notice, we are going to run straight into Title VI compliance issues.",
+   "kind": "interrupt"
+  },
+  {
+   "speaker": "S08",
+   "text": "Yeah, exactly.",
+   "kind": "backchannel"
+  },
+  {
+   "speaker": "S05",
+   "text": "Title VI requires a thirty-day comment period for any major service reduction, especially in census tracts 104 and 105 which are low-income areas.",
+   "kind": "turn"
+  },
+  {
+   "speaker": "S02",
+   "text": "So what are we supposed to do? Keep paying fifteen thousand dollars a week in overtime while we wait thirty days for a public notice period?",
+   "kind": "turn"
+  },
+  {
+   "speaker": "S04",
+   "text": "The union is not going to support mandatory forced overtime past next week Brenda. People are tired, they're missing family events, and safety risks go way up when tired operators are driving sixty-foot articulated buses in heavy rain.",
+   "kind": "turn"
+  },
+  {
+   "speaker": "S01",
+   "text": "Uh-huh.",
+   "kind": "backchannel"
+  },
+  {
+   "speaker": "S01",
+   "text": "Okay, let me check who just joined. Greg, is that you?",
+   "kind": "turn"
+  },
+  {
+   "speaker": "S09",
+   "text": "Yeah, sorry I'm late guys, I was trapped on a call with the mayor's chief of staff about the downtown transit mall access project.",
+   "kind": "turn"
+  },
+  {
+   "speaker": "S01",
+   "text": "Perfect timing Greg. We were just discussing the overtime bleed from the Route 44 redesign and the schedule bottlenecks.",
+   "kind": "turn"
+  },
+  {
+   "speaker": "S09",
+   "text": "Yeah, the mayor's office is getting hammered with emails about the 44. What's the plan to fix the reliability?",
+   "kind": "turn"
+  },
+  {
+   "speaker": "S03",
+   "text": "We want to add recovery time, but Brenda says we don't have the budget for the extra driver hours, and Sarah is raising Title VI concerns about cutting low-ridership stops.",
+   "kind": "turn"
+  },
+  {
+   "speaker": "S06",
+   "text": "Can I present one option from the data side?",
+   "kind": "turn"
+  },
+  {
+   "speaker": "S01",
+   "text": "Go ahead Anita.",
+   "kind": "turn"
+  },
+  {
+   "speaker": "S06",
+   "text": "If we temporarily convert Route 12 express into a limited-stop service between seven AM and nine AM only, we reduce cycle time by eleven minutes per round trip. That frees up three full vehicle blocks, which we can redeploy to Route 44 to absorb the delay without adding new driver shifts.",
+   "kind": "turn"
+  },
+  {
+   "speaker": "S03",
+   "text": "Wait, eleven minutes? Is that accounting for the signal priority on Grand Avenue?",
+   "kind": "interrupt"
+  },
+  {
+   "speaker": "S06",
+   "text": "Yes, assuming the city transit signal priority is actually turned on, which, uh, Tom, are the transponders working?",
+   "kind": "turn"
+  },
+  {
+   "speaker": "S07",
+   "text": "About eighty-five percent of them are transmitting correctly. We had six units fail last Tuesday because of water intrusion in the antenna housing, but maintenance replaced four of them yesterday.",
+   "kind": "turn"
+  },
+  {
+   "speaker": "S02",
+   "text": "Okay, but wait. If Anita's proposal still requires keeping operators on the road longer than their bid schedules, who pays for that overtime? Operations or Planning?",
+   "kind": "turn"
+  },
+  {
+   "speaker": "S04",
+   "text": "It shouldn't matter which bucket it comes from Brenda, the workers need to get paid their time and a half under Article 18.",
+   "kind": "turn"
+  },
+  {
+   "speaker": "S02",
+   "text": "Carlos, I'm not saying they don't get paid! I am saying Operations exceeded their departmental budget allocation by twelve percent this quarter, and I cannot sign off on another supplemental appropriation without board approval.",
+   "kind": "turn"
+  },
+  {
+   "speaker": "S09",
+   "text": "Mm-hmm.",
+   "kind": "backchannel"
+  },
+  {
+   "speaker": "S09",
+   "text": "Wait, Brenda, what about using the state transit improvement grant funds? The STIF formula funds we got in August?",
+   "kind": "turn"
+  },
+  {
+   "speaker": "S02",
+   "text": "Those are restricted to capital expenditures and service expansion Greg. You cannot use STIF dollars for operating deficits caused by bad scheduling.",
+   "kind": "turn"
+  },
+  {
+   "speaker": "S03",
+   "text": "It wasn't a bad schedule! It was an incomplete data set provided by city engineering!",
+   "kind": "interrupt"
+  },
+  {
+   "speaker": "S01",
+   "text": "Alright alright, let's not turn this into a tribunal on who made the error.",
+   "kind": "turn"
+  },
+  {
+   "speaker": "S08",
+   "text": "Right.",
+   "kind": "backchannel"
+  },
+  {
+   "speaker": "S10",
+   "text": "Marcus, if I may jump in here for a second?",
+   "kind": "turn"
+  },
+  {
+   "speaker": "S01",
+   "text": "Oh, Rachel, yes please. Everyone, Rachel from Legal is on.",
+   "kind": "turn"
+  },
+  {
+   "speaker": "S10",
+   "text": "Thanks Marcus. So I've been listening to the discussion around Title VI and the overtime allocation under the collective bargaining agreement. Under Section 14.B of the CBA, emergency schedule revisions caused by unforeseen infrastructure impacts\u2014like city construction\u2014can be classified as operational disruptions. That allows management to alter run times with seventy-two hours notice without triggering penalty pay clauses.",
+   "kind": "turn"
+  },
+  {
+   "speaker": "S04",
+   "text": "Wait a minute Rachel, 14.B requires a formal declaration of operational emergency from the General Manager. You can't just invoke that for normal traffic congestion.",
+   "kind": "interrupt"
+  },
+  {
+   "speaker": "S10",
+   "text": "If the city's 5th Avenue construction project deviated from their original permit timeline without notifying our agency, that legally constitutes an external disruption. We have grounds under the MOU with the city to seek cost recovery from the City Transportation District for the overtime incurred.",
+   "kind": "turn"
+  },
+  {
+   "speaker": "S02",
+   "text": "Wait, really? We can bill the city for the sixty-eight thousand dollars?",
+   "kind": "turn"
+  },
+  {
+   "speaker": "S10",
+   "text": "We can submit an administrative claim to the city's risk management department for reimbursement of extra operating costs directly tied to the unannounced lane closures on 5th Avenue. It will take thirty to sixty days to process, but legally it isolates our budget from absorbing the full hit.",
+   "kind": "turn"
+  },
+  {
+   "speaker": "S09",
+   "text": "<laugh> Well that is certainly music to my ears, and probably Brenda's too.",
+   "kind": "turn"
+  },
+  {
+   "speaker": "S02",
+   "text": "Sure, assuming the city actually pays it. They usually dispute everything over ten thousand dollars.",
+   "kind": "turn"
+  },
+  {
+   "speaker": "S05",
+   "text": "Yeah.",
+   "kind": "backchannel"
+  },
+  {
+   "speaker": "S05",
+   "text": "What about the rider complaints though? Even if we get money back from the city, people are still missing their connections every single morning.",
+   "kind": "turn"
+  },
+  {
+   "speaker": "S03",
+   "text": "Okay so here's what we can do immediately. Starting Monday, November third, we implement a temporary headway adjustment. We stretch peak frequency on Route 44 from ten minutes to twelve minutes. That extra two minutes per bus gives us eight minutes of total slack across the loop.",
+   "kind": "turn"
+  },
+  {
+   "speaker": "S06",
+   "text": "That drops capacity by sixteen percent during morning peak David.",
+   "kind": "interrupt"
+  },
+  {
+   "speaker": "S03",
+   "text": "I know, but it keeps the buses on schedule! A reliable twelve-minute service is way better for riders than a ten-minute schedule where buses show up twenty minutes late in pairs.",
+   "kind": "turn"
+  },
+  {
+   "speaker": "S04",
+   "text": "And does that reduce operator overtime?",
+   "kind": "turn"
+  },
+  {
+   "speaker": "S03",
+   "text": "It cuts overtime back to baseline because drivers won't be stuck running past their scheduled relief points.",
+   "kind": "turn"
+  },
+  {
+   "speaker": "S02",
+   "text": "Okay, if that brings overtime back down to normal levels by next week, I can support a temporary budget re-allocation from our maintenance contingency to cover the gap for this pay period.",
+   "kind": "turn"
+  },
+  {
+   "speaker": "S07",
+   "text": "Wait, don't touch maintenance contingency Brenda, we have winter tire retrofits starting November fifteenth!",
+   "kind": "interrupt"
+  },
+  {
+   "speaker": "S02",
+   "text": "Tom, it's a temporary transfer until the city claim resolves.",
+   "kind": "turn"
+  },
+  {
+   "speaker": "S07",
+   "text": "<laugh> Yeah, temporary until next fiscal year right?",
+   "kind": "turn"
+  },
+  {
+   "speaker": "S01",
+   "text": "Okay guys, let's keep it focused. Greg, as Deputy GM, are you comfortable with David moving forward with the twelve-minute headway adjustment for Route 44 starting Monday?",
+   "kind": "turn"
+  },
+  {
+   "speaker": "S09",
+   "text": "Yes, but Sarah needs to get passenger alerts posted on the website, the mobile app, and physical signage at the top twenty boarding stops by Friday afternoon.",
+   "kind": "turn"
+  },
+  {
+   "speaker": "S05",
+   "text": "Friday afternoon? That gives my team less than forty-eight hours to print and post physical notices.",
+   "kind": "turn"
+  },
+  {
+   "speaker": "S08",
+   "text": "I can lend two field interns from planning to help hang notices along the 44 corridor on Friday morning.",
+   "kind": "turn"
+  },
+  {
+   "speaker": "S05",
+   "text": "Oh, that would be amazing Karen, thank you.",
+   "kind": "turn"
+  },
+  {
+   "speaker": "S10",
+   "text": "Just make sure the wording on the notice specifies that this is a temporary operational adjustment due to street construction. That protects us from formal Title VI administrative complaints.",
+   "kind": "turn"
+  },
+  {
+   "speaker": "S06",
+   "text": "Right.",
+   "kind": "backchannel"
+  },
+  {
+   "speaker": "S04",
+   "text": "Marcus, I need confirmation that operators who worked extra shifts last week get paid on this Friday's paycheck. No delays or hold-backs for auditing.",
+   "kind": "turn"
+  },
+  {
+   "speaker": "S02",
+   "text": "Payroll is processing all logged hours as submitted Carlos. Nobody's paycheck is being held up.",
+   "kind": "turn"
+  },
+  {
+   "speaker": "S04",
+   "text": "Good. That's what I needed to hear.",
+   "kind": "turn"
+  },
+  {
+   "speaker": "S01",
+   "text": "Great. So to summarize action items: David submits the modified run cuts for Route 44 by four PM today. Sarah gets rider alerts out by Friday with Karen's interns helping field deployment. Rachel files the administrative cost recovery claim against the city for the sixty-eight thousand dollars in construction delays. And Brenda adjusts the internal allocation to cover the immediate payroll deficit.",
+   "kind": "turn"
+  },
+  {
+   "speaker": "S03",
+   "text": "Uh, Marcus, one small thing. Do we want to touch Route 12 yet or leave it as is for another week?",
+   "kind": "turn"
+  },
+  {
+   "speaker": "S06",
+   "text": "Leave Route 12 for now. Let's look at the data after the Route 44 change. Modifying both at once makes it impossible to isolate performance metrics.",
+   "kind": "turn"
+  },
+  {
+   "speaker": "S09",
+   "text": "Agreed. Let's fix 44 first, assess next Wednesday, and reconvene.",
+   "kind": "turn"
+  },
+  {
+   "speaker": "S01",
+   "text": "Sounds like a plan. Thanks everyone for jumping on and working through this. Have a good afternoon.",
+   "kind": "turn"
+  },
+  {
+   "speaker": "S05",
+   "text": "Thanks Marcus, bye everyone.",
+   "kind": "turn"
+  },
+  {
+   "speaker": "S02",
+   "text": "Bye all.",
+   "kind": "turn"
+  }
+ ],
+ "meeting": "SYN003",
+ "localSpeaker": "S01",
+ "writer": "gemini-3.6-flash",
+ "prompt": "Write the transcript of an invented work meeting, as it would really sound when spoken.\nIt is for testing speech recognition and speaker separation, so it must be hard in the ways real meetings are hard.\n\n- 10 participants with ids S01 to S10. Invent first names and roles. S01 is the person whose\n  laptop records the call; the others join remotely.\n- About 1800 spoken words in total, which is about 12 minutes.\n- Topic: a city transit agency reviewing a delayed bus route redesign after rider complaints, with a dispute over who pays for overtime\n- Speak like people really talk: fillers (um, uh, like, you know), false starts and self-corrections\n  (\"we should, well, we could\"), repeated words, trailing off, laughing at something, numbers, dates, money,\n  percentages, product names and acronyms said out loud, and a few names of the participants.\n- Uneven talk time: two people dominate, most speak sometimes, one person says almost nothing until the last\n  quarter of the meeting, and one joins the conversation only in the second half.\n- kind \"turn\" is a normal turn after the previous one ends. kind \"interrupt\" starts while the previous speaker\n  is still talking. kind \"backchannel\" is a short reply (\"yeah\", \"mm-hmm\", \"right\", \"okay\", \"sure\") said over\n  someone else's turn. Use about 12% interrupts and 15% backchannels, spread through the meeting, and include\n  stretches where several people talk over each other.\n- Write words only: no stage directions, brackets, emoji or markup, except the tag <laugh> where someone laughs.\n"
+}
