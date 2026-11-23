@@ -20,6 +20,10 @@ files already in the cache and sends nothing for them. Google may use free-tier
 requests to train its models, which is acceptable here because every script is
 invented.
 
+`synthesize.py` gives the speakers the voices in its `VOICES` list, in order. `--voices Name,Name,...`
+picks them instead, one per speaker, so a meeting can sound different from an earlier one. The truth
+records the speech model and each speaker's voice.
+
 ## Ground truth
 
 The reference words are the script's words, not a transcription of the audio.

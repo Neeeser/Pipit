@@ -1,0 +1,616 @@
+{
+ "topic": "Winter donation drive planning, volunteer shortage, and warehouse refrigeration failure",
+ "participants": [
+  {
+   "id": "S01",
+   "name": "Sarah Jenkins",
+   "role": "Operations Director"
+  },
+  {
+   "id": "S02",
+   "name": "Marcus Vance",
+   "role": "Warehouse Manager"
+  },
+  {
+   "id": "S03",
+   "name": "Elena Rostova",
+   "role": "Volunteer Coordinator"
+  },
+  {
+   "id": "S04",
+   "name": "David Chen",
+   "role": "Logistics Lead"
+  },
+  {
+   "id": "S05",
+   "name": "Priya Patel",
+   "role": "Community Outreach Coordinator"
+  },
+  {
+   "id": "S06",
+   "name": "Tom Miller",
+   "role": "Finance Director"
+  },
+  {
+   "id": "S07",
+   "name": "Rachel Adams",
+   "role": "Food Procurement Specialist"
+  },
+  {
+   "id": "S08",
+   "name": "Carlos Mendez",
+   "role": "Facilities Technician"
+  },
+  {
+   "id": "S09",
+   "name": "Maya Lin",
+   "role": "Communications Officer"
+  },
+  {
+   "id": "S10",
+   "name": "James Wilson",
+   "role": "IT Administrator"
+  },
+  {
+   "id": "S11",
+   "name": "Hannah Abbott",
+   "role": "Executive Director"
+  }
+ ],
+ "turns": [
+  {
+   "speaker": "S01",
+   "text": "Okay so, um, let us go ahead and get started everyone. I know we are missing a couple of people, but we have a pretty tight agenda today. First up, we need to address the emergency situation at the main warehouse on Fourth Street, and then, uh, transition into our final prep for the Winter Harvest donation drive starting November fifteenth.",
+   "kind": "turn"
+  },
+  {
+   "speaker": "S02",
+   "text": "Yeah Sarah, if I can jump in right away on the warehouse issue, because it is, well, it is pretty critical right now.",
+   "kind": "turn"
+  },
+  {
+   "speaker": "S01",
+   "text": "Go ahead Marcus.",
+   "kind": "turn"
+  },
+  {
+   "speaker": "S02",
+   "text": "So around three a m this morning, the compressor on walk-in cooler unit three completely fried. The temperature logged at forty-eight degrees when Carlos got there at six a m, which means, you know, we had to dump roughly twelve hundred pounds of dairy products and fresh produce.",
+   "kind": "turn"
+  },
+  {
+   "speaker": "S03",
+   "text": "Oh no.",
+   "kind": "backchannel"
+  },
+  {
+   "speaker": "S07",
+   "text": "Wait, twelve hundred pounds? Did we lose the entire shipment from Valley Fresh Farms that came in on Tuesday?",
+   "kind": "interrupt"
+  },
+  {
+   "speaker": "S02",
+   "text": "Pretty much, yeah. Rachel, we managed to move about four pallets of yogurt into unit two, but unit two is already at ninety percent capacity because of the holiday turkey overflow. We literally have zero room left in there.",
+   "kind": "turn"
+  },
+  {
+   "speaker": "S08",
+   "text": "Yeah, I looked at the compressor myself at six thirty, and the motor winding is completely burnt out. I mean, it is totally dead. We are looking at a full replacement of the condensing unit.",
+   "kind": "turn"
+  },
+  {
+   "speaker": "S06",
+   "text": "Carlos, what kind of cost are we looking at for a replacement? Do we have an estimate?",
+   "kind": "turn"
+  },
+  {
+   "speaker": "S08",
+   "text": "Well, um, HVAC solutions gave me a rough quote of eight thousand five hundred dollars for the unit and installation, but they cannot deliver the unit until next Thursday, the twenty-first.",
+   "kind": "turn"
+  },
+  {
+   "speaker": "S02",
+   "text": "Which is six days after the donation drive launches. That is unacceptable. We cannot operate with forty percent of our cold storage out of service right when we are expecting twenty-five tons of food incoming.",
+   "kind": "turn"
+  },
+  {
+   "speaker": "S01",
+   "text": "Okay, okay, let us think. Can we get a temporary mobile refrigeration trailer parked in the loading bay? Marcus, David, is that feasible?",
+   "kind": "turn"
+  },
+  {
+   "speaker": "S04",
+   "text": "Um, logistically speaking, yes, we could park a forty-foot refrigerated trailer in bay two. But that takes away one of our primary loading docks right when truck deliveries peak.",
+   "kind": "turn"
+  },
+  {
+   "speaker": "S06",
+   "text": "Right.",
+   "kind": "backchannel"
+  },
+  {
+   "speaker": "S04",
+   "text": "And, uh, rental on those trailers is not cheap. You are looking at around thirty-two hundred dollars a week plus diesel fuel for the generator if we cannot wire it into the building panel directly.",
+   "kind": "turn"
+  },
+  {
+   "speaker": "S08",
+   "text": "We can wire it. I checked the electrical panel outside bay two, we have fifty-amp three-phase power right there, so no fuel costs, but the rental cost is still real.",
+   "kind": "turn"
+  },
+  {
+   "speaker": "S01",
+   "text": "Tom, where are we with the emergency contingency budget for this quarter? Do we have thirty-two hundred or eight thousand five hundred?",
+   "kind": "turn"
+  },
+  {
+   "speaker": "S06",
+   "text": "Well, Sarah, our Q4 maintenance reserve sits at fourteen thousand two hundred dollars as of Monday. So financially we can cover either option, or both, but if we drop eight grand on a compressor and three grand on a trailer, we exhaust our reserve completely before December even hits.",
+   "kind": "turn"
+  },
+  {
+   "speaker": "S05",
+   "text": "Mm-hmm.",
+   "kind": "backchannel"
+  },
+  {
+   "speaker": "S07",
+   "text": "Could we ask Valley Fresh Farms or maybe Metro Cold Storage if they have temporary vault space we could rent for cheap? I know their regional director.",
+   "kind": "turn"
+  },
+  {
+   "speaker": "S02",
+   "text": "Metro Cold Storage is twelve miles away on Highway ninety-nine. The gas and driver time shuttling pallets back and forth three times a day would kill us, Rachel. We need the cold space on site.",
+   "kind": "turn"
+  },
+  {
+   "speaker": "S01",
+   "text": "Marcus makes a good point. We need immediate access during sorting. So let us proceed with securing the rental trailer for two weeks starting Monday the eleventh. Carlos, get the formal quote from HVAC Solutions for the permanent fix too. We will approve both out of contingency.",
+   "kind": "turn"
+  },
+  {
+   "speaker": "S08",
+   "text": "Got it. I will email the paperwork by two p m today.",
+   "kind": "turn"
+  },
+  {
+   "speaker": "S01",
+   "text": "Great. Now, let us shift to the second big problem, which is honestly keeping me up at night even more than the cooler. Elena, walk us through the volunteer registration numbers for the drive.",
+   "kind": "turn"
+  },
+  {
+   "speaker": "S03",
+   "text": "Right, so, uh, as of this morning, we are in a pretty severe deficit. For the main weekend of November sixteenth and seventeenth, we targeted eighty volunteers per day across three shifts. Right now, we have... well, we only have twenty-eight signed up for Saturday and nineteen for Sunday. That is under thirty-five percent of what we need.",
+   "kind": "turn"
+  },
+  {
+   "speaker": "S09",
+   "text": "Wow, that is really low.",
+   "kind": "interrupt"
+  },
+  {
+   "speaker": "S03",
+   "text": "It is terrible, Maya. Last year at this point we were at seventy-five percent capacity. The main drop-off seems to be the late afternoon shift, from two p m to six p m, where we literally have four people signed up for Saturday. Four.",
+   "kind": "turn"
+  },
+  {
+   "speaker": "S05",
+   "text": "Why the sudden drop? Did we send out the corporate outreach emails to our usual partners like TechCorp and First National Bank?",
+   "kind": "turn"
+  },
+  {
+   "speaker": "S03",
+   "text": "We did, Priya. I sent out forty-two corporate emails three weeks ago. TechCorp sent an automated reply saying their community engagement policy changed and they are only doing virtual volunteering this quarter <laugh>, whatever that means for a food bank. And First National only committed ten people instead of their usual fifty because of their merger restructuring.",
+   "kind": "turn"
+  },
+  {
+   "speaker": "S09",
+   "text": "Yeah, exactly.",
+   "kind": "backchannel"
+  },
+  {
+   "speaker": "S01",
+   "text": "Oh man, that corporate shift is really hitting us hard. Elena, what about our individual return volunteer list? The email blast?",
+   "kind": "turn"
+  },
+  {
+   "speaker": "S03",
+   "text": "We sent two blasts to our database of twenty-four hundred past volunteers. Open rate was decent, about thirty-one percent, but click-through to the registration page was under three percent. We think, well, James mentioned last week there might be a bug on the sign-up page, but I do not know if he fixed it.",
+   "kind": "turn"
+  },
+  {
+   "speaker": "S01",
+   "text": "Wait, James is on the call, right? James, are you there?",
+   "kind": "turn"
+  },
+  {
+   "speaker": "S10",
+   "text": "Uh, yeah, I am here. Sorry, I was muted.",
+   "kind": "turn"
+  },
+  {
+   "speaker": "S01",
+   "text": "James, can you comment on the website portal issue Elena just mentioned?",
+   "kind": "turn"
+  },
+  {
+   "speaker": "S10",
+   "text": "Oh, right. Yeah, the mobile responsive layout was breaking on iOS devices running Safari. When users clicked Select Shift, the drop-down menu was rendered off-screen on smaller phones. I pushed a hotfix yesterday at four p m, so mobile sign-ups should be working fine now.",
+   "kind": "turn"
+  },
+  {
+   "speaker": "S03",
+   "text": "Oh thank goodness! That explains why so many people abandoned the cart, or page, over the weekend!",
+   "kind": "turn"
+  },
+  {
+   "speaker": "S09",
+   "text": "That is huge. We should resend a targeted reminder text message to everyone who clicked the link but did not complete the form.",
+   "kind": "turn"
+  },
+  {
+   "speaker": "S05",
+   "text": "Yes!",
+   "kind": "backchannel"
+  },
+  {
+   "speaker": "S09",
+   "text": "If we use our SMS platform, we can reach about fifteen hundred people instantly. It costs about ninety dollars for the text blast, but the conversion rate on SMS is usually around twelve percent.",
+   "kind": "turn"
+  },
+  {
+   "speaker": "S06",
+   "text": "Ninety bucks is fine, Maya. Go ahead and approve that charge on the outreach card.",
+   "kind": "turn"
+  },
+  {
+   "speaker": "S09",
+   "text": "Awesome. I will set up the campaign to go out at five thirty p m today, right when people are finishing work.",
+   "kind": "turn"
+  },
+  {
+   "speaker": "S11",
+   "text": "Hi everyone, sorry I am late joining, I was caught in the board executive committee call. Where are we on the volunteer numbers and warehouse status?",
+   "kind": "turn"
+  },
+  {
+   "speaker": "S01",
+   "text": "Welcome Hannah. We just decided on a rental refrigerated trailer for two weeks to solve the Walk-In three failure, which Carlos and Marcus are handling. And Elena and Maya were just discussing our volunteer shortfall. We are currently at less than thirty-five percent for opening weekend.",
+   "kind": "turn"
+  },
+  {
+   "speaker": "S11",
+   "text": "Thirty-five percent? That is alarming, Sarah. The mayor is scheduled to do a photo-op at eleven a m on Saturday the sixteenth. We cannot have empty sorting tables behind her. What is our backup plan if individual sign-ups do not spike after the SMS blast?",
+   "kind": "turn"
+  },
+  {
+   "speaker": "S03",
+   "text": "Well, Hannah, we could... we might need to shift internal staff onto the sorting line. But that means administrative work and logistics tracking will take a hit during peak drive hours.",
+   "kind": "turn"
+  },
+  {
+   "speaker": "S04",
+   "text": "Yeah, if my truck drivers have to spend three hours sorting cans in the warehouse, our route pick-ups at local grocery stores like Market Basket and Save-More will fall behind schedule by at least two hours per loop.",
+   "kind": "turn"
+  },
+  {
+   "speaker": "S02",
+   "text": "Right. And we have twenty-two grocery partners participating in the bin drop-off program this year. If we miss their pick-up windows, bins overflow, store managers get annoyed, and they pull out of future drives.",
+   "kind": "turn"
+  },
+  {
+   "speaker": "S07",
+   "text": "Exactly. We cannot compromise driver schedules.",
+   "kind": "interrupt"
+  },
+  {
+   "speaker": "S05",
+   "text": "What about high schools and local college fraternities or sororities? State University has that mandatory community service requirement for freshmen in the honors program. Have we tapped them?",
+   "kind": "turn"
+  },
+  {
+   "speaker": "S03",
+   "text": "I contacted the Greek Council coordinator two weeks ago, Priya, but I did not get a response. I can try calling their faculty supervisor directly today.",
+   "kind": "turn"
+  },
+  {
+   "speaker": "S05",
+   "text": "Give me the contact info, Elena, I know Dean Roberts over at State Uni personally from the charity gala in September. I can call him directly right after this meeting.",
+   "kind": "turn"
+  },
+  {
+   "speaker": "S03",
+   "text": "Oh, that would be amazing! I will forward you his email and phone number right away.",
+   "kind": "turn"
+  },
+  {
+   "speaker": "S11",
+   "text": "Good. Priya, please push on that hard. Tell Dean Roberts we can offer official service certificates for up to fifty students if they can cover the four p m to eight p m shifts on Saturday and Sunday.",
+   "kind": "turn"
+  },
+  {
+   "speaker": "S05",
+   "text": "Will do, Hannah.",
+   "kind": "backchannel"
+  },
+  {
+   "speaker": "S01",
+   "text": "Okay, excellent. Let us talk about logistics and distribution next. David, what does the driver schedule look like for the heavy donation period from the sixteenth to the twenty-fourth?",
+   "kind": "turn"
+  },
+  {
+   "speaker": "S04",
+   "text": "Okay, so we have four box trucks operational. Truck one and truck two are assigned to commercial grocery store routes. Truck three is assigned to the barrel collection at forty-five public schools. Truck four is our floating rapid-response vehicle.",
+   "kind": "turn"
+  },
+  {
+   "speaker": "S02",
+   "text": "Wait, David, isn't truck three due for its fifteen thousand mile routine maintenance service next week?",
+   "kind": "interrupt"
+  },
+  {
+   "speaker": "S04",
+   "text": "Ah, good catch Marcus. Yes, truck three was scheduled for oil change and brake inspection on Tuesday the nineteenth. But I spoke with Downtown Auto Fleet, and they agreed to defer the service to November twenty-seventh, after the drive ends, as long as we stay under five hundred additional miles.",
+   "kind": "turn"
+  },
+  {
+   "speaker": "S06",
+   "text": "Is there any safety concern with delaying that service by ten days, David?",
+   "kind": "turn"
+  },
+  {
+   "speaker": "S06",
+   "text": "We cannot risk a breakdown on the road.",
+   "kind": "interrupt"
+  },
+  {
+   "speaker": "S04",
+   "text": "No, Tom. It is just basic oil change and brake pad wear check. The pads are still at five millimeters, well above the three millimeter safety limit. We checked them on Friday.",
+   "kind": "turn"
+  },
+  {
+   "speaker": "S01",
+   "text": "Okay, good. Now, what about the fuel budget? Gas prices bumped up by eighteen cents a gallon across the county this week.",
+   "kind": "turn"
+  },
+  {
+   "speaker": "S04",
+   "text": "Yeah, we budgeted diesel at three dollars and eighty-five cents per gallon based on October averages. It hit four dollars and seven cents yesterday at the Shell station near the highway. That adds roughly four hundred and fifty dollars across our projected two thousand miles of driving for the drive.",
+   "kind": "turn"
+  },
+  {
+   "speaker": "S06",
+   "text": "We can absorb four hundred fifty dollars from the fuel variance line item in logistics, so that is fine. No emergency approval needed there.",
+   "kind": "turn"
+  },
+  {
+   "speaker": "S04",
+   "text": "Great.",
+   "kind": "backchannel"
+  },
+  {
+   "speaker": "S11",
+   "text": "Sarah, what about our partnership with the regional food bank network, Harvest Alliance? Are they supplying any palletized bulk goods for the winter kits, or are we relying entirely on public donations this year?",
+   "kind": "turn"
+  },
+  {
+   "speaker": "S01",
+   "text": "Rachel, do you want to take that one?",
+   "kind": "turn"
+  },
+  {
+   "speaker": "S07",
+   "text": "Sure. So Harvest Alliance confirmed yesterday that they are sending us sixteen pallets of canned proteins\u2014tuna, chicken, peanut butter\u2014and eight pallets of oats and cereal. That shipment arrives on Monday the eighteenth at nine a m.",
+   "kind": "turn"
+  },
+  {
+   "speaker": "S02",
+   "text": "Wait, Monday the eighteenth at nine a m? That is right in the middle of our primary incoming public donation sorting window!",
+   "kind": "interrupt"
+  },
+  {
+   "speaker": "S07",
+   "text": "I tried to get them to deliver on Friday the fifteenth, Marcus, but their dispatch was completely locked. Monday morning was the only slot available.",
+   "kind": "turn"
+  },
+  {
+   "speaker": "S02",
+   "text": "We have two bays! If Harvest Alliance takes up bay one with sixteen pallets of bulk protein, and bay two has the temporary refrigerated trailer parked in it... where do our local collection trucks unload? In the alley?",
+   "kind": "turn"
+  },
+  {
+   "speaker": "S04",
+   "text": "Yeah, that is a serious bottleneck. Unloading sixteen pallets takes at least forty-five minutes with the electric pallet jack, assuming nothing gets stuck.",
+   "kind": "turn"
+  },
+  {
+   "speaker": "S08",
+   "text": "Can we use the manual pallet jack and unload through the side ramp door near the dry storage area?",
+   "kind": "turn"
+  },
+  {
+   "speaker": "S02",
+   "text": "The side ramp door is only thirty-six inches wide, Carlos! Standard pallets are forty by forty-eight inches! You cannot fit a pallet through a thirty-six inch door unless you breakdown the pallet by hand outside on the sidewalk <laugh>!",
+   "kind": "turn"
+  },
+  {
+   "speaker": "S08",
+   "text": "Oh, right, right. Forget I said that <laugh>. My brain is still frozen from being in Walk-In three at six a m.",
+   "kind": "turn"
+  },
+  {
+   "speaker": "S01",
+   "text": "Okay, let us stay focused. Can we reschedule Harvest Alliance's delivery to seven a m on Monday before normal operations start, or push it to one p m during the shift change lull?",
+   "kind": "turn"
+  },
+  {
+   "speaker": "S07",
+   "text": "I will call Harvest Alliance dispatch right after this call and beg for a seven a m delivery window. If their driver is willing to start early, we can offer him a gift card for coffee.",
+   "kind": "turn"
+  },
+  {
+   "speaker": "S06",
+   "text": "<laugh> Coffee gift cards, the ultimate logistics currency.",
+   "kind": "turn"
+  },
+  {
+   "speaker": "S11",
+   "text": "Whatever it takes, Rachel. Having twenty-four pallets of bulk food sitting on the apron while delivery trucks idle on Fourth Street is a traffic hazard and a huge delay.",
+   "kind": "turn"
+  },
+  {
+   "speaker": "S09",
+   "text": "Hey, speaking of public messaging, Maya here. I have prepared the media kit for the press conference on Friday the fifteenth. We have local news Channel 8 and the Daily Chronicle attending. I want to make sure we highlight three specific high-need items: canned meat, baby formula, and instant oatmeal.",
+   "kind": "turn"
+  },
+  {
+   "speaker": "S03",
+   "text": "Right.",
+   "kind": "backchannel"
+  },
+  {
+   "speaker": "S09",
+   "text": "Also, we should mention our text-to-donate campaign. People can text FOOD to 555-0199 to donate ten dollars directly to our purchasing fund.",
+   "kind": "turn"
+  },
+  {
+   "speaker": "S06",
+   "text": "Is that short code active yet, Maya? Last week telecom had not cleared the charity verification token.",
+   "kind": "turn"
+  },
+  {
+   "speaker": "S09",
+   "text": "James, did the telecom aggregator clear the campaign ID yesterday?",
+   "kind": "turn"
+  },
+  {
+   "speaker": "S10",
+   "text": "Uh, yes. I got the approval notification from MobileCause at eleven thirty yesterday morning. The short code is live and tested. A ten-dollar test transaction went through smoothly.",
+   "kind": "turn"
+  },
+  {
+   "speaker": "S09",
+   "text": "Awesome, thank you James!",
+   "kind": "turn"
+  },
+  {
+   "speaker": "S01",
+   "text": "That is great news. James, while we have you, is the volunteer check-in kiosk tablet app ready for the warehouse entrance?",
+   "kind": "turn"
+  },
+  {
+   "speaker": "S10",
+   "text": "Um, well, the app is loaded on three iPads, but iPad number two has a battery swelling issue. The casing is expanding slightly, so I quarantined it for safety. We only have two working kiosk tablets for check-in right now.",
+   "kind": "turn"
+  },
+  {
+   "speaker": "S02",
+   "text": "Two tablets for checking in eighty volunteers per shift? That is going to create a line out the door on Saturday morning!",
+   "kind": "turn"
+  },
+  {
+   "speaker": "S10",
+   "text": "I can order a replacement battery or configure a spare Android tablet we have in the IT storage closet. It will take me about two hours to set up the Android tablet with the kiosk software.",
+   "kind": "turn"
+  },
+  {
+   "speaker": "S01",
+   "text": "Please do that today, James. We definitely need three functional check-in stations.",
+   "kind": "turn"
+  },
+  {
+   "speaker": "S10",
+   "text": "Will do, Sarah. I will have it ready by tomorrow morning.",
+   "kind": "turn"
+  },
+  {
+   "speaker": "S03",
+   "text": "Thanks James. Also, on the volunteer topic, I wanted to double-check our safety training protocol. Since we have so many new volunteers expected\u2014hopefully, if Priya's outreach works\u2014do we have enough high-visibility vests and steel-toed boot toe-caps for everyone working near the forklifts?",
+   "kind": "turn"
+  },
+  {
+   "speaker": "S02",
+   "text": "We have forty safety vests in the locker, but only twelve pairs of slip-on toe-caps. But honestly, volunteers should not be anywhere near the forklift zone anyway. We are cordoning off aisle A and aisle B with yellow caution tape. Volunteers will strictly work in aisle C and dry packing bay.",
+   "kind": "turn"
+  },
+  {
+   "speaker": "S04",
+   "text": "Yeah, that is standard protocol. Drivers and warehouse staff stay in A and B; volunteers stay in C and packing. Zero overlap.",
+   "kind": "turn"
+  },
+  {
+   "speaker": "S11",
+   "text": "Good. Safety is non-negotiable. The last thing we need is an OSHA incident during our biggest drive of the year.",
+   "kind": "turn"
+  },
+  {
+   "speaker": "S01",
+   "text": "Agreed. Let us do a quick recap of action items before we wrap up, because we are at twenty-five minutes.",
+   "kind": "turn"
+  },
+  {
+   "speaker": "S08",
+   "text": "First, Carlos is finalizing the rental refrigeration trailer from HVAC Solutions for two weeks at thirty-two hundred per week, plus securing the permanent compressor replacement quote for eight thousand five hundred.",
+   "kind": "turn"
+  },
+  {
+   "speaker": "S01",
+   "text": "Right. Second, Elena and Priya are following up on corporate and university volunteer recruitment, specifically targeting State University's honors program for weekend evening shifts.",
+   "kind": "turn"
+  },
+  {
+   "speaker": "S05",
+   "text": "Yep, calling Dean Roberts in ten minutes.",
+   "kind": "backchannel"
+  },
+  {
+   "speaker": "S01",
+   "text": "Third, Maya is running the SMS broadcast to past volunteers at five thirty today to fix the sign-up shortfall now that James patched the website bug.",
+   "kind": "turn"
+  },
+  {
+   "speaker": "S09",
+   "text": "Campaign is drafted and ready to send.",
+   "kind": "backchannel"
+  },
+  {
+   "speaker": "S01",
+   "text": "Fourth, Rachel is rescheduling the Harvest Alliance bulk delivery to seven a m on Monday the eighteenth to prevent loading dock gridlock with Marcus and David.",
+   "kind": "turn"
+  },
+  {
+   "speaker": "S07",
+   "text": "On it.",
+   "kind": "backchannel"
+  },
+  {
+   "speaker": "S01",
+   "text": "And fifth, James is configuring the third volunteer check-in tablet by tomorrow. Did I miss anything?",
+   "kind": "turn"
+  },
+  {
+   "speaker": "S06",
+   "text": "Just Tom approving the ninety dollar SMS expense and the cooler expenses from contingency, which I have logged.",
+   "kind": "turn"
+  },
+  {
+   "speaker": "S11",
+   "text": "Thank you team. Fantastic job pivoting under pressure. I know the compressor breakdown was a nasty surprise, but you all handled the emergency response seamlessly. Let us keep communication open on Slack if any new complications pop up today.",
+   "kind": "turn"
+  },
+  {
+   "speaker": "S02",
+   "text": "Thanks Hannah. I will be in the warehouse if anyone needs me.",
+   "kind": "turn"
+  },
+  {
+   "speaker": "S01",
+   "text": "Alright, thanks everyone. Call adjourned.",
+   "kind": "turn"
+  }
+ ],
+ "meeting": "SYN004",
+ "localSpeaker": "S01",
+ "writer": "gemini-3.6-flash",
+ "prompt": "Write the transcript of an invented work meeting, as it would really sound when spoken.\nIt is for testing speech recognition and speaker separation, so it must be hard in the ways real meetings are hard.\n\n- 11 participants with ids S01 to S11. Invent first names and roles. S01 is the person whose\n  laptop records the call; the others join remotely.\n- About 1800 spoken words in total, which is about 12 minutes.\n- Topic: a regional food bank planning a winter donation drive with a shortage of volunteers and a warehouse refrigeration failure\n- Speak like people really talk: fillers (um, uh, like, you know), false starts and self-corrections\n  (\"we should, well, we could\"), repeated words, trailing off, laughing at something, numbers, dates, money,\n  percentages, product names and acronyms said out loud, and a few names of the participants.\n- Uneven talk time: two people dominate, most speak sometimes, one person says almost nothing until the last\n  quarter of the meeting, and one joins the conversation only in the second half.\n- kind \"turn\" is a normal turn after the previous one ends. kind \"interrupt\" starts while the previous speaker\n  is still talking. kind \"backchannel\" is a short reply (\"yeah\", \"mm-hmm\", \"right\", \"okay\", \"sure\") said over\n  someone else's turn. Use about 12% interrupts and 15% backchannels, spread through the meeting, and include\n  stretches where several people talk over each other.\n- Write words only: no stage directions, brackets, emoji or markup, except the tag <laugh> where someone laughs.\n"
+}

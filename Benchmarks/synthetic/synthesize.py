@@ -122,26 +122,32 @@ def split_by_alignment(audio: np.ndarray, lines: list[str]) -> list[np.ndarray] 
     active = voiced(audio)
     speech_start = int(np.argmax(active))
     speech_end = len(active) - int(np.argmax(active[::-1]))
-    cuts = [0]
-    # Each stretch runs from one matched line (or the start) to the next (or the end).
-    for before, after in itertools.pairwise([None, *matched, None]):
-        # The cuts between consecutive lines from `before` to `after`, counting
-        # the first and last line when the stretch is open at that end.
-        boundaries = (len(lines) - 1 if after is None else after) - (0 if before is None else before)
-        if boundaries == 0:
-            continue
-        a = speech_start if before is None else int(last[before][0] * 100)
-        # Word starts are reliable, so the window ends just after the next
-        # line's first word starts, before a stretched end can reach the pause after it.
-        b = speech_end if after is None else max(a + 1, int(first[after][0] * 100) + 10)
-        frames = longest_silences(active, a, b, boundaries)
-        if frames is None:
+
+    def place(slack: int) -> list[np.ndarray] | None:
+        cuts = [0]
+        # Each stretch runs from one matched line (or the start) to the next (or the end).
+        for before, after in itertools.pairwise([None, *matched, None]):
+            # The cuts between consecutive lines from `before` to `after`, counting
+            # the first and last line when the stretch is open at that end.
+            boundaries = (len(lines) - 1 if after is None else after) - (0 if before is None else before)
+            if boundaries == 0:
+                continue
+            a = speech_start if before is None else int(last[before][0] * 100)
+            # Word starts are reliable, so the window ends just after the next
+            # line's first word starts, before a stretched end can reach the pause after it.
+            b = speech_end if after is None else max(a + 1, int(first[after][0] * 100) + slack)
+            frames = longest_silences(active, a, b, boundaries)
+            if frames is None:
+                return None
+            cuts += [frame * FRAME for frame in frames]
+        cuts.append(len(audio))
+        if any(b <= a for a, b in itertools.pairwise(cuts)):
             return None
-        cuts += [frame * FRAME for frame in frames]
-    cuts.append(len(audio))
-    if any(b <= a for a, b in itertools.pairwise(cuts)):
-        return None
-    pieces = trimmed(audio, cuts)
+        return trimmed(audio, cuts)
+
+    # A one-word line such as "Right." can be timed up to half a second early, which leaves the
+    # pause after it outside the window and cuts a silent piece. Widen the window only then.
+    pieces = place(10) or place(60)
     for index in range(len(lines)):
         # A line the recogniser did not hear may be one the speech model never
         # said; a piece far too short for its words means the truth would hold
@@ -185,6 +191,26 @@ def longest_silences(active: np.ndarray, a: int, b: int, count: int) -> list[int
 def load(wav: bytes) -> np.ndarray:
     audio, rate = soundfile.read(io.BytesIO(wav), dtype="float32")
     return scipy.signal.resample_poly(audio, RATE, rate).astype(np.float32)
+
+
+def voice_list(value: str) -> list[str]:
+    return [name.strip() for name in value.split(",") if name.strip()]
+
+
+def assign_voices(speakers: list[str], chosen: list[str] | None) -> dict[str, str]:
+    """One voice per speaker, in speaker order: `chosen` if given, else the start of VOICES."""
+    roster = VOICES if chosen is None else chosen
+    if chosen is not None:
+        unknown = sorted(set(chosen) - set(VOICES))
+        if unknown:
+            raise SystemExit("unknown voices: %s; the prebuilt voices are %s" % (", ".join(unknown), ", ".join(VOICES)))
+        if len(set(chosen)) != len(chosen):
+            raise SystemExit("--voices repeats a voice, so two speakers would sound alike")
+        if len(chosen) != len(speakers):
+            raise SystemExit("--voices has %d voices for %d speakers" % (len(chosen), len(speakers)))
+    if len(speakers) > len(roster):
+        raise SystemExit("%d speakers but only %d distinct voices; add voices to VOICES" % (len(speakers), len(roster)))
+    return dict(zip(speakers, roster, strict=False))
 
 
 def request_key(model: str, voice: str, words: str) -> str:
@@ -331,6 +357,9 @@ def main() -> None:
     parser.add_argument("--seed", type=int, default=20261122)
     parser.add_argument("--talk-over", type=float, default=0.35,
                         help="share of ordinary turns that start before the previous one ends")
+    parser.add_argument("--voices", type=voice_list, default=None, metavar="NAME,NAME,...",
+                        help="prebuilt voices in speaker order (S01 first), to give a meeting a different set from "
+                             "the default roster; one per speaker, no repeats")
     parser.add_argument("--out", type=Path, default=CACHE)
     parser.add_argument("--overwrite", action="store_true",
                         help="replace tracks and truth already written for this meeting when they differ")
@@ -343,9 +372,7 @@ def main() -> None:
     folder = args.out / meeting
     (folder / "voices").mkdir(parents=True, exist_ok=True)
     speakers = sorted({t["speaker"] for t in script["turns"]})
-    if len(speakers) > len(VOICES):
-        raise SystemExit("%d speakers but only %d distinct voices; add voices to VOICES" % (len(speakers), len(VOICES)))
-    voices = dict(zip(speakers, VOICES, strict=False))
+    voices = assign_voices(speakers, args.voices)
     clips = {}
     for speaker in speakers:
         clips[speaker] = voice_speaker(script, speaker, voices[speaker], folder / "voices", args.model, args.per_line)
