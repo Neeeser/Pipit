@@ -47,7 +47,14 @@ character count, so they are approximate.
 `SYN001` came from an earlier version of `synthesize.py`, the one its recorded
 results used; running the current version on the same voices moves line starts by
 seconds (a median of about 6 s) and drops six stray "." words, so regenerate
-its audio and truth together.
+its audio and truth together. `synthesize.py` stops when the truth it would
+write differs from the one already in its output folder, since recorded results
+carry checksums of those files; pass `--overwrite` to replace them, or `--out`
+to write elsewhere. A voice file with no `.key` file predates request keys: the
+script reuses it, prints a warning, and writes a key, though nothing shows it
+was voiced from the current script. `write_script.py` rejects a script whose
+participants are not `S01` to `S<n>` for the requested `n`, or that gives one no
+turns, and prints the interrupt and backchannel share of the turns it kept.
 The audio is not committed; `Benchmarks/results` records its checksums for
 each run that used it.
 

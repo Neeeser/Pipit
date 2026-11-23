@@ -197,7 +197,10 @@ def cached_speech(path: Path, model: str, voice: str, words: str) -> bytes:
     key = request_key(model, voice, words)
     if path.exists():
         if not key_path.exists():
-            # A voice file from before keys were stored: keep it and record its key.
+            # A voice file from before keys were stored: keep it and record its key,
+            # though nothing shows it was voiced from these words.
+            print("warning: %s has no key, so it is unverified against the current script, voice and model" % path,
+                  file=sys.stderr)
             key_path.write_text(key + "\n")
         elif key_path.read_text().strip() != key:
             raise SystemExit("%s was voiced from a different script, voice or model; delete it to voice it again" % path)
@@ -206,6 +209,25 @@ def cached_speech(path: Path, model: str, voice: str, words: str) -> bytes:
     path.write_bytes(wav)
     key_path.write_text(key + "\n")
     return wav
+
+
+def guard_overwrite(truth_path: Path, truth: dict, overwrite: bool) -> None:
+    """Stop before replacing a meeting's tracks and truth with different ones.
+
+    Results record checksums of these files, and a rerun of a newer generator
+    moves line starts; the old files could not be rebuilt afterwards.
+    """
+    if overwrite or not truth_path.exists():
+        return
+    def comparable(value: dict) -> dict:
+        # The script's path is how it was named on the command line, not what it holds.
+        value = json.loads(json.dumps(value))
+        value.get("synthetic", {}).pop("script", None)
+        return value
+
+    if comparable(json.loads(truth_path.read_text())) != comparable(truth):
+        raise SystemExit("%s differs from what this generator makes; pass --overwrite to replace the tracks and truth, "
+                         "or --out to write elsewhere" % truth_path)
 
 
 def voice_speaker(script: dict, speaker: str, voice: str, folder: Path, model: str,
@@ -303,6 +325,8 @@ def main() -> None:
     parser.add_argument("--talk-over", type=float, default=0.35,
                         help="share of ordinary turns that start before the previous one ends")
     parser.add_argument("--out", type=Path, default=CACHE)
+    parser.add_argument("--overwrite", action="store_true",
+                        help="replace tracks and truth already written for this meeting when they differ")
     parser.add_argument("--per-line", action="store_true",
                         help="when a speaker's lines cannot be cut apart, voice each line with its own request")
     args = parser.parse_args()
@@ -322,8 +346,6 @@ def main() -> None:
 
     tracks, placed = layout(script, clips, args.seed, args.talk_over)
     total = len(next(iter(tracks.values()))) / RATE
-    for speaker, track in tracks.items():
-        soundfile.write(folder / (f"{meeting}.{speaker}.wav"), track, RATE, subtype="PCM_16")
     words = sorted((w for line in placed for w in words_of(line)), key=lambda w: w["start"])
     turns = [{"speaker": line["speaker"], "start": line["start"], "end": line["end"]} for line in placed]
     truth = {
@@ -333,7 +355,11 @@ def main() -> None:
         "synthetic": {"script": str(args.script), "ttsModel": args.model, "voices": voices, "seed": args.seed, "talkOver": args.talk_over,
                       "localSpeaker": script["localSpeaker"]},
     }
-    (folder / (f"{meeting}.truth.json")).write_text(json.dumps(truth, indent=1) + "\n")
+    truth_path = folder / (f"{meeting}.truth.json")
+    guard_overwrite(truth_path, truth, args.overwrite)
+    for speaker, track in tracks.items():
+        soundfile.write(folder / (f"{meeting}.{speaker}.wav"), track, RATE, subtype="PCM_16")
+    truth_path.write_text(json.dumps(truth, indent=1) + "\n")
     print("%s: %.1f min, %d speakers, %d words, overlap %.1f%%, %d TTS requests"
           % (meeting, total / 60, len(speakers), len(words), 100 * truth["overlapRatio"], gemini.calls_made))
 

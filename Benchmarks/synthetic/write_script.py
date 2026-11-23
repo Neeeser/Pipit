@@ -62,6 +62,21 @@ It is for testing speech recognition and speaker separation, so it must be hard 
 """
 
 
+def problems(script: dict, speakers: int) -> list[str]:
+    """What is wrong with a written script for a meeting of `speakers` people."""
+    wanted = {"S%02d" % n for n in range(1, speakers + 1)}
+    ids = {p["id"] for p in script["participants"]}
+    found = []
+    if len(ids) != speakers:
+        found.append("%d participants, %d asked for" % (len(ids), speakers))
+    if ids - wanted:
+        found.append("ids outside S01 to S%02d: %s" % (speakers, ", ".join(sorted(ids - wanted))))
+    silent = sorted(wanted & ids - {t["speaker"] for t in script["turns"]})
+    if silent:
+        found.append("no turns for %s" % ", ".join(silent))
+    return found
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--meeting", required=True)
@@ -76,14 +91,16 @@ def main() -> None:
     script = json.loads(gemini.text(args.model, prompt, SCRIPT_SCHEMA))
     ids = {p["id"] for p in script["participants"]}
     script["turns"] = [t for t in script["turns"] if t["speaker"] in ids and t["text"].strip()]
-    if not any(t["speaker"] == "S01" for t in script["turns"]):
-        raise SystemExit("the script gives S01, the local speaker, no turns; write it again")
+    if found := problems(script, args.speakers):
+        raise SystemExit("the script does not fit the request (%s); write it again" % "; ".join(found))
     script.update({"meeting": args.meeting, "localSpeaker": "S01", "writer": args.model, "prompt": prompt})
     args.out.parent.mkdir(parents=True, exist_ok=True)
     args.out.write_text(json.dumps(script, indent=1) + "\n")
     words = sum(len(t["text"].split()) for t in script["turns"])
     kinds = {k: sum(t["kind"] == k for t in script["turns"]) for k in ("turn", "interrupt", "backchannel")}
-    print("%s: %d participants, %d turns, %d words, %s" % (args.meeting, len(ids), len(script["turns"]), words, kinds))
+    share = {k: "%.1f%%" % (100 * n / len(script["turns"])) for k, n in kinds.items()}
+    print("%s: %d participants, %d turns, %d words, %s, share of turns %s (asked for about 12%% interrupts, 15%% backchannels)"
+          % (args.meeting, len(ids), len(script["turns"]), words, kinds, share))
 
 
 if __name__ == "__main__":

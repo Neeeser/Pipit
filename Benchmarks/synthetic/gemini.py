@@ -89,6 +89,10 @@ def speech(model: str, words: str, voice: str) -> bytes:
     parts = [p for p in candidate.get("content", {}).get("parts", []) if "inlineData" in p]
     if not parts:
         raise RuntimeError("Gemini %s returned no audio (finish reason %s)" % (model, candidate.get("finishReason")))
+    finish = candidate.get("finishReason")
+    if finish not in (None, "STOP"):
+        # A reply cut off at a limit still carries audio, and the cache would keep it.
+        raise RuntimeError("Gemini %s stopped before finishing the audio (finish reason %s)" % (model, finish))
     data, mime = base64.b64decode(parts[0]["inlineData"]["data"]), parts[0]["inlineData"].get("mimeType", "")
     if data[:4] == b"RIFF":
         return data

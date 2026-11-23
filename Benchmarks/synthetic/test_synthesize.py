@@ -3,6 +3,8 @@
     uv run --with numpy --with scipy --with soundfile python -m unittest Benchmarks/synthetic/test_synthesize.py
 """
 
+import contextlib
+import io
 import json
 import sys
 import tempfile
@@ -14,6 +16,7 @@ import numpy as np
 
 sys.path.insert(0, str(Path(__file__).parent))
 import synthesize
+import write_script
 
 RATE = synthesize.RATE
 
@@ -126,6 +129,75 @@ class VoiceCache(unittest.TestCase):
                 self.assertEqual(speech.call_count, 1)
                 with self.assertRaises(SystemExit):
                     synthesize.cached_speech(path, "model", "Kore", "goodbye")
+
+
+class VoiceCacheWithoutKey(unittest.TestCase):
+    def test_a_voice_file_with_no_key_is_reused_with_a_warning(self) -> None:
+        with tempfile.TemporaryDirectory() as scratch:
+            path = Path(scratch) / "S01.wav"
+            path.write_bytes(b"old")
+            warning = io.StringIO()
+            with mock.patch.object(synthesize.gemini, "speech") as speech, contextlib.redirect_stderr(warning):
+                self.assertEqual(synthesize.cached_speech(path, "model", "Kore", "hello"), b"old")
+            speech.assert_not_called()
+            self.assertIn("S01.wav", warning.getvalue())
+            self.assertIn("unverified", warning.getvalue())
+
+
+class SpeechReply(unittest.TestCase):
+    def reply(self, finish: str | None) -> dict:
+        candidate: dict = {"content": {"parts": [{"inlineData": {"mimeType": "audio/L16;codec=pcm;rate=24000", "data": "AAAA"}}]}}
+        if finish is not None:
+            candidate["finishReason"] = finish
+        return {"candidates": [candidate]}
+
+    def test_audio_cut_off_at_an_output_limit_is_an_error(self) -> None:
+        with mock.patch.object(synthesize.gemini, "_post", return_value=self.reply("MAX_TOKENS")):
+            with self.assertRaisesRegex(RuntimeError, "MAX_TOKENS"):
+                synthesize.gemini.speech("model", "words", "Kore")
+
+    def test_audio_that_finished_is_returned(self) -> None:
+        for finish in ("STOP", None):
+            with self.subTest(finish=finish), mock.patch.object(synthesize.gemini, "_post", return_value=self.reply(finish)):
+                self.assertTrue(synthesize.gemini.speech("model", "words", "Kore").startswith(b"RIFF"))
+
+
+class OverwriteGuard(unittest.TestCase):
+    def test_a_different_truth_is_not_replaced_unless_asked(self) -> None:
+        with tempfile.TemporaryDirectory() as scratch:
+            path = Path(scratch) / "M.truth.json"
+            path.write_text(json.dumps({"words": [1]}))
+            with self.assertRaises(SystemExit):
+                synthesize.guard_overwrite(path, {"words": [2]}, overwrite=False)
+            synthesize.guard_overwrite(path, {"words": [2]}, overwrite=True)
+
+    def test_the_same_truth_or_no_truth_passes(self) -> None:
+        with tempfile.TemporaryDirectory() as scratch:
+            path = Path(scratch) / "M.truth.json"
+            synthesize.guard_overwrite(path, {"words": [1]}, overwrite=False)
+            path.write_text(json.dumps({"words": [1.5]}))
+            synthesize.guard_overwrite(path, {"words": [1.5]}, overwrite=False)
+
+
+class ScriptChecks(unittest.TestCase):
+    def script(self, ids: list[str], turn_speakers: list[str]) -> dict:
+        return {"participants": [{"id": i} for i in ids],
+                "turns": [{"speaker": s, "text": "words", "kind": "turn"} for s in turn_speakers]}
+
+    def test_a_script_with_the_requested_speakers_passes(self) -> None:
+        self.assertEqual(write_script.problems(self.script(["S01", "S02", "S03"], ["S01", "S02", "S03"]), 3), [])
+
+    def test_fewer_participants_than_requested_is_a_problem(self) -> None:
+        found = write_script.problems(self.script(["S01", "S02"], ["S01", "S02"]), 3)
+        self.assertTrue(any("2 participants" in p for p in found), found)
+
+    def test_ids_outside_the_numbering_are_a_problem(self) -> None:
+        found = write_script.problems(self.script(["S01", "S02", "S07"], ["S01", "S02", "S07"]), 3)
+        self.assertTrue(any("S07" in p for p in found), found)
+
+    def test_a_participant_with_no_turns_is_a_problem(self) -> None:
+        found = write_script.problems(self.script(["S01", "S02", "S03"], ["S01", "S02"]), 3)
+        self.assertTrue(any("S03" in p for p in found), found)
 
 
 if __name__ == "__main__":
