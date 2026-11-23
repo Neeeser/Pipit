@@ -1,6 +1,6 @@
 import Foundation
 
-/// Keeps far-end speaker labels steady across repeated speaker passes.
+/// Keeps remote speaker labels steady across repeated speaker passes.
 ///
 /// Each pass over the audio so far clusters from scratch, so its cluster names
 /// mean nothing from one pass to the next. A new cluster takes the label of

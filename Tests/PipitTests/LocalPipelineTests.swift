@@ -35,17 +35,17 @@ struct LocalPipelineTests {
         return Array(UnsafeBufferPointer(start: data[0], count: Int(buffer.frameLength)))
     }
 
-    /// What the far end and the user's own voice did between the recording and
+    /// What the call audio and the user's own voice did between the recording and
     /// the file the transcription backend opened.
     ///
-    /// Measured on `makeCallOnSpeakers`, where the far end plays for all 30
+    /// Measured on `makeCallOnSpeakers`, where the call audio plays for all 30
     /// seconds and the user talks over it for the middle third. Both figures
     /// are decibels lost against the recording. A cleaned microphone loses tens
-    /// of decibels of far end and none of the user. A far-end figure near zero
+    /// of decibels of call audio and none of the user. A remote figure near zero
     /// says the backend was handed the recording.
-    private static func farEndAndUser(
+    private static func remoteAndUser(
         handed: URL, recording: TrackAudioLocation
-    ) throws -> (farEndLostDB: Double, userLostDB: Double) {
+    ) throws -> (remoteLostDB: Double, userLostDB: Double) {
         let heard = try samples(ofFile: handed)
         let recorded = try MicrophoneCleaningFixtures.samples(recording)
         func energy(_ samples: [Float], _ from: Double, _ to: Double, _ frequency: Double) -> Double {
@@ -155,11 +155,11 @@ struct LocalPipelineTests {
         #expect(remote[0].speakerKey != remote[1].speakerKey)
     }
 
-    @Test("a call whose far end never arrived diarizes the microphone")
-    func aCallWhoseFarEndNeverArrivedDiarizesTheMicrophone() async throws {
+    @Test("a call whose remote track never arrived diarizes the microphone")
+    func aCallWhoseRemoteTrackNeverArrivedDiarizesTheMicrophone() async throws {
         // The recording this is taken from: thirty-one minutes of a
         // six-person standup where the process tap wrote digital zero
-        // from arm to teardown. The far end never reached its own
+        // from arm to teardown. The call audio never reached its own
         // track, the room reached the microphone, and which track held
         // the people to find was read off the kind of call it was. It
         // chose the silent one, which returned no clusters, so every
@@ -235,8 +235,8 @@ struct LocalPipelineTests {
         )
     }
 
-    @Test("a call whose far end never arrived still names the local user by voice")
-    func aCallWhoseFarEndNeverArrivedStillNamesTheLocalUserByVoice() async throws {
+    @Test("a call whose remote track never arrived still names the local user by voice")
+    func aCallWhoseRemoteTrackNeverArrivedStillNamesTheLocalUserByVoice() async throws {
         // The Google Meet of 4 September 2026: the tap wrote silence,
         // the room reached the microphone, and the microphone was
         // diarized. The recognizer matched one cluster to the local
@@ -246,9 +246,9 @@ struct LocalPipelineTests {
         // their own meeting.
         let root = try TestPaths.makeTemporaryDirectory()
         defer { try? FileManager.default.removeItem(at: root) }
-        // The far end's track is digital zero, as the tap wrote it, so
-        // the cleaner has no reference and the evidence reads no far
-        // end.
+        // The remote track is digital zero, as the tap wrote it, so
+        // the cleaner has no reference and the evidence reads no call
+        // audio.
         let frames = Int(60 * MicrophoneCleaningFixtures.rate)
         let meeting = try MicrophoneCleaningFixtures.makeMeeting(
             root: root,
@@ -332,8 +332,8 @@ struct LocalPipelineTests {
         #expect(entry.origin == SpeakerAssignmentOrigin.deterministic)
     }
 
-    @Test("a call whose far end arrived keeps diarizing the far end")
-    func aCallWhoseFarEndArrivedKeepsDiarizingTheFarEnd() async throws {
+    @Test("a call whose remote track arrived keeps diarizing the call audio")
+    func aCallWhoseRemoteTrackArrivedKeepsDiarizingIt() async throws {
         // The other side of the same decision, and the one that must
         // not move. Taking the local user out of the diarization
         // problem measured 97% attribution against 84% for diarizing a
@@ -375,7 +375,7 @@ struct LocalPipelineTests {
         let diarization = try meeting.store.readRawDiarization()
         #expect(
             diarization.activeRun(track: .remote) != nil,
-            "a far end that arrived is still where the unknown people are"
+            "call audio that arrived is still where the unknown people are"
         )
         #expect(
             diarization.activeRun(track: .mic) == nil,
@@ -453,7 +453,7 @@ struct LocalPipelineTests {
         // Both chunk the same track, and both went through the same
         // naming. The diarizer's plans matched the transcriber's
         // chunks, so every one was skipped as already done: nothing
-        // was diarized, no run was written, and the far end came back
+        // was diarized, no run was written, and the call audio came back
         // as one unattributed speaker with the meeting reporting
         // success.
         let root = try TestPaths.makeTemporaryDirectory()
@@ -511,7 +511,7 @@ struct LocalPipelineTests {
             .chunks(track: .remote, purpose: .words)
         #expect(
             words.count > 1 && words.contains { $0.id == "remote_chunk_001" },
-            "the local engine chunked the far end under the diarizer's own naming"
+            "the local engine chunked the call audio under the diarizer's own naming"
         )
         #expect(
             backend.calls.contains { $0.kind == "diarize" },
@@ -526,14 +526,14 @@ struct LocalPipelineTests {
         #expect(!remote.isEmpty)
         #expect(
             !(remote.allSatisfy { $0.speakerKey == SpeakerLabel.unattributed(track: .remote) }),
-            "the far end must not collapse into one unattributed speaker"
+            "the call audio must not collapse into one unattributed speaker"
         )
     }
 
-    @Test("switching to cloud transcription later still diarizes the far end")
-    func switchingToCloudTranscriptionLaterStillDiarizesTheFarEnd() async throws {
+    @Test("switching to cloud transcription later still diarizes the call audio")
+    func switchingToCloudTranscriptionLaterStillDiarizesTheRemoteTrack() async throws {
         // The other route into the same collision. A local engine has
-        // already chunked the far end; the user switches transcription
+        // already chunked the call audio; the user switches transcription
         // to Cloud and the meeting resumes at diarization. The cloud
         // diarizer's words are no longer wanted — the local ones are
         // already on disk and own the track — so it must ask for
@@ -2792,13 +2792,13 @@ struct LocalPipelineTests {
             "the words already on disk stand; a second backend does not add its own"
         )
         // The microphone track had no cloud words, so it is transcribed
-        // locally as normal. The far end is what must not be doubled.
-        let farEnd = (try meeting.store.readCanonicalTranscript()?.utterances ?? [])
+        // locally as normal. The call audio is what must not be doubled.
+        let remoteText = (try meeting.store.readCanonicalTranscript()?.utterances ?? [])
             .filter { $0.track == .remote }.map(\.text).joined(separator: " ")
-        #expect(farEnd.contains("the cloud already said this"))
+        #expect(remoteText.contains("the cloud already said this"))
         #expect(
-            !farEnd.contains("whisper says it differently"),
-            "so the far end is not assembled twice in two models' phrasing"
+            !remoteText.contains("whisper says it differently"),
+            "so the call audio is not assembled twice in two models' phrasing"
         )
     }
 
@@ -3149,12 +3149,12 @@ struct LocalPipelineTests {
         )
     }
 
-    @Test("the transcriber reads the microphone with the far end taken out of it")
-    func theTranscriberReadsTheMicrophoneWithTheFarEndTakenOutOfIt() async throws {
+    @Test("the transcriber reads the microphone with the call audio taken out of it")
+    func theTranscriberReadsTheMicrophoneWithTheCallAudioTakenOutOfIt() async throws {
         // The canceller reaches the user here. Every stage above takes
         // its audio through `trackAudioLocation`, so cleaning the
-        // microphone at the top of transcription is what stops the far
-        // end's words being written down under the local user's name.
+        // microphone at the top of transcription is what stops the remote
+        // track's words being written down under the local user's name.
         let root = try TestPaths.makeTemporaryDirectory()
         defer { try? FileManager.default.removeItem(at: root) }
         let meeting = try MicrophoneCleaningFixtures.makeCallOnSpeakers(root: root)
@@ -3192,17 +3192,17 @@ struct LocalPipelineTests {
             transcriber.copiedAudio.first { $0.lastPathComponent.hasSuffix("mic.wav") },
             "the microphone was transcribed"
         )
-        let measured = try Self.farEndAndUser(
+        let measured = try Self.remoteAndUser(
             handed: handed,
             recording: meeting.store.rawTrackAudioLocation(
                 track: .mic, metadata: metadata, timeline: try meeting.store.readTimeline()
             )
         )
         #expect(
-            measured.farEndLostDB > 20,
+            measured.remoteLostDB > 20,
             """
-            the transcriber read a microphone whose far end is only \
-            \(measured.farEndLostDB) dB down on the recording
+            the transcriber read a microphone with the call audio left in it only \
+            \(measured.remoteLostDB) dB down on the recording
             """
         )
         #expect(
@@ -3271,17 +3271,17 @@ struct LocalPipelineTests {
         // stale copy was made from. Compaction replaces the segment
         // chain with `mic.m4a` and deletes the segments, so the
         // pre-run location names files that are no longer there.
-        let measured = try Self.farEndAndUser(
+        let measured = try Self.remoteAndUser(
             handed: handed,
             recording: meeting.store.rawTrackAudioLocation(
                 track: .mic, metadata: metadata, timeline: try meeting.store.readTimeline()
             )
         )
         #expect(
-            measured.farEndLostDB > 20,
+            measured.remoteLostDB > 20,
             """
             the transcriber was handed the earlier run's export of the recording, \
-            whose far end is \(measured.farEndLostDB) dB down
+            whose call audio is \(measured.remoteLostDB) dB down
             """
         )
     }
@@ -3301,7 +3301,7 @@ struct LocalPipelineTests {
         defer { try? FileManager.default.removeItem(at: root) }
         let meeting = try MicrophoneCleaningFixtures.makeCallOnSpeakers(root: root)
 
-        // A microphone loud in every window and carrying the far end in
+        // A microphone loud in every window and carrying the call audio in
         // every window, which is what the recording measures and the
         // cleaned track does not.
         let windows = 120
@@ -3343,7 +3343,7 @@ struct LocalPipelineTests {
             "the evidence the interrupted run left is not the evidence the words are read with"
         )
         // The levels themselves, not just the provenance string. The
-        // far end plays alone for the last third, so the recording
+        // call audio plays alone for the last third, so the recording
         // holds its echo there and the cleaned track holds only what
         // the canceller could not subtract. Compared against the
         // recording's own level rather than a fixed number, because
@@ -3362,7 +3362,7 @@ struct LocalPipelineTests {
         #expect(
             !lastThird.isEmpty && loudest < recordedDBFS - 6,
             """
-            the microphone reads \(loudest) dBFS where only the far end played, \
+            the microphone reads \(loudest) dBFS where only the call audio played, \
             against \(recordedDBFS) dBFS in the recording, so the levels were \
             measured on the recording
             """

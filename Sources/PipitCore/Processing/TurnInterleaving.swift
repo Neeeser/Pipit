@@ -6,7 +6,7 @@ import Foundation
 /// A decoder cuts its segments at pauses in one person's audio: one second of
 /// silence, or thirty seconds of talk. Somebody talking without a pause for
 /// thirty seconds arrives as one line, and the transcript is sorted by line
-/// start, so every reply the far end made inside those thirty seconds printed
+/// start, so every reply the call audio made inside those thirty seconds printed
 /// after the whole block. Measured over one day's meetings: 9 of 90 lines in
 /// one call and 32 of 142 in another held a reply that started more than a
 /// second in.

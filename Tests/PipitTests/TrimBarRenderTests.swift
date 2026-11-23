@@ -77,7 +77,7 @@ struct TrimBarRenderTests {
 
     @Test("a handle at the end of the timeline keeps each track to its end")
     func aHandleAtTheEndKeepsEachTrackToItsEnd() throws {
-        // The mixdown is 65 s because the far end began 5 s late, and the
+        // The mixdown is 65 s because the call audio began 5 s late, and the
         // meeting's recorded length is 60 s.
         let one = parts([("a", 65)])
         let toEnd = MeetingReviewModel.cuts(parts: one, keepFrom: 5, to: 65)
@@ -88,7 +88,7 @@ struct TrimBarRenderTests {
         #expect(before.first?.range.keepsEnd == false)
         #expect(before.first?.range.end == 40)
 
-        // A handle in the far end's late tail, between 60 s and 65 s, cuts the
+        // A handle in the remote track's late tail, between 60 s and 65 s, cuts the
         // tail off. With the start at 0 that is the whole trim.
         let tail = MeetingReviewModel.cuts(parts: one, keepFrom: 0, to: 62)
         #expect(tail.count == 1, "a handle at 62 s of 65 removes the last 3 s")

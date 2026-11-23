@@ -57,7 +57,7 @@ public enum Reprocessing {
     /// The derived files that depend on the microphone alone, and so are the
     /// ones that change when the microphone is cleaned and transcribed again.
     ///
-    /// The far end's words, its diarization, the summary and the typed speaker
+    /// The remote track's words, its diarization, the summary and the typed speaker
     /// suggestions are not here: nothing done to the microphone changes them.
     /// The speaker map is, because the lines it corrects on the microphone
     /// cannot survive a new transcription.

@@ -27,18 +27,18 @@ public struct BenchRow: Codable {
     /// Which simulated call this row is and what the echo pass measured on it.
     /// Absent on a one-track case.
     public var call: BenchCallRow?
-    /// How the meeting client's speaker record and the diarizer shared the far
-    /// end (`pipit-eval bench --attribution`). Absent on rows written before it
+    /// How the meeting client's speaker record and the diarizer shared the call
+    /// audio (`pipit-eval bench --attribution`). Absent on rows written before it
     /// existed.
     public var sensorAttribution: String?
-    /// Words on the far-end track, and how many of them sit under a speaker
+    /// Words on the remote track, and how many of them sit under a speaker
     /// with no name.
-    public var farEndWords: Int?
-    public var unnamedFarEndWords: Int?
-    /// The far-end words that can be checked against the reference speaker,
+    public var remoteWords: Int?
+    public var unnamedRemoteWords: Int?
+    /// The remote words that can be checked against the reference speaker,
     /// split by whether the name on them is the right one, a wrong one or none.
-    /// See `FarEndNameScore`. Present on a call case only.
-    public var farEndNames: FarEndNameScore?
+    /// See `RemoteNameScore`. Present on a call case only.
+    public var remoteNames: RemoteNameScore?
     /// How `score` grouped the transcript's lines into speakers: `display-name`
     /// puts lines under one speaker when the speaker map gives them one display
     /// name, as the app shows it, so two people sharing a name are one speaker.
@@ -65,6 +65,16 @@ public struct BenchRow: Codable {
         self.overlapRatio = overlapRatio
         self.run = run
         self.scratch = scratch
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case engine, diarizer, score, processingSeconds, audioSeconds, state, transcriptionModels
+        case diarizationBackends, overlapRatio, run, scratch, call, sensorAttribution, speakerGrouping
+        // These stored keys predate the rename to `remote` and are kept so
+        // results files already written still decode.
+        case remoteWords = "farEndWords"
+        case unnamedRemoteWords = "unnamedFarEndWords"
+        case remoteNames = "farEndNames"
     }
 }
 

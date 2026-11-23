@@ -284,7 +284,7 @@ public struct MeetingDetailView: View {
 
             if let warnings = detail.metadata?.captureWarnings, !warnings.isEmpty {
                 // What went wrong while this was recorded, kept with the
-                // meeting. A far end that was never captured is the usual one,
+                // meeting. Call audio that was never captured is the usual one,
                 // and a transcript read without knowing that reads as a
                 // recogniser failure.
                 Label(

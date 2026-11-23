@@ -6,7 +6,7 @@ import Testing
 struct CapturePreflightTests {
     @Test("a call recorded without the system audio grant is warned about before capture")
     func aCallRecordedWithoutTheSystemAudioGrantIsWarnedAboutBeforeCa() async throws {
-        // Seven recordings on this Mac lost their far end to a tap created
+        // Seven recordings on this Mac lost their call audio to a tap created
         // without the grant. The tap reports healthy, so the answer has to
         // come from the grant itself, before anything is armed.
         for state in [PermissionState.denied, .notDetermined, .grantedButNotEffective] {
@@ -19,8 +19,8 @@ struct CapturePreflightTests {
         }
     }
 
-    @Test("a granted tap and a recording with no far end raise nothing")
-    func aGrantedTapAndARecordingWithNoFarEndRaiseNothing() async throws {
+    @Test("a granted tap and a recording with no call audio raise nothing")
+    func aGrantedTapAndARecordingWithNoRemoteTrackRaiseNothing() async throws {
         #expect(RecordingPreflight.warnings(capturesRemote: true, systemAudio: .granted) == [])
         // An in-person or imported recording never opens a tap, so the
         // grant is not its business.
@@ -58,10 +58,10 @@ struct CapturePreflightTests {
         #expect(refused?.menuTitle == "Microphone permission missing…")
         #expect(refused?.warnings == [.microphonePermissionMissing])
 
-        let farEnd = PermissionNotice(missing: [.screenRecording])
-        #expect(farEnd?.single == .screenRecording)
-        #expect(farEnd?.recordingContinues == true)
-        #expect(farEnd?.title == "Pipit can't record the other people in this meeting")
+        let remote = PermissionNotice(missing: [.screenRecording])
+        #expect(remote?.single == .screenRecording)
+        #expect(remote?.recordingContinues == true)
+        #expect(remote?.title == "Pipit can't record the other people in this meeting")
 
         // Given out of order, kept in Setup order, and too many for one
         // panel to grant.

@@ -316,7 +316,7 @@ def references(work: Path, key: str, pipit: list[dict]) -> tuple[dict[str, list[
 
 def echo_leak(meeting_dir: Path, call: list[dict], window: float = 5.0) -> dict:
     """Mic words that also appear, as a run of three or more, in a teacher's transcript
-    of the call track alone within the window: far-end speech that got through as yours.
+    of the call track alone within the window: remote speech that got through as yours.
     Single words are not counted, since "yeah" and "the" match by chance.
     """
     def trigrams(words):

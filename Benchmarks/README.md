@@ -41,7 +41,7 @@ no recordings. CI rejects committed audio files.
 | `icsi` | 4 | Six to nine speakers with 28% to 39% overlap |
 | `notsofar` | 5 | Recent office meetings with 4% to 46% overlap |
 | `deciding` | 14 | Held-out cases used to compare engines |
-| `calls` | 30 | Simulated two-track calls: a microphone track with laptop-speaker echo and a far-end track, aligned or not |
+| `calls` | 30 | Simulated two-track calls: a microphone track with laptop-speaker echo and a remote track, aligned or not |
 
 Use `deciding` when ranking one engine against another. Some `ami-core` and
 `ami-overlap` cases appear in published training data for local models. Those
@@ -61,7 +61,7 @@ The generator in `Benchmarks/calls/` builds each case from the per-person
 headset channels of five held-out AMI meetings (`ami-eval` or `clean`):
 
 - One participant is the local person, chosen from `calls.seed` in
-  `manifest.json`. Everyone else is the far end.
+  `manifest.json`. Everyone else is on the remote track.
 - Each headset channel is gated to its owner's reference speech: it is silent
   more than 0.25 s from the owner's words, and a pause shorter than 0.6 s is
   kept. A headset also hears the other people in the room, at 7 dB to 32 dB
@@ -78,9 +78,9 @@ headset channels of five held-out AMI meetings (`ami-eval` or `clean`):
   4 dB off the other voices in the other half, so the generator does not
   subtract. `case.json` records these seconds under `localChannel`, and
   generation exits with an error if the mute silenced a sample of the local
-  person's words or a case has no such record. The far-end track is the sum of
+  person's words or a case has no such record. The remote track is the sum of
   the other participants, passed through an Opus voice-call round trip.
-- The microphone track is the local channel plus the far-end track played
+- The microphone track is the local channel plus the remote track played
   through a simulated laptop speaker: a high-pass and soft clip, a playback
   delay, and a synthetic room impulse response.
 - Each variant fixes the echo level by the correlation Pipit's own measure
@@ -102,23 +102,25 @@ headset channels of five held-out AMI meetings (`ami-eval` or `clean`):
   on the reference turns: a 500 ms poll, the newest voice taking the floor, a
   1.5 s hold, so one person holds the floor at a time, a turn ends at the first
   poll that names someone else, and a brief interjection does not take the floor
-  from a long turn. The record lists every far-end speaker under the reference speaker's name,
+  from a long turn. The record lists every remote speaker under the reference speaker's name,
   writes the local person's tile as "You" with the self flag, the way the
   extension does for an English-locale client, and has no mute state, like the
   real ones. The poll and hold times
-  and the share of dropped far-end turns are the `sensors` numbers of that
+  and the share of dropped remote turns are the `sensors` numbers of that
   variant in `manifest.json`. The poll and hold are the extension's own
   constants; the dropped share is chosen, not measured.
 - `laptop-far-end-late` and `laptop-far-end-dropouts` put the two tracks out
   of line. Both reach the `laptop` echo level, so a difference from `laptop`
-  comes from the alignment.
-  - In `laptop-far-end-late` the far end begins 1.12 s after the microphone,
+  comes from the alignment. "Far end" in these names is an older term for the
+  remote track, kept because the names are the cached case folders and appear
+  in recorded results.
+  - In `laptop-far-end-late` the call audio begins 1.12 s after the microphone,
     and the bench imports it at that start time, the way a capture stamps a
-    track that opened late. A far-end track opens on the first audio the call
+    track that opened late. A remote track opens on the first audio the call
     app plays, so nothing is played before then and the microphone holds no
-    echo there. Far-end words in those 1.12 s are lost with it.
+    echo there. Remote words in those 1.12 s are lost with it.
   - In `laptop-far-end-dropouts` the microphone is the `laptop` one, byte for
-    byte. The far-end file loses whole capture buffers (one to four buffers of
+    byte. The remote file loses whole capture buffers (one to four buffers of
     512 frames at 48 kHz) at random moments, 13 ms of audio per minute, with
     nothing in their place, so it slides earlier against the microphone as the
     call goes on: 85 ms to 117 ms by the end of a six-minute window and 395 ms
@@ -133,9 +135,9 @@ headset channels of five held-out AMI meetings (`ami-eval` or `clean`):
   where every segment records its first frame's host time and its frame count,
   and stops at the first pause. The recordings stay outside the repository; the
   script prints only counts and percentiles.
-  - Start offset: the far end started a median 0.04 s after the microphone, and
+  - Start offset: the call audio started a median 0.04 s after the microphone, and
     1.12 s is the 90th percentile of the absolute offset (the largest was
-    64 s). Of the 20 offsets over a second, 14 had the far end starting later,
+    64 s). Of the 20 offsets over a second, 14 had the call audio starting later,
     the direction the variant takes. A microphone that starts later is not
     simulated.
   - Steady clock drift between the two tracks was negligible on that Mac: at
@@ -143,8 +145,8 @@ headset channels of five held-out AMI meetings (`ami-eval` or `clean`):
     own clock, such as a USB one, can drift where these did not, and no
     variant models that.
   - Lost buffers do move the tracks apart. The capture pads a gap only from
-    50 ms up, so shorter losses on the far end leave the rest of the track
-    early. In 81 of the 197 meetings the far end slid earlier this way, and
+    50 ms up, so shorter losses on the call audio leave the rest of the track
+    early. In 81 of the 197 meetings the call audio slid earlier this way, and
     13 ms per minute is the 95th percentile of that rate. The sizes and their
     weights are the counts of steps under 50 ms seen between segments, rounded
     to the nearest one to four buffers; each sits within 5.2 ms of a whole
@@ -154,17 +156,17 @@ headset channels of five held-out AMI meetings (`ami-eval` or `clean`):
     the variant's single losses may run larger than real ones while the rate
     stays the same.
 - `--attribution` on `bench` and `reprocess` chooses how a meeting client's
-  speaker record and the diarizer share the far end: `current` (the app),
+  speaker record and the diarizer share the call audio: `current` (the app),
   `diarizer-names` (the record only names clusters), `sensor-first` (turns
   label words before clusters do) and `strict-names` (`current` with the
   narrower rule for which participant a cluster is that the app used before:
   half of the whole cluster). The app always runs `current`. Only
   `bench` and `reprocess` accept the flag, and `reprocess` refuses a mode other
   than `current` on a meeting in the app's own archive. Each bench row records
-  the mode, how many far-end words sit under a speaker with no name, and, on a
-  call case, how many far-end content words sit under the right display name, a
+  the mode, how many remote words sit under a speaker with no name, and, on a
+  call case, how many remote content words sit under the right display name, a
   wrong one or none (`farEndNames`). Those counts take the words of the
-  transcript that match a far-end reference word within three seconds, and
+  transcript that match a remote reference word within three seconds, and
   compare the speaker's display name with the reference speaker's name, which is
   what the simulated record uses.
 - Scoring method. The scorer counts a speaker per person, as the app shows it:
@@ -201,7 +203,7 @@ window. They follow `Benchmarks/aec/metrics.py`:
 
 | Metric | Meaning |
 | --- | --- |
-| `farEndWordsUnderLocalPerMinute` | Transcript words labelled as the local person that match a far-end reference word within 3 seconds and match none of the local person's own. Words under 3 letters and common function words (articles, pronouns, "yeah", "okay" and similar) are skipped, so this count leaves those out. A transcript word is not paired with a reference word, so one word can count against several |
+| `farEndWordsUnderLocalPerMinute` | Transcript words labelled as the local person that match a remote reference word within 3 seconds and match none of the local person's own. Words under 3 letters and common function words (articles, pronouns, "yeah", "okay" and similar) are skipped, so this count leaves those out. A transcript word is not paired with a reference word, so one word can count against several |
 | `localWordsLostPerMinute` | The local person's reference words that no transcript word accounts for. A transcript word accounts for at most one reference word: it has the same text, starts within 3 seconds, and carries any label. Every word is counted, function words included, so a mislabelled word is not lost here |
 
 The table groups cases by variant and prints the correlation the cleaner
@@ -228,9 +230,9 @@ with no room sound, and even the `headphones` variant's microphone still
 carries the other participants' voices where they overlap the local person's
 words, which a headset on a real call would not pick up; the
 tracks are aligned to the sample before the echo delay except in the two
-misaligned variants, which model a late start and lost far-end buffers but no
+misaligned variants, which model a late start and lost remote buffers but no
 steady clock drift (none was measured on the one Mac), no loss on the microphone
-track and no microphone that starts after the far end;
+track and no microphone that starts after the call audio;
 there is no packet loss in the codec and no gain control; every meeting has
 four participants; and the local person's share of speech is fixed by the
 meeting, so reaching a very high echo correlation takes a louder echo than a

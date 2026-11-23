@@ -356,7 +356,7 @@ public struct MeetingStore: Sendable {
     /// For the microphone of a meeting that was cleaned, that is the cleaned
     /// file. Everything above reads audio through here, so transcription,
     /// speech evidence, diarization, voice enrolment and the mixdown all get
-    /// the microphone with the far end taken out of it without knowing the
+    /// the microphone with the call audio taken out of it without knowing the
     /// cleaner exists.
     ///
     /// Compaction is the exception and calls `rawTrackAudioLocation`, because

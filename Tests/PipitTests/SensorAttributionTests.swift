@@ -25,9 +25,9 @@ private func interval(
 /// Evidence in which the local user is audibly speaking over `talking` and
 /// nowhere else.
 ///
-/// Outside those spans the microphone is quiet and below the far end, which
-/// is what the far end playing while the user listens looks like. Over
-/// `echoDuring` the far end plays and the cleaned microphone holds what the
+/// Outside those spans the microphone is quiet and below the call audio, which
+/// is what the call audio playing while the user listens looks like. Over
+/// `echoDuring` the call audio plays and the cleaned microphone holds what the
 /// canceller left of it, which the detector does not call speech.
 private func speech(
     seconds: Double, talking: [(Double, Double)],
@@ -550,7 +550,7 @@ struct SensorAttributionTests {
 
     @Test("the local user's turns produce no word intervals")
     func theLocalUserSTurnsProduceNoWordIntervals() async throws {
-        // The far-end track is a mixdown of everyone else, so a self
+        // The remote track is a mixdown of everyone else, so a self
         // turn cannot explain a word heard there. The span falls to the
         // diarizer, which hears the audio.
         let raw = sensors(
@@ -741,7 +741,7 @@ struct SensorAttributionTests {
         // transcript; a centroid built from three people's speech is
         // permanent and reaches every later meeting through the profile
         // that recognises them. On the recording above this embedded
-        // 573 seconds of the far end under one person's name, and that
+        // 573 seconds of the call audio under one person's name, and that
         // key already carried somebody's hand-typed confirmation.
         let overLong = sensors(
             participants: [participant("U1", "Ada")], turns: [("U1", 0, 400)]
@@ -794,8 +794,8 @@ struct SensorAttributionTests {
         #expect(!(enrolled.contains { $0.clusterID == SpeakerLabel.sensor(participantID: "U2") }))
     }
 
-    @Test("the local user's voice is never enrolled from the far end")
-    func theLocalUserSVoiceIsNeverEnrolledFromTheFarEnd() async throws {
+    @Test("the local user's voice is never enrolled from the call audio")
+    func theLocalUserSVoiceIsNeverEnrolledFromTheRemoteTrack() async throws {
         let raw = sensors(
             participants: [
                 participant("me", "Marlow", isSelf: true), participant("U2", "Ada"),
@@ -1060,7 +1060,7 @@ struct SensorIdentityLinkTests {
     func aTileReadingTheLocalUserSNameOrAliasIsTheLocalUser() async throws {
         // A Meet call where the page marked nobody as the user, no microphone
         // evidence exists, and the tile rendering the user's full name held
-        // the floor over a far-end voice. The far end is a mixdown of everyone
+        // the floor over a remote voice. The call audio is a mixdown of everyone
         // else, so that tile's turns cannot name a cluster.
         let raw = sensors(
             participants: [
@@ -1123,11 +1123,11 @@ struct SensorIdentityLinkTests {
         #expect(!(scoped.participants.first { $0.id == "d382" }?.isSelf == true))
     }
 
-    @Test("the far end playing over a cleaned microphone is not the user")
-    func theFarEndPlayingOverACleanedMicrophoneIsNotTheUser() async throws {
+    @Test("the call audio playing over a cleaned microphone is not the user")
+    func callAudioPlayingOverACleanedMicrophoneIsNotTheUser() async throws {
         // Without headphones the call comes back through the speakers.
         // The cleaner subtracts it before anything here reads the
-        // microphone, so what is left under a far-end turn is not
+        // microphone, so what is left under a remote turn is not
         // speech, and the detector says so. Marking a remote
         // participant self deletes their turns outright, so this has
         // to fail closed.
@@ -1144,7 +1144,7 @@ struct SensorIdentityLinkTests {
     @Test("a microphone carrying the whole room still names one local user")
     func aMicrophoneCarryingTheWholeRoomStillNamesOneLocalUser() async throws {
         // A call taken on speakers whose echo the canceller could not remove.
-        // The far end is in the microphone at a level the detector fires on, so
+        // The call audio is in the microphone at a level the detector fires on, so
         // every turn overlaps something that reads as speech and every reading
         // clears the bar. Marking all of them threw the meeting client's whole
         // account of a five-person standup away on 10 September 2026: the four
@@ -1198,9 +1198,9 @@ struct SensorIdentityLinkTests {
         #expect(scoped.participants.first { $0.id == "U2" }?.isSelf == true)
     }
 
-    @Test("a recording with no far end judges nobody")
-    func aRecordingWithNoFarEndJudgesNobody() async throws {
-        // A process tap that produced nothing leaves no far-end series,
+    @Test("a recording with no call audio judges nobody")
+    func aRecordingWithNoRemoteTrackJudgesNobody() async throws {
+        // A process tap that produced nothing leaves no remote series,
         // so the level and echo clauses cannot answer and the detector
         // alone would decide. On speakers that marks everybody self and
         // the meeting loses every sensor name.
@@ -1213,8 +1213,8 @@ struct SensorIdentityLinkTests {
         #expect(raw.markingSelf(using: oneTrack).participants.filter(\.isSelf).count == 0)
     }
 
-    @Test("a far end recorded as digital silence judges nobody")
-    func aFarEndRecordedAsDigitalSilenceJudgesNobody() async throws {
+    @Test("call audio recorded as digital silence judges nobody")
+    func aRemoteRecordedAsDigitalSilenceJudgesNobody() async throws {
         // The sibling of the case above, and the one that shipped. A
         // process tap bound to an application that emits nothing still
         // writes a full-length track, because the aggregate device is
@@ -1222,7 +1222,7 @@ struct SensorIdentityLinkTests {
         // the series is there and every window of it reads the floor.
         // Guarding on the series being non-empty let this through.
         //
-        // With the far end at -120 the level difference is +62 dB for
+        // With the call audio at -120 the level difference is +62 dB for
         // every window and a filtered copy of silence accounts for none
         // of the microphone's energy, so both clauses answer yes to
         // whatever they are asked and the share collapses to whether
@@ -1241,7 +1241,7 @@ struct SensorIdentityLinkTests {
         var silent = speech(seconds: 180, talking: [(0, 180)])
         silent.remoteLevels = silent.remoteLevels.map { _ in Int8(-120) }
         #expect(silent.remoteLevels.isEmpty == false)
-        #expect(silent.farEndCarriesSignal == false)
+        #expect(silent.remoteCarriesSignal == false)
         #expect(raw.markingSelf(using: silent).participants.filter(\.isSelf).count == 0)
         // And the names survive to be used, which is the point of not
         // marking them.
@@ -1250,14 +1250,14 @@ struct SensorIdentityLinkTests {
         )
     }
 
-    @Test("a far end that stopped is judged only where it was recorded")
-    func aFarEndThatStoppedIsJudgedOnlyWhereItWasRecorded() async throws {
+    @Test("call audio that stopped is judged only where it was recorded")
+    func aRemoteTrackThatStoppedIsJudgedOnlyWhereItWasRecorded() async throws {
         // A tap that captured the opening and then died leaves a track
         // that carries signal overall and nothing after the moment it
         // stopped. Both halves of that have to be respected.
         //
-        // The recording still has a far end, so the track selection and
-        // the enrolment guard leave it alone. But a window whose far end
+        // The recording still has call audio, so the track selection and
+        // the enrolment guard leave it alone. But a window whose call audio
         // reads the floor was measured against nothing: the level clause
         // reads +100 dB and the echo clause reads zero, so counting
         // those windows marks whoever was talking as the local user, one
@@ -1271,7 +1271,7 @@ struct SensorIdentityLinkTests {
         for index in stopped.remoteLevels.indices where index >= died {
             stopped.remoteLevels[index] = -120
         }
-        #expect(stopped.farEndCarriesSignal == true, "a far end was recorded")
+        #expect(stopped.remoteCarriesSignal == true, "call audio was recorded")
 
         let scoped = raw.markingSelf(using: stopped)
         #expect(
@@ -1342,7 +1342,7 @@ struct SensorIdentityLinkTests {
 struct SensorSelfHandlingTests {
     @Test("a cluster the local user best explains is left blank")
     func aClusterTheLocalUserBestExplainsIsLeftBlank() async throws {
-        // Their voice is not in the far-end mixdown, so nothing there is
+        // Their voice is not in the remote mixdown, so nothing there is
         // theirs. Naming it after whoever came second would be worse
         // than leaving it for a person to fill in.
         let raw = sensors(
@@ -1817,9 +1817,9 @@ struct SensorAssemblyTests {
                 == ["remote-001_speaker_01", SpeakerLabel.sensor(participantID: "d2")])
     }
 
-    @Test("a Meet call with one other person owns the far-end track once the local user is marked")
-    func aMeetCallWithOneOtherPersonOwnsTheFarEndTrack() async throws {
-        // The diarizer splits the one far-end voice in two. Meet records have no
+    @Test("a Meet call with one other person owns the remote track once the local user is marked")
+    func aMeetCallWithOneOtherPersonOwnsTheRemoteTrack() async throws {
+        // The diarizer splits the one remote voice in two. Meet records have no
         // authoritative self flag, so this used to take the cluster path and
         // leave the second cluster as an unnamed speaker.
         let words = [
@@ -1924,9 +1924,9 @@ struct SensorAssemblyTests {
         #expect(Set(transcript.utterances.map(\.speakerKey)) == ["remote-001_speaker_01"])
     }
 
-    @Test("one other person in the call owns the whole far-end track")
-    func oneOtherPersonInTheCallOwnsTheWholeFarEndTrack() async throws {
-        // The far end is a mixdown of everyone but the local user, so a call
+    @Test("one other person in the call owns the whole remote track")
+    func oneOtherPersonInTheCallOwnsTheWholeRemoteTrack() async throws {
+        // The call audio is a mixdown of everyone but the local user, so a call
         // with one other person in it holds one voice throughout. On a huddle
         // of 10 September 2026 the diarizer split that voice into two clusters
         // and marked none of the backchannels as speech at all, so the meeting
@@ -2062,8 +2062,8 @@ struct SensorAssemblyTests {
         )
     }
 
-    @Test("a roster that marks nobody as the local user never owns the whole far-end track")
-    func aRosterThatMarksNobodyAsTheLocalUserNeverOwnsTheWholeFarEndTrack() async throws {
+    @Test("a roster that marks nobody as the local user never owns the whole remote track")
+    func aRosterThatMarksNobodyAsTheLocalUserNeverOwnsTheWholeRemoteTrack() async throws {
         // Without a known local user, one of the two tiles could be anybody,
         // and giving words to the wrong one is the mistake this must not make.
         // The marking comes from the client's own flag or the microphone.
@@ -2148,9 +2148,9 @@ struct SensorAssemblyTests {
         #expect(keys.last == "remote-001_speaker_02", "the audio decides the tail")
     }
 
-    @Test("a self turn does not capture far-end words")
-    func aSelfTurnDoesNotCaptureFarEndWords() async throws {
-        // The far-end track cannot contain the local user, so a span
+    @Test("a self turn does not capture remote words")
+    func aSelfTurnDoesNotCaptureRemoteWords() async throws {
+        // The remote track cannot contain the local user, so a span
         // their turn covers goes to the diarizer, which heard the audio.
         let words = [
             RawTranscriptWord(start: 2, end: 3, text: "Hello "),
@@ -2425,8 +2425,8 @@ struct SensorAttributionModeTests {
         #expect(keys(.current, sensors: meet, clusters: clusters).first == "remote-001_speaker_01")
     }
 
-    @Test("diarizer-names carries a one-to-one call's name onto every far-end cluster")
-    func diarizerNamesCarriesAOneToOneCallsNameOntoEveryFarEndCluster() async throws {
+    @Test("diarizer-names carries a one-to-one call's name onto every remote cluster")
+    func diarizerNamesCarriesAOneToOneCallsNameOntoEveryRemoteCluster() async throws {
         let sensors = RawSensors(
             source: "slack-huddle-ax",
             participants: [
@@ -2436,7 +2436,7 @@ struct SensorAttributionModeTests {
             turns: [SensorTurn(start: 0, end: 10, participantID: "U_ADA")],
             selfIsAuthoritative: true
         )
-        // The diarizer split the one far-end voice in two, and the second
+        // The diarizer split the one remote voice in two, and the second
         // cluster is one no turn covers.
         let split = [
             DiarizationInterval(start: 1, end: 9, clusterID: "1"),

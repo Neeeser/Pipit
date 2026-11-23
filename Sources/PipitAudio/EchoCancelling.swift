@@ -3,9 +3,9 @@ import Foundation
 /// Subtracts what was played from what the microphone heard, one block at a
 /// time.
 ///
-/// The far end goes out of the speakers and comes back into the microphone.
+/// The call audio goes out of the speakers and comes back into the microphone.
 /// A canceller is given the recording of what was played and the microphone
-/// block for the same moment, and hands back the microphone with the far end
+/// block for the same moment, and hands back the microphone with the call audio
 /// taken out. Every block is the same length, the reference is given first,
 /// and the state carried between blocks is the canceller's own.
 public protocol EchoCancelling: AnyObject {

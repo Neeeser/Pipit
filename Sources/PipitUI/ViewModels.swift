@@ -968,7 +968,7 @@ public final class MeetingReviewModel {
         !isRedoingMicrophone && recordings.contains { $0.canRedoMicrophone }
     }
 
-    /// Takes the far end out of the microphone again and transcribes the
+    /// Takes the call audio out of the microphone again and transcribes the
     /// microphone again, in every recording of the conversation that has one.
     public func redoMicrophone() {
         guard canRedoMicrophone else { return }

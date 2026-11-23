@@ -273,7 +273,7 @@ public struct SpeakerMap: Codable, Sendable, Equatable {
     /// line came from. Transcribing that track again produces different words,
     /// different line boundaries and, for a chunked backend, different chunks,
     /// so nothing recorded against the old lines can be said to still apply.
-    /// Everything on the far end's track, and every cluster name, stays.
+    /// Everything on the remote track, and every cluster name, stays.
     @discardableResult
     public mutating func removeMicrophoneLineEdits() -> Int {
         let count = microphoneLineEditCount

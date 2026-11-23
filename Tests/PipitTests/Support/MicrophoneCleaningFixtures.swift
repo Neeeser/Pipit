@@ -7,11 +7,11 @@ import PipitCore
 /// on them.
 ///
 /// The problem they stand for, measured on a huddle of 3 September 2026: most
-/// of the words on the microphone were the far end's, arriving through the air
+/// of the words on the microphone were the remote track's, arriving through the air
 /// from the speakers.
 public enum MicrophoneCleaningFixtures {
     public static let rate = 16_000.0
-    /// The far end's voice and the user's, from the system's own speech
+    /// The remote track's voice and the user's, from the system's own speech
     /// synthesis. The canceller that ships is a network trained on speech: it
     /// takes a steady tone for something to remove, and a tone repeats every
     /// period, so an echo of one can be lined up at any multiple of the
@@ -20,12 +20,12 @@ public enum MicrophoneCleaningFixtures {
     public static let userVoice = "Karen"
     /// Tones, for the fixtures that never run the canceller and only need a
     /// signal a Goertzel probe can find again: compaction, the pipeline's
-    /// track routing, a far end that never played. None divides 16 kHz into
+    /// track routing, call audio that never played. None divides 16 kHz into
     /// a whole number of samples.
     public static let farToneA = 440.0
     public static let farToneB = 950.0
     public static let nearTone = 1_300.0
-    /// What the room does to the far end on its way back to the capsule: a
+    /// What the room does to the call audio on its way back to the capsule: a
     /// third of the level, 3 ms across the desk.
     public static let echoGain: Float = 0.35
     public static let echoDelaySamples = 48
@@ -97,7 +97,7 @@ public enum MicrophoneCleaningFixtures {
 
     /// A recorded two-track meeting whose audio is exactly the samples given.
     ///
-    /// `remoteStartOffset` puts the far end's first frame that many seconds
+    /// `remoteStartOffset` puts the remote track's first frame that many seconds
     /// after the microphone's, which is what a real recording looks like: the
     /// remote writer opens on the first packet from the meeting application,
     /// and that is always after the microphone begins.
@@ -220,7 +220,7 @@ public enum MicrophoneCleaningFixtures {
     }
 
     /// Energy at one frequency, by the Goertzel recurrence. Broadband energy
-    /// after cancellation is mostly residue from subtracting the far end, so it
+    /// after cancellation is mostly residue from subtracting the call audio, so it
     /// says nothing about the tone actually asked about.
     public static func toneEnergy(_ samples: [Float], frequency: Double) -> Double {
         AudioFixtures.toneEnergy(samples, frequency: frequency, sampleRate: rate)
@@ -239,21 +239,21 @@ public enum MicrophoneCleaningFixtures {
 
     // MARK: - the two-track meeting every measurement is taken on
 
-    /// A call on speakers. The far end talks throughout except for a pause
+    /// A call on speakers. The other people on the call talk throughout except for a pause
     /// in the middle, the user talks over seconds 10 to 18, and a third of
-    /// the far end is back in the microphone 3 ms later.
+    /// the call audio is back in the microphone 3 ms later.
     ///
     /// Every stretch below is on the microphone's clock, which is the clock
     /// the cleaned track is measured on. Seconds 12 to 16 hold the user
-    /// alone: the far end pauses there, which is what lets a measurement say
+    /// alone: the other people on the call pause there, which is what lets a measurement say
     /// whether the user survived. Seconds 10 to 12 and 16 to 18 hold both.
-    /// Seconds 20 to 30 hold the far end alone, which is where its removal is
+    /// Seconds 20 to 30 hold the call audio alone, which is where its removal is
     /// measured.
     ///
-    /// - Parameter echoDelaySeconds: how long after the far end's own clock
+    /// - Parameter echoDelaySeconds: how long after the remote track's own clock
     ///   its copy lands in the microphone. Positive is the room. Negative is
     ///   what a tap whose timestamps run late produces: the manifest then says
-    ///   the far end arrived after the microphone heard it, which no causal
+    ///   the call audio arrived after the microphone heard it, which no causal
     ///   filter can model. Measured at -2.4 ms on a call of 11 September 2026.
     public static func makeCallOnSpeakers(
         root: URL, seconds: Double = 30, remoteStartOffset: Double = 2,
@@ -264,7 +264,7 @@ public enum MicrophoneCleaningFixtures {
         let shift = Int(remoteStartOffset * rate) + Int((echoDelaySeconds * rate).rounded())
         // The pause is placed by where it lands in the microphone, so the
         // user-alone stretch sits at 12 to 16 s of the recording whatever the
-        // far end's own clock says.
+        // remote track's own clock says.
         let pause = max(0, Int(12 * rate) - shift)..<max(0, min(count, Int(16 * rate) - shift))
         for index in pause { remote[index] = 0 }
         var mic = [Float](repeating: 0, count: count)
@@ -279,13 +279,13 @@ public enum MicrophoneCleaningFixtures {
         )
     }
 
-    /// A call whose far end talks in sentences, so the pair can be moved.
+    /// A call where the other people talk in sentences, so the pair can be moved.
     ///
     /// Speech turns on and off, and that is the structure alignment is
-    /// measured against. The far end talks throughout, and the user answers
+    /// measured against. The other people on the call talk throughout, and the user answers
     /// once, over seconds 14 to 20, at half the synthesiser's level. That is
-    /// the shape of the recordings the alignment bars were set on: the far
-    /// end carries the call, and the loudness envelope of the microphone
+    /// the shape of the recordings the alignment bars were set on: the call
+    /// audio carries the call, and the loudness envelope of the microphone
     /// follows it. A user who talks over a third of the call 10 dB above
     /// the echo drives the two envelopes' agreement down to 0.26 at the
     /// true offset, under the 0.40 the alignment needs to act on it.
@@ -295,7 +295,7 @@ public enum MicrophoneCleaningFixtures {
     ///   with nothing written for it, so every later sample of that track sits
     ///   that much earlier than the manifest says. Zero is a healthy recording.
     /// - Parameter micHoldsEcho: false for a call taken on headphones, where
-    ///   the far end never reaches the capsule.
+    ///   the call audio never reaches the capsule.
     public static func makeSpokenCall(
         root: URL, seconds: Double = 40, remoteStartOffset: Double = 2,
         micLostSeconds: Double = 0, micHoldsEcho: Bool = true
@@ -303,7 +303,7 @@ public enum MicrophoneCleaningFixtures {
         let count = Int(seconds * rate)
         let remote = talking(voice: farVoice, texts: farText, count: count)
         var mic = [Float](repeating: 0, count: count)
-        // The user, talking across the far end for six seconds.
+        // The user, talking across the call audio for six seconds.
         let user = talking(voice: userVoice, texts: userText, count: Int(6 * rate))
         let from = Int(14 * rate)
         for index in 0..<user.count where from + index < count { mic[from + index] = 0.5 * user[index] }
@@ -322,12 +322,12 @@ public enum MicrophoneCleaningFixtures {
     /// A call that dropped and was rejoined, recorded as two runs under one
     /// manifest.
     ///
-    /// Each run is a `makeSpokenCall`: the far end carries it, and the user
-    /// answers once. The manifest puts the far end `remoteStartOffset` after
+    /// Each run is a `makeSpokenCall`: the call audio carries it, and the user
+    /// answers once. The manifest puts the call audio `remoteStartOffset` after
     /// the microphone in both. The second run's microphone dropped
     /// `secondRunMicLostSeconds` of audio with nothing written for it, which
     /// is how a stalled input at a rejoin leaves it, so in that run the echo
-    /// sits that much earlier than the manifest says and the far end is
+    /// sits that much earlier than the manifest says and the call audio is
     /// somewhere else against the microphone than it was in the first.
     public static func makeRejoinedCall(
         root: URL, runSeconds: Double = 40, remoteStartOffset: Double = 2,

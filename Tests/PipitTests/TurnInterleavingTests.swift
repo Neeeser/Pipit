@@ -32,7 +32,7 @@ private func chunk(track: CaptureTrack, segments: [RawTranscriptSegment]) -> Raw
     )
 }
 
-/// The far end's lines carry a diarizer label so they render as a speaker.
+/// The remote track's lines carry a diarizer label so they render as a speaker.
 private func remoteChunk(_ segments: [RawTranscriptSegment]) -> RawTranscriptChunk {
     var labelled = chunk(track: .remote, segments: segments)
     labelled.segments = segments.map {
@@ -59,7 +59,7 @@ private func assemble(mic: [RawTranscriptSegment], remote: [RawTranscriptSegment
 struct TurnInterleavingTests {
     @Test("a reply spoken inside a long line divides it so the transcript reads in order")
     func aReplySpokenInsideALongLineDividesIt() async throws {
-        // Twelve seconds of the local user; the far end answers at 4 s.
+        // Twelve seconds of the local user; the other people on the call answer at 4 s.
         let mic = segment(
             ["shall", "we", "wait", "for", "them", "okay", "then", "let", "me", "start", "with", "context"],
             from: 0)
@@ -131,8 +131,8 @@ struct TurnInterleavingTests {
             "got \(order)")
     }
 
-    @Test("the local user's reply divides a long far-end line the same way")
-    func theLocalUsersReplyDividesALongFarEndLine() async throws {
+    @Test("the local user's reply divides a long remote line the same way")
+    func theLocalUsersReplyDividesALongRemoteLine() async throws {
         let remote = segment(["one", "two", "three", "four", "five", "six", "seven", "eight"], from: 0)
         let mic = segment(["sure"], from: 3.5)
         let lines = assemble(mic: [mic], remote: [remote])

@@ -11,7 +11,7 @@ import PipitCore
 /// the loop would be a second copy of the offset arithmetic, and that
 /// arithmetic has already been wrong once. Subtracting the two lead-ins the
 /// other way round moves the pair by twice the offset and puts the echo in the
-/// microphone ahead of the far end that caused it. No filter can model that,
+/// microphone ahead of the call audio that caused it. No filter can model that,
 /// and no outcome value reports it.
 public struct EchoCancellationPass {
     /// The rate both tracks are read at, which is the rate every model above
@@ -27,7 +27,7 @@ public struct EchoCancellationPass {
     /// canceller said it had removed by the end of it.
     ///
     /// The four travel together because none of them reads on its own.
-    /// `farEndDBFS` decides whether the window is one the canceller can be
+    /// `remoteDBFS` decides whether the window is one the canceller can be
     /// judged on, `echoRemovedDB` is what it reported removing over that
     /// window, and the two microphone levels are what the window actually held
     /// before and after subtraction.
@@ -39,16 +39,16 @@ public struct EchoCancellationPass {
     /// what says the filter never locked on, and that is the reason to throw
     /// its output away.
     public struct Window: Sendable, Equatable {
-        public let farEndDBFS: Double
+        public let remoteDBFS: Double
         public let echoRemovedDB: Double
         public let microphoneBeforeDBFS: Double
         public let microphoneAfterDBFS: Double
 
         public init(
-            farEndDBFS: Double, echoRemovedDB: Double, microphoneBeforeDBFS: Double,
+            remoteDBFS: Double, echoRemovedDB: Double, microphoneBeforeDBFS: Double,
             microphoneAfterDBFS: Double
         ) {
-            self.farEndDBFS = farEndDBFS
+            self.remoteDBFS = remoteDBFS
             self.echoRemovedDB = echoRemovedDB
             self.microphoneBeforeDBFS = microphoneBeforeDBFS
             self.microphoneAfterDBFS = microphoneAfterDBFS
@@ -60,7 +60,7 @@ public struct EchoCancellationPass {
         var windows: [Window]
     }
 
-    /// Seconds the far end is handed to the canceller early, on top of
+    /// Seconds the call audio is handed to the canceller early, on top of
     /// wherever the pair was lined up.
     ///
     /// A canceller models an echo that arrives after its reference. The
@@ -68,14 +68,14 @@ public struct EchoCancellationPass {
     /// run a few milliseconds behind the microphone's, so an exact alignment
     /// can land the echo just ahead of the reference. On the Zoom call of 11
     /// September 2026 the pair sat 2.4 ms the wrong way and the canceller
-    /// then shipped took 10.6 dB off the far end where the same pass with
-    /// the far end 10 ms earlier took 29.8 dB. The canceller now shipped
+    /// then shipped took 10.6 dB off the call audio where the same pass with
+    /// the call audio 10 ms earlier took 29.8 dB. The canceller now shipped
     /// finds the lag itself across the next second, so on speech the lead
     /// costs nothing.
     ///
     /// Applied inside `run`, so every caller lines the pair up and reports
     /// where it lined them up, and the lead is the pass's own business. The
-    /// windows are still measured against the far end where it was lined up.
+    /// windows are still measured against the call audio where it was lined up.
     static let referenceLeadSeconds = 0.01
 
     /// Runs the canceller over the pair and hands each cleaned block to `sink`.
@@ -87,10 +87,10 @@ public struct EchoCancellationPass {
     /// wants the levels passes a sink that does nothing, and nothing is
     /// written anywhere.
     ///
-    /// - Parameter referenceOffset: seconds the far end has to move to line up
+    /// - Parameter referenceOffset: seconds the call audio has to move to line up
     ///   with the microphone, held for the whole recording. A caller passing
     ///   anything but what the recording says is deliberately measuring a
-    ///   misalignment. The far end is then handed to the canceller
+    ///   misalignment. The call audio is then handed to the canceller
     ///   `referenceLeadSeconds` earlier than that.
     /// - Parameter canceller: the canceller to run. The shipped one by default.
     static func run(
@@ -108,9 +108,9 @@ public struct EchoCancellationPass {
         )
     }
 
-    /// The same pass with the far end placed once per run.
+    /// The same pass with the call audio placed once per run.
     ///
-    /// - Parameter placements: where the far end sits against the microphone
+    /// - Parameter placements: where the call audio sits against the microphone
     ///   from each point on, in the microphone's order. `placements(of:)` is
     ///   what a real run uses.
     static func run(
@@ -156,7 +156,7 @@ public struct EchoCancellationPass {
         // The window grid counts samples, not blocks, so a canceller whose
         // block does not divide a quarter second still measures on the same
         // grid the speech evidence is sampled on.
-        var farEndSquares = 0.0
+        var remoteSquares = 0.0
         var micBeforeSquares = 0.0
         var micAfterSquares = 0.0
         var samplesInWindow = 0
@@ -176,27 +176,27 @@ public struct EchoCancellationPass {
                     before[before.startIndex + range.lowerBound..<before.startIndex + range.upperBound])
                 micAfterSquares += squares(
                     after[after.startIndex + range.lowerBound..<after.startIndex + range.upperBound])
-                farEndSquares += squares(
+                remoteSquares += squares(
                     played[played.startIndex + range.lowerBound..<played.startIndex + range.upperBound])
                 samplesInWindow += take
                 index += take
                 if samplesInWindow == windowFrames {
                     result.windows.append(
                         Window(
-                            farEndDBFS: decibels(squares: farEndSquares, count: samplesInWindow),
+                            remoteDBFS: decibels(squares: remoteSquares, count: samplesInWindow),
                             echoRemovedDB: reportedRemoval,
                             microphoneBeforeDBFS: decibels(squares: micBeforeSquares, count: samplesInWindow),
                             microphoneAfterDBFS: decibels(squares: micAfterSquares, count: samplesInWindow)
                         ))
                     samplesInWindow = 0
-                    farEndSquares = 0
+                    remoteSquares = 0
                     micBeforeSquares = 0
                     micAfterSquares = 0
                 }
             }
         }
 
-        // The recording and the far end as lined up, kept back as far as
+        // The recording and the call audio as lined up, kept back as far as
         // the canceller's delay reaches, so a cleaned sample is compared with
         // the recorded sample for the same moment. With a delay longer than
         // a block those sit in an earlier block than the one just cleaned.
@@ -232,7 +232,7 @@ public struct EchoCancellationPass {
                 samples += [Float](repeating: 0, count: block - recorded)
             }
             var played = try referenceReader.next(count: block)
-            // The far end's tap can stop before the microphone does, and what
+            // The remote track's tap can stop before the microphone does, and what
             // it did not record is silence.
             if played.count < block {
                 played += [Float](repeating: 0, count: block - played.count)
@@ -274,10 +274,10 @@ public struct EchoCancellationPass {
 
     // MARK: - alignment
 
-    /// Where the far end actually sits against the microphone, and whether that
+    /// Where the call audio actually sits against the microphone, and whether that
     /// is worth believing.
     public struct Alignment: Sendable, Equatable {
-        /// Seconds the far end has to move for the envelopes to line up, in the
+        /// Seconds the call audio has to move for the envelopes to line up, in the
         /// sense `run` takes it. Always where the peak is, so `correlation`
         /// describes this offset whether or not it was acted on. A caller reads
         /// `isUsable` to decide, and uses the timeline's own offset otherwise.
@@ -307,7 +307,7 @@ public struct EchoCancellationPass {
     /// a syllable, and a twenty-fifth of the smallest shift acted on, so the
     /// quantisation is never what decides.
     static let alignmentWindowSeconds = 0.01
-    /// How far either way the far end is looked for. The longest real slip
+    /// How far either way the call audio is looked for. The longest real slip
     /// measured on the recordings on disk is 5.35 s.
     static let alignmentSearchSeconds = 8.0
     /// How well the envelopes have to agree before the peak is a measurement
@@ -322,7 +322,7 @@ public struct EchoCancellationPass {
     /// refusing to move it costs nothing.
     static let minimumAlignmentCorrelation = 0.40
     /// And by how much it has to beat the offset already in hand, so a peak
-    /// that is no better than where the manifest put the far end is not acted
+    /// that is no better than where the manifest put the call audio is not acted
     /// on.
     ///
     /// The three recordings that need moving gain 0.531, 0.618 and 0.604 over
@@ -337,16 +337,16 @@ public struct EchoCancellationPass {
     /// whole track to chase it would be arithmetic dressed as precision.
     static let minimumAlignmentShiftSeconds = 0.25
 
-    /// Measures the far end against the microphone and says where it sits.
+    /// Measures the call audio against the microphone and says where it sits.
     ///
     /// The manifest says when each track's first frame arrived, and until 10
     /// September 2026 that was taken as the whole answer. It is not: a source
     /// that stalls mid-recording leaves a hole, and a hole nothing was written
     /// for moves every later second of that track earlier without changing the
     /// first frame at all. On the standup of that morning the microphone ran
-    /// 2.45 s ahead of the far end for 31 of its 32 minutes while the manifest
+    /// 2.45 s ahead of the call audio for 31 of its 32 minutes while the manifest
     /// reported the two tracks starting 1.3 ms apart. The canceller was handed
-    /// the manifest's answer, never locked on, and took 6.5 dB off the far end
+    /// the manifest's answer, never locked on, and took 6.5 dB off the call audio
     /// where the same pass at the measured offset takes 15.3 dB.
     ///
     /// `SegmentWriter` no longer loses that hole, so this is not the fix for
@@ -355,21 +355,21 @@ public struct EchoCancellationPass {
     /// shape from being silent.
     ///
     /// The comparison is between loudness envelopes rather than samples. The
-    /// echo is the far end played out of a speaker and heard again across a
+    /// echo is the call audio played out of a speaker and heard again across a
     /// room, so it arrives filtered, quieter and reverberant, and its waveform
     /// no longer resembles what was played. Its loudness over time still does.
     ///
     /// - Parameter start: first second of the microphone to measure, for a
     ///   recording measured one run at a time. `timelineOffset` is still the
-    ///   far end's offset on the microphone's whole clock, and what comes back
+    ///   remote track's offset on the microphone's whole clock, and what comes back
     ///   is in the same terms.
     /// - Parameter length: seconds to measure from `start`, or to the end of
     ///   the recording when nil.
-    /// - Parameter farEnd: the part of the far end's track that belongs to the
+    /// - Parameter remoteSpan: the part of the remote track that belongs to the
     ///   stretch measured. Nothing outside it is compared.
     static func measureAlignment(
         microphone: TrackAudioLocation, reference: TrackAudioLocation, timelineOffset: Double,
-        from start: Double = 0, length: Double? = nil, farEnd: ClosedRange<Double> = 0...Double.infinity
+        from start: Double = 0, length: Double? = nil, remoteSpan: ClosedRange<Double> = 0...Double.infinity
     ) throws -> Alignment {
         // Nothing to compare, so the timeline's own offset is the only answer
         // and it is reported as measured at zero agreement.
@@ -377,15 +377,15 @@ public struct EchoCancellationPass {
         // Both read on the timeline the pass itself will use, so what comes back
         // is what still has to be corrected rather than a second absolute
         // answer that has to be reconciled with the first. A run that starts
-        // part way in reads each track from its own start, which moves the far
-        // end's offset by the same amount.
+        // part way in reads each track from its own start, which moves the remote
+        // track's offset by the same amount.
         guard
             let microphoneReader = TimelineTrackReader(
                 location: microphone, format: readFormat, offsetSeconds: -start
             ),
             let referenceReader = RunReferenceReader(
                 location: reference, format: readFormat, micStartSeconds: start,
-                offsetSeconds: timelineOffset, leadSeconds: 0, farEnd: farEnd
+                offsetSeconds: timelineOffset, leadSeconds: 0, remoteSpan: remoteSpan
             )
         else { return unusable }
         let limit = length.map { Int(($0 / alignmentWindowSeconds).rounded()) }
@@ -411,10 +411,10 @@ public struct EchoCancellationPass {
             }
         }
         let atTimeline = dot(a, b, lag: 0) / scale
-        // `dot` slides the far end forward by `lag`, so the lag that lines the
-        // two up is already the direction and the distance the far end has to
+        // `dot` slides the call audio forward by `lag`, so the lag that lines the
+        // two up is already the direction and the distance the call audio has to
         // move. A microphone that lost audio holds the room early, which puts
-        // the peak at a negative lag and moves the far end back to meet it.
+        // the peak at a negative lag and moves the call audio back to meet it.
         let shift = Double(bestLag) * alignmentWindowSeconds
         let usable =
             best >= minimumAlignmentCorrelation
@@ -465,7 +465,7 @@ public struct EchoCancellationPass {
         return total
     }
 
-    /// Whether the far end's track holds any audio at all.
+    /// Whether the remote track holds any audio at all.
     ///
     /// A track that never clears the floor in any window is one the tap opened
     /// on and recorded nothing through. An early exit rather than a rule of its
@@ -501,18 +501,18 @@ public struct EchoCancellationPass {
         public let outcome: CleaningOutcome
         public let reason: String
         /// Median of the canceller's own reported enhancement over the
-        /// far-end-active windows. Informational: it reads near zero on real
+        /// remote-active windows. Informational: it reads near zero on real
         /// recordings the pass demonstrably cleaned, so nothing is decided
         /// on it.
         public let reportedMedianDB: Double
         /// Median of what the microphone's level actually did over the
-        /// far-end-active windows, before minus after, in decibels. On a call
+        /// remote-active windows, before minus after, in decibels. On a call
         /// on headphones there is nothing to remove and this reads near zero;
         /// on a call on speakers it is what the pass took out.
         public let measuredMedianDB: Double
         public let activeWindows: Int
         public let microphoneFloorDBFS: Double
-        /// Windows the decision judged harm on: the far end quiet and out of
+        /// Windows the decision judged harm on: the call audio quiet and out of
         /// its echo tail, and the microphone holding speech. The only class in
         /// which a level drop is a loss.
         public let userWindows: Int
@@ -524,15 +524,15 @@ public struct EchoCancellationPass {
         public let userHarmShare: Double?
     }
 
-    /// Windows of far-end activity the decision needs before it is made at all.
+    /// Windows of remote activity the decision needs before it is made at all.
     ///
     /// Ten seconds. The canceller reports nothing for its first 2.5 s of
-    /// far-end activity, and counting in far-end-active windows rather than in
-    /// seconds of file is what makes the bound hold for a meeting whose far end
+    /// remote activity, and counting in remote-active windows rather than in
+    /// seconds of file is what makes the bound hold for a meeting whose call audio
     /// stayed quiet for the first minute.
     public static let minimumActiveWindows = 40
-    /// A window whose far-end level clears this had the far end playing in it.
-    public static let farEndActiveDBFS = -60.0
+    /// A window whose remote level clears this had the call audio playing in it.
+    public static let remoteActiveDBFS = -60.0
     /// Windows of the user alone the harm figures need before they mean
     /// anything. Five seconds.
     public static let minimumUserWindows = 20
@@ -554,18 +554,18 @@ public struct EchoCancellationPass {
     public static let harmMedianLimitDB = 2.0
     public static let notableLossDB = 10.0
     public static let harmShareLimit = 0.10
-    /// Seconds after the far end last played during which a window is not
+    /// Seconds after the call audio last played during which a window is not
     /// counted as the user's own, whatever the microphone holds.
     ///
-    /// The far end's echo outlasts it: the speaker's sound keeps arriving
+    /// The remote track's echo outlasts it: the speaker's sound keeps arriving
     /// through the room's reverberation after the tap has gone quiet, and the
     /// canceller is right to remove it. Counted as the user's own, that
     /// removal reads as harm. Over 46 calls on speakers, 10 were bypassed
     /// this way, and in one of them 61 of the 92 windows that lost more than
-    /// 10 dB came within 0.5 s of a far-end window. With this tail and the
+    /// 10 dB came within 0.5 s of a remote window. With this tail and the
     /// speech requirement in `judge`, all 10 pass with a median loss of 0.0
     /// to 0.5 dB, and the transcripts of their cleaned tracks leak 0.19
-    /// far-end words a minute.
+    /// remote words a minute.
     public static let echoTailSeconds = 1.0
     /// `echoTailSeconds` in measurement windows.
     public static let echoTailWindows = Int((echoTailSeconds / windowSeconds).rounded(.up))
@@ -574,13 +574,13 @@ public struct EchoCancellationPass {
     ///
     /// The canceller's own enhancement figure used to decide this, against a
     /// 6 dB threshold set from tones. On real recordings it read 0.2 to 1.8 dB
-    /// on calls the pass had cleaned by 4 to 18 dB in the windows where the far
-    /// end played over the user, so the rule refused the meetings it would
+    /// on calls the pass had cleaned by 4 to 18 dB in the windows where the call
+    /// audio played over the user, so the rule refused the meetings it would
     /// have helped. What the bypass exists to prevent is damage to the user's
     /// own speech, and that is measured directly: over the windows where the
     /// user was speaking alone, the level must not have dropped.
     ///
-    /// Those are the windows where the far end was quiet and had been for
+    /// Those are the windows where the call audio was quiet and had been for
     /// `echoTailSeconds`, and where the raw microphone held speech. Quiet room
     /// noise is left out because the speech network stage suppresses it by
     /// design, and a loss of it takes nothing from the transcript.
@@ -593,7 +593,7 @@ public struct EchoCancellationPass {
     public static func judge(
         windows: [Window], microphoneSpeech: MicrophoneSpeech? = nil
     ) -> Judgement {
-        let active = windows.filter { $0.farEndDBFS > farEndActiveDBFS }
+        let active = windows.filter { $0.remoteDBFS > remoteActiveDBFS }
         let reported = median(of: active.map(\.echoRemovedDB))
         let measured = median(of: active.map { $0.microphoneBeforeDBFS - $0.microphoneAfterDBFS })
         let quiet = percentile(windows.map(\.microphoneBeforeDBFS), 0.05)
@@ -617,7 +617,7 @@ public struct EchoCancellationPass {
         guard active.count >= minimumActiveWindows else {
             return judgement(
                 .skippedNoReference,
-                "the far end was above \(fixed(farEndActiveDBFS)) dBFS in \(active.count) "
+                "the call audio was above \(fixed(remoteActiveDBFS)) dBFS in \(active.count) "
                     + "windows, and the decision needs \(minimumActiveWindows)"
             )
         }
@@ -636,25 +636,25 @@ public struct EchoCancellationPass {
             ?? "held too few windows to judge"
         return judgement(
             .cleaned,
-            "the user's own windows \(held) over \(user.count) windows, and the far end "
+            "the user's own windows \(held) over \(user.count) windows, and the call audio "
                 + "played in \(active.count)"
         )
     }
 
-    /// The windows a level drop counts against: the far end quiet in them and
+    /// The windows a level drop counts against: the call audio quiet in them and
     /// in the `echoTailSeconds` before, the microphone above its floor, and
     /// the raw microphone holding speech where a series says so.
     private static func userWindows(
         _ windows: [Window], floor: Double, microphoneSpeech: MicrophoneSpeech?
     ) -> [Window] {
         var user: [Window] = []
-        // Consecutive quiet far-end windows just before this one, capped at
+        // Consecutive quiet remote windows just before this one, capped at
         // the tail's length. A pass starts with the tail already clear.
         var quietRun = echoTailWindows
         for (index, window) in windows.enumerated() {
-            let farEndQuiet = window.farEndDBFS <= farEndActiveDBFS
-            defer { quietRun = farEndQuiet ? min(quietRun + 1, echoTailWindows) : 0 }
-            guard farEndQuiet, quietRun >= echoTailWindows, window.microphoneBeforeDBFS > floor
+            let remoteQuiet = window.remoteDBFS <= remoteActiveDBFS
+            defer { quietRun = remoteQuiet ? min(quietRun + 1, echoTailWindows) : 0 }
+            guard remoteQuiet, quietRun >= echoTailWindows, window.microphoneBeforeDBFS > floor
             else { continue }
             if let microphoneSpeech {
                 // Judged at the window's middle, because the detector's grid
@@ -669,11 +669,11 @@ public struct EchoCancellationPass {
 
     /// The level the microphone clears to count as holding something: this
     /// recording's own quietest twentieth plus `microphoneActivationMarginDB`,
-    /// and never below the far end's floor, because nothing under it is speech
+    /// and never below the remote track's floor, because nothing under it is speech
     /// either way.
     public static func microphoneFloorDBFS(quietWindowDBFS: Double?) -> Double {
-        guard let quietWindowDBFS else { return farEndActiveDBFS }
-        return max(farEndActiveDBFS, quietWindowDBFS + microphoneActivationMarginDB)
+        guard let quietWindowDBFS else { return remoteActiveDBFS }
+        return max(remoteActiveDBFS, quietWindowDBFS + microphoneActivationMarginDB)
     }
 
     /// The value at a fraction of the way up the sorted series, by nearest

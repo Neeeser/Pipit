@@ -32,12 +32,12 @@ struct DiarizerWithoutVectorsTests {
     private static let localVoice = 41
 
     private struct Result {
-        var farEndNames: Set<String>
-        var farEndKeys: [String]
+        var remoteNames: Set<String>
+        var remoteKeys: [String]
         var map: SpeakerMap
     }
 
-    /// Processes a one-minute call whose far end the diarizer splits into two
+    /// Processes a one-minute call whose remote track the diarizer splits into two
     /// slots, the first a saved person and the second nobody known.
     private static func process(priorMap: ((Identity) -> SpeakerMap)? = nil) async throws -> Result {
         let root = try TestPaths.makeTemporaryDirectory()
@@ -113,16 +113,16 @@ struct DiarizerWithoutVectorsTests {
         let keys = try meeting.store.readTranscriptSpeakers()
             .map(\.key).filter { $0 != SpeakerLabel.localUser }
         return Result(
-            farEndNames: Set(keys.compactMap { map.entries[$0]?.displayName }),
-            farEndKeys: keys, map: map
+            remoteNames: Set(keys.compactMap { map.entries[$0]?.displayName }),
+            remoteKeys: keys, map: map
         )
     }
 
     @Test("a diarizer with no vectors still names a speaker from a saved profile")
     func aDiarizerWithNoVectorsStillNamesASpeaker() async throws {
         let result = try await Self.process()
-        #expect(result.farEndKeys.contains { $0.hasSuffix("nemotron3_0") })
-        #expect(result.farEndNames == ["Dara K"])
+        #expect(result.remoteKeys.contains { $0.hasSuffix("nemotron3_0") })
+        #expect(result.remoteNames == ["Dara K"])
     }
 
     @Test("names of clusters a different diarizer no longer has are removed, a person's are kept")
@@ -138,7 +138,7 @@ struct DiarizerWithoutVectorsTests {
                     displayName: "Typed Name", origin: .human),
             ])
         }
-        #expect(result.farEndNames == ["Dara K"])
+        #expect(result.remoteNames == ["Dara K"])
         #expect(result.map.entries["remote-001_speaker_00"] == nil)
         #expect(result.map.entries["remote-001_speaker_01"] == nil, "carried by the new key")
         #expect(result.map.entries["remote-001_speaker_02"]?.displayName == "Typed Name")

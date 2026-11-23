@@ -58,7 +58,7 @@ def main() -> int:
     def add(name, array):
         order.append((name, np.ascontiguousarray(array, dtype=np.float32)))
 
-    # Part 1. Two layer norms on 257 bins (mic then far end), two LSTMs, one dense.
+    # Part 1. Two layer norms on 257 bins (mic then call audio), two LSTMs, one dense.
     ln1 = sorted([(k, v) for k, v in p1.items() if v.shape == (bins,) and "instant_layer_normalization" in k])
     # Keras numbers the mic norm first; each norm has gamma (lower id) then beta.
     (mic_gamma_k, mic_gamma), (mic_beta_k, mic_beta), (lpb_gamma_k, lpb_gamma), (lpb_beta_k, lpb_beta) = ln1
@@ -89,7 +89,7 @@ def main() -> int:
     add("p1.dense.kernel", pick(p1, "const_fold", (u, bins)))
     add("p1.dense.bias", pick(p1, "dense", (bins,)))
 
-    # Part 2. Shared encoder, two layer norms on 512 features (estimate then far end), two LSTMs, dense, decoder.
+    # Part 2. Shared encoder, two layer norms on 512 features (estimate then call audio), two LSTMs, dense, decoder.
     model2 = onnx.load(str(args.models / f"model_{u}_2.onnx"))
     convs = [n for n in model2.graph.node if n.op_type == "Conv"]
     encoder_name = convs[0].input[1]

@@ -9,13 +9,13 @@ import Testing
 /// the meetings it must refuse to touch.
 ///
 /// The problem it solves, measured on a Slack huddle of 3 September 2026: 81%
-/// of the words on the microphone were the far end's, arriving through the air
+/// of the words on the microphone were the remote track's, arriving through the air
 /// from the speakers. Every earlier attempt worked on the transcript, guessing
 /// which words to delete, and deleted the local user's 3957 words instead.
 ///
 /// Every fixture here is speech. The canceller that ships is a network trained
 /// on speech, and it takes a steady tone for something to remove, so a tone
-/// would measure the wrong thing on both sides: the far end would come down
+/// would measure the wrong thing on both sides: the call audio would come down
 /// with no echo path at all, and the user would be taken out with it.
 @Suite("MicrophoneCleaner", .tags(.slow))
 struct MicrophoneCleanerTests {
@@ -49,13 +49,13 @@ struct MicrophoneCleanerTests {
     }
 
     /// The tap's timestamps can run a few milliseconds behind the microphone's,
-    /// so the manifest lines the far end up just after its own echo. On the
+    /// so the manifest lines the call audio up just after its own echo. On the
     /// Zoom call of 11 September 2026 the pair sat 2.4 ms the wrong way and the
-    /// canceller then shipped took 10 dB off the far end where the same pass
-    /// 30 ms either side took 30. The far end is handed over with a lead, and
+    /// canceller then shipped took 10 dB off the call audio where the same pass
+    /// 30 ms either side took 30. The call audio is handed over with a lead, and
     /// the canceller finds the lag itself.
-    @Test("a far end that arrives ahead of the tap's clock still comes out")
-    func aFarEndThatArrivesAheadOfTheTapsClockStillComesOut() async throws {
+    @Test("call audio that arrives ahead of the tap's clock still comes out")
+    func aRemoteTrackThatArrivesAheadOfTheTapsClockStillComesOut() async throws {
         // Both delays through the same fixture: the causal one says the
         // fixture can be cleaned at all, the other is the fault.
         for delay in [0.003, -0.0024] {
@@ -73,9 +73,9 @@ struct MicrophoneCleanerTests {
             #expect(outcome == CleaningOutcome.cleaned, "delay \(delay)")
             let (raw, clean) = try Self.rawAndClean(store: store, timeline: timeline)
 
-            // The last ten seconds hold the far end alone.
+            // The last ten seconds hold the call audio alone.
             let removed = MicrophoneCleaningFixtures.dropDB(before: raw, after: clean, from: 20, to: 30)
-            #expect(removed > 15, "at \(delay * 1000) ms the far end came down only \(removed) dB")
+            #expect(removed > 15, "at \(delay * 1000) ms the call audio came down only \(removed) dB")
 
             // And 12 to 16 s hold the user alone.
             let lost = MicrophoneCleaningFixtures.dropDB(before: raw, after: clean, from: 12, to: 16)
@@ -83,8 +83,8 @@ struct MicrophoneCleanerTests {
         }
     }
 
-    @Test("the cleaned microphone loses the far end and keeps the user")
-    func theCleanedMicrophoneLosesTheFarEndAndKeepsTheUser() async throws {
+    @Test("the cleaned microphone loses the call audio and keeps the user")
+    func theCleanedMicrophoneLosesTheCallAudioAndKeepsTheUser() async throws {
         let root = try TestPaths.makeTemporaryDirectory()
         defer { try? FileManager.default.removeItem(at: root) }
         let meeting = try MicrophoneCleaningFixtures.makeCallOnSpeakers(root: root)
@@ -114,30 +114,30 @@ struct MicrophoneCleanerTests {
         let (raw, clean) = try Self.rawAndClean(store: store, timeline: timeline)
         #expect(clean.count == raw.count, "the cleaned track runs as long as the recording")
 
-        // The far end, over the last ten seconds, where the user has stopped
+        // The call audio, over the last ten seconds, where the user has stopped
         // and the microphone holds only the echo. Measured at 46.4 dB.
         let removed = MicrophoneCleaningFixtures.dropDB(before: raw, after: clean, from: 20, to: 30)
-        #expect(removed > 20, "the far end came down only \(removed) dB")
+        #expect(removed > 20, "the call audio came down only \(removed) dB")
 
-        // The user alone, over 12 to 16 s, where the far end pauses. This
+        // The user alone, over 12 to 16 s, where the other people on the call pause. This
         // is the number every earlier attempt got wrong. Measured at 0.03 dB.
         let lost = MicrophoneCleaningFixtures.dropDB(before: raw, after: clean, from: 12, to: 16)
         #expect(abs(lost) < 1.5, "the user's own voice moved \(lost) dB")
 
-        // And the user talking across the far end, over 10 to 12 s and 16 to
+        // And the user talking across the call audio, over 10 to 12 s and 16 to
         // 18 s. The echo carries a sixteenth of the energy there, so taking
         // all of it out moves the stretch by 0.3 dB, and anything past that
         // came out of the user. Measured at 0.24 and 0.27 dB.
         for (from, to) in [(10.0, 12.0), (16.0, 18.0)] {
             let both = MicrophoneCleaningFixtures.dropDB(before: raw, after: clean, from: from, to: to)
-            #expect(both < 2, "over \(from) to \(to) s the user talking across the far end lost \(both) dB")
+            #expect(both < 2, "over \(from) to \(to) s the user talking across the call audio lost \(both) dB")
         }
 
         // And it sits on the same clock the recording does. An encoder that
         // put its own priming frames at the front would move every
         // timestamp in the transcript by that much. The user starts at 10 s,
         // and the level they hold over their first tenth of a second is what
-        // their onset is found against: the far end's echo in the windows
+        // their onset is found against: the remote track's echo in the windows
         // before it sits at a third of that at its loudest.
         let steady = MicrophoneCleaningFixtures.energy(
             MicrophoneCleaningFixtures.seconds(10, 10.1, of: raw))
@@ -158,8 +158,8 @@ struct MicrophoneCleanerTests {
         // The manifest says when each track's first frame arrived, and a source
         // that stalls after that leaves a hole without changing it. On the
         // standup of 10 September 2026 the microphone ran 2.45 s ahead of the
-        // far end for 31 minutes while the manifest reported the two tracks
-        // starting 1.3 ms apart, and the canceller took 6.5 dB off the far end
+        // call audio for 31 minutes while the manifest reported the two tracks
+        // starting 1.3 ms apart, and the canceller took 6.5 dB off the call audio
         // where the same pass at the measured offset takes 15.3 dB.
         let root = try TestPaths.makeTemporaryDirectory()
         defer { try? FileManager.default.removeItem(at: root) }
@@ -175,22 +175,22 @@ struct MicrophoneCleanerTests {
         )
         #expect(outcome == CleaningOutcome.cleaned)
 
-        // The last twelve seconds hold the far end alone: the user stops at
+        // The last twelve seconds hold the call audio alone: the user stops at
         // 20 s. Measured at 56.2 dB.
         let (raw, clean) = try Self.rawAndClean(store: store, timeline: timeline)
         let removed = MicrophoneCleaningFixtures.dropDB(before: raw, after: clean, from: 28, to: 40)
-        #expect(removed > 20, "the far end came down only \(removed) dB")
+        #expect(removed > 20, "the call audio came down only \(removed) dB")
     }
 
     @Test("each run of a rejoined call is lined up on its own and cleaned")
     func eachRunOfARejoinedCallIsLinedUpOnItsOwnAndCleaned() async throws {
         // A call that dropped and was rejoined is two runs under one manifest.
         // On a 59 minute call of 5 October 2026 the second run's microphone
-        // came back 3.2 s short, so the far end sat +1.76 s from the
+        // came back 3.2 s short, so the call audio sat +1.76 s from the
         // microphone in the first run and -1.46 s in the second. One
         // alignment was measured for the whole meeting and used for both, and
         // everything after the rejoin went through uncancelled: 76% of all the
-        // far-end words found in the microphone across 36 cleaned meetings.
+        // remote words found in the microphone across 36 cleaned meetings.
         let root = try TestPaths.makeTemporaryDirectory()
         defer { try? FileManager.default.removeItem(at: root) }
         let meeting = try MicrophoneCleaningFixtures.makeRejoinedCall(root: root)
@@ -208,12 +208,12 @@ struct MicrophoneCleanerTests {
         #expect(clean.count == raw.count, "the cleaned track runs as long as the recording")
 
         // The user stops at 20 s of each run, so the last twelve seconds of
-        // each hold the far end alone. The second run starts at 40 s.
+        // each hold the call audio alone. The second run starts at 40 s.
         for (name, from) in [("first", 28.0), ("second", 68.0)] {
             let removed = MicrophoneCleaningFixtures.dropDB(
                 before: raw, after: clean, from: from, to: from + 12
             )
-            #expect(removed > 20, "the far end came down only \(removed) dB in the \(name) run")
+            #expect(removed > 20, "the call audio came down only \(removed) dB in the \(name) run")
         }
         // And the user, answering once in each run, is not what came out.
         for (name, from) in [("first", 15.0), ("second", 55.0)] {
@@ -224,8 +224,8 @@ struct MicrophoneCleanerTests {
         }
     }
 
-    @Test("a rejoined call reports where the far end sat in each run")
-    func aRejoinedCallReportsWhereTheFarEndSatInEachRun() async throws {
+    @Test("a rejoined call reports where the call audio sat in each run")
+    func aRejoinedCallReportsWhereTheRemoteTrackSatInEachRun() async throws {
         let root = try TestPaths.makeTemporaryDirectory()
         defer { try? FileManager.default.removeItem(at: root) }
         let meeting = try MicrophoneCleaningFixtures.makeRejoinedCall(root: root)
@@ -241,7 +241,7 @@ struct MicrophoneCleanerTests {
         let first = try #require(report.runs.first)
         let second = try #require(report.runs.last)
         #expect(abs(second.startSeconds - 40) <= 0.01, "the second run starts after 40 s of the first")
-        // The manifest puts the far end 2 s after the microphone in both runs.
+        // The manifest puts the call audio 2 s after the microphone in both runs.
         #expect(abs(first.timelineOffsetSeconds - 2) <= 0.01)
         #expect(abs(second.timelineOffsetSeconds - 2) <= 0.01)
         // The recording puts it 3.2 s earlier in the second.
@@ -256,11 +256,11 @@ struct MicrophoneCleanerTests {
         )
     }
 
-    @Test("a run's far end does not begin with the end of the run before it")
-    func aRunsFarEndDoesNotBeginWithTheEndOfTheRunBeforeIt() async throws {
+    @Test("a run's call audio does not begin with the end of the run before it")
+    func aRunsRemoteTrackDoesNotBeginWithTheEndOfTheRunBeforeIt() async throws {
         // Both tracks are one concatenated stretch of audio, and the second
-        // run's far end begins 2 s after its microphone. Read straight off the
-        // concatenation, those 2 s are the last 2 s of the first run's far end,
+        // run's call audio begins 2 s after its microphone. Read straight off the
+        // concatenation, those 2 s are the last 2 s of the first run's call audio,
         // which stopped playing a minute before.
         let root = try TestPaths.makeTemporaryDirectory()
         defer { try? FileManager.default.removeItem(at: root) }
@@ -276,19 +276,19 @@ struct MicrophoneCleanerTests {
             return
         }
         #expect(report.runs.count == 2)
-        // The run starts at 40 s. Its far end starts at 42 s.
+        // The run starts at 40 s. Its call audio starts at 42 s.
         let before = report.windowLog.filter { $0.startSeconds >= 40 && $0.startSeconds < 41.75 }
         #expect(before.count == 7)
         #expect(
-            before.allSatisfy { $0.farEndDBFS <= EchoMeasurement.farEndFloorDBFS },
-            "the far end played before the run's far end had begun"
+            before.allSatisfy { $0.remoteDBFS <= EchoMeasurement.remoteFloorDBFS },
+            "the call audio played before the run's call audio had begun"
         )
         let after = report.windowLog.filter { $0.startSeconds >= 42 && $0.startSeconds < 50 }
-        #expect(after.contains { $0.farEndDBFS > EchoMeasurement.farEndFloorDBFS })
+        #expect(after.contains { $0.remoteDBFS > EchoMeasurement.remoteFloorDBFS })
     }
 
-    @Test("the far end is found where the recording holds it, not where the manifest says")
-    func theFarEndIsFoundWhereTheRecordingHoldsItNotWhereTheManifestSays() async throws {
+    @Test("the call audio is found where the recording holds it, not where the manifest says")
+    func theRemoteTrackIsFoundWhereTheRecordingHoldsItNotWhereTheManifestSays() async throws {
         let root = try TestPaths.makeTemporaryDirectory()
         defer { try? FileManager.default.removeItem(at: root) }
         let meeting = try MicrophoneCleaningFixtures.makeSpokenCall(
@@ -307,7 +307,7 @@ struct MicrophoneCleanerTests {
         #expect(
             abs((report.measuredOffsetSeconds - fromTimeline) - (-2.45)) <= 0.02,
             """
-            expected the far end moved -2.45 ± 0.02 s, \
+            expected the call audio moved -2.45 ± 0.02 s, \
             got \(report.measuredOffsetSeconds - fromTimeline)
             """
         )
@@ -404,7 +404,7 @@ struct MicrophoneCleanerTests {
             raw.segments.first?.file.hasSuffix(".caf") == true,
             "the recording is still where it was"
         )
-        // Only the microphone is cleaned. The far end is untouched either
+        // Only the microphone is cleaned. The call audio is untouched either
         // way.
         let remote = store.trackAudioLocation(
             track: .remote, metadata: metadata, timeline: timeline
@@ -437,8 +437,8 @@ struct MicrophoneCleanerTests {
         let (raw, firstClean) = try Self.rawAndClean(store: store, timeline: timeline)
 
         // The second run reads the recording again. A run that took the
-        // first run's output as its input would find a microphone the far
-        // end has already been taken out of, and would work on the residue
+        // first run's output as its input would find a microphone the call
+        // audio has already been taken out of, and would work on the residue
         // the first run left rather than on the echo.
         #expect(
             try cleaner.clean(store: store, metadata: &carried, timeline: timeline) == CleaningOutcome.cleaned
@@ -449,7 +449,7 @@ struct MicrophoneCleanerTests {
         #expect(secondClean.count == firstClean.count)
 
         // Same input, same pass, same output. Over the last ten seconds the
-        // recording holds the far end alone, and what the first run left of
+        // recording holds the call audio alone, and what the first run left of
         // it is what a second run over that residue would work on. The two
         // runs' outputs differ there by far less than that residue.
         // Measured 45 dB under it.
@@ -460,14 +460,14 @@ struct MicrophoneCleanerTests {
         let apart = MicrophoneCleaningFixtures.dropDB(from: residue, to: difference)
         #expect(apart > 20, "the second run's output sits only \(apart) dB under the first's residue")
         let removed = MicrophoneCleaningFixtures.dropDB(before: raw, after: secondClean, from: 20, to: 30)
-        #expect(removed > 20, "the second run took only \(removed) dB off the far end")
+        #expect(removed > 20, "the second run took only \(removed) dB off the call audio")
     }
 
     @Test("a run that decides against cleaning clears what an earlier run left")
     func aRunThatDecidesAgainstCleaningClearsWhatAnEarlierRunLeft() async throws {
         let root = try TestPaths.makeTemporaryDirectory()
         defer { try? FileManager.default.removeItem(at: root) }
-        // A meeting that was cleaned once, whose far end now reads as
+        // A meeting that was cleaned once, whose call audio now reads as
         // nothing. The record and the file from the first run both have
         // to go, or every reader stays on a cleaned track this run decided
         // against.
@@ -488,7 +488,7 @@ struct MicrophoneCleanerTests {
                     file: "mic.cleaned.m4a", sampleRate: MicrophoneCleaningFixtures.rate, channelCount: 1,
                     frameCount: Int64(count), seconds: 15, firstFrameHostTime: 100
                 ),
-                echoRemovedMedianDB: 40, farEndActiveWindows: 60,
+                echoRemovedMedianDB: 40, remoteActiveWindows: 60,
                 producedAt: Date(timeIntervalSince1970: 1_787_070_000)
             )
         }
@@ -509,28 +509,28 @@ struct MicrophoneCleanerTests {
             ).directory.lastPathComponent == "segments")
     }
 
-    @Test("a far end that started before the microphone is lined up too")
-    func aFarEndThatStartedBeforeTheMicrophoneIsLinedUpToo() async throws {
+    @Test("call audio that started before the microphone is lined up too")
+    func aRemoteTrackThatStartedBeforeTheMicrophoneIsLinedUpToo() async throws {
         // The one caller that can hand `TimelineTrackReader` a negative
-        // offset. The far end's track opens first whenever the meeting
+        // offset. The remote track opens first whenever the meeting
         // application was already making noise as capture began, and the
         // reference is then read forward to meet the microphone rather than
         // padded to it. Subtracting the two lead-ins the other way round
         // pads the reference instead of skipping into it. That moves the
         // pair by four seconds and puts the echo in the microphone ahead of
-        // the far end that caused it. No filter can model that. A wrong sign
+        // the call audio that caused it. No filter can model that. A wrong sign
         // is not self-announcing, and no outcome value separates it from a
         // good run. That is why the check at the end of this test reads the
-        // far-end energy left in the cleaned track rather than the outcome.
+        // remote energy left in the cleaned track rather than the outcome.
         let root = try TestPaths.makeTemporaryDirectory()
         defer { try? FileManager.default.removeItem(at: root) }
         let count = Int(30 * MicrophoneCleaningFixtures.rate)
         let offset = -2.0
 
-        // Built here rather than from `makeCallOnSpeakers`, because the far
-        // end has to start first. It talks in sentences with pauses between
-        // them, which a four-second shift moves: a far end that never
-        // stopped would be the same far end after any shift, and the sign
+        // Built here rather than from `makeCallOnSpeakers`, because the call
+        // audio has to start first. It talks in sentences with pauses between
+        // them, which a four-second shift moves: call audio that never
+        // stopped would be the same call audio after any shift, and the sign
         // of the offset would not show.
         let remote = MicrophoneCleaningFixtures.talking(
             voice: MicrophoneCleaningFixtures.farVoice, texts: MicrophoneCleaningFixtures.farText,
@@ -543,10 +543,10 @@ struct MicrophoneCleanerTests {
             count: count / 3
         )
         for index in 0..<user.count { mic[count / 3 + index] = user[index] }
-        // The far end's first frame landed two seconds before the
-        // microphone's, so far-end sample j was in the room at microphone
+        // The remote track's first frame landed two seconds before the
+        // microphone's, so remote sample j was in the room at microphone
         // sample j - 2 s + 3 ms, and the last two seconds of the microphone
-        // are past the end of the far end's track.
+        // are past the end of the remote track.
         let shift = Int(offset * MicrophoneCleaningFixtures.rate) + MicrophoneCleaningFixtures.echoDelaySamples
         for index in max(0, shift)..<min(count, count + shift) {
             mic[index] += MicrophoneCleaningFixtures.echoGain * remote[index - shift]
@@ -571,12 +571,12 @@ struct MicrophoneCleanerTests {
         )
         #expect(outcome == CleaningOutcome.cleaned)
 
-        // The far end alone, from where the user stops at 20 s up to 27 s,
-        // past which the far end's track has run out and the microphone
+        // The call audio alone, from where the user stops at 20 s up to 27 s,
+        // past which the remote track has run out and the microphone
         // carries no echo to remove. Measured at 40.1 dB.
         let (raw, clean) = try Self.rawAndClean(store: store, timeline: timeline)
         let removed = MicrophoneCleaningFixtures.dropDB(before: raw, after: clean, from: 20, to: 27)
-        #expect(removed > 20, "the far end came down only \(removed) dB")
+        #expect(removed > 20, "the call audio came down only \(removed) dB")
     }
 
     @Test("a microphone read that came up short is refused")
@@ -656,7 +656,7 @@ struct MicrophoneCleanerTests {
                     file: "mic.cleaned.m4a", sampleRate: MicrophoneCleaningFixtures.rate, channelCount: 1,
                     frameCount: Int64(count), seconds: 30, firstFrameHostTime: 100
                 ),
-                echoRemovedMedianDB: 40, farEndActiveWindows: 100,
+                echoRemovedMedianDB: 40, remoteActiveWindows: 100,
                 producedAt: Date(timeIntervalSince1970: 1_787_070_000)
             )
         }
@@ -692,8 +692,8 @@ struct MicrophoneCleanerTests {
             ).directory.lastPathComponent == "segments")
     }
 
-    @Test("a meeting whose far end never played is left alone")
-    func aMeetingWhoseFarEndNeverPlayedIsLeftAlone() async throws {
+    @Test("a meeting whose call audio never played is left alone")
+    func aMeetingWhoseCallAudioNeverPlayedIsLeftAlone() async throws {
         let root = try TestPaths.makeTemporaryDirectory()
         defer { try? FileManager.default.removeItem(at: root) }
         let count = Int(15 * MicrophoneCleaningFixtures.rate)
@@ -709,7 +709,7 @@ struct MicrophoneCleanerTests {
         #expect(
             !(store.rawTrackAudioLocation(
                 track: .remote, metadata: meeting.metadata, timeline: timeline
-            ).isEmpty), "the far end was recorded, it just holds nothing")
+            ).isEmpty), "the call audio was recorded, it just holds nothing")
 
         var carried = meeting.metadata
         let outcome = try MicrophoneCleaner().clean(
@@ -723,8 +723,8 @@ struct MicrophoneCleanerTests {
         #expect(try store.readMetadata().cleanedMic == nil)
     }
 
-    @Test("a recording holding everyone on one track has no far end to subtract")
-    func aRecordingHoldingEveryoneOnOneTrackHasNoFarEndToSubtract() async throws {
+    @Test("a recording holding everyone on one track has no call audio to subtract")
+    func aRecordingHoldingEveryoneOnOneTrackHasNoCallAudioToSubtract() async throws {
         let root = try TestPaths.makeTemporaryDirectory()
         defer { try? FileManager.default.removeItem(at: root) }
         let count = Int(2 * MicrophoneCleaningFixtures.rate)

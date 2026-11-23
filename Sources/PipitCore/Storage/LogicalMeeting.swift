@@ -121,7 +121,7 @@ public struct CombinedLineBlock: Sendable, Equatable, Identifiable {
     /// recording and on the same track. Names are only comparable within one
     /// recording: the two halves of a dropped call can both show "Speaker 1"
     /// and mean different people. Track matters for the same reason, since the
-    /// microphone and the far end are diarized separately.
+    /// microphone and the call audio are diarized separately.
     public static func blocks(from lines: [CombinedLine]) -> [CombinedLineBlock] {
         var out: [CombinedLineBlock] = []
         for line in lines {

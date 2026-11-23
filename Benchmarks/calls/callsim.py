@@ -84,7 +84,7 @@ ECHO_TOLERANCE = 0.003
 MAX_CLIPPED_SHARE = 1e-4
 
 ENVELOPE_WINDOW = 160  # 10 ms at 16 kHz, the window Pipit measures with
-SEARCH_SECONDS = 8.0  # how far either way Pipit looks for the far end
+SEARCH_SECONDS = 8.0  # how far either way Pipit looks for the call audio
 
 
 def seeded(seed: int, *parts: object) -> np.random.Generator:
@@ -267,7 +267,7 @@ def echo_correlation(microphone: np.ndarray, reference: np.ndarray) -> tuple[flo
     Mirrors what Pipit stores as `cleanedMic.echoCorrelationBefore`: Pearson
     agreement of the 10 ms envelopes, searched eight seconds either way, with
     both curves centred and divided by their whole-recording magnitudes.
-    Returns (correlation, seconds the far end has to move).
+    Returns (correlation, seconds the call audio has to move).
     """
     near, far = envelope(microphone), envelope(reference)
     count = min(len(near), len(far))
@@ -428,9 +428,9 @@ def render_variant(prepared: Prepared, name: str, target: float | None) -> Varia
     return Variant(name, microphone, gain, target, correlation, lag, reached, ratio)
 
 
-# --- how the far-end track is recorded -------------------------------------
+# --- how the remote track is recorded -------------------------------------
 
-# Pipit captures the far end at 48 kHz in buffers of this many frames. A loss
+# Pipit captures the call audio at 48 kHz in buffers of this many frames. A loss
 # on a real call removes whole buffers, and the capture writes no silence for
 # one shorter than its 50 ms padding floor, so the rest of the track moves
 # earlier by what was lost.
@@ -439,13 +439,13 @@ CAPTURE_BUFFER_FRAMES = 512
 
 
 @dataclass
-class FarEndRecording:
+class RemoteRecording:
     """How the system-audio file differs from what the speakers played.
 
-    `start_seconds` is how long after the microphone the far-end track's first
+    `start_seconds` is how long after the microphone the remote track's first
     frame arrives; the bench imports that file at that start time, as the app
     places a track by its first frame's host time. `dropouts` are (second on
-    the played timeline, samples lost) pairs, left unpadded, so the far end
+    the played timeline, samples lost) pairs, left unpadded, so the call audio
     slides earlier against the microphone at each one.
     """
 
@@ -453,10 +453,10 @@ class FarEndRecording:
     dropouts: list[tuple[float, int]] = field(default_factory=list)
 
 
-def late_far_end(prepared: Prepared, start_seconds: float) -> Prepared:
-    """The meeting when the far end begins `start_seconds` after the microphone.
+def late_remote(prepared: Prepared, start_seconds: float) -> Prepared:
+    """The meeting when the call audio begins `start_seconds` after the microphone.
 
-    A far-end track opens on the first audio the call app plays, so nothing
+    A remote track opens on the first audio the call app plays, so nothing
     came out of the speakers before it and the microphone holds no echo there.
     """
     if start_seconds <= 0:
@@ -467,7 +467,7 @@ def late_far_end(prepared: Prepared, start_seconds: float) -> Prepared:
 
 
 def plan_dropouts(seed: int, meeting: str, seconds: float, spec: dict) -> list[tuple[float, int]]:
-    """Losses of whole capture buffers until the far end has lost the spec's rate.
+    """Losses of whole capture buffers until the call audio has lost the spec's rate.
 
     `spec` carries `millisecondsPerMinute`, and `buffers` with `weights`: how
     many buffers one loss removes and how often each count occurs. Each loss
@@ -484,8 +484,8 @@ def plan_dropouts(seed: int, meeting: str, seconds: float, spec: dict) -> list[t
     return [(round(float(at), 4), size) for at, size in zip(times, sizes)]
 
 
-def record_far_end(played: np.ndarray, recording: FarEndRecording) -> np.ndarray:
-    """The far-end file the capture would have written of `played`."""
+def record_remote(played: np.ndarray, recording: RemoteRecording) -> np.ndarray:
+    """The remote file the capture would have written of `played`."""
     keep = np.ones(len(played), dtype=bool)
     keep[: int(round(recording.start_seconds * RATE))] = False
     for at, samples in recording.dropouts:
@@ -541,7 +541,7 @@ def simulate_sensors(seed: int, meeting: str, truth: dict, local_speaker: str, s
 
     A reference turn is audible to the reader from its start to its end, so the
     reader's lag comes from the poll and the hold, not from a chosen delay. A
-    far-end turn is invisible to the reader with probability `dropoutShare`, as
+    remote turn is invisible to the reader with probability `dropoutShare`, as
     when the tile is off screen. The record has no mute state and nobody marked
     as the local user, which is what Meet records look like; Pipit finds the
     local user from the microphone.
@@ -618,22 +618,22 @@ def write_case(
     seed: int,
     truth: dict,
     sensors: dict | None = None,
-    far_end: FarEndRecording | None = None,
+    remote_recording: RemoteRecording | None = None,
 ) -> dict:
     """Writes `mic.wav`, `remote.wav` and `case.json`, and returns the description.
 
     `sensors` is a simulated reader's record, written beside the audio as
-    `sensors.raw.json`, with its checksum in `case.json`. `far_end` makes the
-    far-end file start late or lose audio; the microphone stays as rendered.
+    `sensors.raw.json`, with its checksum in `case.json`. `remote_recording` makes the
+    remote file start late or lose audio; the microphone stays as rendered.
     """
     directory.mkdir(parents=True, exist_ok=True)
     mic_hash = write_pcm16(directory / "mic.wav", variant.microphone)
-    remote = prepared.remote if far_end is None else record_far_end(prepared.remote, far_end)
+    remote = prepared.remote if remote_recording is None else record_remote(prepared.remote, remote_recording)
     remote_hash = write_pcm16(directory / "remote.wav", remote)
     # The benchmark reads the 16-bit files, so the figure recorded is the one
     # those samples give, not the one the float search settled on.
     stored_mic, stored_remote = read_pcm16(directory / "mic.wav"), read_pcm16(directory / "remote.wav")
-    if far_end is None:
+    if remote_recording is None:
         correlation, lag = echo_correlation(stored_mic, stored_remote)
     else:
         # The microphone's echo came from what the speakers played, so the
@@ -641,7 +641,7 @@ def write_case(
         played = np.round(np.clip(prepared.remote, -1.0, 1.0) * FULL_SCALE_INT16)
         correlation, lag = echo_correlation(stored_mic, played)
         # What Pipit's measure reads once the file sits at its start time.
-        lead = np.zeros(int(round(far_end.start_seconds * RATE)))
+        lead = np.zeros(int(round(remote_recording.start_seconds * RATE)))
         recorded, recorded_lag = echo_correlation(stored_mic, np.concatenate([lead, stored_remote]))
     clipped = {"mic": clipped_samples(stored_mic), "remote": clipped_samples(stored_remote)}
     reached = variant.target_correlation is None or abs(correlation - variant.target_correlation) <= ECHO_TOLERANCE
@@ -682,12 +682,14 @@ def write_case(
             "rt60Seconds": round(prepared.path.rt60_seconds, 3),
         },
     }
-    if far_end is not None:
-        lost = len(prepared.remote) - int(round(far_end.start_seconds * RATE)) - len(remote)
+    if remote_recording is not None:
+        lost = len(prepared.remote) - int(round(remote_recording.start_seconds * RATE)) - len(remote)
+        # The key predates the rename to "remote" and is kept because the bench
+        # reads it from cases already generated into the cache.
         info["farEnd"] = {
-            "startSeconds": far_end.start_seconds,
+            "startSeconds": remote_recording.start_seconds,
             "lostSeconds": round(lost / RATE, 4),
-            "dropouts": [{"atSeconds": at, "lostSeconds": round(samples / RATE, 5)} for at, samples in far_end.dropouts],
+            "dropouts": [{"atSeconds": at, "lostSeconds": round(samples / RATE, 5)} for at, samples in remote_recording.dropouts],
             "correlationAsRecorded": round(recorded, 4),
             "correlationLagAsRecordedSeconds": round(recorded_lag, 3),
         }

@@ -725,7 +725,7 @@ public enum CaptureWarning: Sendable, Equatable {
     case permissionRevoked(track: CaptureTrack)
     /// Recording started without the Screen & System Audio Recording grant.
     /// The process tap then returns no error and delivers digital zero at
-    /// full rate, so the far end is lost for the whole meeting while every
+    /// full rate, so the call audio is lost for the whole meeting while every
     /// other reading says the tap is healthy.
     case systemAudioPermissionMissing
     /// Recording was asked for without the Microphone grant. The input engine

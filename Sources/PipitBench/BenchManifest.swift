@@ -56,18 +56,18 @@ public struct BenchManifest: Codable, Sendable, Equatable {
             /// Present when the variant models a call whose meeting client was
             /// readable. Its numbers parameterise the generator, not the bench.
             public var sensors: Sensors?
-            /// Seconds after the microphone the far-end track begins. The
+            /// Seconds after the microphone the remote track begins. The
             /// generator writes it into the case, and the bench imports the
-            /// far end at that start time.
-            public var farEndStartSeconds: Double?
-            /// Present when the far-end track loses short runs of audio and
+            /// call audio at that start time.
+            public var remoteStartSeconds: Double?
+            /// Present when the remote track loses short runs of audio and
             /// slides earlier against the microphone. Parameterises the
             /// generator only; the pipeline is not told.
-            public var farEndDropouts: Dropouts?
+            public var remoteDropouts: Dropouts?
         }
 
         public struct Dropouts: Codable, Sendable, Equatable {
-            /// Far-end audio lost per minute of the window, in milliseconds.
+            /// Call audio lost per minute of the window, in milliseconds.
             public var millisecondsPerMinute: Double
             /// How many capture buffers one loss removes, and how often each
             /// count is drawn.

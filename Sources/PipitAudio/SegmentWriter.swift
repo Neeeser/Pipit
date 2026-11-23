@@ -162,7 +162,7 @@ public final class SegmentWriter: Sendable {
     /// already thrown the expectation away, so nothing was written for the hole.
     /// The two tracks then ran 2.45 s apart for the remaining 31 minutes: the
     /// echo canceller was handed a reference that far out of step and took
-    /// 6.5 dB off the far end where the same pass at the measured offset takes
+    /// 6.5 dB off the call audio where the same pass at the measured offset takes
     /// 15.3 dB, so the call played out of the speakers stayed in the microphone
     /// and 68% of what the user was transcribed as saying was somebody else's
     /// words.
@@ -311,8 +311,8 @@ public final class SegmentWriter: Sendable {
     /// frames are gone and cannot be recovered. What can be kept is their
     /// duration: every reader above treats a track as one contiguous run, so a
     /// hole that leaves no trace makes everything after it sit early. On the
-    /// 3 September recording that put the microphone 0.74 s ahead of the far
-    /// end for the whole meeting, and every time measured against it was wrong
+    /// 3 September recording that put the microphone 0.74 s ahead of the call
+    /// audio for the whole meeting, and every time measured against it was wrong
     /// by that much.
     ///
     /// Written here rather than compensated for when read, because this is the

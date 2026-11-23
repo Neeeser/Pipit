@@ -1491,7 +1491,7 @@ struct RemoteTapCoordinatorTests {
     @Test("a manual recording taps a call hosted outside Firefox and Slack")
     func aManualRecordingTapsACallHostedOutsideFirefoxAndSlack() async throws {
         // A manual recording of a call in Safari kept binding Firefox and
-        // Slack only, so the far-end track was digital silence for the whole
+        // Slack only, so the remote track was digital silence for the whole
         // call. Safari's audio is in the WebKit GPU process.
         let tap = FakeProcessTap()
         let clock = ManualClock()
@@ -1550,7 +1550,7 @@ struct RemoteTapCoordinatorTests {
 
     @Test("a wake noted while the tap is idle does not rebind the next session")
     func aWakeNotedWhileTheTapIsIdleDoesNotRebindTheNextSession() async throws {
-        // The same stale wake, on the far end: the manifest showed a `wake`
+        // The same stale wake, on the call audio: the manifest showed a `wake`
         // rebind of the tap 0.7 s after session start, hours after the Mac
         // last woke.
         let tap = FakeProcessTap()
@@ -1716,7 +1716,7 @@ struct RemoteTapCoordinatorTests {
         // Declaring healthy from the buffer fought the poll's
         // idleButBound and logged pairs of transitions milliseconds
         // apart: one recording on disk carries dozens of them, and the
-        // noise is what hid that its far end was digital zero.
+        // noise is what hid that its call audio was digital zero.
         let tap = FakeProcessTap()
         let clock = ManualClock()
         let delegate = RecordingCaptureDelegate()
@@ -1740,7 +1740,7 @@ struct RemoteTapCoordinatorTests {
     @Test("a tap delivering silence under a producing target is rebound once")
     func aTapDeliveringSilenceUnderAProducingTargetIsReboundOnce() async throws {
         // Three recordings on this machine hold 2 to 41 minutes of
-        // exactly-zero far-end audio while the manifest shows the bound
+        // exactly-zero call audio while the manifest shows the bound
         // Slack helper reporting output the whole time and health
         // healthy. Arrival was the only thing anything read.
         let tap = FakeProcessTap()
@@ -1978,7 +1978,7 @@ struct RemoteTapCoordinatorTests {
         // A candidate arms the tap minutes before anything commits, and a
         // browser reports output for as long as any page holds an audio
         // stream open. Zeros counted through that wait would warn on the
-        // first poll of the meeting, before its far end has said a word.
+        // first poll of the meeting, before its call audio has said a word.
         let tap = FakeProcessTap()
         let clock = ManualClock()
         let delegate = RecordingCaptureDelegate()

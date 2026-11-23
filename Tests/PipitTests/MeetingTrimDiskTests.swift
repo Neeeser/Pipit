@@ -20,8 +20,8 @@ struct MeetingTrimDiskTests {
 
     // MARK: two tracks
 
-    @Test("a far end that started late keeps its offset, and the manifest matches the archives")
-    func aLateFarEndKeepsItsOffset() throws {
+    @Test("call audio that started late keeps its offset, and the manifest matches the archives")
+    func aLateRemoteTrackKeepsItsOffset() throws {
         let root = try TestPaths.makeTemporaryDirectory()
         defer { try? FileManager.default.removeItem(at: root) }
         let store = try TrimFixtures.makeCompacted(root: root, remoteStartOffset: 5)
@@ -39,7 +39,7 @@ struct MeetingTrimDiskTests {
         #expect(abs(try #require(archive.mic?.seconds) - 10) < 0.1)
         #expect(
             abs(try #require(archive.remote?.seconds) - 7) < 0.1,
-            "the far end began at 5 s, so 7 s of it fall in 2 to 12")
+            "the call audio began at 5 s, so 7 s of it fall in 2 to 12")
         #expect(abs(metadata.durationSeconds - 10) < 0.1)
         #expect(metadata.descriptionText == nil, "the description is written again from what is left")
         #expect(metadata.titles.ai == nil, "a generated title does not outlive the speech it came from")
@@ -51,7 +51,7 @@ struct MeetingTrimDiskTests {
         #expect(abs(timeline.duration(track: .remote) - 7) < 0.1, "got \(timeline.duration(track: .remote))")
         #expect(
             abs(timeline.leadIn(track: .remote) - 3) < 0.01,
-            "the far end still starts 3 s in, got \(timeline.leadIn(track: .remote))")
+            "the call audio still starts 3 s in, got \(timeline.leadIn(track: .remote))")
         #expect(timeline.leadIn(track: .mic) == 0)
     }
 
@@ -59,7 +59,7 @@ struct MeetingTrimDiskTests {
     func keepingToTheEndKeepsEachTrackToItsOwnEnd() throws {
         let root = try TestPaths.makeTemporaryDirectory()
         defer { try? FileManager.default.removeItem(at: root) }
-        // The far end starts 5 s late, so the meeting runs to 25 s on its
+        // The call audio starts 5 s late, so the meeting runs to 25 s on its
         // timeline while its recorded length is 20 s.
         let store = try TrimFixtures.makeCompacted(root: root, remoteStartOffset: 5)
 
@@ -69,7 +69,7 @@ struct MeetingTrimDiskTests {
         let archive = try #require(try store.readMetadata().audioArchive)
         #expect(
             abs(try #require(archive.remote?.seconds) - 20) < 0.1,
-            "all of the far end, got \(archive.remote?.seconds ?? 0)")
+            "all of the call audio, got \(archive.remote?.seconds ?? 0)")
         #expect(abs(try #require(archive.mic?.seconds) - 18) < 0.1)
     }
 
@@ -85,7 +85,7 @@ struct MeetingTrimDiskTests {
         try Self.trimmer().trim(store: store, to: range, at: Self.at)
 
         let after = try AudioFileInspector().inspect(url: store.layout.recordingAudio)
-        #expect(after.sampleRate == 48_000, "the far end is not brought down to the archive's rate")
+        #expect(after.sampleRate == 48_000, "the call audio is not brought down to the archive's rate")
         #expect(abs(try TrimFixtures.seconds(of: store.layout.recordingAudio) - 10) < 0.2)
     }
 
@@ -151,7 +151,7 @@ struct MeetingTrimDiskTests {
     func afterAGapTheTracksStayAligned() throws {
         let root = try TestPaths.makeTemporaryDirectory()
         defer { try? FileManager.default.removeItem(at: root) }
-        let store = try TrimFixtures.makeWithGapAndCrashTail(root: root, withFarEnd: true)
+        let store = try TrimFixtures.makeWithGapAndCrashTail(root: root, withRemoteTrack: true)
         let before = try store.readTimeline()
         #expect(before.leadIn(track: .mic) == 0 && before.leadIn(track: .remote) == 0)
 
@@ -161,7 +161,7 @@ struct MeetingTrimDiskTests {
         let timeline = try store.readTimeline()
         #expect(
             abs(timeline.leadIn(track: .mic) - timeline.leadIn(track: .remote)) < 0.01,
-            "mic starts \(timeline.leadIn(track: .mic)) s in and the far end \(timeline.leadIn(track: .remote)) s")
+            "mic starts \(timeline.leadIn(track: .mic)) s in and the call audio \(timeline.leadIn(track: .remote)) s")
         let archive = try #require(try store.readMetadata().audioArchive)
         let micStart = try #require(archive.mic?.firstFrameHostTime)
         let remoteStart = try #require(archive.remote?.firstFrameHostTime)
@@ -194,7 +194,7 @@ struct MeetingTrimDiskTests {
         let layout = store.layout
 
         // Words at 3 s (removed), 10 s (kept) and 17 s (removed), all on the
-        // far end.
+        // call audio.
         let chunk = RawTranscriptChunk(
             id: "remote_full", track: .remote, timelineOffset: 0, durationSeconds: 20, model: "test",
             responseFormat: "local_words",
@@ -524,11 +524,11 @@ struct MeetingTrimDiskTests {
         #expect(metadata.startedAt == TrimFixtures.started.addingTimeInterval(2), "moved once, not twice")
     }
 
-    @Test("a late far end and a gap together keep the tracks as far apart as they were")
-    func aLateFarEndAndAGap() throws {
+    @Test("a late call audio and a gap together keep the tracks as far apart as they were")
+    func aLateRemoteAndAGap() throws {
         let root = try TestPaths.makeTemporaryDirectory()
         defer { try? FileManager.default.removeItem(at: root) }
-        let store = try TrimFixtures.makeWithGapAndCrashTail(root: root, withFarEnd: true, farEndOffset: 3)
+        let store = try TrimFixtures.makeWithGapAndCrashTail(root: root, withRemoteTrack: true, remoteOffset: 3)
         #expect(abs(try store.readTimeline().leadIn(track: .remote) - 3) < 0.01)
 
         try Self.trimmer().trim(
@@ -548,7 +548,7 @@ struct MeetingTrimDiskTests {
     func whenTheEarliestTrackIsCutAway() throws {
         let root = try TestPaths.makeTemporaryDirectory()
         defer { try? FileManager.default.removeItem(at: root) }
-        // The microphone is 6 s from the start and the far end runs from 10 s
+        // The microphone is 6 s from the start and the call audio runs from 10 s
         // to 30 s.
         let store = try TrimFixtures.makeCompacted(root: root, micSeconds: 6, remoteSeconds: 20, remoteStartOffset: 10)
         let chunk = RawTranscriptChunk(

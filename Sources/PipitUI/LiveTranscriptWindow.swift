@@ -331,9 +331,9 @@ struct LiveTranscriptView: View {
 
     private static let bottom = "live-bottom"
 
-    /// Consecutive lines from one speaker, shown under one name. Far-end lines
+    /// Consecutive lines from one speaker, shown under one name. Remote lines
     /// no speaker pass has labelled yet stay apart: they may be different
-    /// people, and merging them turned the whole far end into one paragraph.
+    /// people, and merging them turned the whole call audio into one paragraph.
     private var groups: [[LiveTranscriptLine]] {
         var out: [[LiveTranscriptLine]] = []
         for line in model.transcript.lines {

@@ -4,7 +4,7 @@
         python Benchmarks/engines/score.py
 
 Inputs (`inputs.json`, built by `make_inputs.py`) are single tracks: a call's
-far-end track, a call's local microphone without echo, and an in-person room
+remote track, a call's local microphone without echo, and an in-person room
 microphone. Each engine's output is `out/<engine>.json`, a map from input id to
 segments with start, end and text. Word error is one stream per track in time
 order (no speaker labels), with the audit's normaliser, so number and acronym

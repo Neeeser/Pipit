@@ -155,7 +155,7 @@ enum LiveSessionCommand {
                     worst lag        %.1f s behind the audio fed
                     dropped buffers  %d
                     lines            %d (%d you, %d others)
-                    speakers         %d labelled on the far end, %d speaker passes
+                    speakers         %d labelled on the call audio, %d speaker passes
                     """,
                 seconds, fedFor, total, seconds / max(total, 0.001), worstLag, dropped,
                 speech.count, speech.filter { $0.kind == .speech(.mic) }.count,

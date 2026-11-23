@@ -305,7 +305,7 @@ struct VoiceEvidenceTests {
             ),
             keepingClaimant: false
         )
-        #expect(displaced.isEmpty, "the far end speaking over you is not you being corrected")
+        #expect(displaced.isEmpty, "the other people on the call speaking over you is not you being corrected")
         #expect(try await Self.samples(store, me.id) == 1)
     }
 

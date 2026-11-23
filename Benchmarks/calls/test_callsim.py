@@ -265,7 +265,7 @@ class SensorTests(unittest.TestCase):
                 offset = (edge - phase) % 0.5
                 self.assertTrue(min(offset, 0.5 - offset) < 2e-3)
 
-    def test_dropouts_remove_only_far_end_turns(self):
+    def test_dropouts_remove_only_remote_track_turns(self):
         full = self.record()
         lossy = self.record(spec=dict(self.SPEC, dropoutShare=0.5))
         local_id = next(p["id"] for p in lossy["participants"] if p["isSelf"])
@@ -294,7 +294,7 @@ class CodecTests(unittest.TestCase):
         self.assertLess(abs(lag), 0.011, "the codec moved the audio")
 
 
-class FarEndRecordingTests(unittest.TestCase):
+class RemoteRecordingTests(unittest.TestCase):
     SPEC = {"millisecondsPerMinute": 13.0, "buffers": [1, 2, 3, 4], "weights": [33, 18, 21, 54]}
 
     def test_dropouts_are_whole_capture_buffers_and_add_up_to_the_rate(self):
@@ -314,33 +314,33 @@ class FarEndRecordingTests(unittest.TestCase):
         self.assertEqual(one, callsim.plan_dropouts(5, "SYN", 360.0, self.SPEC))
         self.assertNotEqual(one, callsim.plan_dropouts(5, "OTHER", 360.0, self.SPEC))
 
-    def test_a_late_far_end_plays_nothing_before_it_starts(self):
+    def test_a_late_remote_track_plays_nothing_before_it_starts(self):
         remote = np.ones(RATE * 4, dtype=np.float32) * 0.1
         prepared = callsim.Prepared(
             meeting="SYN", local_agent="A", local_speaker="S", remote=remote,
             local_voice=np.zeros_like(remote), noise=np.zeros_like(remote), echo_unit=remote.copy(),
             path=callsim.make_echo_path(np.random.default_rng(1)), levels={},
         )
-        heard = callsim.late_far_end(prepared, 1.5)
+        heard = callsim.late_remote(prepared, 1.5)
         cut = int(1.5 * RATE)
         self.assertFalse(np.any(heard.remote[:cut]))
         self.assertTrue(np.array_equal(heard.remote[cut:], remote[cut:]))
-        # The echo starts once the far end does, after the playback delay. The
+        # The echo starts once the call audio does, after the playback delay. The
         # convolution leaves round-off far below a 16-bit step before it.
         self.assertLess(float(np.max(np.abs(heard.echo_unit[:cut]))), 1e-6)
         self.assertTrue(np.any(heard.echo_unit[cut + int(prepared.path.delay_seconds * RATE) + 10 :]))
-        self.assertIs(callsim.late_far_end(prepared, 0.0), prepared)
+        self.assertIs(callsim.late_remote(prepared, 0.0), prepared)
 
-    def test_a_late_start_drops_the_first_seconds_of_the_far_end(self):
+    def test_a_late_start_drops_the_first_seconds_of_the_remote_track(self):
         played = np.arange(RATE * 4, dtype=np.float32)
-        recorded = callsim.record_far_end(played, callsim.FarEndRecording(start_seconds=1.5))
+        recorded = callsim.record_remote(played, callsim.RemoteRecording(start_seconds=1.5))
         self.assertEqual(len(recorded), len(played) - int(1.5 * RATE))
         self.assertTrue(np.array_equal(recorded, played[int(1.5 * RATE) :]))
 
-    def test_after_a_dropout_the_far_end_sits_early_by_what_was_lost(self):
+    def test_after_a_dropout_the_remote_track_sits_early_by_what_was_lost(self):
         played = np.arange(RATE * 10, dtype=np.float32)
-        recording = callsim.FarEndRecording(dropouts=[(2.0, 683), (6.0, 341)])
-        recorded = callsim.record_far_end(played, recording)
+        recording = callsim.RemoteRecording(dropouts=[(2.0, 683), (6.0, 341)])
+        recorded = callsim.record_remote(played, recording)
         self.assertEqual(len(recorded), len(played) - 1024)
         # Before the first loss the file matches what was played.
         self.assertEqual(recorded[RATE], played[RATE])
@@ -370,7 +370,7 @@ class CaseTests(unittest.TestCase):
             self.assertEqual(one["files"], two["files"])
             self.assertEqual(one["echo"], two["echo"])
 
-    def test_the_local_person_is_on_the_microphone_and_the_others_on_the_far_end(self):
+    def test_the_local_person_is_on_the_microphone_and_the_others_on_the_remote_track(self):
         with tempfile.TemporaryDirectory() as scratch:
             scratch = Path(scratch)
             (scratch / "in").mkdir()
@@ -383,7 +383,7 @@ class CaseTests(unittest.TestCase):
 
         # Agent A is local and talks 2-8 s and 30-36 s; the others never do.
         self.assertGreater(loud(mic, 3, 7), 20 * loud(mic, 12, 14), "the local person is missing from the microphone")
-        self.assertLess(loud(remote, 3, 4), 0.1 * loud(remote, 10, 14), "the local person leaked into the far end")
+        self.assertLess(loud(remote, 3, 4), 0.1 * loud(remote, 10, 14), "the local person leaked into the call audio")
         self.assertGreater(loud(remote, 10, 14), 0.01)
         self.assertEqual(prepared.local_speaker, "SPK_A")
 
@@ -478,7 +478,7 @@ class CaseTests(unittest.TestCase):
             self.assertFalse(path.exists())
             self.assertNotIn("sensors", json.loads((scratch / "out" / "case.json").read_text())["files"])
 
-    def test_a_misaligned_far_end_keeps_the_laptop_echo_and_records_what_it_changed(self):
+    def test_a_misaligned_remote_track_keeps_the_laptop_echo_and_records_what_it_changed(self):
         with tempfile.TemporaryDirectory() as scratch:
             scratch = Path(scratch)
             (scratch / "in").mkdir()
@@ -486,13 +486,13 @@ class CaseTests(unittest.TestCase):
             prepared = callsim.prepare_meeting(11, "SYN", truth, "A", channels)
             variant = callsim.render_variant(prepared, "laptop", 0.6)
             aligned = callsim.write_case(scratch / "aligned", prepared, variant, 11, truth)
-            heard = callsim.late_far_end(prepared, 1.0)
+            heard = callsim.late_remote(prepared, 1.0)
             late_variant = callsim.render_variant(heard, "late", 0.6)
             late = callsim.write_case(
-                scratch / "late", heard, late_variant, 11, truth, far_end=callsim.FarEndRecording(start_seconds=1.0)
+                scratch / "late", heard, late_variant, 11, truth, remote_recording=callsim.RemoteRecording(start_seconds=1.0)
             )
-            gaps = callsim.FarEndRecording(dropouts=[(10.0, 683), (20.0, 683), (30.0, 683)])
-            dropped = callsim.write_case(scratch / "gaps", prepared, variant, 11, truth, far_end=gaps)
+            gaps = callsim.RemoteRecording(dropouts=[(10.0, 683), (20.0, 683), (30.0, 683)])
+            dropped = callsim.write_case(scratch / "gaps", prepared, variant, 11, truth, remote_recording=gaps)
             late_remote, _ = sf.read(scratch / "late/remote.wav")
             gaps_remote, _ = sf.read(scratch / "gaps/remote.wav")
             late_mic = callsim.read_pcm16(scratch / "late/mic.wav")
@@ -504,7 +504,7 @@ class CaseTests(unittest.TestCase):
             self.assertTrue(info["echo"]["reachedTarget"])
             self.assertEqual(callsim.problems(info), [])
         self.assertAlmostEqual(dropped["echo"]["correlation"], aligned["echo"]["correlation"], delta=0.001)
-        # Nothing was played before the far end started, so the microphone
+        # Nothing was played before the call audio started, so the microphone
         # holds only the local person and the room there.
         base = np.round(np.clip(prepared.local_voice + prepared.noise, -1, 1) * callsim.FULL_SCALE_INT16)
         self.assertLessEqual(float(np.max(np.abs(late_mic[:RATE] - base[:RATE]))), 1.0)

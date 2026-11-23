@@ -87,12 +87,12 @@ public struct CaptureRun: Sendable, Equatable {
     public let mic: Span?
     public let remote: Span?
 
-    /// How far the far end has to move to line up with the microphone over
-    /// this run, in seconds on the microphone's clock. A far end that began
+    /// How far the call audio has to move to line up with the microphone over
+    /// this run, in seconds on the microphone's clock. Call audio that began
     /// later is positive. Nil when either track has no resolved start here.
     public var referenceOffset: Double? {
-        guard let microphone = mic?.hostOrigin, let farEnd = remote?.hostOrigin else { return nil }
-        return farEnd - microphone
+        guard let microphone = mic?.hostOrigin, let remote = remote?.hostOrigin else { return nil }
+        return remote - microphone
     }
 }
 
@@ -341,7 +341,7 @@ public enum ManifestReader {
         // only reason a writer's first segment carries. Counting starts per
         // track rather than reading the pause and resume markers keeps a note
         // the user typed from moving the boundary, and lets a track whose
-        // writer opened late, as the far end's does when the tap binds after
+        // writer opened late, as the remote track's does when the tap binds after
         // the call has begun, join the run it belongs to.
         var run = 0
         var startedInRun: Set<CaptureTrack> = []

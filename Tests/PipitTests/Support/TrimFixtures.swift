@@ -11,7 +11,7 @@ public enum TrimFixtures {
 
     /// A finished two-track meeting whose audio is compacted, with the
     /// listening copy mixed. The microphone starts at capture time 100 and the
-    /// far end `remoteStartOffset` seconds later.
+    /// call audio `remoteStartOffset` seconds later.
     public static func makeCompacted(
         root: URL, micSeconds: Double = 20, remoteSeconds: Double = 20, remoteStartOffset: Double = 5
     ) throws -> MeetingStore {
@@ -35,7 +35,7 @@ public enum TrimFixtures {
     /// crash leaves it and recovery adopts it. The joined audio is 4 s, 4 s
     /// and 2 s; the second segment starts 6 s after the first one ended.
     public static func makeWithGapAndCrashTail(
-        root: URL, withFarEnd: Bool = false, farEndOffset: Double = 0
+        root: URL, withRemoteTrack: Bool = false, remoteOffset: Double = 0
     ) throws -> MeetingStore {
         let repository = MeetingRepository(root: root)
         let made = try repository.createMeeting(
@@ -86,9 +86,9 @@ public enum TrimFixtures {
             }
         }
         try write(.mic, [(4, 100, true), (4, 110, true), (2, nil, false)])
-        // A far end with no gap, starting with the microphone.
-        if withFarEnd { try write(.remote, [(10, 100 + farEndOffset, true)]) }
-        manifest.append(.sessionEnd(.init(reason: "test", micSeconds: 10, remoteSeconds: withFarEnd ? 10 : 0)))
+        // Call audio with no gap, starting with the microphone.
+        if withRemoteTrack { try write(.remote, [(10, 100 + remoteOffset, true)]) }
+        manifest.append(.sessionEnd(.init(reason: "test", micSeconds: 10, remoteSeconds: withRemoteTrack ? 10 : 0)))
         manifest.close()
         _ = try store.updateMetadata {
             $0.durationSeconds = 10
@@ -120,7 +120,7 @@ public enum TrimFixtures {
         cleaned.frameCount = frames
         _ = try store.updateMetadata {
             $0.cleanedMic = CleanedMicrophone(
-                track: cleaned, echoRemovedMedianDB: 12, farEndActiveWindows: 40, producedAt: started)
+                track: cleaned, echoRemovedMedianDB: 12, remoteActiveWindows: 40, producedAt: started)
         }
     }
 

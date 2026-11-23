@@ -590,7 +590,7 @@ public final class WindowManager {
     }
 
     /// Says, in front of everything, that a recording was refused or is
-    /// missing its far end for want of a grant.
+    /// missing its call audio for want of a grant.
     ///
     /// Floating and on every space, ordered front without waiting for
     /// activation: the person pressed Start Recording, or a call was

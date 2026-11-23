@@ -36,7 +36,7 @@ struct Arguments {
     var transcript: URL?
     var meeting: URL?
     var json: URL?
-    /// `aec` only: the microphone recording and the far end that was played.
+    /// `aec` only: the microphone recording and the call audio that was played.
     var microphone: URL?
     var reference: URL?
     /// Replaces the reference offset the manifest holds, for measuring a
@@ -47,8 +47,8 @@ struct Arguments {
     var fullIdentifier = false
     /// `reprocess` only: read voice memory so known voices are named.
     var recognize = false
-    /// How the meeting client's speaker record and the diarizer share the far
-    /// end. `bench` and `reprocess` only; the application always runs `current`.
+    /// How the meeting client's speaker record and the diarizer share the call
+    /// audio. `bench` and `reprocess` only; the application always runs `current`.
     var attribution = SensorAttributionMode.current
     /// `reprocess` only: where the derived files go before they are removed.
     var backups: URL?

@@ -180,7 +180,7 @@ struct SlackWebTreeState: Equatable {
 /// in `AXDOMIdentifier`, the display name in its description, the mute state in
 /// its name overlay, and a speaking class that exists only while that person
 /// holds the floor. All four are readable for other people, not only for the
-/// local user, which is the case that matters, because the far end arrives as
+/// local user, which is the case that matters, because the call audio arrives as
 /// one mixed track.
 public struct SlackAccessibilityReader: Sendable {
     public let bundleIdentifier: String

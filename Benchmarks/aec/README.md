@@ -2,7 +2,7 @@
 
 Scores echo cancellers on recordings with a known answer, so the one Pipit
 ships is chosen by measurement. The question it answers is the one a person
-reading a transcript asks: how many of the far end's words ended up under my
+reading a transcript asks: how many of the remote track's words ended up under my
 name, and how many of my own words went missing.
 
 ## What is here
@@ -19,25 +19,25 @@ name, and how many of my own words went missing.
 ## Tiers
 
 - `synthetic`: AEC Challenge synthetic validation clips, file ids under 500
-  with a nonlinear far end, first 200. The clean near-end is known, so echo
+  with nonlinear echo, first 200. The clean near-end is known, so echo
   removed, SI-SDR, leaked and lost words are all measured.
 - `real`: AEC Challenge 2021 real-device blind set, clean half, 72 Windows
-  PCs. Far-end single talk (echo removed, leaked words), near-end single
+  PCs. Remote single talk (echo removed, leaked words), near-end single
   talk (the user's own level and words), double talk (leaked words, AECMOS).
 - `meetings`: Pipit meeting folders read in place with `--meetings DIR`.
   Private. Decoded excerpts go under `--work` and nowhere else. The user's
-  own words are taken as the microphone's words the far end did not also say.
+  own words are taken as the microphone's words the other people on the call did not also say.
   A meeting that ends before `--start` is skipped.
-- `mixes`: far-end-only stretches of one private meeting plus user-only
+- `mixes`: remote-only stretches of one private meeting plus user-only
   stretches of another, prepared as WAV files listed in a JSON spec.
 
 ## Scores
 
-Transcript first. `leakedPerMinute` counts output words that the far end
+Transcript first. `leakedPerMinute` counts output words that the call audio
 said within three seconds and the user did not. `lostPerMinute` counts the
 user's words that the output no longer holds within three seconds, and
 `keptShare` is the rest of them as a share. `echoRemovedMedianDB` is measured
-on the audio over far-end windows, never taken from a canceller's own report.
+on the audio over remote windows, never taken from a canceller's own report.
 `siSdrMeanDB` compares against the clean near-end after removing the
 canceller's own block delay. `aecmosEcho` and `aecmosOther` are the 1 to 5
 scores of Microsoft's model on the real and synthetic tiers.
@@ -160,12 +160,12 @@ leaked 0.34, lost 5.90 and kept 87.5%.
 
 ### Reading the tiers
 
-- Synthetic clips carry a nonlinear far end, as a loud laptop speaker
+- Synthetic clips carry nonlinear echo, as a loud laptop speaker
   produces. The shipped pass keeps 76.6% of the near-end words with an SI-SDR
   of 14.2 dB. WebRTC AEC3 keeps 60.4% with an SI-SDR of -1.0 dB and an AECMOS
   other score of 1.95.
 - On the real-device recordings WebRTC AEC3 loses fewer of the user's words
-  (kept 98.3% against 92.8%) and leaks slightly more far-end words (0.85 per
+  (kept 98.3% against 92.8%) and leaks slightly more remote words (0.85 per
   minute against 0.56). The LocalVQE filter alone leaks 31 words per minute
   there, which is why it is followed by the network.
 - On the meetings the shipped pass and WebRTC AEC3 cannot be told apart.

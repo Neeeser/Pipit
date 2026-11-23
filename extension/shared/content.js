@@ -45,7 +45,7 @@ const meetNames = new Map();
 
 function readMeetTiles() {
   // Meet marks the local user's own tile, and finding it matters more than it
-  // looks. The far-end track is a mixdown of everyone else, so a turn saying the
+  // looks. The remote track is a mixdown of everyone else, so a turn saying the
   // local user held the floor cannot explain a voice heard there. Without this
   // flag their turns compete for remote clusters and put their own name on
   // whoever they talked over.

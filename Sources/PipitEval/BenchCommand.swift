@@ -17,7 +17,7 @@ import PipitServices
 /// harness is a number from the application.
 ///
 /// The `calls` suite imports a simulated call instead: a microphone track and a
-/// far-end track, as a `.genericCall` meeting, so the echo canceller and the
+/// remote track, as a `.genericCall` meeting, so the echo canceller and the
 /// local-person rules run as they do in a recording.
 enum BenchCommand {
     struct Options {
@@ -61,7 +61,7 @@ enum BenchCommand {
         /// apple` or `--engine parakeet`, in place of the after-call pass.
         var liveEngine = false
         /// How the meeting client's speaker record and the diarizer share the
-        /// far end, for a simulated call that carries a sensor record.
+        /// call audio, for a simulated call that carries a sensor record.
         var attribution = SensorAttributionMode.current
     }
 
@@ -596,7 +596,7 @@ enum BenchCommand {
             imported = try importer.importCall(
                 microphone: call.microphone, remote: call.remote, source: meetingSource,
                 into: created.store, meetingID: created.metadata.id,
-                remoteStartSeconds: call.description.farEnd?.startSeconds ?? 0
+                remoteStartSeconds: call.description.remoteTiming?.startSeconds ?? 0
             ).microphone
         } else {
             imported = try importer.import(
@@ -651,15 +651,15 @@ enum BenchCommand {
         }
         let raw = try? created.store.readRawTranscript()
         let runs = (try? created.store.readRawDiarization())?.runs ?? []
-        // Far-end words left under a speaker with no name: what a reader sees
+        // Remote words left under a speaker with no name: what a reader sees
         // as "Speaker 2" where the client or a voice profile could have said
         // who it is.
-        var farEndWords = 0
-        var unnamedFarEndWords = 0
+        var remoteWords = 0
+        var unnamedRemoteWords = 0
         for utterance in transcript.utterances where utterance.track == .remote {
             let count = utterance.text.split(separator: " ").count
-            farEndWords += count
-            if (names[utterance.speakerKey]?.displayName ?? "").isEmpty { unnamedFarEndWords += count }
+            remoteWords += count
+            if (names[utterance.speakerKey]?.displayName ?? "").isEmpty { unnamedRemoteWords += count }
         }
         var row = Row(
             engine: engine.name,
@@ -691,11 +691,11 @@ enum BenchCommand {
             }
         )
         row.sensorAttribution = options.attribution.rawValue
-        row.farEndWords = farEndWords
-        row.unnamedFarEndWords = unnamedFarEndWords
+        row.remoteWords = remoteWords
+        row.unnamedRemoteWords = unnamedRemoteWords
         row.speakerGrouping = "display-name"
         if let call {
-            row.farEndNames = BenchScorer.farEndNames(
+            row.remoteNames = BenchScorer.remoteNames(
                 truth: benchCase.truth,
                 utterances: transcript.utterances.filter { $0.track == .remote }.map {
                     NamedUtterance(
@@ -778,17 +778,17 @@ enum BenchCommand {
             print(
                 String(
                     format:
-                        "  far end under me    %5.1f/min  (%d of the far end's words labelled as the local person)",
-                    local.farEndWordsUnderLocalPerMinute, local.farEndWordsUnderLocal))
+                        "  others under me     %5.1f/min  (%d remote-track words labelled as the local person)",
+                    local.remoteWordsUnderLocalPerMinute, local.remoteWordsUnderLocal))
             print(
                 String(
                     format: "  my words lost       %5.1f/min  (%d of %d)",
                     local.localWordsLostPerMinute, local.localWordsLost, local.localWords))
         }
-        if let names = row.farEndNames {
+        if let names = row.remoteNames {
             print(
-                "  far end names       \(names.right) right / \(names.wrong) wrong / "
-                    + "\(names.unnamed) unnamed   (content words matched to a far-end reference word)")
+                "  others' names       \(names.right) right / \(names.wrong) wrong / "
+                    + "\(names.unnamed) unnamed   (content words matched to a remote reference word)")
         }
         if let call = row.call {
             let target = call.targetEchoCorrelation.map { String(format: "built for %.2f", $0) } ?? "no echo"
@@ -867,11 +867,11 @@ enum BenchCommand {
         guard !calls.isEmpty else { return }
         print("")
         print("  Simulated calls. Echo is the correlation the cleaner measured before cleaning, where")
-        print("  it kept a cleaned microphone. Far end is the far end's words labelled as the local")
+        print("  it kept a cleaned microphone. Others under me is the remote track's words labelled as the local")
         print("  person per minute; lost is the local person's words that no transcript word of the")
         print("  same text within 3 s accounts for, each transcript word counted once. Built is the")
         print("  correlation the generator wrote and dB is the echo against the local voice.")
-        print("  Names count the far end's content words under the right display name, a wrong one,")
+        print("  Names count the remote track's content words under the right display name, a wrong one,")
         print("  or none, summed over the cases of the line.")
         print("  * marks a variant whose speaker evidence is a simulated sensor record.")
         print("")
@@ -881,7 +881,7 @@ enum BenchCommand {
         print(
             "  engine       " + "variant".padding(toLength: kindWidth + 2, withPad: " ", startingAt: 0)
                 + "cases     tcp    cpWER   WER  attribution"
-                + "     DER   far end/min   lost/min   names right/wrong/unnamed   echo   built   dB"
+                + "     DER   others/min    lost/min   names right/wrong/unnamed   echo   built   dB"
         )
         for engine in Array(Set(calls.map(\.engine))).sorted() {
             let ofEngine = calls.filter { $0.engine == engine }
@@ -891,9 +891,9 @@ enum BenchCommand {
                 let tcp = group.compactMap(\.score.tcpWer)
                 let cp = group.compactMap(\.score.cpWer)
                 let ders = group.compactMap(\.score.der)
-                let leaked = group.compactMap(\.score.localTrack?.farEndWordsUnderLocalPerMinute)
+                let leaked = group.compactMap(\.score.localTrack?.remoteWordsUnderLocalPerMinute)
                 let lost = group.compactMap(\.score.localTrack?.localWordsLostPerMinute)
-                let named = group.compactMap(\.farEndNames)
+                let named = group.compactMap(\.remoteNames)
                 let nameCounts =
                     named.isEmpty
                     ? "-"

@@ -8,7 +8,7 @@ Tiers:
   real        AEC Challenge 2021 real-device blind clips (no clean target)
   meetings    Pipit meeting folders read in place (private, never copied
               anywhere but --work)
-  mixes       far-end-only stretches of one private meeting plus user-only
+  mixes       remote-only stretches of one private meeting plus user-only
               stretches of another, so the user target is known
 
 Usage:
@@ -126,14 +126,14 @@ def meeting_cases(meetings: Path, work: Path, start: float, seconds: float | Non
 def mix_cases(spec: Path, work: Path) -> list[Case]:
     """Each entry: {"id", "echo": {"meeting", "start", "seconds"}, "user": {"meeting", "start"}}.
 
-    The echo stretch supplies the far end and its echo in the microphone. The
+    The echo stretch supplies the call audio and its echo in the microphone. The
     user stretch supplies the microphone of a moment where only the user
     spoke. Their sum is the mixed microphone; the user stretch is the truth.
     """
     cases = []
     for entry in json.load(open(spec)):
         if "mic" in entry:
-            # Already prepared: microphone, far end and user truth as files.
+            # Already prepared: microphone, call audio and user truth as files.
             cases.append(Case(entry["id"], "mixes", Path(entry["mic"]), Path(entry["ref"]), Path(entry["truth"]), "dt", sf.info(entry["mic"]).duration))
             continue
         seconds = float(entry["echo"]["seconds"])
@@ -194,7 +194,7 @@ def score_case(case: Case, out: Path, asr: dict, aecmos, skip_seconds: float = 0
     row: dict = {"case": case.id, "tier": case.tier, "talk": case.talk_type, "seconds": case.seconds}
     truth = cand.read(case.truth)[:n] if case.truth else None
     if truth is not None and case.talk_type != "nst":
-        # Echo-only windows: far end playing and the near end quiet.
+        # Echo-only windows: call audio playing and the near end quiet.
         far, near = metrics.window_db(ref), metrics.window_db(truth)
         mask = (far > -60) & (near < -60)
         before, after = metrics.window_db(mic), metrics.window_db(output)
@@ -221,7 +221,7 @@ def score_case(case: Case, out: Path, asr: dict, aecmos, skip_seconds: float = 0
     truth_words = after_start(metrics.words_from(asr[str(case.truth)])) if case.truth else None
     if case.tier == "meetings":
         # No clean target. The user's own words are the microphone's words
-        # that the far end did not also say nearby.
+        # that the other people on the call did not also say nearby.
         mic_words = after_start(metrics.words_from(asr[str(case.mic)]))
         truth_words = [w for w in mic_words if not metrics._near(w, far_words, 3.0)]
     ts = metrics.transcript_score(out_words, far_words, truth_words)

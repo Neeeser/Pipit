@@ -14,9 +14,9 @@ checksums.
 
 In short: no Whisper size or decode setting tried beat Pipit's Turbo, and the
 two largest rows did not transcribe normally. Qwen3-ASR scored lowest on every
-track type, and Parakeet is within 0.1 points of Nemotron on the AMI far end.
+track type, and Parakeet is within 0.1 points of Nemotron on the AMI call audio.
 The synthetic meeting is a useful case for more than eight speakers, because
-it showed that Pipit's speaker separation fails on a nine-voice far end when
+it showed that Pipit's speaker separation fails on a remote track with nine voices when
 Nemotron 3 reports fewer than its eight slots. It does not rank engines
 reliably or predict their error on real calls.
 
@@ -87,7 +87,7 @@ track, which the mlx-audio engines' numbers leave out, so it understates them.
 Peak memory is the largest over all tracks; Qwen3-ASR and Nemotron read each
 track whole, so their peak comes from the 19-minute synthetic tracks.
 
-| Engine | AMI far end | AMI local mic | Synthetic far end | Synthetic local mic | Synthetic in person | Speed | Peak memory |
+| Engine | AMI call audio | AMI local mic | Synthetic call audio | Synthetic local mic | Synthetic in person | Speed | Peak memory |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
 | Qwen3-ASR 1.7B, 8-bit | 25.4% | 9.2% | 6.7% | 1.8% | 8.3% | 20x | 12.5 GB |
 | Nemotron 3.5 Transcribe 30B-A4B, NVFP4 | 28.9% | 10.1% | 9.6% | 3.9% | 13.6% | 13x | 24.6 GB |
@@ -107,8 +107,8 @@ and Pipit's through `pipit-eval asr`. `engine-scores.json` has each track and
 (`Benchmarks/synthetic`), rendered as a headphones call, a laptop-speaker call
 and an in-person room recording. 6.7% of its speech overlaps.
 
-The call recordings carry the local microphone and the far-end track
-separately, and Pipit diarizes the far end, which holds nine of the ten
+The call recordings carry the local microphone and the remote track
+separately, and Pipit diarizes the call audio, which holds nine of the ten
 voices. Pipit diarizes with Nemotron 3, which tracks up to eight speakers
 (`LocalSpeechStack.nemotron3SpeakerSlots`). When Nemotron 3 reports eight
 clusters, every slot is full and Pipit discards its answer and runs the offline
@@ -128,12 +128,12 @@ eight slots is inferred from the backend name and the code, not recorded.
 | In person | Whisper | Offline clusterer | 29.2% | 10 | 11.3% | |
 
 Speakers found counts the clusters that match a person. Some Whisper runs also
-keep a bucket of far-end words that got no speaker; the stored
+keep a bucket of remote words that got no speaker; the stored
 `hypothesisSpeakers` counts that bucket, so it reads one higher.
 
 On the calls, Parakeet's words are about 16% wrong (Whisper's 20%) while tcpWER
 is above 40%: most of the error is words credited to the wrong person. In all
-four call runs Nemotron 3 found seven clusters on the far-end track, which has
+four call runs Nemotron 3 found seven clusters on the remote track, which has
 nine voices, and Pipit kept that answer. S05 and S10 had no cluster of their
 own. The in-person runs used the offline clusterer and found all ten. That
 comparison is between two diarizers, so it does not show that an in-person
@@ -174,15 +174,15 @@ before the change gives audio 0.24 s and 0.05 s longer than the stored runs'.
 The word error stays between 14.5% and 16.8% in every run; the speaker count
 and tcpWER do not, and the diarizer predicts them. Counting the pilot's
 call runs and the layout rows once each, Nemotron 3 produced 9 runs with tcpWER
-from 29.2% to 47.3% and 6 or 7 far-end clusters for nine voices. The offline
+from 29.2% to 47.3% and 6 or 7 remote clusters for nine voices. The offline
 clusterer produced 5 call runs with tcpWER from 15.1% to 17.9% and 9 or 10
-far-end clusters (seed 2 in the current generator splits S06 in two, so its 11
+remote clusters (seed 2 in the current generator splits S06 in two, so its 11
 clusters cover 10 people). In the Nemotron 3 runs S05 never has a cluster, and
 one more voice (S10, S06 or S07) is missing too, except in the one run where
 two others are.
 
 So the cause on this meeting is the diarizer and its limit, not timing or the
-recording type. Nine far-end voices exceed Nemotron 3's eight slots, so it can
+recording type. Nine remote voices exceed Nemotron 3's eight slots, so it can
 report at most eight clusters. When it merges two voices and reports seven, Pipit
 keeps the seven and the fallback never runs. When it reports eight, the
 clusterer runs and separates everyone. Which of the two a given layout lands on
@@ -219,17 +219,17 @@ the swapped script flags the moved lines.
 ## Limits
 
 - Every engine makes fewer errors on synthetic speech than on AMI: 2.7 to 3.9
-  times fewer on the far end and 2.1 to 5.1 times fewer on the local
+  times fewer on the call audio and 2.1 to 5.1 times fewer on the local
   microphone, leaving out Granite 2B's repetition failure. The gap has more than
   one cause that this run does not separate. SYN001 has 6.7% overlap and the four
-  AMI cases 31%, 45%, 46% and 17%, and on the AMI far end the engines miss 18% to
+  AMI cases 31%, 45%, 46% and 17%, and on the AMI call audio the engines miss 18% to
   30% of the reference words (deletions), against 4.9% to 6.4% on SYN001, which is
   what a single-stream recogniser does with overlapped speech. SYN001's script
   also has 5.6% interrupts and 7.2% backchannels of its turns, where the prompt
   asked for about 12% and 15%. So easier synthetic speech and less overlap are
   not told apart, and the synthetic error does not predict error on real calls.
 - The synthetic meeting does not rank the engines reliably. The order differs
-  from AMI's: on the far end Granite 470M goes from last to fourth and Nemotron
+  from AMI's: on the call audio Granite 470M goes from last to fourth and Nemotron
   from third to fifth, and the engines within 0.2 points of each other
   (Parakeet, Granite 2B and Granite 470M at 8.8% to 9.0%) cannot be ordered.
   The local-microphone column is one text-to-speech voice and 899 reference

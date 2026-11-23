@@ -7,7 +7,7 @@ import PipitCore
 /// Every number the canceller ships against was taken on synthetic tones. A
 /// tone is the easy case for both the linear filter and the residual
 /// suppressor, and the claim that matters, that the user's own voice survives
-/// while the far end is cancelled underneath it, is the one a tone supports
+/// while the call audio is cancelled underneath it, is the one a tone supports
 /// least. This runs `EchoCancellationPass` over the recording as it was
 /// captured and reports what came out, so the same claim can be checked on
 /// speech. Nothing is written. The cleaned samples are counted and dropped.
@@ -29,31 +29,31 @@ public enum EchoMeasurement: Sendable, Equatable {
         /// One track holding everyone, which is every import and every
         /// in-person session.
         case oneTrack
-        /// No far-end track was recorded at all.
+        /// No remote track was recorded at all.
         case notRecorded
-        /// The tap opened and recorded silence, so the far-end track exists
+        /// The tap opened and recorded silence, so the remote track exists
         /// and holds nothing.
         case recordedSilence
     }
 
-    /// What a quarter-second window held, decided from the recorded far end
-    /// against `farEndFloorDBFS` and the recorded microphone against
+    /// What a quarter-second window held, decided from the recorded call audio
+    /// against `remoteFloorDBFS` and the recorded microphone against
     /// `microphoneFloorDBFS`.
     ///
-    /// Levels alone. A microphone above its floor holds the user, the far
-    /// end's own echo arriving through the air, or both, and nothing in a
+    /// Levels alone. A microphone above its floor holds the user, the remote
+    /// track's own echo arriving through the air, or both, and nothing in a
     /// level separates them. So on a call taken on speakers every window the
-    /// far end plays in lands in `both`, whether the user spoke or not, and
-    /// `farEndOnly` stays empty. On a call taken on headphones the same
-    /// windows land in `farEndOnly`. That ambiguity is the whole of the
+    /// call audio plays in lands in `both`, whether the user spoke or not, and
+    /// `remoteOnly` stays empty. On a call taken on headphones the same
+    /// windows land in `remoteOnly`. That ambiguity is the whole of the
     /// problem the canceller exists to solve, and it is why retention is
     /// reported separately for `userOnly` and `both` rather than as one
     /// number. `userOnly` is the only class in which the microphone is known
     /// to hold the user and nothing else.
     public enum WindowClass: String, Sendable, Codable, CaseIterable {
-        /// The far end was above its floor and the microphone was not.
-        case farEndOnly
-        /// The microphone was above its floor and the far end was not.
+        /// The call audio was above its floor and the microphone was not.
+        case remoteOnly
+        /// The microphone was above its floor and the call audio was not.
         case userOnly
         /// Both were above their floors.
         case both
@@ -72,7 +72,7 @@ public enum EchoMeasurement: Sendable, Equatable {
         /// transcript timestamp is already on.
         public let startSeconds: Double
         public let windowClass: WindowClass
-        public let farEndDBFS: Double
+        public let remoteDBFS: Double
         public let microphoneBeforeDBFS: Double
         public let microphoneAfterDBFS: Double
         /// Before minus after. Positive is level the canceller took out.
@@ -110,7 +110,7 @@ public enum EchoMeasurement: Sendable, Equatable {
     /// `changeDB` goes negative where the canceller hands back more level than
     /// it was given. The suppressor replaces what it removed with comfort
     /// noise, and on a fixture whose microphone holds -73 dBFS of room noise
-    /// the far-end-only class comes back 29 dB louder. Every optional here is
+    /// the remote-only class comes back 29 dB louder. Every optional here is
     /// nil for a class with no windows in it.
     public struct ClassSummary: Sendable, Codable, Equatable {
         public let windowClass: WindowClass
@@ -128,20 +128,20 @@ public enum EchoMeasurement: Sendable, Equatable {
         public let windowsOverLossThreshold: Int
     }
 
-    /// Where the far end sat against the microphone in one run of the
+    /// Where the call audio sat against the microphone in one run of the
     /// recording, and what the pass used there.
     ///
     /// A call that dropped and was rejoined is several runs under one
-    /// manifest, and the far end is not the same distance from the microphone
+    /// manifest, and the call audio is not the same distance from the microphone
     /// in all of them. The figures are `Report`'s alignment figures, taken over
     /// this run alone.
     public struct RunAlignment: Sendable, Codable, Equatable {
         /// Seconds from the microphone's first frame at which the run begins.
         public let startSeconds: Double
         public let seconds: Double
-        /// False where the far end recorded nothing in this run, which is
+        /// False where the call audio recorded nothing in this run, which is
         /// handed to the canceller as silence. The offsets below read zero.
-        public let farEndRecorded: Bool
+        public let remoteRecorded: Bool
         public let timelineOffsetSeconds: Double
         public let measuredOffsetSeconds: Double
         public let measuredOffsetCorrelation: Double
@@ -156,24 +156,24 @@ public enum EchoMeasurement: Sendable, Equatable {
         public let seconds: Double
         public let windowSeconds: Double
         public let windowCount: Int
-        /// The level the far end clears to count as playing in a window.
-        public let farEndFloorDBFS: Double
+        /// The level the call audio clears to count as playing in a window.
+        public let remoteFloorDBFS: Double
         /// The level the microphone clears to count as holding something,
         /// derived from this recording.
         public let microphoneFloorDBFS: Double
         /// The microphone's own quietest twentieth of windows, which is what
         /// the floor above was derived from. Where this sits within 10 dB of
         /// the floor, the recording's own room tone decided the floor. Where
-        /// it sits far below, the far end's -60 dBFS did.
+        /// it sits far below, the remote track's -60 dBFS did.
         public let microphoneQuietWindowDBFS: Double?
-        /// Seconds the far end was moved by to line up with the microphone.
+        /// Seconds the call audio was moved by to line up with the microphone.
         /// For a recording made of several runs this is the first run's, and
         /// `runs` has every run's.
         public let referenceOffsetSeconds: Double
         /// True when a caller supplied that offset instead of the timeline.
         /// The offset is then held for the whole recording.
         public let referenceOffsetIsOverride: Bool
-        /// Where the recording itself says the far end sits, and how well the
+        /// Where the recording itself says the call audio sits, and how well the
         /// two loudness envelopes agree there and at the timeline's offset.
         /// Reported on every run, used only when `measuredOffsetIsUsable`.
         /// For a recording made of several runs these are the first run's.
@@ -191,17 +191,17 @@ public enum EchoMeasurement: Sendable, Equatable {
         /// A per-window drop above which a window is counted as having lost
         /// something a listener would notice.
         public let notableLossDB: Double
-        /// Median `echoRemovedDB` over the far-end-active windows, as the
+        /// Median `echoRemovedDB` over the remote-active windows, as the
         /// canceller reported it. Informational: it read 0.2 to 1.8 dB on
         /// calls the pass cleaned by 4 to 18 dB, so nothing is decided on it.
-        /// Nil where no window had the far end above its floor.
+        /// Nil where no window had the call audio above its floor.
         public let reportedEnhancementMedianDB: Double?
-        public let farEndActiveWindows: Int
-        /// Share of all windows the far end was above its floor in.
-        public let farEndDutyCycle: Double
+        public let remoteActiveWindows: Int
+        /// Share of all windows the call audio was above its floor in.
+        public let remoteDutyCycle: Double
         public let minimumActiveWindows: Int
         /// The windows the decision was judged on, and what they lost. These
-        /// are not the `userOnly` class: they are the ones with the far end
+        /// are not the `userOnly` class: they are the ones with the call audio
         /// quiet for `echoTailSeconds` before them and, when
         /// `userWindowsPickedBySpeech` is set, the raw microphone holding
         /// speech. Nil where fewer than `minimumUserWindows` existed.
@@ -209,7 +209,7 @@ public enum EchoMeasurement: Sendable, Equatable {
         /// True when the voice detector picked the judged windows. False when
         /// none was given and the microphone's level did.
         public let userWindowsPickedBySpeech: Bool
-        /// Seconds after the far end played that a window is left out of the
+        /// Seconds after the call audio played that a window is left out of the
         /// judged ones.
         public let echoTailSeconds: Double
         public let userHarmMedianDB: Double?
@@ -237,13 +237,13 @@ public enum EchoMeasurement: Sendable, Equatable {
     case measured(Report)
     case noReference(MissingReference)
 
-    /// The level the far end clears to count as playing in a window.
+    /// The level the call audio clears to count as playing in a window.
     ///
-    /// `MicrophoneCleaner.farEndActiveDBFS`, unchanged, so the far-end-active
+    /// `MicrophoneCleaner.remoteActiveDBFS`, unchanged, so the remote-active
     /// windows here are exactly the ones the cleaner takes its median over. It
     /// describes a process tap, which is a digital copy of what the meeting
     /// application rendered and carries no room in it at all.
-    public static var farEndFloorDBFS: Double { MicrophoneCleaner.farEndActiveDBFS }
+    public static var remoteFloorDBFS: Double { MicrophoneCleaner.remoteActiveDBFS }
 
     public static var microphoneActivationMarginDB: Double {
         EchoCancellationPass.microphoneActivationMarginDB
@@ -258,17 +258,17 @@ public enum EchoMeasurement: Sendable, Equatable {
 
     /// The level the microphone clears to count as holding something.
     ///
-    /// Derived from the recording rather than borrowed from the far end. A
+    /// Derived from the recording rather than borrowed from the call audio. A
     /// capsule records the room as well as the person, and where the room tone
     /// and the codec's own noise sit is a property of that room and that Mac.
-    /// Borrowing the far end's -60 dBFS would classify a meeting whose room
-    /// tone sits above it as the user speaking from end to end: `farEndOnly`
+    /// Borrowing the remote track's -60 dBFS would classify a meeting whose room
+    /// tone sits above it as the user speaking from end to end: `remoteOnly`
     /// and `neither` would come back empty on every meeting including the
     /// headphone calls, and `userOnly` would stop meaning "the user spoke" and
-    /// start meaning "the far end was quiet".
+    /// start meaning "the call audio was quiet".
     ///
     /// So the floor is this recording's own quietest twentieth plus
-    /// `microphoneActivationMarginDB`, and never below the far end's floor,
+    /// `microphoneActivationMarginDB`, and never below the remote track's floor,
     /// because nothing under -60 dBFS is speech either way. `Report` carries
     /// the quietest-twentieth figure beside the floor, so which of the two
     /// decided it is visible in the table.
@@ -276,7 +276,7 @@ public enum EchoMeasurement: Sendable, Equatable {
         EchoCancellationPass.microphoneFloorDBFS(quietWindowDBFS: quietWindowDBFS)
     }
 
-    /// How far the far end has to move to line up with the microphone, as the
+    /// How far the call audio has to move to line up with the microphone, as the
     /// recording's own manifest says. For a recording made of several runs, in
     /// the first.
     public static func timelineReferenceOffset(_ timeline: RecordingTimeline) -> Double {
@@ -285,9 +285,9 @@ public enum EchoMeasurement: Sendable, Equatable {
 
     /// Runs the canceller over the recorded pair and reports what happened.
     ///
-    /// - Parameter referenceOffset: seconds to move the far end by, replacing
+    /// - Parameter referenceOffset: seconds to move the call audio by, replacing
     ///   the timeline's own. For measuring a misalignment deliberately. Nil is
-    ///   what a real run uses. The far end is classified through this offset
+    ///   what a real run uses. The call audio is classified through this offset
     ///   as well as cancelled through it, so a wrong one compares the two
     ///   tracks at moments that are not the same moment and moves the window
     ///   classes along with the cancellation.
@@ -301,7 +301,7 @@ public enum EchoMeasurement: Sendable, Equatable {
         guard metadata.source.micTrackIsLocalUser else { return .noReference(.oneTrack) }
         // Both read as recorded. A meeting that has already been cleaned has
         // to be measured on the microphone it captured, or the pass would
-        // subtract the far end from a track it has already left.
+        // subtract the call audio from a track it has already left.
         let microphone = store.rawTrackAudioLocation(
             track: .mic, metadata: metadata, timeline: timeline
         )
@@ -314,7 +314,7 @@ public enum EchoMeasurement: Sendable, Equatable {
         }
 
         // Measured whatever the caller does with it, so a run pinned to an
-        // offset by hand still reports where the far end actually sits.
+        // offset by hand still reports where the call audio actually sits.
         let lined = try EchoCancellationPass.alignRuns(
             microphone: microphone, reference: reference, timeline: timeline
         )
@@ -339,7 +339,7 @@ public enum EchoMeasurement: Sendable, Equatable {
             WindowRecord(
                 startSeconds: Double(index) * EchoCancellationPass.windowSeconds,
                 windowClass: classify(window, microphoneFloor: microphoneFloor),
-                farEndDBFS: window.farEndDBFS,
+                remoteDBFS: window.remoteDBFS,
                 microphoneBeforeDBFS: window.microphoneBeforeDBFS,
                 microphoneAfterDBFS: window.microphoneAfterDBFS,
                 changeDB: window.microphoneBeforeDBFS - window.microphoneAfterDBFS,
@@ -356,7 +356,7 @@ public enum EchoMeasurement: Sendable, Equatable {
                 seconds: Double(pass.frames) / EchoCancellationPass.readFormat.sampleRate,
                 windowSeconds: EchoCancellationPass.windowSeconds,
                 windowCount: log.count,
-                farEndFloorDBFS: farEndFloorDBFS,
+                remoteFloorDBFS: remoteFloorDBFS,
                 microphoneFloorDBFS: microphoneFloor,
                 microphoneQuietWindowDBFS: quiet,
                 referenceOffsetSeconds: offset,
@@ -370,8 +370,8 @@ public enum EchoMeasurement: Sendable, Equatable {
                 windowLog: log,
                 notableLossDB: notableLossDB,
                 reportedEnhancementMedianDB: active == 0 ? nil : judgement.reportedMedianDB,
-                farEndActiveWindows: active,
-                farEndDutyCycle: log.isEmpty ? 0 : Double(active) / Double(log.count),
+                remoteActiveWindows: active,
+                remoteDutyCycle: log.isEmpty ? 0 : Double(active) / Double(log.count),
                 minimumActiveWindows: EchoCancellationPass.minimumActiveWindows,
                 userWindowsJudged: judgement.userWindows,
                 userWindowsPickedBySpeech: judgement.judgedOnSpeech,
@@ -390,10 +390,10 @@ public enum EchoMeasurement: Sendable, Equatable {
     private static func classify(
         _ window: EchoCancellationPass.Window, microphoneFloor: Double
     ) -> WindowClass {
-        let farEnd = window.farEndDBFS > farEndFloorDBFS
+        let remote = window.remoteDBFS > remoteFloorDBFS
         let microphone = window.microphoneBeforeDBFS > microphoneFloor
-        return switch (farEnd, microphone) {
-        case (true, false): .farEndOnly
+        return switch (remote, microphone) {
+        case (true, false): .remoteOnly
         case (false, true): .userOnly
         case (true, true): .both
         case (false, false): .neither
@@ -443,7 +443,7 @@ extension EchoMeasurement.RunAlignment {
     init(_ run: EchoCancellationPass.AlignedRun) {
         self.init(
             startSeconds: run.startSeconds, seconds: run.seconds,
-            farEndRecorded: run.timelineOffsetSeconds != nil,
+            remoteRecorded: run.timelineOffsetSeconds != nil,
             timelineOffsetSeconds: run.timelineOffsetSeconds ?? 0,
             measuredOffsetSeconds: run.measured.offsetSeconds,
             measuredOffsetCorrelation: run.measured.correlation,

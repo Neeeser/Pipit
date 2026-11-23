@@ -62,9 +62,9 @@ public struct AudioImporter: Sendable {
     /// everyone else, laid out the way a capture writes them.
     ///
     /// Both tracks go into one manifest under `source`, which must be a source
-    /// that records the far end separately. The far end's first frame is
+    /// that records the call audio separately. The remote track's first frame is
     /// stamped `remoteStartSeconds` after the microphone's, the way a capture
-    /// stamps a far-end track that opened late, so the pipeline places it on
+    /// stamps a remote track that opened late, so the pipeline places it on
     /// the meeting timeline from that host time and the echo pass measures
     /// only what is left. This is how the benchmark feeds the pipeline a call
     /// whose answer is known.
@@ -74,7 +74,7 @@ public struct AudioImporter: Sendable {
     ) throws -> CallResult {
         guard source.capturesRemoteAudio else {
             throw ProcessingError.localProcessingFailed(
-                reason: "A call import needs a source that records the far end separately.",
+                reason: "A call import needs a source that records the call audio separately.",
                 retryable: false
             )
         }

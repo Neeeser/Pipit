@@ -426,7 +426,7 @@ public struct MeetingTrimmer: Sendable {
     }
 
     /// Trims the listening copy with the same range, at the rate it already
-    /// has, so the far end is not brought down to the archive's rate. Where
+    /// has, so the call audio is not brought down to the archive's rate. Where
     /// it cannot be cut it is deleted, and processing mixes it again: it holds
     /// the removed stretch, so it must not stay.
     private func stageMixdown(layout: MeetingLayout, range: TrimRange, staging: inout Staging) {

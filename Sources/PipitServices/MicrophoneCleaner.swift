@@ -3,13 +3,13 @@ import Foundation
 import PipitAudio
 import PipitCore
 
-/// Subtracts the recorded far end out of the recorded microphone, and writes
+/// Subtracts the recorded call audio out of the recorded microphone, and writes
 /// the result beside the recording.
 ///
-/// A call taken on speakers puts the far end into the microphone. It leaves the
+/// A call taken on speakers puts the call audio into the microphone. It leaves the
 /// speakers, crosses the room and arrives back at the capsule. On a Slack
 /// huddle of 3 September 2026, 81% of the words the microphone carried were the
-/// far end's. Pipit records that far end separately through a process tap, and
+/// remote track's. Pipit records that call audio separately through a process tap, and
 /// that recording is the reference an echo canceller needs.
 ///
 /// The cleaned track is written to `raw/audio/mic.cleaned.m4a` and recorded in
@@ -20,7 +20,7 @@ public struct MicrophoneCleaner: Sendable {
     /// The decision is `EchoCancellationPass.judge`, which measures what the
     /// pass did to the user's own windows rather than what the canceller
     /// reported. See the constants there.
-    static let farEndActiveDBFS = EchoCancellationPass.farEndActiveDBFS
+    static let remoteActiveDBFS = EchoCancellationPass.remoteActiveDBFS
     static let minimumActiveWindows = EchoCancellationPass.minimumActiveWindows
 
     /// Cleaned samples held back before a write, so the encoder is handed
@@ -30,7 +30,7 @@ public struct MicrophoneCleaner: Sendable {
     private let clock: any Clock
     /// Builds the canceller the pass runs. The shipped one unless a test hands
     /// in a stand-in, which is how what the pass records about a canceller
-    /// that left the far end behind is exercised.
+    /// that left the call audio behind is exercised.
     private let makeCanceller: @Sendable () throws -> any EchoCancelling
 
     public init(
@@ -81,7 +81,7 @@ public struct MicrophoneCleaner: Sendable {
         microphoneSpeech: MicrophoneSpeech?
     ) throws -> CleaningOutcome {
         // One track holding everyone, which is every import and every in-person
-        // session. There is no separate far end, and the only thing there is to
+        // session. There is no separate call audio, and the only thing there is to
         // subtract from this microphone is the microphone.
         guard metadata.source.micTrackIsLocalUser else {
             try discardCleanedTrack(store: store, metadata: &metadata)
@@ -90,7 +90,7 @@ public struct MicrophoneCleaner: Sendable {
         }
 
         // Both read as recorded, never through `trackAudioLocation`. A second
-        // run has to subtract the far end from the microphone rather than from
+        // run has to subtract the call audio from the microphone rather than from
         // what the first run left, and cleaning an already cleaned track finds
         // no echo path and throws the result away.
         let microphone = store.rawTrackAudioLocation(
@@ -117,7 +117,7 @@ public struct MicrophoneCleaner: Sendable {
             placements: EchoCancellationPass.placements(of: lined), to: partial
         )
         // The same envelope measurement over the cleaned track says whether
-        // the far end is still in it. Taken on the file the pass wrote, so it
+        // the call audio is still in it. Taken on the file the pass wrote, so it
         // describes what every reader is about to be handed.
         let after = try EchoCancellationPass.correlation(
             cleaned: try EchoCancellationPass.location(of: partial, track: .mic),
@@ -129,7 +129,7 @@ public struct MicrophoneCleaner: Sendable {
         let median = judgement.measuredMedianDB
         let active = judgement.activeWindows
         guard judgement.outcome == .cleaned else {
-            // Too little far end played to be judged on, or the pass took the
+            // Too little call audio played to be judged on, or the pass took the
             // user's own speech down with the echo. Either way this microphone
             // is read as it was recorded.
             try? FileManager.default.removeItem(at: partial)
@@ -182,7 +182,7 @@ public struct MicrophoneCleaner: Sendable {
                     firstFrameHostTime: timeline.firstFrameHostTime(track: .mic)
                 ),
                 echoRemovedMedianDB: median,
-                farEndActiveWindows: active,
+                remoteActiveWindows: active,
                 echoCorrelationBefore: EchoCancellationPass.correlation(of: lined.map(\.measured)),
                 echoCorrelationAfter: after,
                 producedAt: clock.now
@@ -264,7 +264,7 @@ public struct MicrophoneCleaner: Sendable {
 
     // MARK: - the pass over both tracks
 
-    /// Where the far end has to be put before the canceller sees it, once for
+    /// Where the call audio has to be put before the canceller sees it, once for
     /// each run of the recording.
     ///
     /// The manifest's own answer unless the recording says otherwise. A track
@@ -291,7 +291,7 @@ public struct MicrophoneCleaner: Sendable {
             Log.processing.info(
                 """
                 run \(index + 1, privacy: .public) of \(runs.count, privacy: .public): \
-                far end realigned by \(String(format: "%.2f", shift), privacy: .public)s \
+                call audio realigned by \(String(format: "%.2f", shift), privacy: .public)s \
                 correlation \(String(format: "%.3f", run.measured.correlation), privacy: .public) \
                 was \(String(format: "%.3f", run.measured.correlationAtTimeline), privacy: .public)
                 """
@@ -382,7 +382,7 @@ public struct MicrophoneCleaner: Sendable {
             """
             microphone cleaning \(outcome.rawValue, privacy: .public): \
             \(median, format: .fixed(precision: 1), privacy: .public) dB median over \
-            \(active, privacy: .public) far-end windows, \
+            \(active, privacy: .public) remote windows, \
             \(frames, privacy: .public) frames
             """
         )

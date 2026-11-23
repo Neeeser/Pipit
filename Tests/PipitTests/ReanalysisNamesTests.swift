@@ -31,8 +31,8 @@ struct ReanalysisNamesTests {
             chunkEmbeddings: [], configuration: [:])
     }
 
-    /// A 30 s call with two far-end voices, the first named by a person, then
-    /// re-analysed into `reclustered`. Returns the name each far-end line reads
+    /// A 30 s call with two remote voices, the first named by a person, then
+    /// re-analysed into `reclustered`. Returns the name each remote line reads
     /// under afterwards.
     private static func reanalyse(
         into reclustered: [DiarizationInterval], cloudLabelled: Bool = false

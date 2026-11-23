@@ -101,7 +101,7 @@ public actor ProcessingPipeline {
     /// Chunk sizing, injectable so tests can exercise multi-chunk behaviour
     /// without minutes of audio.
     private let chunking: ChunkPlanner.Configuration
-    /// How the client's speaker record and the diarizer share the far end.
+    /// How the client's speaker record and the diarizer share the call audio.
     /// Always `current` in the application; `pipit-eval` varies it to compare.
     private let sensorMode: SensorAttributionMode
 
@@ -717,7 +717,7 @@ public actor ProcessingPipeline {
                         try await runMicrophoneRedo(
                             store: store, metadata: &metadata, settings: settings
                         )
-                        // The rest of the pipeline is not run: the far end, its
+                        // The rest of the pipeline is not run: the call audio, its
                         // speakers and the summary are what they were. Straight
                         // to complete, in the write that clears the marker.
                         metadata.processing.advance(to: .complete, at: clock.now)
@@ -1155,10 +1155,10 @@ public actor ProcessingPipeline {
     /// build ships, and transcribes only that track again.
     ///
     /// For a meeting recorded before the canceller improved, or cleaned under an
-    /// older rule: the far end's words can still sit under the local user's
+    /// older rule: the remote track's words can still sit under the local user's
     /// name, and the cleaning pass otherwise runs once per meeting.
     ///
-    /// Kept: everything about the far end. Its words, the diarization runs, the
+    /// Kept: everything about the call audio. Its words, the diarization runs, the
     /// names on its speakers, the local user's name, titles, notes and the
     /// summary. Echo only reaches the microphone, so none of that can have
     /// changed. Redone: `cleaningOutcome` and the cleaned track, the
@@ -1191,15 +1191,15 @@ public actor ProcessingPipeline {
         guard metadata.processing.state == .complete, metadata.microphoneRedoRequestedAt == nil
         else { throw MicrophoneRedoError.notFinished }
         let timeline = try store.readTimeline()
-        // Both tracks as recorded, and a far end that carried sound. A meeting
-        // whose far end never reached its track has the whole call on the
+        // Both tracks as recorded, and call audio that carried sound. A meeting
+        // whose call audio never reached its track has the whole call on the
         // microphone, which is diarized rather than cleaned, and redoing it
         // would only transcribe the same audio again.
         guard
             !store.rawTrackAudioLocation(track: .mic, metadata: metadata, timeline: timeline).isEmpty,
             !store.rawTrackAudioLocation(track: .remote, metadata: metadata, timeline: timeline).isEmpty,
             micHoldsLocalUserAlone(metadata, evidence: store.readSpeechEvidence())
-        else { throw MicrophoneRedoError.noFarEnd }
+        else { throw MicrophoneRedoError.noRemoteAudio }
 
         // Before anything is replaced, and a failure to copy stops here.
         let now = clock.now
@@ -1273,7 +1273,7 @@ public actor ProcessingPipeline {
     }
 
     /// Puts the new microphone words into the transcript, the markdown and the
-    /// mixdown, with the far end exactly as it was.
+    /// mixdown, with the call audio exactly as it was.
     private func reassembleAfterMicrophoneRedo(
         store: MeetingStore, metadata: MeetingMetadata
     ) async throws {
@@ -1388,7 +1388,7 @@ public actor ProcessingPipeline {
     ///
     /// The source says whether it should. The recording says whether it did,
     /// and the two came apart on a Google Meet call whose process tap wrote
-    /// thirty-one minutes of digital zero: the far end never reached its own
+    /// thirty-one minutes of digital zero: the call audio never reached its own
     /// track, the room reached the microphone, and six people arrived on the
     /// track this app calls the local user by construction. Every stage that
     /// treats the microphone as one known person asks here first.
@@ -1400,7 +1400,7 @@ public actor ProcessingPipeline {
     ) -> Bool {
         guard metadata.source.micTrackIsLocalUser else { return false }
         guard let evidence else { return true }
-        return evidence.farEndCarriesSignal
+        return evidence.remoteCarriesSignal
     }
 
     /// Which track holds people whose identity has to be worked out.
@@ -1410,7 +1410,7 @@ public actor ProcessingPipeline {
     /// measured 97% attribution against 84% for diarizing a mixdown. An
     /// in-person or imported recording has one track holding everyone.
     ///
-    /// A remote call whose far end never reached the track is the third case,
+    /// A remote call whose remote track never reached the track is the third case,
     /// and it reads as the second: the microphone holds everybody, so it is the
     /// track with people to find. Diarizing the silent one instead returns no
     /// clusters, and the words then sit on a key that means the local user.
@@ -1420,10 +1420,10 @@ public actor ProcessingPipeline {
         micHoldsLocalUserAlone(metadata, evidence: evidence) ? .remote : .mic
     }
 
-    /// Takes the far end out of the microphone before anything reads it.
+    /// Takes the call audio out of the microphone before anything reads it.
     ///
-    /// A call on speakers puts the far end back into the microphone through the
-    /// air. On the Slack huddle this was measured on, the far end was 81% of
+    /// A call on speakers puts the call audio back into the microphone through the
+    /// air. On the Slack huddle this was measured on, the call audio was 81% of
     /// the words the microphone carried.
     ///
     /// Every stage from here on takes its audio through `trackAudioLocation`,
@@ -1459,7 +1459,7 @@ public actor ProcessingPipeline {
         // Read off the raw microphone before the canceller touches it. The
         // decision to keep the cleaned track is judged on the windows that
         // held the user's speech, and the cleaned track no longer holds the
-        // speech that was over the far end.
+        // speech that was over the call audio.
         let speech = await rawMicrophoneSpeech(store: store, metadata: metadata)
         // A stopped job has not answered the question. Recording the fallback
         // judgement would settle it for good, since the outcome below is what
@@ -1574,7 +1574,7 @@ public actor ProcessingPipeline {
     /// only, so its track is transcribed here.
     ///
     /// `onlyTrack` limits it to one track, which is how the microphone is
-    /// transcribed again with the far end's words left as they are.
+    /// transcribed again with the remote track's words left as they are.
     private func runTranscription(
         store: MeetingStore, metadata: inout MeetingMetadata, settings: AppSettings,
         onlyTrack: CaptureTrack? = nil
@@ -1595,8 +1595,8 @@ public actor ProcessingPipeline {
         if metadata.source.micTrackIsLocalUser { tracks.append(.mic) }
         // The cloud diarizer transcribes as it diarizes, so its words serve when
         // it is also the transcription backend. They must not serve when the
-        // user chose to transcribe on this Mac: taking them would mean the far
-        // end's audio is transcribed in the cloud regardless of that choice, and
+        // user chose to transcribe on this Mac: taking them would mean the remote
+        // track's audio is transcribed in the cloud regardless of that choice, and
         // an imported recording, whose only track is the diarized one, would not
         // be transcribed locally at all.
         if !diarizer.producesTranscript || transcriberOwnsWords(settings) {
@@ -2007,12 +2007,12 @@ public actor ProcessingPipeline {
         // Reading disk state made the answer change mid-stage: a cloud
         // diarization interrupted after some chunks had landed came back, saw
         // its own earlier chunks, and wrote the rest as labels only, so the
-        // assembler dropped the whole far end of the meeting after the
+        // assembler dropped the whole call audio of the meeting after the
         // interruption and never recovered.
         // Whatever this diarizer already wrote for this track, so a run resumed
         // or retried after the transcription setting changed cannot leave half
         // the chunks holding words and half holding labels: the assembler takes
-        // one kind, so the other half of the far end would vanish permanently.
+        // one kind, so the other half of the call audio would vanish permanently.
         // Only the first pass decides.
         let raw = try store.readRawTranscript()
         let existing = raw.chunks(track: track).first { $0.model == backend.identifier }
@@ -2021,7 +2021,7 @@ public actor ProcessingPipeline {
         // labels alone. Without it, switching to cloud transcription after a
         // local engine had already chunked the track made this pass claim the
         // same purpose and the same chunk names, so every plan was skipped as
-        // done, nothing was diarized, and the far end came back unattributed.
+        // done, nothing was diarized, and the call audio came back unattributed.
         // The mirror of the `foreign` guard `runTranscription` applies from
         // the other side.
         let foreignWords = raw.chunks(track: track, purpose: .words)
@@ -2361,7 +2361,7 @@ public actor ProcessingPipeline {
 
     /// The sensor record with the local user marked, where a meeting has one.
     ///
-    /// Only remote meetings: the record describes the far-end track, and an
+    /// Only remote meetings: the record describes the remote track, and an
     /// in-person or imported recording has none by construction.
     private func sensorRecord(store: MeetingStore, metadata: MeetingMetadata) async -> RawSensors? {
         guard metadata.source.micTrackIsLocalUser else { return nil }
@@ -2577,11 +2577,11 @@ public actor ProcessingPipeline {
     /// Names one chunk, uniquely per producer rather than per track.
     ///
     /// Transcription and diarization can both chunk the same track: a local
-    /// engine with a request limit transcribes the far end while a cloud
+    /// engine with a request limit transcribes the call audio while a cloud
     /// diarizer labels it. Sharing an identifier made the diarizer's plans
     /// match the transcriber's chunks, so every one was skipped as already
     /// done, no diarization was requested, no run was written, and the whole
-    /// far end rendered as a single unattributed speaker with the meeting
+    /// call audio rendered as a single unattributed speaker with the meeting
     /// reporting success. Words keep the original form, because every meeting
     /// on disk uses it; speaker chunks take a distinct one.
     static func chunkIdentifier(
@@ -2972,7 +2972,7 @@ public actor ProcessingPipeline {
         )
 
         var speakers = try store.readSpeakerMap()
-        // A far end that never reached its own track puts the room on the
+        // Call audio that never reached its own track puts the room on the
         // microphone, and the microphone is then diarized like any other track.
         // The roster cannot name the local user there: their own tile is the
         // one marked self and is refused, and whichever other tile the meeting
@@ -2980,7 +2980,7 @@ public actor ProcessingPipeline {
         // Google Meet of 4 September 2026 that put another participant's name
         // on the cluster the recognizer had matched to the local user at
         // 0.90. The recognizer's answer is the same fact the microphone track
-        // states by construction on a call whose far end was captured, so it
+        // states by construction on a call whose remote track was captured, so it
         // is written at that rank and outranks the roster.
         let micIsDiarized = !micHoldsLocalUserAlone(metadata, evidence: store.readSpeechEvidence())
         let localUser = settings.processing.localUserIdentityID
@@ -3209,7 +3209,7 @@ public actor ProcessingPipeline {
     /// speaker who said them. `MicrophoneVoiceCheck` holds the rule and the
     /// measurements behind it.
     ///
-    /// Runs after the far-end voices are recognised, because those vectors are
+    /// Runs after the remote voices are recognised, because those vectors are
     /// what a leaked line is matched against. Without a profile for the local
     /// user there is nothing to judge a line by, and every line stays theirs.
     ///
@@ -3241,13 +3241,13 @@ public actor ProcessingPipeline {
             let own = try await speakerStore.searchableProfiles(model: extractor.model)
                 .first(where: { $0.identity.id == localUserID })?.centroid
         else { return }
-        var farEnd: [String: [Float]] = [:]
+        var remote: [String: [Float]] = [:]
         for occurrence in try await speakerStore.occurrences(meetingID: metadata.id)
         where occurrence.track != .mic {
             if let vector = try await speakerStore.occurrenceEmbedding(
                 meetingID: metadata.id, clusterID: occurrence.clusterID, model: extractor.model)
             {
-                farEnd[occurrence.clusterID] = vector
+                remote[occurrence.clusterID] = vector
             }
         }
 
@@ -3285,7 +3285,7 @@ public actor ProcessingPipeline {
             let vector = VoiceVector.centroid(collected)
             return MicrophoneVoiceCheck.Line(
                 id: line.id, levelDB: level, ownScore: VoiceVector.cosine(vector, own),
-                farEnd: farEnd.mapValues { VoiceVector.cosine(vector, $0) })
+                remote: remote.mapValues { VoiceVector.cosine(vector, $0) })
         }
         let decisions = MicrophoneVoiceCheck.decide(measured)
         let moved = decisions.values.filter { $0 != .keep }.count
@@ -3334,8 +3334,8 @@ public actor ProcessingPipeline {
         // The cleaned microphone on a meeting that was cleaned, which is a
         // change to what this profile is built from. The excerpt used to be the
         // recording, and on a call taken on speakers the recording can be 81%
-        // far end. Folding that into a permanent centroid is a failure this
-        // project has already had, and taking the far end out is the larger
+        // call audio. Folding that into a permanent centroid is a failure this
+        // project has already had, and taking the call audio out is the larger
         // correction of the two available here.
         //
         // The smaller risk is left standing and is unmeasured. This profile is
@@ -3347,7 +3347,7 @@ public actor ProcessingPipeline {
         // score. `docs/VERIFICATION.md` names this as unverified.
         let location = store.trackAudioLocation(track: .mic, metadata: metadata, timeline: timeline)
         guard !location.isEmpty else { return }
-        // The far end has to be on its own track for "the microphone track is
+        // The call audio has to be on its own track for "the microphone track is
         // the local user" to mean anything. Without one there is nothing to
         // check bleed against, and a call taken on a phone on speaker and
         // recorded manually would enrol whoever spoke most.
@@ -3356,7 +3356,7 @@ public actor ProcessingPipeline {
         // writes a full-length track, so this read passed on the recording that
         // needed it most: thirty-one minutes of six people, on the microphone,
         // one gesture away from a permanent centroid. The bleed net cannot
-        // stand in for it either, because a silent far end diarizes to no
+        // stand in for it either, because a silent call audio diarizes to no
         // clusters and leaves nothing to match against. `micHoldsLocalUserAlone`
         // above is the guard that means what this comment always claimed.
         guard

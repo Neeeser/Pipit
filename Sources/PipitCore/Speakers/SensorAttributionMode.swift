@@ -1,7 +1,7 @@
 import Foundation
 
 /// How the meeting client's speaker record and the diarizer share the work of
-/// saying who spoke each word on the far end.
+/// saying who spoke each word on the call audio.
 ///
 /// The application always runs `current`. The other modes exist so
 /// `pipit-eval` can score the alternatives on the same audio.
@@ -13,7 +13,7 @@ public enum SensorAttributionMode: String, Sendable, CaseIterable, Equatable {
     case current
     /// The client only names clusters. No word is filed under a participant's
     /// own key, and a one-to-one call goes through the diarizer too, with the
-    /// other person's name on every far-end cluster.
+    /// other person's name on every remote cluster.
     case diarizerNames = "diarizer-names"
     /// Turns label words first and clusters fill the rest. What the application
     /// did before clusters took precedence.

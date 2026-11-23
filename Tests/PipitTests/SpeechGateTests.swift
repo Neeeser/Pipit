@@ -13,7 +13,7 @@ import Testing
 // segments of " ♪". A third produced "Thank you." six times for a user who
 // never spoke at all. All three were rendered as the user's own words.
 //
-// The far end leaking through the speakers is not judged here. It is
+// The call audio leaking through the speakers is not judged here. It is
 // subtracted out of the microphone by the cleaner before transcription, so the
 // levels a segment is read against are the user's own.
 
@@ -23,7 +23,7 @@ private struct Span {
     var end: Double
     /// Loudest window on the microphone, in dBFS.
     var mic: Double
-    /// Loudest window on the far end's own track over the same span.
+    /// Loudest window on the remote track over the same span.
     var far: Double
     /// The detector's highest reading over the span.
     var probability: Double
@@ -87,9 +87,9 @@ struct SpeechGatePolicyTests {
         )
     }
 
-    @Test("a sentence the detector is sure of is the user's, whatever the far end read")
-    func aSentenceTheDetectorIsSureOfIsTheUserSWhateverTheFarEndRead() async throws {
-        // On a cleaned microphone the far end is gone, so a loud far end
+    @Test("a sentence the detector is sure of is the user's, whatever the call audio read")
+    func aSentenceTheDetectorIsSureOfIsTheUserSWhateverTheRemoteTrackRead() async throws {
+        // On a cleaned microphone the call audio is gone, so a loud call audio
         // under the user's words says nothing about whose they are.
         #expect(
             LocalSpeechPolicy.decide(
@@ -201,8 +201,8 @@ struct SpeechGateEvidenceTests {
         #expect(decoded.micSpeech == [90, 91])
     }
 
-    @Test("a meeting with one track reports no far end")
-    func aMeetingWithOneTrackReportsNoFarEnd() async throws {
+    @Test("a meeting with one track reports no call audio")
+    func aMeetingWithOneTrackReportsNoRemoteTrack() async throws {
         let evidence = SpeechEvidence(
             levelWindowSeconds: 0.25, speechWindowSeconds: 0.256,
             micLevels: [Int8](repeating: -20, count: 40), remoteLevels: [],
@@ -212,8 +212,8 @@ struct SpeechGateEvidenceTests {
         #expect(reading.loudestFarDB == nil)
     }
 
-    @Test("a far end recorded as silence is read as no far end at all")
-    func aFarEndRecordedAsSilenceIsReadAsNoFarEndAtAll() async throws {
+    @Test("call audio recorded as silence is read as no call audio at all")
+    func aRemoteTrackRecordedAsSilenceIsReadAsNoRemoteTrackAtAll() async throws {
         // A tap that produced nothing writes a full-length track of the
         // floor. That is not a reference, and reading it as one made
         // every comparison against it trivially true.
@@ -223,7 +223,7 @@ struct SpeechGateEvidenceTests {
             remoteLevels: [Int8](repeating: -120, count: 40),
             micSpeech: [Int8](repeating: 90, count: 40), detector: "silero"
         )
-        #expect(!evidence.farEndCarriesSignal)
+        #expect(!evidence.remoteCarriesSignal)
         let reading = try #require(evidence.reading(from: 1, to: 2))
         #expect(reading.loudestFarDB == nil)
     }
@@ -292,10 +292,10 @@ struct SpeechGateAssemblyTests {
         #expect(transcript.utterances.count == 1, "kept, for want of anything to judge it by")
     }
 
-    @Test("the far end's own track is never gated")
-    func theFarEndSOwnTrackIsNeverGated() async throws {
+    @Test("the remote track is never gated")
+    func theRemoteTrackIsNeverGated() async throws {
         // The guard exists because a fabrication on the microphone is
-        // shown as something the user said. The far end arrives on its
+        // shown as something the user said. The call audio arrives on its
         // own tap, which is silent when nobody speaks and carries no
         // leakage of anybody else.
         let remote = RawTranscriptChunk(
@@ -317,7 +317,7 @@ struct SpeechGateAssemblyTests {
                 ]),
             micTrackIsLocalUser: true, generatedAt: Date(timeIntervalSince1970: 0)
         )
-        #expect(transcript.utterances.count == 1, "the far end keeps its words")
+        #expect(transcript.utterances.count == 1, "the call audio keeps its words")
     }
 }
 
@@ -328,7 +328,7 @@ struct SpeechGateMeasurementTests {
         // The two tracks do not start at the same instant, and the
         // transcript segments this is compared against already carry
         // their track's lead-in. A profile measured from each track's
-        // own zero would put the microphone and the far end twelve
+        // own zero would put the microphone and the call audio twelve
         // seconds out of step, and every level comparison would then be
         // between two different moments.
         let root = try TestPaths.makeTemporaryDirectory()
@@ -358,14 +358,14 @@ struct SpeechGateMeasurementTests {
         // and only the boundary says how much was added.
         #expect(
             afterPadding.first.map { $0 > floor } ?? false,
-            "the far end's tone begins at second twelve"
+            "the remote track's tone begins at second twelve"
         )
         #expect(evidence.micSpeech.isEmpty, "no detector, no readings")
         #expect(evidence.detector == nil)
     }
 
-    @Test("a recording with no far end carries no far-end series")
-    func aRecordingWithNoFarEndCarriesNoFarEndSeries() async throws {
+    @Test("a recording with no call audio carries no remote series")
+    func aRecordingWithNoRemoteTrackCarriesNoRemoteSeries() async throws {
         // An import and an in-person session have one track.
         let root = try TestPaths.makeTemporaryDirectory()
         defer { try? FileManager.default.removeItem(at: root) }
@@ -374,14 +374,14 @@ struct SpeechGateMeasurementTests {
             store: meeting.store, metadata: meeting.metadata,
             timeline: try meeting.store.readTimeline(), detector: nil
         )
-        #expect(evidence.remoteLevels.isEmpty, "no far end was recorded")
+        #expect(evidence.remoteLevels.isEmpty, "no call audio was recorded")
     }
 
-    @Test("a far end that stopped recording first reads as absent after it stopped")
-    func aFarEndThatStoppedRecordingFirstReadsAsAbsentAfterItStopped() async throws {
+    @Test("call audio that stopped recording first reads as absent after it stopped")
+    func aRemoteTrackThatStoppedRecordingFirstReadsAsAbsentAfterItStopped() async throws {
         // The process tap delivers nothing while the application is
-        // idle, so the far end's track can end while the microphone is
-        // still recording. There is no evidence about the far end after
+        // idle, so the remote track can end while the microphone is
+        // still recording. There is no evidence about the call audio after
         // that, and inventing some would be a measurement nobody made.
         let evidence = SpeechEvidence(
             levelWindowSeconds: 0.25, speechWindowSeconds: 0.256,

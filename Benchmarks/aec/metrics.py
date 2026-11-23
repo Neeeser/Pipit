@@ -1,7 +1,7 @@
 """Scores for one cleaned clip.
 
 Signal scores need only the audio. Transcript scores need parakeet output for
-the clip, the far end, and the near-end truth, produced in one batch by
+the clip, the call audio, and the near-end truth, produced in one batch by
 ``pipit-eval asr --json`` so the model loads once per candidate.
 """
 
@@ -25,9 +25,9 @@ def window_db(audio: np.ndarray, window: int = WINDOW) -> np.ndarray:
 
 
 def echo_removed_db(mic: np.ndarray, out: np.ndarray, ref: np.ndarray, far_floor_db: float = -60.0) -> float:
-    """Median level drop over windows where the far end was playing.
+    """Median level drop over windows where the call audio was playing.
 
-    Measured on the audio, not the canceller's own report. On a far-end-only
+    Measured on the audio, not the canceller's own report. On a remote-only
     clip this is ERLE.
     """
     n = min(len(mic), len(out), len(ref))
@@ -39,9 +39,9 @@ def echo_removed_db(mic: np.ndarray, out: np.ndarray, ref: np.ndarray, far_floor
 
 
 def residual_correlation(out: np.ndarray, ref: np.ndarray, max_lag_s: float = 0.5) -> float:
-    """Peak normalised cross-correlation of the output with the far end.
+    """Peak normalised cross-correlation of the output with the call audio.
 
-    Near zero when nothing of the far end is left; the raw microphone on a
+    Near zero when nothing of the call audio is left; the raw microphone on a
     loud-speaker call reads 0.4 to 0.6.
     """
     from scipy.signal import fftconvolve
@@ -153,10 +153,10 @@ def transcript_score(
 ) -> TranscriptScore:
     """Leaked and lost words for one clip.
 
-    A leaked word is in the output and in the far end's own transcript within
+    A leaked word is in the output and in the remote track's own transcript within
     ``window_s``, and not in the near-end truth within the same window. A lost
     word is in the truth and nowhere in the output within the window. Short
-    function words are skipped for leaks because the far end and the user
+    function words are skipped for leaks because the call audio and the user
     both say them.
     """
     score = TranscriptScore(output_words=len(output), far_words=len(far), truth_words=len(truth or []))

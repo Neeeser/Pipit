@@ -13,13 +13,13 @@ how many frames it holds, so for one track the host time a frame was captured
 at can be set against how many frames came before it:
 
 - The start offset is the system-audio track's first frame minus the
-  microphone's, in seconds. Positive means the far end started later.
+  microphone's, in seconds. Positive means the call audio started later.
 - A track's drift is how much faster host time runs than its samples, in
   parts per million: the median over consecutive segments of the host time
   between their first frames against the seconds the first one recorded. The
   median ignores a single jump, which a plain line fit would spread over the
   whole meeting as a rate. The relative drift is the system-audio track's
-  drift minus the microphone's, the rate at which the far end slides against
+  drift minus the microphone's, the rate at which the call audio slides against
   the microphone when both files are read at their nominal rate.
 - A step is a jump in one track's host time against its samples between two
   segments of more than `STEP_SECONDS`: audio lost and not padded, or padded
@@ -135,7 +135,7 @@ def percentiles(values: list[float]) -> str:
 
 
 def slide_seconds(result: dict) -> float:
-    """How far the far end moved earlier against the microphone over the run."""
+    """How far the call audio moved earlier against the microphone over the run."""
 
     def lost(track: str) -> float:
         return sum(s for s in result[track + "Steps"] if abs(s) < SLIDE_STEP_LIMIT_SECONDS)
@@ -148,11 +148,11 @@ def report(results: list[dict]) -> list[str]:
     lines = []
     offsets = [r["offset"] for r in results]
     lines.append("meetings with both tracks: %d" % len(results))
-    lines.append("start offset, seconds (far end minus microphone): %s" % percentiles(offsets))
+    lines.append("start offset, seconds (call audio minus microphone): %s" % percentiles(offsets))
     lines.append("absolute start offset, seconds:                   %s" % percentiles([abs(o) for o in offsets]))
     later = sum(1 for o in offsets if o > 1.0)
     earlier = sum(1 for o in offsets if o < -1.0)
-    lines.append("offsets over 1 s: far end later in %d, microphone later in %d" % (later, earlier))
+    lines.append("offsets over 1 s: call audio later in %d, microphone later in %d" % (later, earlier))
     drifts = [r for r in results if "relativePPM" in r]
     lines.append("meetings long enough to measure drift: %d" % len(drifts))
     lines.append("microphone drift, ppm:          %s" % percentiles([r["micPPM"] for r in drifts]))
@@ -171,7 +171,7 @@ def report(results: list[dict]) -> list[str]:
     for step in small:
         counts[int(round(step / buffer_seconds))] = counts.get(int(round(step / buffer_seconds)), 0) + 1
     lines.append(
-        "far-end steps under %.0f ms, by nearest whole %d-frame buffers: %s"
+        "remote steps under %.0f ms, by nearest whole %d-frame buffers: %s"
         % (PAD_FLOOR_SECONDS * 1000, CAPTURE_BUFFER_FRAMES, ", ".join("%d: %d" % kv for kv in sorted(counts.items())))
     )
     if small:
@@ -179,11 +179,11 @@ def report(results: list[dict]) -> list[str]:
         lines.append("largest distance of one of those steps from whole buffers, ms: %.2f" % (away * 1000))
     slides = [slide_seconds(r) for r in results]
     lines.append(
-        "meetings where the far end slid earlier (steps under %.0f s): %d" % (SLIDE_STEP_LIMIT_SECONDS, sum(1 for s in slides if s > 0))
+        "meetings where the call audio slid earlier (steps under %.0f s): %d" % (SLIDE_STEP_LIMIT_SECONDS, sum(1 for s in slides if s > 0))
     )
-    lines.append("far-end slide, ms per meeting:  %s" % percentiles([1000 * s for s in slides]))
+    lines.append("remote slide, ms per meeting:  %s" % percentiles([1000 * s for s in slides]))
     lines.append(
-        "far-end slide, ms per minute:   %s"
+        "remote slide, ms per minute:   %s"
         % percentiles([1000 * s / (r["seconds"] / 60) for s, r in zip(slides, results)])
     )
     return lines

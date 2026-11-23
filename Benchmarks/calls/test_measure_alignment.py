@@ -41,7 +41,7 @@ class MeasureTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as scratch:
             return measure_alignment.measure(write(Path(scratch), events))
 
-    def test_a_late_far_end_reads_its_start_offset(self):
+    def test_a_late_remote_track_reads_its_start_offset(self):
         found = self.measure(segments("mic", 100.0, 12) + segments("remote", 101.25, 12))
         self.assertAlmostEqual(found["offset"], 1.25, places=6)
         self.assertAlmostEqual(found["relativePPM"], 0.0, places=3)
@@ -68,8 +68,8 @@ class MeasureTests(unittest.TestCase):
             self.measure(segments("mic", 0.0, 20) + segments("remote", 0.5, 20)),
         ]
         lines = measure_alignment.report(results)
-        self.assertIn("far-end steps under 50 ms, by nearest whole 512-frame buffers: 1: 1, 4: 1", lines)
-        self.assertIn("meetings where the far end slid earlier (steps under 1 s): 1", lines)
+        self.assertIn("remote steps under 50 ms, by nearest whole 512-frame buffers: 1: 1, 4: 1", lines)
+        self.assertIn("meetings where the call audio slid earlier (steps under 1 s): 1", lines)
 
 
 if __name__ == "__main__":

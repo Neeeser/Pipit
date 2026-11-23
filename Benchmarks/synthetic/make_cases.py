@@ -12,7 +12,7 @@ and writes a benchmark root beside it, `.../synthetic/bench/`, that
 `pipit-eval bench --benchmarks` and `--audio-dir` can point at:
 
 - `calls/<meeting>-headphones` and `calls/<meeting>-laptop`: the local person on
-  the microphone and everyone else on the far-end track, through the same
+  the microphone and everyone else on the remote track, through the same
   simulator as the AMI call suite (`Benchmarks/calls/callsim.py`), with its
   Opus round trip, laptop-speaker echo and microphone noise;
 - `ground-truth/<meeting>.json` and `<meeting>.mix.wav`: an in-person meeting,

@@ -6,41 +6,41 @@ import PipitCore
 ///
 /// A call that dropped and was rejoined is two or more runs under one manifest.
 /// Each run opens writers of its own, and a source that stalls leaves a hole
-/// that moves every later second of its track, so the far end can sit a
+/// that moves every later second of its track, so the call audio can sit a
 /// different distance from the microphone in each run. On a 59 minute call of
-/// 5 October 2026 the far end had to move +1.76 s onto the microphone's clock in
+/// 5 October 2026 the call audio had to move +1.76 s onto the microphone's clock in
 /// the first run and -1.46 s in the second. A single placement for the whole meeting is right for one run and
 /// wrong for the others, and the canceller was handed a reference seconds out of
 /// step for everything after the rejoin.
 ///
-/// So the far end is placed against the microphone once per run, from that run's
+/// So the call audio is placed against the microphone once per run, from that run's
 /// own host times and from a measurement over that run's own audio. The cleaned
 /// track is still one file on the microphone's clock, and the decision about
 /// whether to keep it is still one per meeting.
 extension EchoCancellationPass {
-    /// Where the far end sits against the microphone from one point on.
+    /// Where the call audio sits against the microphone from one point on.
     struct Placement: Sendable, Equatable {
         /// First second of the microphone this placement covers. It holds until
         /// the next placement starts, or to the end of the recording.
         let startSeconds: Double
-        /// Seconds the far end moves to line up with the microphone, in the
-        /// sense `run` takes it. Nil where the far end recorded nothing, which
+        /// Seconds the call audio moves to line up with the microphone, in the
+        /// sense `run` takes it. Nil where the call audio recorded nothing, which
         /// is handed to the canceller as silence rather than as whatever the
-        /// far end played at some other time.
+        /// call audio played at some other time.
         let offsetSeconds: Double?
-        /// The part of the far end's track this run wrote, in the track's own
+        /// The part of the remote track this run wrote, in the track's own
         /// seconds. Nothing outside it is handed to the canceller: the audio
         /// before it was recorded in an earlier run and the audio after it in a
         /// later one, and neither was playing here.
-        let farEnd: ClosedRange<Double>
+        let remoteSpan: ClosedRange<Double>
 
         init(
             startSeconds: Double, offsetSeconds: Double?,
-            farEnd: ClosedRange<Double> = 0...Double.infinity
+            remoteSpan: ClosedRange<Double> = 0...Double.infinity
         ) {
             self.startSeconds = startSeconds
             self.offsetSeconds = offsetSeconds
-            self.farEnd = farEnd
+            self.remoteSpan = remoteSpan
         }
     }
 
@@ -48,8 +48,8 @@ extension EchoCancellationPass {
     ///
     /// The microphone is read from its own first frame, so a position in the
     /// cleaned file is the same position in the recording and every timestamp
-    /// downstream still lands where it did. The far end is moved onto that
-    /// clock. `CaptureRun.referenceOffset` says how far: a far end that
+    /// downstream still lands where it did. The call audio is moved onto that
+    /// clock. `CaptureRun.referenceOffset` says how far: call audio that
     /// started later is padded with the silence Pipit did not record, and one
     /// that started earlier has that much of it read and thrown away.
     ///
@@ -63,36 +63,36 @@ extension EchoCancellationPass {
         for (index, run) in runs.enumerated() {
             guard let microphone = run.mic else { continue }
             var offset: Double?
-            var farEnd = 0...Double.infinity
+            var remoteSpan = 0...Double.infinity
             if let remote = run.remote, remote.seconds > 0 {
                 offset = run.referenceOffset ?? previous ?? 0
                 previous = offset
-                // The last run draws on the far end to the end of its track,
+                // The last run draws on the call audio to the end of its track,
                 // which can run a little past what the manifest counted.
                 let end = index == runs.count - 1 ? Double.infinity : remote.startSeconds + remote.seconds
-                farEnd = remote.startSeconds...end
+                remoteSpan = remote.startSeconds...end
             }
             placements.append(
-                Placement(startSeconds: microphone.startSeconds, offsetSeconds: offset, farEnd: farEnd)
+                Placement(startSeconds: microphone.startSeconds, offsetSeconds: offset, remoteSpan: remoteSpan)
             )
         }
         return placements.isEmpty ? [Placement(startSeconds: 0, offsetSeconds: 0)] : placements
     }
 
-    /// One run of the microphone, lined up against the far end.
+    /// One run of the microphone, lined up against the call audio.
     struct AlignedRun: Sendable, Equatable {
         let startSeconds: Double
         /// How long the run is on the microphone's clock.
         let seconds: Double
-        /// What the manifest says. Nil where the far end recorded nothing.
+        /// What the manifest says. Nil where the call audio recorded nothing.
         let timelineOffsetSeconds: Double?
-        /// The part of the far end's track this run draws on.
-        let farEnd: ClosedRange<Double>
+        /// The part of the remote track this run draws on.
+        let remoteSpan: ClosedRange<Double>
         /// What the envelopes say, over this run alone. Present whether or not
         /// it was acted on, because the figures explain the decision.
         let measured: Alignment
 
-        /// Where the far end was put: the measurement where it cleared its
+        /// Where the call audio was put: the measurement where it cleared its
         /// bars, the manifest otherwise.
         var offsetSeconds: Double? {
             guard let timelineOffsetSeconds else { return nil }
@@ -100,11 +100,11 @@ extension EchoCancellationPass {
         }
 
         var placement: Placement {
-            Placement(startSeconds: startSeconds, offsetSeconds: offsetSeconds, farEnd: farEnd)
+            Placement(startSeconds: startSeconds, offsetSeconds: offsetSeconds, remoteSpan: remoteSpan)
         }
     }
 
-    /// Places the far end against the microphone in every run, and measures
+    /// Places the call audio against the microphone in every run, and measures
     /// each run on its own audio.
     ///
     /// Each run's measurement is read through that run's own manifest offset,
@@ -122,7 +122,7 @@ extension EchoCancellationPass {
             if let offset = placement.offsetSeconds {
                 measured = try measureAlignment(
                     microphone: microphone, reference: reference, timelineOffset: offset,
-                    from: placement.startSeconds, length: length, farEnd: placement.farEnd
+                    from: placement.startSeconds, length: length, remoteSpan: placement.remoteSpan
                 )
             } else {
                 measured = .unmeasured(timelineOffset: 0)
@@ -132,7 +132,7 @@ extension EchoCancellationPass {
                     startSeconds: placement.startSeconds,
                     seconds: length ?? max(0, microphone.seconds - placement.startSeconds),
                     timelineOffsetSeconds: placement.offsetSeconds,
-                    farEnd: placement.farEnd,
+                    remoteSpan: placement.remoteSpan,
                     measured: measured
                 ))
         }
@@ -164,7 +164,7 @@ extension EchoCancellationPass {
                 try measureAlignment(
                     microphone: cleaned, reference: reference, timelineOffset: offset,
                     from: run.startSeconds, length: index == runs.count - 1 ? nil : run.seconds,
-                    farEnd: run.farEnd
+                    remoteSpan: run.remoteSpan
                 ))
         }
         return correlation(of: alignments)

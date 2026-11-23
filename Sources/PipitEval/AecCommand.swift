@@ -5,7 +5,7 @@ import PipitServices
 
 /// `pipit-eval aec`: the shipped echo pass over two audio files.
 ///
-/// Takes a microphone recording and the far end that was played, writes the
+/// Takes a microphone recording and the call audio that was played, writes the
 /// cleaned microphone, and prints what the pass measured. The bake-off harness
 /// runs it over public corpora so the canceller Pipit ships is scored the same
 /// way as every candidate, and a port of the canceller is checked against a
@@ -20,7 +20,7 @@ enum AecCommand {
         var alignmentOffsetSeconds: Double
         var alignmentCorrelation: Double
         var alignmentUsable: Bool
-        var farEndActiveWindows: Int
+        var remoteActiveWindows: Int
         var medianChangeDB: Double
         var reportedMedianDB: Double
         var decision: String
@@ -68,7 +68,7 @@ enum AecCommand {
         }
         let elapsed = Date().timeIntervalSince(started)
         let judgement = EchoCancellationPass.judge(windows: run.windows)
-        let active = run.windows.filter { $0.farEndDBFS > EchoCancellationPass.farEndActiveDBFS }
+        let active = run.windows.filter { $0.remoteDBFS > EchoCancellationPass.remoteActiveDBFS }
         let changes = active.map { $0.microphoneBeforeDBFS - $0.microphoneAfterDBFS }
         let report = Report(
             microphone: microphone.lastPathComponent,
@@ -79,7 +79,7 @@ enum AecCommand {
             alignmentOffsetSeconds: run.alignment.offsetSeconds,
             alignmentCorrelation: run.alignment.correlation,
             alignmentUsable: run.alignment.isUsable,
-            farEndActiveWindows: active.count,
+            remoteActiveWindows: active.count,
             medianChangeDB: EchoCancellationPass.percentile(changes, 0.5) ?? 0,
             reportedMedianDB: judgement.reportedMedianDB,
             decision: judgement.outcome.rawValue
@@ -95,7 +95,7 @@ enum AecCommand {
                 + " \(String(format: "%.3f", report.alignmentCorrelation)),"
                 + " \(report.alignmentUsable ? "used" : "not used")")
         print("offset used     \(String(format: "%+.3f", report.referenceOffsetSeconds))s")
-        print("far end active  \(report.farEndActiveWindows) windows")
+        print("remote active   \(report.remoteActiveWindows) windows")
         print("median change   \(String(format: "%.1f", report.medianChangeDB)) dB")
         print("reported        \(String(format: "%.1f", report.reportedMedianDB)) dB")
         print("decision        \(report.decision)")

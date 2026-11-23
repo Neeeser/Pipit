@@ -1,26 +1,26 @@
 import Foundation
 
-/// Removes the far end's own words from the local person's microphone lines.
+/// Removes the remote track's own words from the local person's microphone lines.
 ///
-/// The far end plays out of the speakers and back into the microphone. The
+/// The call audio plays out of the speakers and back into the microphone. The
 /// canceller takes most of it out, and what it leaves is transcribed under the
 /// user's name. On the Zoom call of 11 September 2026 the speakers were loud
 /// and the echo path nonlinear: 249 of the 268 lines on the microphone were
-/// the far end's words, within a second or so of the far end's own line.
+/// the remote track's words, within a second or so of the remote track's own line.
 ///
 /// Two goals pull against each other: the local person's own words are never
-/// dropped, and the far end's words are never shown under the local person.
+/// dropped, and the remote track's words are never shown under the local person.
 /// When they conflict, the local person's words win.
 ///
-/// A microphone word is echo when it is a far-end word spoken within
+/// A microphone word is echo when it is a remote word spoken within
 /// `wordGapSeconds` of it. The moment is judged per word: echo is the same
 /// sound arriving a fraction of a second late, so each of its words sits on the
-/// far end's own, while a person who answers in the far end's words says each
+/// remote track's own, while a person who answers in the remote track's words says each
 /// of them seconds later. Judged by the lines' spans, as it first was, a
 /// conversation that overlapped by a few words lost real lines.
 ///
-/// Each far-end word can be the source of one microphone word, so a person who
-/// repeats a word the far end said once does not count as echoing it again.
+/// Each remote word can be the source of one microphone word, so a person who
+/// repeats a word the other people on the call said once does not count as echoing it again.
 /// Backchannels (`ignoredWords`) are neither echo nor the person's own
 /// content: both sides say them, so they cannot show whose voice it is. A reply
 /// made of them stays. They still go with a run of echo they sit inside.
@@ -36,19 +36,19 @@ import Foundation
 ///
 /// A mis-heard word at the edge of a run ("fry day" for "friday") matches
 /// nothing, so it is left behind unless the words next to the run are close in
-/// spelling to the far-end words that follow or precede the run's source, and
-/// fall in the far-end line's span. At most `maximumLeftoverWords` go that way,
+/// spelling to the remote words that follow or precede the run's source, and
+/// fall in the remote line's span. At most `maximumLeftoverWords` go that way,
 /// so the person's real words after an echo stay.
 ///
 /// A line without word timings gives every word the span of the line and is
-/// judged whole, as is a far-end line without them, because a backend that
+/// judged whole, as is a remote line without them, because a backend that
 /// returns text only gives no moment to compare.
-public enum FarEndOverlap {
+public enum RemoteOverlap {
     /// Content words a run needs before it can be judged.
     public static let minimumWords = 4
-    /// Share of a run's content words that have to be the far end's.
+    /// Share of a run's content words that have to be the remote track's.
     public static let overlapShare = 0.6
-    /// How close in time a word has to be to the far end's same word to be
+    /// How close in time a word has to be to the remote track's same word to be
     /// that word's echo.
     public static let wordGapSeconds = 1.0
     /// Microphone lines closer than this are searched for echo as one line.
@@ -56,13 +56,13 @@ public enum FarEndOverlap {
     /// Words beside a run that can be taken as its mis-heard edge.
     static let maximumLeftoverWords = 2
     /// Edit distance, as a share of the longer spelling, up to which a leftover
-    /// reads as a mis-hearing of the far-end words next to the run's source.
+    /// reads as a mis-hearing of the remote words next to the run's source.
     static let leftoverSpellingTolerance = 0.4
 
     public static func drop(_ utterances: [Utterance]) -> [Utterance] {
-        let farEnd = utterances.filter { $0.track != .mic }
-        guard !farEnd.isEmpty else { return utterances }
-        var theirs = FarEndWords(farEnd)
+        let remote = utterances.filter { $0.track != .mic }
+        guard !remote.isEmpty else { return utterances }
+        var theirs = RemoteWords(remote)
         var lines = utterances.indices
             .filter { utterances[$0].track == .mic }
             .sorted { utterances[$0].start < utterances[$1].start }
@@ -98,17 +98,17 @@ public enum FarEndOverlap {
         var end: Double
         /// Whether it counts toward a run: long enough and not an ignored word.
         var content: Bool
-        /// For a content word, whether it was paired with a far-end word. For
-        /// any other, whether a far-end word matches it at that moment.
+        /// For a content word, whether it was paired with a remote word. For
+        /// any other, whether a remote word matches it at that moment.
         var echoed = false
-        /// The far-end word a content word was paired with.
+        /// The remote word a content word was paired with.
         var source: Int?
 
         init(text: String, start: Double, end: Double) {
             self.text = text
             self.start = start
             self.end = end
-            content = text.count >= FarEndOverlap.minimumLetters && !FarEndOverlap.ignoredWords.contains(text)
+            content = text.count >= RemoteOverlap.minimumLetters && !RemoteOverlap.ignoredWords.contains(text)
         }
     }
 
@@ -133,14 +133,14 @@ public enum FarEndOverlap {
                 timed = true
                 units = words.map { word in
                     Unit(
-                        tokens: FarEndOverlap.tokens(word.text).map {
+                        tokens: RemoteOverlap.tokens(word.text).map {
                             Token(text: $0, start: word.start, end: word.end)
                         },
                         start: word.start, end: word.end)
                 }
             } else {
                 timed = false
-                units = FarEndOverlap.tokens(utterance.text).map {
+                units = RemoteOverlap.tokens(utterance.text).map {
                     Unit(
                         tokens: [Token(text: $0, start: utterance.start, end: utterance.end)],
                         start: utterance.start, end: utterance.end)
@@ -149,8 +149,8 @@ public enum FarEndOverlap {
         }
     }
 
-    /// The far end's words, each of which can be claimed by one microphone word.
-    struct FarEndWords {
+    /// The remote track's words, each of which can be claimed by one microphone word.
+    struct RemoteWords {
         struct Word {
             var text: String
             var start: Double
@@ -171,10 +171,10 @@ public enum FarEndOverlap {
                 let spans: [(String, Double, Double)]
                 if let timed = utterance.words, !timed.isEmpty {
                     spans = timed.flatMap { word in
-                        FarEndOverlap.tokens(word.text).map { ($0, word.start, word.end) }
+                        RemoteOverlap.tokens(word.text).map { ($0, word.start, word.end) }
                     }
                 } else {
-                    spans = FarEndOverlap.tokens(utterance.text).map { ($0, utterance.start, utterance.end) }
+                    spans = RemoteOverlap.tokens(utterance.text).map { ($0, utterance.start, utterance.end) }
                 }
                 for (position, span) in spans.enumerated() {
                     ids.append(words.count)
@@ -187,11 +187,11 @@ public enum FarEndOverlap {
         }
 
         static func near(_ token: Token, _ word: Word) -> Bool {
-            max(token.start, word.start) - min(token.end, word.end) <= FarEndOverlap.wordGapSeconds
+            max(token.start, word.start) - min(token.end, word.end) <= RemoteOverlap.wordGapSeconds
         }
 
         /// Marks which microphone tokens are echo. Content words claim the
-        /// nearest far-end word in time that nobody has claimed, working through
+        /// nearest remote word in time that nobody has claimed, working through
         /// the microphone in time order; the others only look for a match.
         mutating func pair(_ lines: inout [MicLine]) {
             var order: [(line: Int, unit: Int, token: Int)] = []
@@ -234,7 +234,7 @@ public enum FarEndOverlap {
     /// The pieces each line of a pool becomes once its echo is taken out:
     /// nothing, the line itself, or the stretches around a removed run.
     private static func remaining(
-        of group: [MicLine], theirs: FarEndWords
+        of group: [MicLine], theirs: RemoteWords
     ) -> [(Int, [Utterance])] {
         guard let first = group.first else { return [] }
         guard first.timed else {
@@ -264,7 +264,7 @@ public enum FarEndOverlap {
     /// The indices of the units that are echo. Each run holds `minimumWords`
     /// echoed content words and `overlapShare` of its content words echoed, and
     /// is cut at a stretch of the person's own content words.
-    private static func echoUnits(in units: [Unit], theirs: FarEndWords) -> Set<Int> {
+    private static func echoUnits(in units: [Unit], theirs: RemoteWords) -> Set<Int> {
         let content = units.enumerated().flatMap { index, unit in
             unit.tokens.filter(\.content).map { (unit: index, token: $0) }
         }
@@ -320,11 +320,11 @@ public enum FarEndOverlap {
     }
 
     /// Whether words beside a run are the microphone's mis-hearing of the
-    /// far-end words that come after (or before) the far-end word the run's
+    /// remote words that come after (or before) the remote word the run's
     /// edge came from: they fall inside that line's span and are spelled almost
-    /// as those words are, however the far end's words are split between them.
+    /// as those words are, however the remote track's words are split between them.
     private static func misheard(
-        _ units: ArraySlice<Unit>, nextTo source: Int, forward: Bool, _ theirs: FarEndWords
+        _ units: ArraySlice<Unit>, nextTo source: Int, forward: Bool, _ theirs: RemoteWords
     ) -> Bool {
         let word = theirs.words[source]
         let span = theirs.lineSpans[word.line]

@@ -773,7 +773,7 @@ struct UITests {
             )
 
             // Red outranks the reconnect orange, and stays on through a
-            // recording whose far end is missing.
+            // recording whose call audio is missing.
             status.sessionState = .reconnecting
             status.permissionNotice = PermissionNotice(missing: [.screenRecording])
             #expect(MenuBarController.iconIsRed(for: status))
