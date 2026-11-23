@@ -1,0 +1,1334 @@
+{
+ "speakers": {
+  "S01": {
+   "key": "0e6abf9c97594e890582c64f81da1a1bb5d466447cb1e6edaa356ad3ba8997c6",
+   "model": "gemini-3.5-flash-lite",
+   "lines": [
+    {
+     "line": 1,
+     "text": "Alright looks like, wait can you all hear me okay on the, on the laptop mic? Okay cool. So let us, um, let us jump right in because we have literally forty five minutes to lock down the GTM schedule and the numbers for PulseGrid Enterprise before executive sign off on Friday.",
+     "kind": "turn",
+     "start": 1.153,
+     "end": 18.373,
+     "speaker": "S01",
+     "differingWords": 1,
+     "verdict": "minor"
+    },
+    {
+     "line": 2,
+     "text": "Great so the target GA date is still, well we are aiming for November twelfth, which gives us about, uh, six weeks post beta. Priya you sent over the revised marketing forecast yesterday evening right?",
+     "kind": "turn",
+     "start": 18.926,
+     "end": 31.966,
+     "speaker": "S01",
+     "differingWords": 2,
+     "verdict": "minor"
+    },
+    {
+     "line": 3,
+     "text": "David hold on, the two hundred k figure was based on the old tier two roadmap from July, before we decided to pull the automated migration engine into the core bundle. If we do not make a splash in November, Tariq is not gonna hit his ARR commit.",
+     "kind": "turn",
+     "start": 76.138,
+     "end": 89.078,
+     "speaker": "S01",
+     "differingWords": 1,
+     "verdict": "minor"
+    },
+    {
+     "line": 4,
+     "text": "Elena go ahead, yeah tell us what the infrastructure gap is.",
+     "kind": "turn",
+     "start": 137.046,
+     "end": 140.406,
+     "speaker": "S01",
+     "differingWords": 0,
+     "verdict": "match"
+    },
+    {
+     "line": 5,
+     "text": "Chloe can we, can we simplify that to a three step wizard or is that, like, hardcoded into the backend schema?",
+     "kind": "turn",
+     "start": 191.312,
+     "end": 197.172,
+     "speaker": "S01",
+     "differingWords": 0,
+     "verdict": "match"
+    },
+    {
+     "line": 6,
+     "text": "Okay so wait, let us unpack this because we are juggling four different fires. First fire is the budget dispute between David and marketing. Second fire is Elena's eighteen k monthly AWS requirement. Third is the UX friction. And we have not even heard from Arthur yet because he is stuck in another meeting.",
+     "kind": "turn",
+     "start": 220.327,
+     "end": 236.867,
+     "speaker": "S01",
+     "differingWords": 0,
+     "verdict": "match"
+    },
+    {
+     "line": 7,
+     "text": "Wait, Tariq, what if we co sponsor the event? What if we get Datastream or Snowflake or one of our integration partners to split the thirty five k room fee? Have we pitched them?",
+     "kind": "turn",
+     "start": 295.119,
+     "end": 304.689,
+     "speaker": "S01",
+     "differingWords": 1,
+     "verdict": "minor"
+    },
+    {
+     "line": 8,
+     "text": "Alright, let us table the Datastream negotiation to this afternoon. Let us look at the timeline. Elena, if we do not get that staging cluster funded until next Friday, what happens to QA?",
+     "kind": "turn",
+     "start": 332.708,
+     "end": 343.398,
+     "speaker": "S01",
+     "differingWords": 0,
+     "verdict": "match"
+    },
+    {
+     "line": 9,
+     "text": "Wait, what? A memory leak? Why am I hearing about this just now Elena?",
+     "kind": "interrupt",
+     "start": 380.771,
+     "end": 386.161,
+     "speaker": "S01",
+     "differingWords": 0,
+     "verdict": "match"
+    },
+    {
+     "line": 10,
+     "text": "Speaking of Arthur, is he, oh wait, there he is. Arthur, are you on? Can you hear us?",
+     "kind": "turn",
+     "start": 421.65,
+     "end": 425.65,
+     "speaker": "S01",
+     "differingWords": 0,
+     "verdict": "match"
+    },
+    {
+     "line": 11,
+     "text": "She says they need dedicated IOPS to trace and stress test a Redis leak by Tuesday, and David is balking at the eighteen k monthly delta for the multi region setup.",
+     "kind": "turn",
+     "start": 441.288,
+     "end": 452.028,
+     "speaker": "S01",
+     "differingWords": 0,
+     "verdict": "match"
+    },
+    {
+     "line": 12,
+     "text": "Boom! That is huge. Okay, that is huge. Thank you Arthur.",
+     "kind": "turn",
+     "start": 497.542,
+     "end": 500.192,
+     "speaker": "S01",
+     "differingWords": 0,
+     "verdict": "match"
+    },
+    {
+     "line": 13,
+     "text": "So David, that frees up eighteen k a month. Can we please, please direct that flexibility toward the marketing top of funnel so we do not strangle our pipeline?",
+     "kind": "turn",
+     "start": 500.346,
+     "end": 511.766,
+     "speaker": "S01",
+     "differingWords": 2,
+     "verdict": "minor"
+    },
+    {
+     "line": 14,
+     "text": "Wait Hannah has not said anything. Hannah, are you there? How does all of this timeline look from the compliance and security audit standpoint? Can we still hit November twelfth for GA?",
+     "kind": "turn",
+     "start": 605.219,
+     "end": 616.019,
+     "speaker": "S01",
+     "differingWords": 1,
+     "verdict": "minor"
+    },
+    {
+     "line": 15,
+     "text": "Oh no. What is it?",
+     "kind": "turn",
+     "start": 621.748,
+     "end": 622.658,
+     "speaker": "S01",
+     "differingWords": 0,
+     "verdict": "match"
+    },
+    {
+     "line": 16,
+     "text": "Fourteen business days. That pushes our audit clearance to what date exactly Hannah?",
+     "kind": "turn",
+     "start": 700.662,
+     "end": 705.552,
+     "speaker": "S01",
+     "differingWords": 0,
+     "verdict": "match"
+    },
+    {
+     "line": 17,
+     "text": "Elena, Arthur, can we expedite the EU proxy deployment? What does it actually take to get that built?",
+     "kind": "turn",
+     "start": 742.603,
+     "end": 747.843,
+     "speaker": "S01",
+     "differingWords": 0,
+     "verdict": "match"
+    },
+    {
+     "line": 18,
+     "text": "Sam that is a brilliant compromise. Can you coordinate with Chloe tomorrow morning on the script for that walkthrough?",
+     "kind": "turn",
+     "start": 799.248,
+     "end": 805.478,
+     "speaker": "S01",
+     "differingWords": 0,
+     "verdict": "match"
+    },
+    {
+     "line": 19,
+     "text": "Okay so that unblocks Elena. Elena, you assign the three engineers to Hannah's EU proxy cluster immediately. Can you deliver that to Hannah by Wednesday at five PM?",
+     "kind": "turn",
+     "start": 810.321,
+     "end": 818.241,
+     "speaker": "S01",
+     "differingWords": 1,
+     "verdict": "minor"
+    },
+    {
+     "line": 20,
+     "text": "Okay, now back to the budget reconciliation. Let us recap where we stand. Priya's revised marketing total is two hundred and forty thousand for paid media, plus fifty eight thousand for the Chicago event, which equals two hundred and ninety eight thousand. Arthur has covered Elena's eighteen k monthly infrastructure surge using thirty six thousand in expiring AWS promotional credits. David, the net out of pocket increase to the company budget across marketing and engineering is now ninety eight thousand dollars above the initial two hundred k projection. Can you approve two hundred and ninety eight thousand?",
+     "kind": "turn",
+     "start": 855.421,
+     "end": 889.221,
+     "speaker": "S01",
+     "differingWords": 2,
+     "verdict": "minor"
+    },
+    {
+     "line": 21,
+     "text": "Arthur, from the infra side, any other hidden landmines on database scaling or API gateway rate limits before we confirm November twelfth?",
+     "kind": "turn",
+     "start": 979.225,
+     "end": 987.595,
+     "speaker": "S01",
+     "differingWords": 0,
+     "verdict": "match"
+    },
+    {
+     "line": 22,
+     "text": "Elena what about the Redis memory leak? You mentioned you need three to four days for that. If three engineers are diverted to the EU proxy until Wednesday, does that jeopardize the Redis patch?",
+     "kind": "turn",
+     "start": 1009.872,
+     "end": 1021.432,
+     "speaker": "S01",
+     "differingWords": 1,
+     "verdict": "minor"
+    },
+    {
+     "line": 23,
+     "text": "Awesome. Thank you Elena, really appreciate you jumping in on that directly.",
+     "kind": "turn",
+     "start": 1028.673,
+     "end": 1032.443,
+     "speaker": "S01",
+     "differingWords": 0,
+     "verdict": "match"
+    },
+    {
+     "line": 24,
+     "text": "Deal. Premium roast. Alright, so let us review our action items. Number one, Priya trims thirteen k from the paid digital campaign, locking the GTM budget at two hundred and eighty five thousand dollars. David will sign off on that by four PM today. Number two, Elena and Sanjay will patch the Redis caching leak by Tuesday October third. Number three, Elena's team will deliver the EU telemetry isolation proxy by Wednesday five PM to Hannah. Hannah will submit the compliance documentation to the SOC Two auditors on Thursday morning October fifth. Number four, Sam and Chloe will create the in app onboarding walkthrough video and tooltips by Friday October sixth to compensate for postponing the UX overhaul. And number five, Tariq's team will negotiate with Datastream to see if we can get a ten or fifteen k sponsorship offset for Chicago, which would give us even more breathing room on budget. Did I miss anything?",
+     "kind": "turn",
+     "start": 1037.125,
+     "end": 1094.235,
+     "speaker": "S01",
+     "differingWords": 0,
+     "verdict": "match"
+    },
+    {
+     "line": 25,
+     "text": "Yes Ben! Please compile the Net Promoter Score and the feature adoption metrics from the fifty beta accounts and send that deck around by Sunday night so we have it handy for the executive committee.",
+     "kind": "turn",
+     "start": 1095.921,
+     "end": 1105.391,
+     "speaker": "S01",
+     "differingWords": 0,
+     "verdict": "match"
+    },
+    {
+     "line": 26,
+     "text": "Yes, immediate triage. Everyone treats audit questions as tier one priority so we do not lose a single day of our buffer. Our target remains November twelfth for the global launch of PulseGrid Enterprise. We are aligned, we have a clear path to the budget, and we know our technical dependencies. Thank you everybody for pushing through the hard numbers today. Let us get to work.",
+     "kind": "turn",
+     "start": 1120.186,
+     "end": 1142.866,
+     "speaker": "S01",
+     "differingWords": 0,
+     "verdict": "match"
+    }
+   ],
+   "heard": "Alright looks like, wait can you all hear me okay on the on the laptop mic? Okay, cool. So let us um, what let's jump right in because we have literally 45 minutes to lockdown the GTM schedule and the numbers for PulseGrid Enterprise before executive sign-off on Friday. Great. So the target GA date is still well, we are aiming for November 12th, which gives us about uh six weeks post beta. Priya, you sun over the revised marketing broadcast yesterday evening, right? David, hold on. The 200k figure was based on the old tier 2 roadmap from July before we decided to pull the automated migration engine into the core bundle. If we do not make a splash in November, Tarik is not going to hit his ARR commit. Elena, go ahead. Yeah. Tell us what the infrastructure gap is. Chloe, can we can we simplify that to a three-step wizard or is that like hard-coded into the backend schema? Okay. So wait, let us unpack this because we are juggling four different fires. First fire is the budget dispute between David and marketing. Second fire is Elena's 18K monthly AWS requirement. Third is the UX friction, and we have not even heard from Arthur yet because he's stuck in another meeting. Wait, Tarik, what if we co-sponsor the event? What if we get data stream or Snowflake or one of our integration partners to split the 35K room fee? Have we pitched them? All right. Let us table the data stream negotiation to this afternoon. Let us look at the timeline. Elena, if we do not get that staging cluster funded until next Friday, what happens to QA? Wait. What? A memory leak? Why am I hearing about this just now, Elena? Speaking of Arthur, is he? Oh, wait. There he is. Arthur, are you on? Can you hear us? She says they need dedicated IOPS to trace and stress test a Redis leak by Tuesday. And David is balking at the 18K monthly Delta for the multi-region setup. Boom. That is huge. Okay, that is huge. Thank you, Arthur. So David, that frees up 18K a month. Can we please, please direct that flexibility towards a marketing top of funnel so we do not strangle our pipeline? Wait. Hannah has not said anything. Hannah, are you there? How does all of this timeline look from the compliance and security audit standpoint? Can we still hit November 12th for a GA? Oh, no. What is it? 14 business days that pushes our audit clearance to what date? Exactly, Hannah? Elena, Arthur, can we expedite the EU proxy deployment? What does it actually take to get that built? Sam, that is a brilliant compromise. Can you coordinate with Chloe tomorrow morning on the script for that walk-through? Okay, so that unblocks Elena. Elena, you assigned the three engineers to Hannah's EU proxy cluster immediately. Can you deliver that to Hannah by Wednesday at 5:00 p.m.? Okay, now back to the budget reconciliation. Let us recap where we stand. Priya's revised marketing total is $240,000 for paid media, plus $58,000 for the Chicago event, which equals $298,000. Arthur has covered Elena's 18K monthly infrastructure surge using $36,000 in expiring AWS promotional credits. David, the net out-of-pocket increase to the company budget across marketing and engineering is now $98,000 above the initial 200k projection. Can you approve $298,000? Arthur, from the infra side, any other hidden landmines on database scaling or API gateway rate limits before we confirm November 12th? Elena, what about the Redis memory leak? You mentioned you need three to four days for that. If three engineers are diverted to the EU proxy into Wednesday, does that jeopardize the Redis patch? Awesome. Thank you, Elena. Really appreciate you jumping in on that directly. Deal, premium roast. All right, so let us review our action items. Number one, Priya trims 13K from the paid digital campaign, locking the GTM budget at $285,000. David will sign off on that by 4:00 p.m. today. Number two, Elena and Sanjay will patch the Redis caching leak by Tuesday, October 3rd. Number three, Elena's team will deliver the EU telemetry isolation proxy by Wednesday 5:00 p.m. to Hannah. Hannah will submit the compliance documentation to the SOC 2 auditors on Thursday morning, October 5th. Number four, Sam and Chloe will create the in-app onboarding walkthrough video and tooltips by Friday, October 6th to compensate for postponing the UX overhaul. And number five, Tariq's team will negotiate with data stream to see if we can get a 10 or 15K sponsorship offset for Chicago, which would give us even more breathing room on budget. Did I miss anything? Yes, Ben. Please compile the net promoter score and the feature adoption metrics from the 50 beta accounts and send that deck around by Sunday night so we have it handy for the executive committee. Yes, immediate triage. Everyone treats audit questions as tier one priority, so we do not lose a single day of our buffer. Our target remains November 12th for the global launch of PulseGrid Enterprise. We are aligned, we have a clear path to the budget, and we know our technical dependencies. Thank you, everybody, for pushing through the hard numbers today. Let us get to work.",
+   "problems": []
+  },
+  "S02": {
+   "key": "28cf3715976def58bbaa08ce46c139ce44c20f08be4ab4c97ce00cf0d4e8423d",
+   "model": "gemini-3.5-flash-lite",
+   "lines": [
+    {
+     "line": 1,
+     "text": "Yeah loud and clear Marcus.",
+     "kind": "backchannel",
+     "start": 11.985,
+     "end": 13.175,
+     "speaker": "S02",
+     "differingWords": 0,
+     "verdict": "match"
+    },
+    {
+     "line": 2,
+     "text": "I did, yeah, um, so basically what we did is we modeled out three tiers of acquisition for November and December, and to hit the three point two million pipeline target that Tariq asked for, we are looking at roughly two hundred and eighty five thousand in paid acquisition, plus another sixty five thousand for the launch event in Chicago.",
+     "kind": "turn",
+     "start": 30.303,
+     "end": 51.813,
+     "speaker": "S02",
+     "differingWords": 0,
+     "verdict": "match"
+    },
+    {
+     "line": 3,
+     "text": "Well it is, it is hybrid David, so thirty five k of that is actually venue and AV setup, and the rest is partner sponsorships and travel.",
+     "kind": "turn",
+     "start": 55.583,
+     "end": 62.693,
+     "speaker": "S02",
+     "differingWords": 0,
+     "verdict": "match"
+    },
+    {
+     "line": 4,
+     "text": "A virtual launch for PulseGrid Enterprise? David, we did virtual for version two point five in March and our attendance rate was twelve percent. Twelve! People turn it on in the background while they eat lunch and mute it. Enterprise buyers do not sign ninety thousand dollar annual contracts off a Zoom webinar.",
+     "kind": "turn",
+     "start": 270.261,
+     "end": 288.471,
+     "speaker": "S02",
+     "differingWords": 2,
+     "verdict": "minor"
+    },
+    {
+     "line": 5,
+     "text": "Thank you Sam.",
+     "kind": "backchannel",
+     "start": 289.475,
+     "end": 290.585,
+     "speaker": "S02",
+     "differingWords": 0,
+     "verdict": "match"
+    },
+    {
+     "line": 6,
+     "text": "Three slots? Absolutely not. That turns our launch event into their sponsored roadshow. We can give them one breakout session and a booth in the networking lounge, that is it.",
+     "kind": "turn",
+     "start": 317.977,
+     "end": 326.397,
+     "speaker": "S02",
+     "differingWords": 0,
+     "verdict": "match"
+    },
+    {
+     "line": 7,
+     "text": "That is fantastic news.",
+     "kind": "backchannel",
+     "start": 497.93,
+     "end": 499.04,
+     "speaker": "S02",
+     "differingWords": 0,
+     "verdict": "match"
+    },
+    {
+     "line": 8,
+     "text": "What if we do this, what if we cut the digital ad spend from two hundred and eighty five thousand down to two hundred and forty thousand? That shaves forty five k right there. We reallocate fifteen k from our display retargeting into organic content and developer advocacy, and then we keep the Chicago launch event budget intact at sixty five k. That brings my total ask to three hundred and five thousand minus the thirty six k Arthur just found, which puts us within eight thousand of David's target.",
+     "kind": "turn",
+     "start": 519.325,
+     "end": 546.245,
+     "speaker": "S02",
+     "differingWords": 1,
+     "verdict": "minor"
+    },
+    {
+     "line": 9,
+     "text": "We will take a hit on volume, Tariq, probably down by about seventy or eighty leads in week one and two, but we compensate by having higher intent attendees at the physical event in Chicago. Quality over quantity.",
+     "kind": "turn",
+     "start": 549.592,
+     "end": 560.732,
+     "speaker": "S02",
+     "differingWords": 0,
+     "verdict": "match"
+    },
+    {
+     "line": 10,
+     "text": "It is artisanal sliders David, not ribeye <laugh>. But fine, yes, we can swap out the premium swag bags for standard tech packs and save seven thousand. That brings the event cost to fifty eight k.",
+     "kind": "turn",
+     "start": 583.523,
+     "end": 598.513,
+     "speaker": "S02",
+     "differingWords": 0,
+     "verdict": "match"
+    },
+    {
+     "line": 11,
+     "text": "Yeah absolutely, if we push to December we miss the entire end of year budget flush.",
+     "kind": "backchannel",
+     "start": 720.037,
+     "end": 724.507,
+     "speaker": "S02",
+     "differingWords": 0,
+     "verdict": "match"
+    },
+    {
+     "line": 12,
+     "text": "Can I keep the Chicago event at fifty eight k?",
+     "kind": "turn",
+     "start": 950.111,
+     "end": 951.981,
+     "speaker": "S02",
+     "differingWords": 0,
+     "verdict": "match"
+    },
+    {
+     "line": 13,
+     "text": "Deal. We will pull back on the LinkedIn sponsored content and rely more heavily on organic employee advocacy and Tariq's SDR team doing personalized video outreach.",
+     "kind": "turn",
+     "start": 959.509,
+     "end": 969.589,
+     "speaker": "S02",
+     "differingWords": 0,
+     "verdict": "match"
+    },
+    {
+     "line": 14,
+     "text": "Thanks Marcus. Good luck everyone.",
+     "kind": "turn",
+     "start": 1141.431,
+     "end": 1143.621,
+     "speaker": "S02",
+     "differingWords": 0,
+     "verdict": "match"
+    }
+   ],
+   "heard": "Yeah, loud and clear, Marcus. I did. Yeah. Um so basically what we did is we modeled out three tiers of acquisition for November and December. And to hit the 3.2 million pipeline target that Tariq asked for, we are looking at roughly 285,000 in paid acquisition, plus another 65,000 for the launch event in Chicago. Well, it is it is hybrid, David. So, 35K of that is actually venue and AV setup and the rest is partner sponsorships and travel. A virtual launch for PulseGrid Enterprise? David, we did virtual for version 2.5 in March, and our attendance rate was 12%. 12. People turn it on in the background all to eat lunch and mute it. Enterprise buyers do not sign $90,000 annual contracts off a Zoom webinar. Thank you, Sam. Three slots? Absolutely not. That turns our launch event into their sponsored roadshow. We can give them one breakout session and a booth in the networking lounge. That is it. That is fantastic news. What if we did this? What if we cut the digital ad spend from 285,000 down to 240,000? That shaves 45K right there. We reallocate 15K from our display retargeting into organic content and developer advocacy, and then we keep the Chicago launch event budget intact at 65K. That brings my total ask to 305,000, minus the 36K Arthur just found, which puts us within 8,000 of David's target. We will take a hit on volume, Tariq, probably down by about 70 or 80 leads in week one and two, but we compensate by having higher intent attendees at the physical event in Chicago. Quality over quantity. It is artisanal sliders, David, not Ribeye. But fine. Yes, we can swap out the premium swag bags for standard tech packs and save 7,000. That brings the event cost to 58K. Yeah, absolutely. If we push to December, we miss the entire end-of-year budget flush. Can I keep the Chicago event at 58K? Deal. We will pull back on the LinkedIn sponsored content and rely more heavily on organic employee advocacy and Tariq's SDR team doing personalized video outreach. Thanks, Marcus. Good luck, everyone.",
+   "problems": []
+  },
+  "S03": {
+   "key": "53367565a9e7139ef975cdd8eab09c57c680a63e0fc642964c5ddbc507da9b80",
+   "model": "gemini-3.5-flash-lite",
+   "lines": [
+    {
+     "line": 1,
+     "text": "Wait Priya sorry sorry to jump in but sixty five k for an in person event in Q4?",
+     "kind": "interrupt",
+     "start": 49.863,
+     "end": 55.263,
+     "speaker": "S03",
+     "differingWords": 0,
+     "verdict": "match"
+    },
+    {
+     "line": 2,
+     "text": "Look we, Marcus we talked about this during the quarterly sync. Our total discretionary bump for the entire launch cannot exceed two hundred thousand. We simply do not have three hundred and fifty thousand dollars floating around in the opex pool for PulseGrid.",
+     "kind": "turn",
+     "start": 63.015,
+     "end": 75.285,
+     "speaker": "S03",
+     "differingWords": 0,
+     "verdict": "match"
+    },
+    {
+     "line": 3,
+     "text": "No Tariq I get it, I get the ambition, but the cash collection from Q3 was down six point four percent against forecast because of delayed renewals in the APAC region. If we overextend on marketing before we even see initial conversion rates from the beta, we are burning runway. We, we literally cannot commit three hundred and fifty k today.",
+     "kind": "turn",
+     "start": 107.395,
+     "end": 125.435,
+     "speaker": "S03",
+     "differingWords": 1,
+     "verdict": "minor"
+    },
+    {
+     "line": 4,
+     "text": "Eighteen thousand a month on top of the existing compute baseline?",
+     "kind": "interrupt",
+     "start": 164.854,
+     "end": 167.924,
+     "speaker": "S03",
+     "differingWords": 0,
+     "verdict": "match"
+    },
+    {
+     "line": 5,
+     "text": "Look, let us look at the math Marcus. If marketing takes two hundred and twenty k, okay? That is an extra twenty k over my original cap. And Elena gets her staging compute at eighteen k for two months, that brings us to two hundred and fifty six thousand. That is already fifty six thousand dollars in the red compared to what the board approved. Where does the extra money come from? Does sales surrender their Q4 spiff budget Tariq?",
+     "kind": "turn",
+     "start": 237.75,
+     "end": 260.02,
+     "speaker": "S03",
+     "differingWords": 3,
+     "verdict": "mismatch"
+    },
+    {
+     "line": 6,
+     "text": "Then Priya cuts the Chicago venue. Make it virtual.",
+     "kind": "interrupt",
+     "start": 269.761,
+     "end": 272.371,
+     "speaker": "S03",
+     "differingWords": 0,
+     "verdict": "match"
+    },
+    {
+     "line": 7,
+     "text": "If they give us fifteen thousand dollars they can have whatever booth they want Priya. We need the cash offset.",
+     "kind": "turn",
+     "start": 327.164,
+     "end": 331.884,
+     "speaker": "S03",
+     "differingWords": 0,
+     "verdict": "match"
+    },
+    {
+     "line": 8,
+     "text": "Oh fantastic <laugh>. So we are arguing about spending three hundred thousand dollars on marketing a product that literally crashes every three quarters of an hour.",
+     "kind": "turn",
+     "start": 394.621,
+     "end": 402.971,
+     "speaker": "S03",
+     "differingWords": 2,
+     "verdict": "minor"
+    },
+    {
+     "line": 9,
+     "text": "Right in the thick of it Arthur. Welcome to the party.",
+     "kind": "turn",
+     "start": 433.734,
+     "end": 436.024,
+     "speaker": "S03",
+     "differingWords": 0,
+     "verdict": "match"
+    },
+    {
+     "line": 10,
+     "text": "Wait, really? Why was that not in the monthly ledger Arthur?",
+     "kind": "interrupt",
+     "start": 478.325,
+     "end": 481.085,
+     "speaker": "S03",
+     "differingWords": 0,
+     "verdict": "match"
+    },
+    {
+     "line": 11,
+     "text": "Not so fast Marcus. Even with the AWS credits saving thirty six thousand over two months, Priya's marketing request is still sixty five thousand over our baseline ceiling. Where are we cutting the rest?",
+     "kind": "turn",
+     "start": 509.595,
+     "end": 520.455,
+     "speaker": "S03",
+     "differingWords": 1,
+     "verdict": "minor"
+    },
+    {
+     "line": 12,
+     "text": "Hmm. What about the swag and the catering for Chicago? Priya, can you trim ten k out of that sixty five k? Do people really need ribeye steak and custom leather branded notebooks?",
+     "kind": "turn",
+     "start": 570.962,
+     "end": 583.222,
+     "speaker": "S03",
+     "differingWords": 0,
+     "verdict": "match"
+    },
+    {
+     "line": 13,
+     "text": "Okay, okay. That is starting to look like something I can present to the CFO without getting laughed out of the room.",
+     "kind": "turn",
+     "start": 598.841,
+     "end": 604.361,
+     "speaker": "S03",
+     "differingWords": 0,
+     "verdict": "match"
+    },
+    {
+     "line": 14,
+     "text": "You have got to be kidding me.",
+     "kind": "interrupt",
+     "start": 644.211,
+     "end": 645.781,
+     "speaker": "S03",
+     "differingWords": 0,
+     "verdict": "match"
+    },
+    {
+     "line": 15,
+     "text": "And if we miss plan by two point eight million, our valuation multiple takes a haircut before the Series C round in March. We cannot slip past November. It is non negotiable Marcus.",
+     "kind": "turn",
+     "start": 735.19,
+     "end": 744.25,
+     "speaker": "S03",
+     "differingWords": 1,
+     "verdict": "minor"
+    },
+    {
+     "line": 16,
+     "text": "Does this compliance remediation cost extra contractor fees Hannah? Be honest.",
+     "kind": "turn",
+     "start": 834.312,
+     "end": 838.202,
+     "speaker": "S03",
+     "differingWords": 0,
+     "verdict": "match"
+    },
+    {
+     "line": 17,
+     "text": "Alright, that is acceptable.",
+     "kind": "turn",
+     "start": 853.371,
+     "end": 854.821,
+     "speaker": "S03",
+     "differingWords": 0,
+     "verdict": "match"
+    },
+    {
+     "line": 18,
+     "text": "Ninety eight k above baseline. Marcus, that still pinches our operating margin for Q4 from fourteen percent down to eleven point five percent.",
+     "kind": "turn",
+     "start": 886.773,
+     "end": 894.533,
+     "speaker": "S03",
+     "differingWords": 0,
+     "verdict": "match"
+    },
+    {
+     "line": 19,
+     "text": "Assuming sales executes. That is always the huge asterisk Tariq <laugh>.",
+     "kind": "interrupt",
+     "start": 918.096,
+     "end": 922.706,
+     "speaker": "S03",
+     "differingWords": 3,
+     "verdict": "mismatch"
+    },
+    {
+     "line": 20,
+     "text": "Alright, here is my final offer. I will approve two hundred and eighty five thousand total for marketing and launch GTM. Not two ninety eight. Priya, you find another thirteen thousand dollars to cut from somewhere. Either cut back on external PR agencies or trim the digital banner placements. If you can make two hundred and eighty five thousand work, finance will sign off on the launch package today.",
+     "kind": "turn",
+     "start": 929.815,
+     "end": 949.815,
+     "speaker": "S03",
+     "differingWords": 1,
+     "verdict": "minor"
+    },
+    {
+     "line": 21,
+     "text": "Yes, keep the event at fifty eight k, but your digital and agency bucket drops to two hundred and twenty seven thousand. Deal?",
+     "kind": "turn",
+     "start": 952.831,
+     "end": 958.651,
+     "speaker": "S03",
+     "differingWords": 0,
+     "verdict": "match"
+    },
+    {
+     "line": 22,
+     "text": "Thanks Marcus, talk soon.",
+     "kind": "backchannel",
+     "start": 1143.513,
+     "end": 1144.673,
+     "speaker": "S03",
+     "differingWords": 0,
+     "verdict": "match"
+    }
+   ],
+   "heard": "Wait, Priya, sorry sorry to jump in, but 65k for an in-person event in Q4? Look, we, Marcus, we talked about this during the quarterly sync. Our total discretionary bump for the entire launch cannot exceed 200,000. We simply do not have $350,000 floating around in the Opex pool for PulseGrid. No, Tariq, I get it. I get the ambition, but the cast collection from Q3 was down 6.4% against forecast because of delayed renewals in the APAC region. If we overextend on marketing before we even see initial conversion rates from the beta, we are burning runway. We we literally cannot commit 350k today. $18,000 a month on top of the existing compute baseline? Look, let us live in the math, Marcus. If marketing takes 220k, okay? That is an extra 20k over my original cap. And Atlanta gets her staging compute at 18k for 2 months, that brings us to 256,000. That is already $56,000 in the red compared to what the board approved. Where does the extra money come from? Does sales surrender their Q4 spiff budget, Tariq? Then Priya cuts the Chicago venue. Make it virtual. If they give us $15,000, they can have whatever booth they want, Priya. We need the cash offset. Oh, fantastic. [laughs] So you're arguing about spending $300,000 on marketing a product that literally crashes every 3/4 of an hour. Right in the thick of it, Arthur, welcome to the party. Wait, really? Why was that not in the monthly ledger, Arthur? Not so fast, Marcus. Even with the AWS credit saving 36,000 over two months, Priya's marketing request is still 65,000 over our baseline ceiling. Where are we cutting the rest? Hmm. What about the swag and the catering for Chicago? Priya, can you trim 10k out of that 65k? Do people really need rib eye steak and custom leather branded notebooks? Okay, okay. That is starting to look like something I can present to the CFO without getting laughed out of the room. You have got to be kidding me. And if we miss planned by 2.8 million, our valuation multiple takes a haircut before the series C round in March. We cannot slip past November. It is non-negotiable, Marcus. Does this compliance remediation cost extra contractor fees, Hannah? Be honest. All right. That is acceptable. 98k above baseline. Marcus, that still pinches our operating margin for Q4 from 14% down to 11.5%. Assuming sales executes. That is always the huge asterk to reek. [laughs] All right, here's my final offer. I will approve 285,000 total for marketing and launch GTM, not 298. Priya, you find another $13,000 to cut from somewhere. Either cut back on external PR agencies or trim the digital banner placements. If you can make 285,000 work, finance will sign off on the launch packages today. Yes, keep the event at 58k, but your digital and agency bucket drops to 227,000. Deal? Thanks, Marcus. Talk soon.",
+   "problems": []
+  },
+  "S04": {
+   "key": "ad791c1859e0b21cf634afaeba57e07b64c8024165ff00de34243a1d8eebc2d2",
+   "model": "gemini-3.5-flash-lite",
+   "lines": [
+    {
+     "line": 1,
+     "text": "Can I, can I bring up the technical side for a second? Because we are talking about marketing spend, but engineering is currently underfunded by about forty thousand for cloud staging.",
+     "kind": "turn",
+     "start": 125.617,
+     "end": 136.427,
+     "speaker": "S04",
+     "differingWords": 0,
+     "verdict": "match"
+    },
+    {
+     "line": 2,
+     "text": "So we are, right now we have forty two clusters running on AWS for the soak tests. If we want to simulate ten thousand concurrent tenants like Marcus specified for SLA Tier One, we need to spin up the cross region failover environments in us-east-two and eu-west-one by next Tuesday, October third. And DevOps told me that bill alone is gonna run about eighteen thousand a month through December.",
+     "kind": "turn",
+     "start": 140.816,
+     "end": 166.476,
+     "speaker": "S04",
+     "differingWords": 0,
+     "verdict": "match"
+    },
+    {
+     "line": 3,
+     "text": "Yes, because of the high throughput telemetry ingestion. We cannot skimp on this David. If the ingestion pipeline drops packets during customer proof of concepts, the thirty day trial conversion is gonna be zero.",
+     "kind": "turn",
+     "start": 168.248,
+     "end": 178.678,
+     "speaker": "S04",
+     "differingWords": 0,
+     "verdict": "match"
+    },
+    {
+     "line": 4,
+     "text": "It is not hardcoded Chloe, it is just compliance. We have to separate the cryptographic keys.",
+     "kind": "turn",
+     "start": 211.327,
+     "end": 216.047,
+     "speaker": "S04",
+     "differingWords": 0,
+     "verdict": "match"
+    },
+    {
+     "line": 5,
+     "text": "Then QA slips by nine days. Which means our freeze date moves from October twenty first to October thirtieth. And if we freeze on October thirtieth, our regression cycle overlaps with the documentation cutoff.",
+     "kind": "turn",
+     "start": 343.955,
+     "end": 354.245,
+     "speaker": "S04",
+     "differingWords": 0,
+     "verdict": "match"
+    },
+    {
+     "line": 6,
+     "text": "Exactly. And look, I am not just asking for AWS budget for fun. We discovered a memory leak in the Redis cache worker on high load yesterday afternoon. Under eight thousand concurrent connections, the worker crashes every forty seven minutes. Every forty seven minutes! We cannot ship that to tier one customers.",
+     "kind": "turn",
+     "start": 366.932,
+     "end": 381.892,
+     "speaker": "S04",
+     "differingWords": 0,
+     "verdict": "match"
+    },
+    {
+     "line": 7,
+     "text": "Because we only reproduced it at four PM yesterday Marcus! My team stayed until midnight trying to trace the heap dump. It looks like it is in the third party serialization library we updated last sprint.",
+     "kind": "turn",
+     "start": 384.805,
+     "end": 393.915,
+     "speaker": "S04",
+     "differingWords": 0,
+     "verdict": "match"
+    },
+    {
+     "line": 8,
+     "text": "David do not be disingenuous, that is what the beta period is for. It is a bug, we will patch it. But I need the compute resources to simulate the fix under distributed load.",
+     "kind": "turn",
+     "start": 403.777,
+     "end": 412.527,
+     "speaker": "S04",
+     "differingWords": 0,
+     "verdict": "match"
+    },
+    {
+     "line": 9,
+     "text": "Three to four days if Arthur's infrastructure team can give us dedicated IOPS on the storage volume.",
+     "kind": "turn",
+     "start": 415.647,
+     "end": 421.097,
+     "speaker": "S04",
+     "differingWords": 0,
+     "verdict": "match"
+    },
+    {
+     "line": 10,
+     "text": "Can those be applied directly to our staging account Arthur?",
+     "kind": "turn",
+     "start": 468.087,
+     "end": 471.127,
+     "speaker": "S04",
+     "differingWords": 0,
+     "verdict": "match"
+    },
+    {
+     "line": 11,
+     "text": "Wait Hannah, hold on. We only replicate metadata across regions, not PII. The customer payload stays in Frankfurt. Does the auditor realize that?",
+     "kind": "turn",
+     "start": 655.512,
+     "end": 664.192,
+     "speaker": "S04",
+     "differingWords": 0,
+     "verdict": "match"
+    },
+    {
+     "line": 12,
+     "text": "To get it done by next Wednesday instead of Friday, I would have to pull three backend engineers off the onboarding flow and the Redis leak. Which means Chloe's UX redesign for onboarding gets pushed back, and the Redis patch might take an extra couple of days.",
+     "kind": "turn",
+     "start": 748.208,
+     "end": 760.268,
+     "speaker": "S04",
+     "differingWords": 0,
+     "verdict": "match"
+    },
+    {
+     "line": 13,
+     "text": "Yes Chloe, it does. We cannot write code in three places at once with four developers. It is basic physics.",
+     "kind": "turn",
+     "start": 768.275,
+     "end": 773.545,
+     "speaker": "S04",
+     "differingWords": 0,
+     "verdict": "match"
+    },
+    {
+     "line": 14,
+     "text": "Wednesday five PM Eastern, yes. We will pull late shifts to get it done.",
+     "kind": "turn",
+     "start": 818.968,
+     "end": 822.898,
+     "speaker": "S04",
+     "differingWords": 0,
+     "verdict": "match"
+    },
+    {
+     "line": 15,
+     "text": "Yeah that is straightforward, that is only about half a day of configuration work Arthur.",
+     "kind": "turn",
+     "start": 1005.481,
+     "end": 1009.431,
+     "speaker": "S04",
+     "differingWords": 0,
+     "verdict": "match"
+    },
+    {
+     "line": 16,
+     "text": "I will take ownership of the Redis leak myself with Sanjay. We will isolate the serialization bug over the weekend. We will not let it slip past Tuesday.",
+     "kind": "turn",
+     "start": 1022.102,
+     "end": 1029.262,
+     "speaker": "S04",
+     "differingWords": 0,
+     "verdict": "match"
+    },
+    {
+     "line": 17,
+     "text": "No problem. Just make sure there is coffee in the office on Monday <laugh>.",
+     "kind": "turn",
+     "start": 1032.897,
+     "end": 1036.917,
+     "speaker": "S04",
+     "differingWords": 0,
+     "verdict": "match"
+    }
+   ],
+   "heard": "Can I can I bring up the technical side for a second? Because we are talking about marketing spend, but engineering is currently underfunded by about 40,000 for cloud staging. So, we are right now, we have 42 clusters running on AWS for the soak tests. If we want to simulate 10,000 concurrent tenants like Marcus specified for SLA Tier 1, we need to spin up the cross region failover environments in us-east 2 and eu-west 1 by next Tuesday, October 3rd. And DevOps told me that bill alone is going to run about 18,000 a month through December. Yes, because of the high throughput telemetry ingestion. We cannot skimp on this, David. If the ingestion pipeline drops packets during customer proof of concepts, the 30-day trial conversion is going to be zero. It is not hardcoded, Chloe. It is just compliance. We have to separate the cryptographic keys. Then, QA slips by 9 days, which means our freeze date moves from October 21st to October 30th. And if we freeze on October 30th, our regression cycle overlaps with the documentation cutoff. Exactly. And look, I am not just asking for AWS budget for fun. We discovered a memory leak in the Redis cache worker on high load yesterday afternoon. Under 8,000 concurrent connections, the worker crashes every 47 minutes. Every 47 minutes we cannot ship that to tier one customers. Because we only reproduced it at 4:00 p.m. yesterday, Marcus, my team stayed until midnight trying to trace the heap dump. It looks like it is in the third-party serialization library we updated last sprint. David, do not be disingenuous. That is what the beta period is for. It is a bug. We will patch it, but I need the compute resources to simulate the fix under distributed load. Three to four days if Arthur's infrastructure team can give us dedicated IOps on the storage volume. Can those be applied directly to our staging account, Arthur? Wait. Hannah, hold on. We only replicate metadata across regions, not PII. The customer payload stays in Frankfurt. Does the auditor realize that? To get it done by next Wednesday instead of Friday, I would have to pull three back-end engineers off the onboarding flow and the Redis leak, which means Chloe's UX redesign for onboarding gets pushed back, and the Redis patch might take an extra couple of days. Yes, Chloe, it does. We cannot write code in three places at once with four developers. It is basic physics. Wednesday, 5:00 p.m. Eastern? Yes. We will pull late shifts to get it done. Yeah, that is straightforward. That is only about half a day of configuration work, Arthur. I will take ownership of the Redis leak myself with Sanjay. We will isolate the serialization bug over the weekend. We will not let it slip past Tuesday. No problem. Just make sure there is coffee in the office on Monday.",
+   "problems": []
+  },
+  "S05": {
+   "key": "c0527fc98f1835c0316352283dabe33ae8a815db7eaeefc4126c680868a5092f",
+   "model": "gemini-3.5-flash-lite",
+   "lines": [
+    {
+     "line": 1,
+     "text": "And from the design side, if I may, we still have not finalized the user onboarding flow because the telemetry settings are, well, frankly they are super confusing right now. Users have to click through seven screens just to configure an API key.",
+     "kind": "turn",
+     "start": 176.763,
+     "end": 190.753,
+     "speaker": "S05",
+     "differingWords": 0,
+     "verdict": "match"
+    },
+    {
+     "line": 2,
+     "text": "We tried! We tried three steps, but Elena's team said that the tenant isolation requires separate credential confirmation for every single data silo. So right now it is clunky, and if we do not fix it before the Chicago event, people are gonna try the demo and drop out in five minutes <laugh>.",
+     "kind": "turn",
+     "start": 195.614,
+     "end": 210.824,
+     "speaker": "S05",
+     "differingWords": 0,
+     "verdict": "match"
+    },
+    {
+     "line": 3,
+     "text": "Wait, if you pull engineers from onboarding, does that mean we ship the clunky seven step wizard with the credential confusion?",
+     "kind": "turn",
+     "start": 760.467,
+     "end": 767.457,
+     "speaker": "S05",
+     "differingWords": 0,
+     "verdict": "match"
+    },
+    {
+     "line": 4,
+     "text": "Users are gonna hate it Elena. They are gonna tear us apart in the user feedback sessions.",
+     "kind": "turn",
+     "start": 771.129,
+     "end": 775.759,
+     "speaker": "S05",
+     "differingWords": 0,
+     "verdict": "match"
+    },
+    {
+     "line": 5,
+     "text": "That could work as a temporary patch, yeah. It is not ideal, but it prevents the dropoff cliff.",
+     "kind": "turn",
+     "start": 793.489,
+     "end": 798.889,
+     "speaker": "S05",
+     "differingWords": 0,
+     "verdict": "match"
+    },
+    {
+     "line": 6,
+     "text": "Will do.",
+     "kind": "backchannel",
+     "start": 807.611,
+     "end": 807.981,
+     "speaker": "S05",
+     "differingWords": 0,
+     "verdict": "match"
+    }
+   ],
+   "heard": "And from the design side, if I may, we still have not finalized the user onboarding flow because the telemetry settings are well, frankly, they are super confusing right now. Users have to click through seven screens just to configure an API key. We tried. We tried three steps, but Elena's team said that the tenant isolation requires separate credential confirmation for every single data silo. So right now it is clunky, and if we do not fix it before the Chicago event, people are going to try the demo and drop out in five minutes. Wait. If you pull engineers from onboarding, does that mean we ship the clunky seven-step wizard with the credential confusion? Users are going to hate it, Elena. They are going to tear us apart in the user feedback sessions. That could work as a temporary patch, yeah. It is not ideal, but it prevents the drop-off cliff. Will do.",
+   "problems": []
+  },
+  "S06": {
+   "key": "7537e495aa609d2af7c70c06302791f23bfca53489af12e6c9eb76a41d332c91",
+   "model": "gemini-3.5-flash-lite",
+   "lines": [
+    {
+     "line": 1,
+     "text": "Yeah I mean honestly Marcus is right there. If marketing only spends two hundred k, our MQL volume drops by at least thirty five percent according to Ben's model, and my reps cannot close enterprise deals on cold outbound alone in November with Thanksgiving holiday coming up.",
+     "kind": "turn",
+     "start": 88.605,
+     "end": 102.785,
+     "speaker": "S06",
+     "differingWords": 0,
+     "verdict": "match"
+    },
+    {
+     "line": 2,
+     "text": "We need that event David. Like, we need sixty enterprise logos in that room.",
+     "kind": "turn",
+     "start": 103.646,
+     "end": 107.886,
+     "speaker": "S06",
+     "differingWords": 0,
+     "verdict": "match"
+    },
+    {
+     "line": 3,
+     "text": "Hell no, excuse me, but no way David. You take away the AE accelerators in Q4 and half my senior team checks out by mid November. They are relying on those multipliers for their annual quotas.",
+     "kind": "turn",
+     "start": 260.273,
+     "end": 270.513,
+     "speaker": "S06",
+     "differingWords": 0,
+     "verdict": "match"
+    },
+    {
+     "line": 4,
+     "text": "We, uh, well, we reached out to Datastream two weeks ago. Their VP of alliances said they might have ten k in their partner development fund, but they want primary logo placement on the main stage banner and three speaking slots.",
+     "kind": "turn",
+     "start": 305.263,
+     "end": 317.603,
+     "speaker": "S06",
+     "differingWords": 0,
+     "verdict": "match"
+    },
+    {
+     "line": 5,
+     "text": "How long to patch it Elena? Rough estimate?",
+     "kind": "turn",
+     "start": 413.364,
+     "end": 415.294,
+     "speaker": "S06",
+     "differingWords": 0,
+     "verdict": "match"
+    },
+    {
+     "line": 6,
+     "text": "Priya if you cut forty five k from paid search, what does that do to the demo request velocity in week one?",
+     "kind": "turn",
+     "start": 546.937,
+     "end": 551.917,
+     "speaker": "S06",
+     "differingWords": 0,
+     "verdict": "match"
+    },
+    {
+     "line": 7,
+     "text": "December is death for enterprise sales. Nobody deploys new software in December. Their change freezes start December first!",
+     "kind": "turn",
+     "start": 718.105,
+     "end": 724.115,
+     "speaker": "S06",
+     "differingWords": 0,
+     "verdict": "match"
+    },
+    {
+     "line": 8,
+     "text": "We would have to push GA all the way to mid January. And if we slip to January, our Q4 numbers are totally cratered. My team misses quota, the company misses plan by two point eight million dollars.",
+     "kind": "turn",
+     "start": 724.487,
+     "end": 736.377,
+     "speaker": "S06",
+     "differingWords": 0,
+     "verdict": "match"
+    },
+    {
+     "line": 9,
+     "text": "David, if we hit our pipeline target of three point two million with an average deal size of seventy five k, the incremental gross margin in Q1 alone pays back that ninety eight thousand dollar delta four times over. You know the payback period math as well as I do.",
+     "kind": "turn",
+     "start": 895.332,
+     "end": 909.842,
+     "speaker": "S06",
+     "differingWords": 0,
+     "verdict": "match"
+    },
+    {
+     "line": 10,
+     "text": "We execute when you give us the ammo David! Give us the event, give us the leads, and we deliver the numbers.",
+     "kind": "turn",
+     "start": 923.331,
+     "end": 929.191,
+     "speaker": "S06",
+     "differingWords": 0,
+     "verdict": "match"
+    },
+    {
+     "line": 11,
+     "text": "My SDRs can handle that. We will set a quota of twenty personalized outreach videos per day per rep starting October fifteenth.",
+     "kind": "turn",
+     "start": 970.258,
+     "end": 978.698,
+     "speaker": "S06",
+     "differingWords": 0,
+     "verdict": "match"
+    },
+    {
+     "line": 12,
+     "text": "Let us go close some deals. Bye all.",
+     "kind": "turn",
+     "start": 1142.183,
+     "end": 1144.613,
+     "speaker": "S06",
+     "differingWords": 0,
+     "verdict": "match"
+    }
+   ],
+   "heard": "Yeah, I mean, honestly, Marcus is right there. If marketing only spends 200k, our MQL volume drops by at least 35% according to Ben's model. And my reps cannot close Enterprise deals on cold outbound alone in November with Thanksgiving holiday coming up. We need that event, David, like we need 60 enterprise logos in that room. Hell, no. Excuse me. But no way, David. You take away the AE accelerators in Q4 and half my senior team checks out by mid-November. They are relying on those multipliers for their annual quotas. We, uh, well, we reached out to DataStream 2 weeks ago. Their VP of Alliances said they might have 10k in their partner development fund, but they want primary logo placement on the main stage banner and three speaking slots. How long to patch it, Elena? Rough estimate? Priya, if you cut 45k from paid search, what does that do to the demo request velocity in week one? December is death for enterprise sales. Nobody deploys new software in December. Their change freezes start December 1st. We would have to push GA all the way to mid-January. And if we slip to January, our Q4 numbers are totally cratered. My team misses quota, the company misses plan by $2.8 million. David, if we hit our pipeline target of 3.2 million with an average deal size of 75k, the incremental gross margin in Q1 alone pays back that $98,000 delta four times over. You know the payback period math as well as I do. We execute when you give us the ammo, David. Give us the event, give us the leads, and we deliver the numbers. My SDRs can handle that. We will set a quota of 20 personalized outreach videos per day per rep, starting October 15th. Let us go close some deals. Bye all.",
+   "problems": []
+  },
+  "S07": {
+   "key": "cd261e0b7e8fc1d8627fb98e16d68b394ef4192dec167129af201ba1403a5203",
+   "model": "gemini-3.5-flash-lite",
+   "lines": [
+    {
+     "line": 1,
+     "text": "That is right.",
+     "kind": "backchannel",
+     "start": 90.24,
+     "end": 91.04,
+     "speaker": "S07",
+     "differingWords": 0,
+     "verdict": "match"
+    },
+    {
+     "line": 2,
+     "text": "Actually, looking at the funnel from the alpha cohort, eighty two percent of dropoffs happened on screen four. So Chloe is totally right.",
+     "kind": "turn",
+     "start": 213.591,
+     "end": 219.951,
+     "speaker": "S07",
+     "differingWords": 0,
+     "verdict": "match"
+    },
+    {
+     "line": 3,
+     "text": "Right.",
+     "kind": "backchannel",
+     "start": 360.489,
+     "end": 360.759,
+     "speaker": "S07",
+     "differingWords": 0,
+     "verdict": "match"
+    },
+    {
+     "line": 4,
+     "text": "The math actually checks out on that. Our conversion rate on physical event leads from Q1 was twenty four percent, whereas Google search ads converted at only four point two percent to qualified opportunity.",
+     "kind": "turn",
+     "start": 559.076,
+     "end": 570.456,
+     "speaker": "S07",
+     "differingWords": 0,
+     "verdict": "match"
+    },
+    {
+     "line": 5,
+     "text": "The model shows an eleven month LTV to CAC payback ratio of four point one if conversion stays above eighteen percent. Tariq is accurate.",
+     "kind": "turn",
+     "start": 910.531,
+     "end": 919.441,
+     "speaker": "S07",
+     "differingWords": 1,
+     "verdict": "minor"
+    },
+    {
+     "line": 6,
+     "text": "Marcus, what about the beta feedback dashboard? Should I have that ready for Monday's executive sync?",
+     "kind": "turn",
+     "start": 1093.029,
+     "end": 1097.649,
+     "speaker": "S07",
+     "differingWords": 0,
+     "verdict": "match"
+    },
+    {
+     "line": 7,
+     "text": "Will do. I will segment it by enterprise versus mid market cohorts.",
+     "kind": "turn",
+     "start": 1105.65,
+     "end": 1109.48,
+     "speaker": "S07",
+     "differingWords": 2,
+     "verdict": "minor"
+    }
+   ],
+   "heard": "That is right. Actually, looking at the funnel from the alpha cohort, 82% of drop offs happened on screen four. So, Chloe is totally right. Right. The math actually checks out on that. Our conversion rate on physical event leads from Q1 was 24%, whereas Google search ads converted at only 4.2% to qualified opportunity. The model shows an 11-month LTV to CAC payback ratio of 4.1 if conversion stays above 18%. Tarik is accurate. Marcus, what about the beta feedback dashboard? Should I have that ready for Monday's executive sync? Will do. I'll segmented by enterprise versus mid-market cohorts.",
+   "problems": []
+  },
+  "S08": {
+   "key": "6c0acb0923302e7ad23638474319a8927c3c6a8a48d805f488bbd804b71abb15",
+   "model": "gemini-3.5-flash-lite",
+   "lines": [
+    {
+     "line": 1,
+     "text": "I was waiting for you guys to finish arguing about sliders <laugh>. No, we have a major problem actually.",
+     "kind": "turn",
+     "start": 613.741,
+     "end": 621.031,
+     "speaker": "S08",
+     "differingWords": 0,
+     "verdict": "match"
+    },
+    {
+     "line": 2,
+     "text": "So the SOC Two Type Two interim audit report arrived this morning at eleven. Our auditor flagged our third party telemetry pipeline. Because we added cross region replication into the Frankfurt data center for EU clients without the updated data processing addendum, we are technically out of compliance with our GDPR data sovereignty commitments for thirty seven enterprise customers.",
+     "kind": "turn",
+     "start": 622.829,
+     "end": 646.319,
+     "speaker": "S08",
+     "differingWords": 2,
+     "verdict": "minor"
+    },
+    {
+     "line": 3,
+     "text": "I am completely serious. If we launch PulseGrid Enterprise on November twelfth with the current cross region routing, we fail the SOC Two surveillance audit, which invalidates our enterprise tier SLA warranties.",
+     "kind": "turn",
+     "start": 644.711,
+     "end": 657.861,
+     "speaker": "S08",
+     "differingWords": 1,
+     "verdict": "minor"
+    },
+    {
+     "line": 4,
+     "text": "Elena, according to the new guidance issued in July, IP addresses and tenant connection identifiers are classified as pseudonymous personal data under Article Four. The auditor does not care whether it is metadata or payload. If it touches us-east-two without an encrypted tunnel and explicit user consent, it is a non conformity.",
+     "kind": "turn",
+     "start": 664.509,
+     "end": 686.719,
+     "speaker": "S08",
+     "differingWords": 0,
+     "verdict": "match"
+    },
+    {
+     "line": 5,
+     "text": "Yes, but we have to deploy the EU proxy, test it, and submit the architectural evidence to the auditor. And the auditor requires a fourteen business day review window before they issue the clean interim opinion.",
+     "kind": "turn",
+     "start": 688.115,
+     "end": 700.295,
+     "speaker": "S08",
+     "differingWords": 0,
+     "verdict": "match"
+    },
+    {
+     "line": 6,
+     "text": "If Elena gives me the proxy by next Friday, October sixth, fourteen business days puts us at October twenty sixth. That only gives us two weeks before November twelfth. And that is assuming the auditor has zero follow up questions. If they have questions, GA slips to December.",
+     "kind": "turn",
+     "start": 704.486,
+     "end": 720.486,
+     "speaker": "S08",
+     "differingWords": 0,
+     "verdict": "match"
+    },
+    {
+     "line": 7,
+     "text": "If I get it by Wednesday evening, I can submit the package to the auditor Thursday morning October fifth. Fourteen business days from October fifth is October twenty fifth. That gives us a comfortable two and a half week buffer before November twelfth.",
+     "kind": "turn",
+     "start": 823.125,
+     "end": 835.575,
+     "speaker": "S08",
+     "differingWords": 0,
+     "verdict": "match"
+    },
+    {
+     "line": 8,
+     "text": "We have forty hours of audit support retainer left on our contract with Deloitte David. It will consume thirty of those hours, so it incurs zero incremental invoice cost, provided we do not trigger a second round of review.",
+     "kind": "turn",
+     "start": 838.945,
+     "end": 853.105,
+     "speaker": "S08",
+     "differingWords": 0,
+     "verdict": "match"
+    },
+    {
+     "line": 9,
+     "text": "And Marcus, just to confirm, if the auditor comes back with any questions on October twentieth, we convene an emergency thirty minute triage with Arthur and Elena immediately right?",
+     "kind": "turn",
+     "start": 1108.552,
+     "end": 1119.502,
+     "speaker": "S08",
+     "differingWords": 0,
+     "verdict": "match"
+    }
+   ],
+   "heard": "I was waiting for you guys to finish arguing about sliders. [laughs] No, we have a major problem actually. So, the SOC 2 type 2 interim audit report arrived this morning at 11:00. Our auditor flagged our third-party telemetry pipeline. Because we added cross-region replication into the Frankfurt data center for EU clients without the updated data processing addendum, we are technically out of compliance with our GDPR data sovereignty commitments for 37 end-use customers. I am completely serious. If we launch Postgres Enterprise on November 12th with the current cross-region routing, we fail the SOC 2 surveillance audit, which invalidates our enterprise tier SLA warranties. Elena, according to the new guidance issued in July, IP addresses and tenant connection identifiers are classified as pseudonymous personal data under Article 4. The auditor does not care whether it is metadata or payload. If it touches US East 2 without an encrypted tunnel and explicit user consent, it is a non-conformity. Yes, but we have to deploy the EU proxy, test it, and submit the architectural evidence to the auditor. And the auditor requires a 14-business-day review window before they issue the clean interim opinion. If Elena gives me the proxy by next Friday, October 6th, 14 business days puts us at October 26th. That only gives us 2 weeks before November 12th. And that is assuming the auditor has zero follow-up questions. If they have questions, GA slips to December. If I get it by Wednesday evening, I can submit the package to the auditor Thursday morning, October 5th. 14 business days from October 5th is October 25th. That gives us a comfortable two-and-a-half-week buffer before November 12th. We have 40 hours of audit support retainer left on our contract with Deloitte, David. It will consume 30 of those hours. So, it incurs zero incremental invoice cost, provided we do not trigger a second round of review. And Marcus, just to confirm, if the auditor comes back with any questions on October 20th, we convene an emergency 30-minute triage with Arthur and Elena immediately, right?",
+   "problems": []
+  },
+  "S09": {
+   "key": "061fd6ad633451d652d0007da4480caf87d19ea1ecc8f33bdc939b5290633f52",
+   "model": "gemini-3.5-flash-lite",
+   "lines": [
+    {
+     "line": 1,
+     "text": "Mm-hmm.",
+     "kind": "backchannel",
+     "start": 170.031,
+     "end": 170.521,
+     "speaker": "S09",
+     "differingWords": 1,
+     "verdict": "unscored"
+    },
+    {
+     "line": 2,
+     "text": "Priya is right, our enterprise accounts really value the hands on labs. The feedback from the advisory council was very clear on that.",
+     "kind": "turn",
+     "start": 288.723,
+     "end": 297.223,
+     "speaker": "S09",
+     "differingWords": 0,
+     "verdict": "match"
+    },
+    {
+     "line": 3,
+     "text": "And that means customer success has zero time to train the tier two support team on the new troubleshooting workflows. We have forty agents who do not even know what the error codes for the migration engine mean yet.",
+     "kind": "turn",
+     "start": 354.628,
+     "end": 366.178,
+     "speaker": "S09",
+     "differingWords": 0,
+     "verdict": "match"
+    },
+    {
+     "line": 4,
+     "text": "Could customer success bridge that gap? What if my team writes a detailed step by step visual onboarding guide and we embed an in app walkthrough video using Loom or WalkMe? We can produce that in seventy two hours without taking any engineering bandwidth.",
+     "kind": "turn",
+     "start": 776.562,
+     "end": 792.852,
+     "speaker": "S09",
+     "differingWords": 1,
+     "verdict": "minor"
+    },
+    {
+     "line": 5,
+     "text": "Yeah definitely, Chloe send me the current Figma wireframes and we will map out the tooltips by noon tomorrow.",
+     "kind": "turn",
+     "start": 803.628,
+     "end": 809.578,
+     "speaker": "S09",
+     "differingWords": 0,
+     "verdict": "match"
+    }
+   ],
+   "heard": "Mhm. Priya is right. Our enterprise accounts really value the hands-on labs. The feedback from the advisory council was very clear on that. And that means customer success has zero time to train the tier 2 support team on the new troubleshooting workflows. We have 40 agents who do not even know what the error codes for the migration engine mean yet. Could customer success bridge that gap? What if my team writes a detailed, step-by-step, the visual onboarding guide, and we embed an in-app walkthrough video using Loom or WalkMe? We can produce that in 72 hours without taking any engineering bandwidth. Yeah, definitely. Chloe, send me the current Figma wireframes and we will map out the tool tips by noon tomorrow.",
+   "problems": []
+  },
+  "S10": {
+   "key": "901c36031df73fc70cd4033ff9d686136263dd78e2787a8e2ea1121a7a9279f9",
+   "model": "gemini-3.5-flash-lite",
+   "lines": [
+    {
+     "line": 1,
+     "text": "Hey, yeah, sorry folks. The executive steering committee ran over. I am here. Did I miss the budget fight or are we still in the middle of it?",
+     "kind": "turn",
+     "start": 426.284,
+     "end": 433.274,
+     "speaker": "S10",
+     "differingWords": 0,
+     "verdict": "match"
+    },
+    {
+     "line": 2,
+     "text": "Delightful. What did Elena say about the storage volumes?",
+     "kind": "turn",
+     "start": 436.828,
+     "end": 440.488,
+     "speaker": "S10",
+     "differingWords": 0,
+     "verdict": "match"
+    },
+    {
+     "line": 3,
+     "text": "Okay, so look, on the eighteen k, we might be able to pull down some reserved instance credits from our enterprise discount plan with Amazon. I spoke with our AWS account rep this morning actually, and we have about twenty two thousand in unused promotional credits from the machine learning pilot that we wrapped up in August.",
+     "kind": "turn",
+     "start": 450.49,
+     "end": 467.35,
+     "speaker": "S10",
+     "differingWords": 0,
+     "verdict": "match"
+    },
+    {
+     "line": 4,
+     "text": "Yes, but only if we burn them before November thirtieth. So that actually covers Elena's staging bill for October and November completely.",
+     "kind": "turn",
+     "start": 471.758,
+     "end": 480.628,
+     "speaker": "S10",
+     "differingWords": 0,
+     "verdict": "match"
+    },
+    {
+     "line": 5,
+     "text": "Because the credit reconciliation statement only clears at the end of the calendar month David. It literally posted to our billing console six hours ago. So that eighteen k problem is solved. Zero cash out of pocket from the Q4 operational fund.",
+     "kind": "turn",
+     "start": 481.897,
+     "end": 496.997,
+     "speaker": "S10",
+     "differingWords": 0,
+     "verdict": "match"
+    },
+    {
+     "line": 6,
+     "text": "Can we route EU tenant telemetry strictly through an isolated European proxy cluster Hannah?",
+     "kind": "turn",
+     "start": 684.898,
+     "end": 690.238,
+     "speaker": "S10",
+     "differingWords": 0,
+     "verdict": "match"
+    },
+    {
+     "line": 7,
+     "text": "We do need to make sure the multi tenant rate limiter is configured properly so one noisy enterprise customer does not saturate the connection pool. Elena and I have a ticket scheduled for sprint forty four to review the envoy proxy filters. As long as that is done during the freeze week, we are solid.",
+     "kind": "turn",
+     "start": 988.212,
+     "end": 1005.152,
+     "speaker": "S10",
+     "differingWords": 0,
+     "verdict": "match"
+    }
+   ],
+   "heard": "Hey yeah, sorry folks. The executive steering committee ran over. I am here. Did I miss the budget fight, or are we still in the middle of it? Delightful. What did Elena say about the storage volumes? Okay, so look, on the 18k, we might be able to pull down some reserved instance credits from our Enterprise discount plan with Amazon. I spoke with our AWS account rep this morning, actually, and we have about 22,000 in unused promotional credits from the machine learning pilot that we wrapped up in August. Yes, but only if we burn them before November 30th. So that actually covers Elena's staging bill for October and November completely. because the credit reconciliation statement only clears at the end of the calendar month, David. It literally posted to our billing console six hours ago. So that 18k problem is solved. Zero cash out of pocket from the Q4 operational fund. Can we route EU tenant telemetry strictly through an isolated European proxy cluster, Hannah? We do need to make sure the multi-tenant rate limiter is configured properly, so one noisy enterprise customer does not saturate the connection pool. Elena and I have a ticket scheduled for Sprint 44 to review the Envoy proxy filters. As long as that is done during the freeze week, we are solid.",
+   "problems": []
+  }
+ }
+}

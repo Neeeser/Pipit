@@ -1,0 +1,6 @@
+# Engines run through mlx-audio on Apple silicon. Versions are the ones measured
+# in Benchmarks/results/2026-11-22-engines-and-synthetic-pilot.
+mlx==0.32.4
+mlx-audio==0.6.7
+numpy
+soundfile
