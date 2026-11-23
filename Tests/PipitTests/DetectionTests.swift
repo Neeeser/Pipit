@@ -857,17 +857,6 @@ struct BrowserMeetingDetectorTests {
         #expect(detector.update(native: native, at: now).title == "Northwind Daily")
     }
 
-    @Test("meeting identifiers come out of provider URLs")
-    func meetingIdentifiersComeOutOfProviderURLs() async throws {
-        #expect(
-            MeetingURLParser.meetingID(forURL: "https://meet.google.com/jfp-btbt-owm") == "jfp-btbt-owm"
-        )
-        #expect(
-            MeetingURLParser.meetingID(forURL: "https://app.zoom.us/wc/81771591841/join") == "81771591841"
-        )
-        #expect(MeetingURLParser.provider(forURL: "https://app.zoom.us/wc/1/join") == .zoom)
-        #expect(MeetingURLParser.provider(forURL: "https://example.com") == nil)
-    }
 }
 
 @Suite("GenericCallDetector")

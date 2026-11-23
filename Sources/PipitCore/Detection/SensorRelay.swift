@@ -40,12 +40,8 @@ public enum SensorRelay {
             guard let tabID = raw["tabId"] as? Int else { return nil }
             return .tabClosed(browser: browser, tabID: tabID)
         case "state":
-            let provider: MeetingProvider =
-                switch raw["provider"] as? String {
-                case "meet": .googleMeet
-                case "zoom": .zoom
-                default: .unknown
-                }
+            let provider =
+                (raw["provider"] as? String).flatMap(MeetingApp.forBrowserExtensionID)?.provider ?? .unknown
             let state = BrowserMeetingState(rawValue: (raw["state"] as? String) ?? "unknown") ?? .unknown
             let timestamp = (raw["sentAt"] as? Double).map { $0 / 1_000 } ?? Date().timeIntervalSince1970
             return .event(

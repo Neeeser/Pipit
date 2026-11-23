@@ -144,15 +144,19 @@ targets:
           cp -R "$SRCROOT/extension/dist" "$resources/extension"
         inputFiles:
           - $(SRCROOT)/extension/build.sh
+          - $(SRCROOT)/extension/shared/meeting-sites.json
+          - $(SRCROOT)/extension/shared/sites.js
           - $(SRCROOT)/extension/shared/provider.js
           - $(SRCROOT)/extension/shared/content.js
           - $(SRCROOT)/extension/shared/relay.js
           - $(SRCROOT)/extension/shared/background.js
           - $(SRCROOT)/extension/firefox/manifest.json
           - $(SRCROOT)/extension/chrome/manifest.json
+          - $(SRCROOT)/extension/safari/manifest.json
         outputFiles:
           - $(BUILT_PRODUCTS_DIR)/$(CONTENTS_FOLDER_PATH)/Resources/extension/firefox/manifest.json
           - $(BUILT_PRODUCTS_DIR)/$(CONTENTS_FOLDER_PATH)/Resources/extension/chrome/manifest.json
+          - $(BUILT_PRODUCTS_DIR)/$(CONTENTS_FOLDER_PATH)/Resources/extension/safari/manifest.json
 
       - name: Stamp the version into Info.plist
         # scripts/app-version.sh prints the short version, the build number and

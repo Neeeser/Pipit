@@ -4,42 +4,9 @@
 // No CSS class names, because providers change those constantly and a class-based
 // selector breaks silently.
 
-const MEET_HOST = 'meet.google.com';
+import { providerForURL, meetingIdForURL } from './sites.js';
 
-export function providerForURL(href) {
-  let url;
-  try {
-    url = new URL(href);
-  } catch {
-    return 'unknown';
-  }
-  // Suffix checks need the dot boundary: `notmeet.google.com` is not Meet.
-  const host = url.hostname.toLowerCase();
-  const matches = (suffix) => host === suffix || host.endsWith(`.${suffix}`);
-  if (matches(MEET_HOST)) return 'meet';
-  if (matches('zoom.us') || matches('zoomgov.com')) return 'zoom';
-  return 'unknown';
-}
-
-export function meetingIdForURL(href) {
-  let url;
-  try {
-    url = new URL(href);
-  } catch {
-    return null;
-  }
-  const provider = providerForURL(href);
-  if (provider === 'meet') {
-    const match = url.pathname.match(/^\/([a-z]{3}-[a-z]{4}-[a-z]{3})/i);
-    return match ? match[1].toLowerCase() : null;
-  }
-  if (provider === 'zoom') {
-    const match = url.pathname.match(/\/(?:j|wc|s)(?:\/join)?\/(\d{9,})/) ||
-      url.pathname.match(/(\d{9,})/);
-    return match ? match[1] : null;
-  }
-  return null;
-}
+export { providerForURL, meetingIdForURL };
 
 // A control is described by the text a screen reader would announce for it.
 const LEAVE_PATTERN = /leave call|end call|leave meeting|hang up|leave the meeting/;

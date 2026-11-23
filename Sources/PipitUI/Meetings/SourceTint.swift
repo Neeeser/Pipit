@@ -9,15 +9,20 @@ import SwiftUI
 /// The colour only has to separate one row from the next.
 public enum SourceTint {
     public static func color(_ source: MeetingSource) -> Color {
-        switch source {
-        case .slackHuddle: .purple
-        case .googleMeet: .green
-        case .zoom: .blue
-        case .faceTime: .mint
-        case .genericCall: .indigo
-        case .manual: .teal
-        case .inPerson: .orange
-        case .imported: .secondary
+        switch source.tint {
+        case .purple: .purple
+        case .green: .green
+        case .blue: .blue
+        case .mint: .mint
+        case .indigo: .indigo
+        case .teal: .teal
+        case .orange: .orange
+        case .pink: .pink
+        case .red: .red
+        case .yellow: .yellow
+        case .cyan: .cyan
+        case .brown: .brown
+        case .secondary: .secondary
         }
     }
 }

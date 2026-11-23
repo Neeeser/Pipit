@@ -1,0 +1,12 @@
+[
+  {
+    "provider": "meet",
+    "matches": ["https://meet.google.com/*"],
+    "meetingIdPatterns": ["^/([a-z]{3}-[a-z]{4}-[a-z]{3})"]
+  },
+  {
+    "provider": "zoom",
+    "matches": ["https://*.zoom.us/*"],
+    "meetingIdPatterns": ["/(?:j|wc|s)(?:/join)?/(\\d{9,})", "(\\d{9,})"]
+  }
+]

@@ -17,17 +17,38 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 DIST="$ROOT/dist"
 rm -rf "$DIST"
 
+# Strips the module syntax the sources use: `export ` prefixes, the imports
+# between shared files, and the re-export provider.js makes for the tests.
+plain() {
+    sed -E \
+        -e 's/^export (function|const|let|class)/\1/' \
+        -e "/^import .* from '\.\/(sites\.js|meeting-sites\.json)'.*;$/d" \
+        -e '/^export \{.*\};$/d' \
+        "$1"
+}
+
+# sites.js goes in front of both provider.js and the background script, with
+# meeting-sites.json written in as a constant where sites.js imports it.
+# Content scripts share one scope, so provider.js then finds its site helpers
+# already defined.
+sites() {
+    printf 'const MEETING_SITES = %s;\n' "$(cat "$ROOT/shared/meeting-sites.json")"
+    plain "$ROOT/shared/sites.js"
+}
+
 for browser in firefox chrome safari; do
     mkdir -p "$DIST/$browser/shared"
-    # `export ` prefixes and the import block are the only module syntax used.
-    sed -E 's/^export (function|const|let|class)/\1/' "$ROOT/shared/provider.js" \
-        > "$DIST/$browser/shared/provider.js"
+    {
+        sites
+        plain "$ROOT/shared/provider.js"
+    } > "$DIST/$browser/shared/provider.js"
     cp "$ROOT/shared/content.js" "$DIST/$browser/shared/content.js"
     # relay.js is testable on its own, and background.js calls it. A Chrome MV3
-    # service worker names one file, so the two are concatenated instead of both
+    # service worker names one file, so the three are concatenated instead of
     # being listed in the manifest. The other two take the same file.
     {
-        sed -E 's/^export (function|const|let|class)/\1/' "$ROOT/shared/relay.js"
+        sites
+        plain "$ROOT/shared/relay.js"
         cat "$ROOT/shared/background.js"
     } > "$DIST/$browser/shared/background.js"
     cp "$ROOT/$browser/manifest.json" "$DIST/$browser/manifest.json"
