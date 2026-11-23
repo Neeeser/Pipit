@@ -15,6 +15,7 @@ from unittest import mock
 import numpy as np
 
 sys.path.insert(0, str(Path(__file__).parent))
+import make_cases
 import synthesize
 import write_script
 
@@ -198,6 +199,32 @@ class ScriptChecks(unittest.TestCase):
     def test_a_participant_with_no_turns_is_a_problem(self) -> None:
         found = write_script.problems(self.script(["S01", "S02", "S03"], ["S01", "S02"]), 3)
         self.assertTrue(any("S03" in p for p in found), found)
+
+
+class RejectedSpeech(unittest.TestCase):
+    def test_a_reply_that_stopped_early_is_kept_beside_the_cache(self) -> None:
+        with tempfile.TemporaryDirectory() as scratch:
+            path = Path(scratch) / "S01.wav"
+            early = synthesize.gemini.IncompleteSpeech("stopped", b"partial")
+            with mock.patch.object(synthesize.gemini, "speech", side_effect=early):
+                with self.assertRaises(RuntimeError):
+                    synthesize.cached_speech(path, "model", "Kore", "hello")
+            self.assertEqual((Path(scratch) / "S01.rejected.wav").read_bytes(), b"partial")
+            self.assertFalse(path.exists())
+            self.assertFalse(path.with_suffix(".key").exists())
+
+
+class CaseOverwrite(unittest.TestCase):
+    def test_only_files_that_differ_from_what_is_there_are_reported(self) -> None:
+        with tempfile.TemporaryDirectory() as scratch:
+            staged, bench = Path(scratch) / "staged", Path(scratch) / "bench"
+            for root, content in ((staged, b"new"), (bench, b"old")):
+                (root / "calls" / "M-a").mkdir(parents=True)
+                (root / "calls" / "M-a" / "mic.wav").write_bytes(content)
+            (staged / "calls" / "M-a" / "remote.wav").write_bytes(b"first time")
+            (staged / "calls" / "M-a" / "case.json").write_text("{}")
+            (bench / "calls" / "M-a" / "case.json").write_text("{\"changed\": true}")
+            self.assertEqual(make_cases.changed_files(staged, bench), ["calls/M-a/mic.wav"])
 
 
 if __name__ == "__main__":

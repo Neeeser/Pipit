@@ -22,6 +22,22 @@ _last_call = 0.0
 calls_made = 0
 
 
+class IncompleteSpeech(RuntimeError):
+    """A speech reply that carried audio but stopped before finishing; `wav` holds what came back."""
+
+    def __init__(self, message: str, wav: bytes) -> None:
+        super().__init__(message)
+        self.wav = wav
+
+
+class IncompleteSpeech(RuntimeError):
+    """A speech reply that carried audio but stopped before finishing; `wav` holds what came back."""
+
+    def __init__(self, message: str, wav: bytes) -> None:
+        super().__init__(message)
+        self.wav = wav
+
+
 def _post(model: str, body: dict, attempts: int = 6, resend_lost: bool = True) -> dict:
     global _last_call, calls_made
     key = os.environ["GEMINI_API_KEY"]
@@ -89,19 +105,21 @@ def speech(model: str, words: str, voice: str) -> bytes:
     parts = [p for p in candidate.get("content", {}).get("parts", []) if "inlineData" in p]
     if not parts:
         raise RuntimeError("Gemini %s returned no audio (finish reason %s)" % (model, candidate.get("finishReason")))
-    finish = candidate.get("finishReason")
-    if finish not in (None, "STOP"):
-        # A reply cut off at a limit still carries audio, and the cache would keep it.
-        raise RuntimeError("Gemini %s stopped before finishing the audio (finish reason %s)" % (model, finish))
     data, mime = base64.b64decode(parts[0]["inlineData"]["data"]), parts[0]["inlineData"].get("mimeType", "")
     if data[:4] == b"RIFF":
-        return data
-    # The API documents raw 16-bit PCM, such as "audio/L16;codec=pcm;rate=24000".
-    rate = re.search(r"rate=(\d+)", mime)
-    buffer = io.BytesIO()
-    with wave.open(buffer, "wb") as out:
-        out.setnchannels(1)
-        out.setsampwidth(2)
-        out.setframerate(int(rate.group(1)) if rate else 24000)
-        out.writeframes(data)
-    return buffer.getvalue()
+        wav = data
+    else:
+        # The API documents raw 16-bit PCM, such as "audio/L16;codec=pcm;rate=24000".
+        rate = re.search(r"rate=(\d+)", mime)
+        buffer = io.BytesIO()
+        with wave.open(buffer, "wb") as out:
+            out.setnchannels(1)
+            out.setsampwidth(2)
+            out.setframerate(int(rate.group(1)) if rate else 24000)
+            out.writeframes(data)
+        wav = buffer.getvalue()
+    finish = candidate.get("finishReason")
+    if finish not in (None, "STOP"):
+        # A reply cut off at a limit still carries audio, and the cache would keep it as complete.
+        raise IncompleteSpeech("Gemini %s stopped before finishing the audio (finish reason %s)" % (model, finish), wav)
+    return wav

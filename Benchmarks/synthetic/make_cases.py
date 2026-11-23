@@ -22,7 +22,9 @@ and writes a benchmark root beside it, `.../synthetic/bench/`, that
 
 import argparse
 import json
+import shutil
 import sys
+import tempfile
 from pathlib import Path
 
 import numpy as np
@@ -52,10 +54,28 @@ def in_person(meeting: str, folder: Path, truth: dict, seed: int) -> np.ndarray:
     return (mix * (0.5 / max(1e-6, float(np.max(np.abs(mix)))))).astype(np.float32)
 
 
+def changed_files(staged: Path, bench: Path) -> list[str]:
+    """Audio and truth files under `staged` that already exist under `bench` with other bytes.
+
+    `case.json` is left out: results record checksums of the audio and the truth.
+    """
+    changed = []
+    for path in sorted(staged.rglob("*")):
+        relative = path.relative_to(staged)
+        if not path.is_file() or path.name == "case.json" or path.suffix not in (".wav", ".json"):
+            continue
+        existing = bench / relative
+        if existing.exists() and existing.read_bytes() != path.read_bytes():
+            changed.append(relative.as_posix())
+    return changed
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("meeting")
     parser.add_argument("--out", type=Path, default=CACHE)
+    parser.add_argument("--overwrite", action="store_true",
+                        help="replace case audio and truth already written when they differ")
     args = parser.parse_args()
 
     meeting, folder = args.meeting, args.out / args.meeting
@@ -63,8 +83,27 @@ def main() -> None:
     seed = truth["synthetic"]["seed"]
     local = truth["synthetic"]["localSpeaker"]
     bench = args.out / "bench"
-    (bench / "ground-truth").mkdir(parents=True, exist_ok=True)
-    (bench / "ground-truth" / (f"{meeting}.json")).write_text(json.dumps(truth, indent=1) + "\n")
+    bench.mkdir(parents=True, exist_ok=True)
+
+    # Render into a staging folder first, so a changed simulator cannot replace
+    # audio that recorded results carry checksums of before anyone notices.
+    with tempfile.TemporaryDirectory(dir=bench) as staging_name:
+        staged = Path(staging_name)
+        (staged / "ground-truth").mkdir()
+        (staged / "ground-truth" / (f"{meeting}.json")).write_text(json.dumps(truth, indent=1) + "\n")
+        channels = {s: folder / (f"{meeting}.{s}.wav") for s in truth["speakers"]}
+        prepared = callsim.prepare_meeting(seed, meeting, truth, local, channels)
+        for spec in VARIANTS:
+            variant = callsim.render_variant(prepared, spec["name"], spec["echoCorrelation"])
+            info = callsim.write_case(staged / "calls" / callsim.case_id(meeting, spec["name"]), prepared, variant, seed, truth)
+            print("{}: echo correlation {:.3f} {}".format(info["case"], info["echo"]["correlation"], callsim.problems(info) or "ok"))
+        callsim.write_pcm16(staged / "ground-truth" / truth["source"], in_person(meeting, folder, truth, seed))
+
+        if changed := changed_files(staged, bench):
+            if not args.overwrite:
+                raise SystemExit("this would replace files that differ from the ones in %s: %s; pass --overwrite to replace them, "
+                                 "or --out to write elsewhere" % (bench, ", ".join(changed)))
+        shutil.copytree(staged, bench, dirs_exist_ok=True)
 
     # Keep the meetings made before, so their cases stay runnable.
     existing = bench / "manifest.json"
@@ -73,15 +112,6 @@ def main() -> None:
     manifest["calls"]["meetings"] = {**meetings, meeting: {"localAgent": local, "channels": {}}}
     manifest["calls"]["variants"] = VARIANTS
     (bench / "manifest.json").write_text(json.dumps(manifest, indent=2) + "\n")
-
-    channels = {s: folder / (f"{meeting}.{s}.wav") for s in truth["speakers"]}
-    prepared = callsim.prepare_meeting(seed, meeting, truth, local, channels)
-    for spec in VARIANTS:
-        variant = callsim.render_variant(prepared, spec["name"], spec["echoCorrelation"])
-        info = callsim.write_case(bench / "calls" / callsim.case_id(meeting, spec["name"]), prepared, variant, seed, truth)
-        print("{}: echo correlation {:.3f} {}".format(info["case"], info["echo"]["correlation"], callsim.problems(info) or "ok"))
-
-    callsim.write_pcm16(bench / "ground-truth" / truth["source"], in_person(meeting, folder, truth, seed))
     print("{} in person: {}".format(meeting, bench / "ground-truth" / truth["source"]))
 
 

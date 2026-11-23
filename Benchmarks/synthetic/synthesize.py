@@ -205,7 +205,14 @@ def cached_speech(path: Path, model: str, voice: str, words: str) -> bytes:
         elif key_path.read_text().strip() != key:
             raise SystemExit("%s was voiced from a different script, voice or model; delete it to voice it again" % path)
         return path.read_bytes()
-    wav = gemini.speech(model, words, voice)
+    try:
+        wav = gemini.speech(model, words, voice)
+    except gemini.IncompleteSpeech as early:
+        # The request was paid for; keep what came back where the cache never reads it.
+        rejected = path.with_suffix(".rejected.wav")
+        rejected.write_bytes(early.wav)
+        print("kept the incomplete reply as %s" % rejected, file=sys.stderr)
+        raise
     path.write_bytes(wav)
     key_path.write_text(key + "\n")
     return wav
