@@ -124,8 +124,8 @@ struct TranscriptDivisionTests {
             at: Date()
         )
         let pieces = LineDivision.divide(original, at: [cut(at: 2)])
-        #expect(speakers.resolvedName(for: pieces[0]) == "Dara")
-        #expect(speakers.resolvedName(for: pieces[1]) == "Dara")
+        #expect(speakers.resolvedName(for: pieces[0], numbers: SpeakerNumbers()) == "Dara")
+        #expect(speakers.resolvedName(for: pieces[1], numbers: SpeakerNumbers()) == "Dara")
     }
 
     @Test("naming one piece does not confirm the other's audio")

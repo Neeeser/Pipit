@@ -1008,10 +1008,11 @@ public struct TranscriptRenderer: Sendable {
         lines.append(contentsOf: participantBlock(participants))
 
         var lastSpeaker: String?
+        let numbers = SpeakerNumbers(transcript.utterances)
         for utterance in transcript.utterances {
             // Resolved from the utterance, not from its cluster key, so a
             // single corrected line renders as corrected here too.
-            let name = speakers.resolvedName(for: utterance)
+            let name = speakers.resolvedName(for: utterance, numbers: numbers)
             if name != lastSpeaker {
                 lines.append("")
                 lines.append("**\(name)** · \(timecode(utterance.start))")
@@ -1097,8 +1098,9 @@ public struct TranscriptRenderer: Sendable {
     }
 
     public func plainText(transcript: CanonicalTranscript, speakers: SpeakerMap) -> String {
-        transcript.utterances.map { utterance in
-            "[\(timecode(utterance.start))] \(speakers.resolvedName(for: utterance)): \(utterance.text)"
+        let numbers = SpeakerNumbers(transcript.utterances)
+        return transcript.utterances.map { utterance in
+            "[\(timecode(utterance.start))] \(speakers.resolvedName(for: utterance, numbers: numbers)): \(utterance.text)"
         }.joined(separator: "\n")
     }
 

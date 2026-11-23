@@ -802,6 +802,11 @@ public final class MeetingReviewModel {
             name: name, utteranceIDs: block.lines.map(\.utterance.id),
             meetingID: block.recordingID, identityID: identityID
         )
+        // The same count the chips and the loaded lines use: this recording's
+        // lines in timeline order, which is the order each speaker first talks.
+        let numbers = SpeakerNumbers(
+            lineKeys: combinedLines.lazy.filter { $0.recordingID == block.recordingID }
+                .map(\.utterance.speakerKey))
         for line in block.lines {
             if name.isEmpty {
                 correctedLines.remove(line.id)
@@ -812,7 +817,7 @@ public final class MeetingReviewModel {
             combinedLines[index].speakerName =
                 name.isEmpty
                 ? SpeakerMap.fallbackName(
-                    for: line.utterance.speakerKey,
+                    for: line.utterance.speakerKey, numbers: numbers,
                     recordingIndex: recordings.firstIndex { $0.id == block.recordingID } ?? 0,
                     recordingCount: recordings.count)
                 : name

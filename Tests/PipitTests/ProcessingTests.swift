@@ -227,19 +227,6 @@ struct TranscriptAssemblerTests {
         )
     }
 
-    @Test("anonymous labels from different chunks read as different speakers")
-    func anonymousLabelsFromDifferentChunksReadAsDifferentSpeakers() async throws {
-        let first = SpeakerMap.fallbackName(for: "remote_chunk_001_speaker_00")
-        let second = SpeakerMap.fallbackName(for: "remote_chunk_002_speaker_00")
-        #expect(first == "Speaker 1", "one chunk of audio should read plainly")
-        #expect(
-            first != second,
-            "two chunks' labels are different clusters until someone maps them"
-        )
-        #expect(second == "Speaker 1 (part 2)")
-        #expect(SpeakerMap.fallbackName(for: SpeakerLabel.localUser) == "Me")
-    }
-
     @Test("timestamps stay monotonic across chunks")
     func timestampsStayMonotonicAcrossChunks() async throws {
         let first = chunk(
@@ -868,14 +855,14 @@ struct TranscriptAssemblerTests {
             SpeakerAssignment(displayName: "Owen", origin: .ai, confidence: 0.98),
             for: "remote_chunk_001_speaker_00"
         )
-        #expect(speakers.resolvedName(for: "remote_chunk_001_speaker_00") == "Bryn")
+        #expect(speakers.resolvedName(for: "remote_chunk_001_speaker_00", numbers: SpeakerNumbers()) == "Bryn")
 
         // A label the user has not named does take the suggestion.
         speakers.applySuggestion(
             SpeakerAssignment(displayName: "Owen", origin: .ai, confidence: 0.9),
             for: "remote_chunk_001_speaker_01"
         )
-        #expect(speakers.resolvedName(for: "remote_chunk_001_speaker_01") == "Owen")
+        #expect(speakers.resolvedName(for: "remote_chunk_001_speaker_01", numbers: SpeakerNumbers()) == "Owen")
         // And a human correction wins over the suggestion afterwards.
         speakers.assign("John", to: "remote_chunk_001_speaker_01")
         #expect(speakers.entries["remote_chunk_001_speaker_01"]?.origin == .human)

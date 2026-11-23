@@ -114,7 +114,8 @@ struct ReconnectTests {
         let (repository, first, _) = try Self.makeSplitMeeting(root: root)
         let logical = try #require(repository.logicalMeeting(id: first))
         let chipName = SpeakerMap.fallbackName(
-            for: "remote-001_speaker_00", recordingIndex: 0, recordingCount: logical.recordings.count)
+            for: "remote-001_speaker_00", numbers: SpeakerNumbers(), recordingIndex: 0,
+            recordingCount: logical.recordings.count)
 
         let walk = TranscriptNavigation.speaker(
             chipName, recordingID: first, in: CombinedLineBlock.blocks(from: logical.combinedTranscript()))

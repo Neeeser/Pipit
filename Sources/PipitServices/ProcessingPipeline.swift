@@ -3552,9 +3552,10 @@ public actor ProcessingPipeline {
         // person doing the addressing is also anonymous.
         let unnamed = Set(labels)
         let renderer = TranscriptRenderer()
+        let numbers = SpeakerNumbers(transcript.utterances)
         let rendered = transcript.utterances.map { utterance -> String in
             let key = utterance.speakerKey
-            let who = unnamed.contains(key) ? key : speakers.resolvedName(for: utterance)
+            let who = unnamed.contains(key) ? key : speakers.resolvedName(for: utterance, numbers: numbers)
             return "[\(renderer.timecode(utterance.start))] \(who): \(utterance.text)"
         }.joined(separator: "\n")
 
