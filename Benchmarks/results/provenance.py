@@ -3,7 +3,9 @@
     python3 Benchmarks/results/provenance.py [--hf-model ID ...] [--python PATH] \
         [--input FILE ...] > provenance.json
 
-Records the commit and any uncommitted or untracked files, the machine, the
+Records the commit, the diff of tracked files that changed since it, a SHA-256
+for each untracked file (so the code that made a result can be identified even
+when it was never committed), the machine, the
 speech dependency versions pinned in Package.resolved, the Hugging Face
 revision of each named model as found in the local cache, the packages
 installed for a Python interpreter, and a SHA-256 for each input file.
@@ -41,6 +43,11 @@ def python_packages(python: str) -> dict[str, str]:
     return dict(sorted(json.loads(listing).items()))
 
 
+def untracked_files() -> dict[str, str]:
+    names = run("git", "ls-files", "--others", "--exclude-standard").splitlines()
+    return {name: sha256(ROOT / name) for name in names}
+
+
 def sha256(path: Path) -> str:
     digest = hashlib.sha256()
     with path.open("rb") as file:
@@ -59,6 +66,8 @@ def main() -> None:
         "recordedAt": datetime.now(UTC).isoformat(timespec="seconds"),
         "commit": run("git", "rev-parse", "HEAD"),
         "uncommittedChanges": run("git", "status", "--porcelain").splitlines(),
+        "uncommittedDiff": run("git", "diff", "HEAD"),
+        "untrackedFiles": untracked_files(),
         "machine": {
             "chip": run("sysctl", "-n", "machdep.cpu.brand_string"),
             "memoryGB": int(run("sysctl", "-n", "hw.memsize")) // 2**30,

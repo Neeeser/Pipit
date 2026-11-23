@@ -21,21 +21,130 @@
   "ibm-granite/granite-speech-5.0-470m-turboctc": "91dcb0605daf65f88dbb04fef015c423241d941d",
   "nvidia/NVIDIA-Nemotron-3.5-Transcribe-30B-A4B-NVFP4": "66c6adc4020179567074d0399cda2a4eeb2bb347"
  },
- "note": "The app was built from this commit. The engine and scoring scripts were untracked at the time and are in the commit that added this folder, in a later revision. The SYN001 audio came from an earlier version of Benchmarks/synthetic/synthesize.py and the AMI call audio from call generator version 1; the checksums identify that audio. The Whisper size and decode-setting runs also used a temporary local patch (an environment variable choosing the WhisperKit variant, and decode options), since reverted.",
- "pythonPackages": {
-  "mlx": "0.32.4",
-  "mlx-audio": "0.6.7",
-  "meeteval": "0.4.3",
-  "whisper-normalizer": "0.1.12"
+ "note": "The app was built from this commit. The engine, scoring and synthetic generator scripts were untracked at the time and are in the commit that added this folder, in a later revision; `untrackedFiles` could not record them then. The SYN001 audio came from an earlier version of Benchmarks/synthetic/synthesize.py and the AMI call audio from call generator version 1; the checksums identify that audio. The Whisper size and decode-setting runs also used a temporary local patch to WhisperKit loading (an environment variable naming the variant, and others for the decode options), since reverted and not kept, so those runs cannot be rerun; their stored transcripts can be re-scored. This file was assembled by hand from the output of provenance.py and then corrected, so its `inputs` and package listings are shaped differently from what the script writes.",
+ "pythonEnvironments": {
+  "mlxEngines": {
+   "python": "3.12.15",
+   "source": "the virtual environment that ran Benchmarks/engines/run_mlx_engine.py, listed in full",
+   "packages": {
+    "Jinja2": "3.1.6",
+    "MarkupSafe": "3.0.4",
+    "PyYAML": "6.0.4",
+    "Pygments": "2.21.0",
+    "annotated-doc": "0.0.7",
+    "annotated-types": "0.8.0",
+    "anyio": "4.16.0",
+    "certifi": "2026.11.20",
+    "cffi": "2.1.1",
+    "charset-normalizer": "3.5.2",
+    "click": "8.5.1",
+    "filelock": "4.3.0",
+    "fsspec": "2026.9.0",
+    "h11": "0.16.0",
+    "hf-xet": "1.8.0",
+    "httpcore2": "2.16.2",
+    "httpx2": "2.16.2",
+    "huggingface_hub": "2.4.0",
+    "idna": "3.20",
+    "markdown-it-py": "4.3.0",
+    "mdurl": "0.1.2",
+    "miniaudio": "1.73",
+    "mlx": "0.32.4",
+    "mlx-audio": "0.6.7",
+    "mlx-metal": "0.32.4",
+    "numpy": "2.5.5",
+    "packaging": "26.3",
+    "pycparser": "3.12",
+    "pydantic": "2.14.4",
+    "pydantic_core": "2.50.5",
+    "regex": "2026.11.19",
+    "requests": "2.34.2",
+    "rich": "15.0.0",
+    "safetensors": "0.8.0",
+    "scipy": "1.18.1",
+    "sentencepiece": "0.2.3",
+    "shellingham": "1.5.4",
+    "sounddevice": "0.5.6",
+    "soundfile": "0.14.0",
+    "tokenizers": "0.23.3",
+    "tqdm": "4.70.1",
+    "transformers": "5.24.0",
+    "truststore": "0.10.5",
+    "typer": "0.29.2",
+    "typing-inspection": "0.4.5",
+    "typing_extensions": "4.16.0",
+    "urllib3": "2.8.0"
+   }
+  },
+  "scoring": {
+   "python": "3.12",
+   "source": "uv run --with meeteval==0.4.3 --with whisper-normalizer==0.1.12, listed when this record was corrected; only meeteval is pinned by the command, so the other versions are what resolved then, not necessarily what resolved at measurement",
+   "packages": {
+    "Cython": "3.3.1",
+    "certifi": "2026.7.22",
+    "indic_numtowords": "1.1.0",
+    "kaldialign": "0.12.0",
+    "meeteval": "0.4.3",
+    "more-itertools": "11.2.1",
+    "numpy": "2.5.5",
+    "packaging": "26.3",
+    "pip": "26.2.1",
+    "pycparser": "3.11",
+    "regex": "2026.11.19",
+    "scipy": "1.18.1",
+    "wheel": "0.48.0",
+    "whisper_normalizer": "0.1.12"
+   }
+  },
+  "syntheticGenerator": {
+   "python": "3.12",
+   "source": "uv run --with numpy --with scipy --with soundfile --with whisper-normalizer==0.1.12 (the unit test command), listed when this record was corrected; the generator's versions at the time SYN001 was made were not recorded",
+   "packages": {
+    "certifi": "2026.7.22",
+    "cffi": "2.1.1",
+    "indic_numtowords": "1.1.0",
+    "more-itertools": "11.2.1",
+    "numpy": "2.5.5",
+    "pip": "26.2.1",
+    "pycparser": "3.11",
+    "regex": "2026.11.19",
+    "scipy": "1.18.1",
+    "soundfile": "0.14.0",
+    "typing_extensions": "4.16.0",
+    "wheel": "0.48.0",
+    "whisper_normalizer": "0.1.12"
+   }
+  }
  },
  "pipitEngines": {
   "parakeet": "fluidaudio-parakeet-tdt-v3 (int8 encoder)",
   "whisper": "openai_whisper-large-v3-v20240930_turbo_632MB",
-  "diarizer": "fluidaudio-nemotron3-offline-0.18.2"
+  "diarizer": "fluidaudio-nemotron3-offline-0.18.2 (Nemotron 3, preset offline, weights ga-2026-09-23)",
+  "diarizerFallback": "fluidaudio-offline-0.18.2 (the offline clusterer), which Pipit uses instead of Nemotron 3 when Nemotron 3 fills all 8 of its speaker slots. Each pipeline run's `diarizationBackends` says which diarizer produced its result.",
+  "whisperVariants": {
+   "whisper-large-v3-turbo-632MB": "openai_whisper-large-v3-v20240930_turbo_632MB",
+   "whisper-small.en": "openai_whisper-small.en",
+   "whisper-distil-large-v3-turbo": "distil-whisper_distil-large-v3_turbo",
+   "whisper-large-v3": "openai_whisper-large-v3_turbo (the full-precision Large v3 Turbo build, 3.0 GB; the original Large v3 was never downloaded or run, so this label is wrong)",
+   "whisper-medium.en": "openai_whisper-medium.en",
+   "config-large-v3-forced-english, config-large-v3-forced-english-vad": "openai_whisper-large-v3_turbo, as above",
+   "config-turbo-*": "openai_whisper-large-v3-v20240930_turbo_632MB",
+   "turbo-repeat-from-*": "Turbo 632MB output, inferred and not recorded: the run log shows a first round of size runs and a second round of the same names, and these three runs score like Turbo (33.1% to 33.8%, against 33.4% for the Turbo run) while their names say which size run they stand in for"
+  },
+  "whisperRunsTranscriptionModels": "whisper-runs.json records transcriptionModels as whisperkit-large-v3-turbo for every Whisper run whatever variant ran, because the temporary patch did not change the identifier."
+ },
+ "pipitModelReceipts": {
+  "source": "units.json install receipts in Pipit's model folder, read when this record was corrected; the folder used for the Whisper runs held the same receipts",
+  "diarizer (offline clusterer)": "FluidAudio 0.18.2",
+  "nemotron-diarizer": "nemotron-3-diarization-offline ga-2026-09-23 @ FluidAudio 0.18.2",
+  "parakeet": "parakeet-tdt-0.6b-v3-int8 @ FluidAudio 0.15.6",
+  "voice-activity": "silero-vad-unified-256ms-v6.2.1 @ FluidAudio 0.15.6",
+  "whisper": "openai_whisper-large-v3-v20240930_turbo_632MB @ argmax-oss-swift 1.1.0"
  },
  "gemini": {
   "script": "gemini-3.8-flash",
-  "speech": "gemini-3.8-flash-tts"
+  "speech": "gemini-3.8-flash-tts",
+  "audioCheck": "gemini-3.5-flash-lite (the default of Benchmarks/synthetic/check_audio.py, and the model named in syn001-audio-check.json)"
  },
  "callAudio": {
   "amiCases": "Benchmarks/calls generator version 1 (before the #191 crosstalk change)",
@@ -143,5 +252,12 @@
   "S08.wav": "b06bae28e16e6c7169e859b1b518aa9431db02bb8018363e3fbb4c09856a38a7",
   "S09.wav": "5b1d5f605c327457f315b8a3440587948a77b854f29c4a301f4692e36bccc501",
   "S10.wav": "1263ac424946fde2a9a6d258eb74eda5cf84c60d4ea211a7c850bd283ea211d8"
- }
+ },
+ "notRecorded": [
+  "The temporary WhisperKit patch (see note).",
+  "Python package versions of the scoring and generator environments at the time of measurement.",
+  "The Hugging Face revisions of the WhisperKit and FluidAudio Core ML models beyond the install receipts in pipitModelReceipts.",
+  "Why the diarizer chose each backend: the pipeline runs have no diarizerReason field.",
+  "The code that made the seed 1 and seed 2 'before the noise-frame change' layout rows (see README)."
+ ]
 }

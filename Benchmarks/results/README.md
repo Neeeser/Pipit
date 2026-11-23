@@ -13,7 +13,7 @@ gate compares against, and it is overwritten when the baselines are rebuilt.
 | File | Contents |
 | --- | --- |
 | `README.md` | The question, how the run was made, the results, and their limits |
-| `provenance.json` | Commit, machine, Swift package and Python package versions, model revisions, and a SHA-256 for every input audio file |
+| `provenance.json` | Commit, the diff of changed files and a SHA-256 of untracked ones, machine, Swift package and Python package versions, model revisions, and a SHA-256 for every input audio file |
 | `*-scores.json`, `pipeline-*.json` | Scores as the tools wrote them, with local paths removed |
 | `*-transcripts.json.gz` | The raw transcripts each engine produced |
 
