@@ -272,8 +272,8 @@ scripts/eval.sh bench \
 Useful options include:
 
 - `--diarizer local` runs what the app ships for a finished meeting: Nemotron 3
-  Diarization, with the offline VBx diarizer when all eight Nemotron speaker
-  slots fill. `--diarizer vbx` runs the VBx diarizer alone, the previous
+  Diarization, with the offline VBx diarizer when Nemotron is not installed or
+  fails. Nemotron's answer is kept when it fills all eight speaker slots. `--diarizer vbx` runs the VBx diarizer alone, the previous
   behavior. `nemotron3` runs Nemotron with no fallback.
 - `--engine parakeet-ultra` runs Parakeet Ultra, a post-trained Parakeet TDT v3
   that FluidAudio loads as `AsrModelVersion.ultra`. It is a bench candidate and

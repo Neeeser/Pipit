@@ -162,13 +162,6 @@ public struct Nemotron3DiarizationBackend: DiarizationBackend {
         return Nemotron3Diarizer.segments(probabilities: probabilities, frameCount: frames)
     }
 
-    /// Whether the model reported a speaker in every slot it has. A meeting
-    /// with that many voices may hold more than the model can keep apart, and
-    /// two people sharing a slot cannot be split afterwards.
-    static func fillsEverySlot(_ output: DiarizationOutput) -> Bool {
-        output.clusters.count >= LocalSpeechStack.nemotron3SpeakerSlots
-    }
-
     static func provenance(preset: Preset) -> [String: String] {
         [
             "backend": identifier(for: preset),
