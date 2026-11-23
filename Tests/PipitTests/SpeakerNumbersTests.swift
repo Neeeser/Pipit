@@ -76,6 +76,38 @@ struct SpeakerNumbersTests {
         #expect(name == "Speaker 4, part 2")
     }
 
+    @Test("the chip, the suggestion pill and the lines agree when the first voice holds a late slot")
+    func chipPillAndLinesAgree() throws {
+        let root = try TestPaths.makeTemporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let repository = MeetingRepository(root: root)
+        let started = Date(timeIntervalSince1970: 1_787_070_000)
+        let meeting = try repository.createMeeting(
+            source: .googleMeet, provider: .googleMeet, startedAt: started,
+            titles: TitleCandidates(provider: "Weekly sync", timestampFallback: "f"), now: started)
+        try meeting.store.writeCanonicalTranscript(
+            CanonicalTranscript(generatedAt: started, utterances: slotOrderedLate))
+        let logical = try #require(repository.logicalMeeting(id: meeting.metadata.id))
+        let key = "remote-001_speaker_nemotron3_0"
+
+        // The chip row numbers from the transcript, the pill from the
+        // lightweight speaker list. Both must name the line the same way.
+        let transcript = try #require(try meeting.store.readCanonicalTranscript())
+        let chip = SpeakerMap.fallbackName(
+            for: key, numbers: SpeakerNumbers(transcript.utterances), recordingIndex: 0, recordingCount: 1)
+        let pill = SpeakerMap.fallbackName(
+            for: key, numbers: SpeakerNumbers(lineKeys: try meeting.store.readTranscriptSpeakers().map(\.key)),
+            recordingIndex: 0, recordingCount: 1)
+        let lines = logical.combinedTranscript()
+        #expect(chip == "Speaker 4")
+        #expect(pill == chip)
+        #expect(lines.first { $0.utterance.speakerKey == key }?.speakerName == chip)
+
+        let walk = TranscriptNavigation.speaker(
+            chip, recordingID: meeting.metadata.id, in: CombinedLineBlock.blocks(from: lines))
+        #expect(walk.targets.count == 1)
+    }
+
     @Test("the written transcript uses the same first-to-talk names")
     func renderedTranscriptUsesTheNumbers() {
         let transcript = CanonicalTranscript(generatedAt: Date(), utterances: slotOrderedLate)
