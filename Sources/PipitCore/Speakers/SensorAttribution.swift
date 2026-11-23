@@ -6,7 +6,7 @@ import Foundation
 /// who held the floor while the audio was recorded. The diarizer hears the
 /// audio, so where a cluster reaches a word the cluster labels it. The sensor
 /// fills the words no cluster reaches, and `attribute` gives the clusters the
-/// participants' names. A one-to-one call is the exception: the far-end track
+/// participants' names. A one-to-one call is the exception: the remote track
 /// holds only that one person, so the sensor labels all of it.
 ///
 /// Three products, all pure so they can be tested without audio or a meeting.
@@ -54,7 +54,7 @@ public enum SensorAttribution {
 
     /// The sensor timeline as it labels words, in the two roles it can play.
     public struct WordSources: Sendable, Equatable {
-        /// One participant owns the whole far-end track, so every word is
+        /// One participant owns the whole remote track, so every word is
         /// theirs whatever the diarizer says. Empty unless the client named the
         /// only other person in the call.
         public var authoritative: [DiarizationInterval]
@@ -110,10 +110,10 @@ public enum SensorAttribution {
     /// The client marks one floor holder at a time and holds the mark while
     /// several tiles move at once, so on a call where people talk over each
     /// other its turns reach only part of each voice. In the simulated Meet
-    /// calls with the most overlap (each far-end person talked over for 58 to
+    /// calls with the most overlap (each remote person talked over for 58 to
     /// 75% of their speech) the right person's turns covered 28 to 45% of
     /// the large clusters, each one person's voice, 32 to 45% of each cluster
-    /// sat under no turn, and a bar of half the cluster left every far-end
+    /// sat under no turn, and a bar of half the cluster left every remote
     /// word in those calls unnamed.
     public static let minimumClusterCoverage: Double = 0.25
     /// The share of the speech the turns cover in a cluster that the named
@@ -130,8 +130,8 @@ public enum SensorAttribution {
     /// half-cluster rule misnamed 17 of 33 clusters and this one 27 of 44.
     public static let minimumCoveredShare: Double = 0.5
     /// How much a turn of the local user counts against a participant. The
-    /// local user is not in the far-end mixdown and talks over the far end
-    /// all the time, so their turn says little about whose voice a far-end
+    /// local user is not in the remote mixdown and talks over the call audio
+    /// all the time, so their turn says little about whose voice a remote
     /// cluster is. Half weight rather than none, because a cluster the local
     /// user's turns explain best must stay blank (see `attribute`), and
     /// dropping their turns would let second place win it outright.
@@ -235,10 +235,10 @@ public enum SensorAttribution {
         max(turn.start, turn.end - wordAttributionTailSeconds)
     }
 
-    /// The one person the far-end track can hold, where the meeting client
+    /// The one person the remote track can hold, where the meeting client
     /// named the whole call and there is one other person in it.
     ///
-    /// The far end is a mixdown of everyone but the local user, so a call with
+    /// The call audio is a mixdown of everyone but the local user, so a call with
     /// one other person in it holds one voice from beginning to end. Nothing
     /// acoustic has to be worked out: every word on that track is theirs,
     /// including the ones the diarizer never marked as speech.
@@ -298,7 +298,7 @@ public enum SensorAttribution {
     /// renumbers.
     ///
     /// The local user's turns are dropped, not because they are wrong but
-    /// because the far-end track cannot contain them: it is a mixdown of
+    /// because the remote track cannot contain them: it is a mixdown of
     /// everyone else. A span inside a self turn falls through to the diarizer,
     /// which hears the audio and is the right authority on speech the sensor
     /// cannot explain.
@@ -549,7 +549,7 @@ public enum SensorAttribution {
         intervals: [DiarizationInterval], sensors: RawSensors,
         mode: SensorAttributionMode = .current
     ) -> Result {
-        // The local user is not in the far-end mixdown, so they are not one of
+        // The local user is not in the remote mixdown, so they are not one of
         // the voices to be found there. Their turns stay in the overlap below,
         // where they can still stop somebody else's name landing on the local
         // user's speech, but they never become a name.
@@ -651,7 +651,7 @@ extension SensorAttribution {
     /// models or a meeting folder. The pipeline's remaining job is to apply
     /// these, which `SpeakerMap.applySuggestion` already governs.
     ///
-    /// The local user is marked, not removed. The far-end track is a mixdown of
+    /// The local user is marked, not removed. The remote track is a mixdown of
     /// everyone else, so a turn saying the local user held the floor cannot
     /// explain a voice heard there. Removing those turns looked equivalent and
     /// was not: it left the runner-up at zero, so the margin rule stopped
@@ -670,7 +670,7 @@ extension SensorAttribution {
         for run in diarization.activeRuns {
             var result = attribute(intervals: run.intervals, sensors: scoped, mode: mode)
             // Without the client labelling words, a one-to-one call reaches the
-            // diarizer, which may split the one far-end voice into several
+            // diarizer, which may split the one remote voice into several
             // clusters. Whatever it finds on that track is the one other
             // person, so every cluster takes their name.
             if mode == .diarizerNames, run.track == .remote,

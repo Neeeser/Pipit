@@ -158,16 +158,16 @@ struct CompactionTests {
 
         let timeline = try store.readTimeline()
         let far = MicrophoneCleaningFixtures.farToneA
-        func farEndEnergy(_ location: TrackAudioLocation) throws -> Double {
+        func remoteEnergy(_ location: TrackAudioLocation) throws -> Double {
             let samples = try MicrophoneCleaningFixtures.samples(location)
             return MicrophoneCleaningFixtures.toneEnergy(
                 MicrophoneCleaningFixtures.seconds(20, 30, of: samples), frequency: far
             )
         }
-        let recorded = try farEndEnergy(
+        let recorded = try remoteEnergy(
             store.rawTrackAudioLocation(track: .mic, metadata: metadata, timeline: timeline)
         )
-        let cleanedAway = try farEndEnergy(
+        let cleanedAway = try remoteEnergy(
             store.trackAudioLocation(track: .mic, metadata: metadata, timeline: timeline)
         )
 
@@ -183,19 +183,19 @@ struct CompactionTests {
         // What is in `mic.m4a` now decides whether the recording survived.
         let archived = try store.readMetadata()
         #expect(archived.audioArchive?.mic != nil, "the microphone was archived")
-        let inArchive = try farEndEnergy(
+        let inArchive = try remoteEnergy(
             store.rawTrackAudioLocation(track: .mic, metadata: archived, timeline: timeline)
         )
         let keptDB = 10 * log10((inArchive + 1e-12) / (cleanedAway + 1e-12))
         #expect(
             keptDB > 20,
             """
-            mic.m4a holds the far end only \(keptDB) dB above the cleaned track, so it was \
+            mic.m4a holds the call audio only \(keptDB) dB above the cleaned track, so it was \
             written from the cleaned microphone
             """
         )
         let lostDB = 10 * log10((recorded + 1e-12) / (inArchive + 1e-12))
-        #expect(abs(lostDB) < 3, "the archived far end is \(lostDB) dB off the recording")
+        #expect(abs(lostDB) < 3, "the archived call audio is \(lostDB) dB off the recording")
 
         // And the cleaned track outlives the segments it was made from.
         #expect(

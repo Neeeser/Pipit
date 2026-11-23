@@ -13,7 +13,7 @@ Each case is a directory holding `mic.wav`, `remote.wav` and `case.json`. The
 microphone is the local person plus, in the echo variants, the other
 participants' call audio replayed over laptop speakers. The remote track is
 everyone else after an Opus round trip. The variants that misalign the
-tracks take the `laptop` echo level and change the far end: it starts late,
+tracks take the `laptop` echo level and change the call audio: it starts late,
 with nothing played before it, or its file loses short runs of audio. The echo gain of each variant is chosen
 so Pipit's own measure of how much echo a microphone holds lands on the
 variant's target. `--verify` runs the shipped echo pass over the finished
@@ -101,28 +101,28 @@ def main() -> None:
             % (meeting, local["otherSpeechSecondsInGate"], local["otherSpeechSecondsKept"], local["otherSpeechSecondsUnderOwnerWords"])
         )
         for spec in variants:
-            heard = callsim.late_far_end(prepared, spec.get("farEndStartSeconds", 0.0))
+            heard = callsim.late_remote(prepared, spec.get("remoteStartSeconds", 0.0))
             variant = callsim.render_variant(heard, spec["name"], spec["echoCorrelation"])
             directory = out / callsim.case_id(meeting, spec["name"])
             sensors = None
             if spec.get("sensors"):
                 sensors = callsim.simulate_sensors(seed, meeting, truth, prepared.local_speaker, spec["sensors"])
-            far_end = None
-            if spec.get("farEndStartSeconds") or spec.get("farEndDropouts"):
+            remote_recording = None
+            if spec.get("remoteStartSeconds") or spec.get("remoteDropouts"):
                 dropouts = []
-                if spec.get("farEndDropouts"):
-                    dropouts = callsim.plan_dropouts(seed, meeting, truth["windowSeconds"], spec["farEndDropouts"])
-                far_end = callsim.FarEndRecording(spec.get("farEndStartSeconds", 0.0), dropouts)
-            info = callsim.write_case(directory, heard, variant, seed, truth, sensors, far_end)
+                if spec.get("remoteDropouts"):
+                    dropouts = callsim.plan_dropouts(seed, meeting, truth["windowSeconds"], spec["remoteDropouts"])
+                remote_recording = callsim.RemoteRecording(spec.get("remoteStartSeconds", 0.0), dropouts)
+            info = callsim.write_case(directory, heard, variant, seed, truth, sensors, remote_recording)
             echo = info["echo"]
             target = "none" if variant.target_correlation is None else "%.2f" % variant.target_correlation
             ratio = "" if variant.echo_to_voice_db is None else "%+.1f dB" % variant.echo_to_voice_db
             line = "%-24s %8s %8.3f %8.4f %9s" % (
                 callsim.case_id(meeting, spec["name"]), target, echo["correlation"], variant.gain, ratio,
             )
-            if far_end is not None:
+            if remote_recording is not None:
                 moved = info["farEnd"]
-                line += "  far end starts %.2f s late, loses %.0f ms, reads %.3f as recorded" % (
+                line += "  call audio starts %.2f s late, loses %.0f ms, reads %.3f as recorded" % (
                     moved["startSeconds"], moved["lostSeconds"] * 1000, moved["correlationAsRecorded"],
                 )
             for problem in callsim.problems(info):

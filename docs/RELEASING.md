@@ -75,7 +75,7 @@ For local builds, `scripts/make-signing-identity.sh` creates a self-signed
 macOS ties permission grants to the signature, so an ad-hoc build loses
 Microphone, Accessibility and Screen & System Audio Recording on every
 reinstall, and a recording made before they are granted again captures a
-silent far end. The local certificate keeps the grants across rebuilds.
+silent call audio. The local certificate keeps the grants across rebuilds.
 
 The AMO credentials come from
 <https://addons.mozilla.org/en-US/developers/addon/api/key/>. A release without

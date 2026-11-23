@@ -191,7 +191,7 @@ public struct RecordingRun: Codable, Sendable, Equatable, Identifiable {
     }
 }
 
-/// The microphone track with the far end subtracted out of it, and the
+/// The microphone track with the call audio subtracted out of it, and the
 /// measurement that says the subtraction was worth keeping.
 ///
 /// Its presence is what makes every reader take the cleaned file instead of the
@@ -203,33 +203,33 @@ public struct CleanedMicrophone: Codable, Sendable, Equatable {
     /// gets the same shape whichever representation it is handed.
     public var track: AudioArchive.Track
     /// Median decibels the microphone came down by over the quarter-second
-    /// windows where the far end was playing, measured on the audio.
+    /// windows where the call audio was playing, measured on the audio.
     ///
     /// Recordings made before 12 September 2026 hold the canceller's own
     /// report here instead, a figure from its linear filter that read near
     /// zero on calls the pass had cleaned.
     public var echoRemovedMedianDB: Double
     /// How many of those windows there were. The median above cannot be read
-    /// without it. A high figure over a handful of windows says the far end
+    /// without it. A high figure over a handful of windows says the call audio
     /// barely played, and says nothing about the room.
-    public var farEndActiveWindows: Int
-    /// How well the microphone's loudness envelope followed the far end's
+    public var remoteActiveWindows: Int
+    /// How well the microphone's loudness envelope followed the remote track's
     /// before the pass, and how well the cleaned track's does after it.
     ///
     /// Measured the way the pass measures alignment: the best agreement of
     /// the two envelopes within eight seconds either way. A pair with an
     /// audible echo path reads 0.5 and up before cleaning, and one without
     /// reads 0.32 or under. A cleaned track that still reads high holds the
-    /// far end still, and that is the one thing the transcript needs to be
+    /// call audio still, and that is the one thing the transcript needs to be
     /// read with. Nil on recordings made before this was measured.
     public var echoCorrelationBefore: Double?
     public var echoCorrelationAfter: Double?
     public var producedAt: Date
 
-    /// Agreement at or above which an envelope is the far end's.
+    /// Agreement at or above which an envelope is the remote track's.
     public static let echoCorrelationBar = 0.40
 
-    /// Whether the far end was in the microphone and is still in the cleaned
+    /// Whether the call audio was in the microphone and is still in the cleaned
     /// track: sound from the speakers that the transcript may show as the
     /// user's.
     public var echoRemains: Bool {
@@ -240,16 +240,23 @@ public struct CleanedMicrophone: Codable, Sendable, Equatable {
     }
 
     public init(
-        track: AudioArchive.Track, echoRemovedMedianDB: Double, farEndActiveWindows: Int,
+        track: AudioArchive.Track, echoRemovedMedianDB: Double, remoteActiveWindows: Int,
         echoCorrelationBefore: Double? = nil, echoCorrelationAfter: Double? = nil,
         producedAt: Date
     ) {
         self.track = track
         self.echoRemovedMedianDB = echoRemovedMedianDB
-        self.farEndActiveWindows = farEndActiveWindows
+        self.remoteActiveWindows = remoteActiveWindows
         self.echoCorrelationBefore = echoCorrelationBefore
         self.echoCorrelationAfter = echoCorrelationAfter
         self.producedAt = producedAt
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case track, echoRemovedMedianDB, echoCorrelationBefore, echoCorrelationAfter, producedAt
+        /// The stored key predates the rename to `remoteActiveWindows` and is
+        /// kept so existing `metadata.json` files still decode.
+        case remoteActiveWindows = "farEndActiveWindows"
     }
 }
 
@@ -258,18 +265,18 @@ public struct CleanedMicrophone: Codable, Sendable, Equatable {
 /// Recorded whatever the answer, because the cleaner runs once and this is what
 /// says it already ran. Only `cleaned` leaves a file behind.
 public enum CleaningOutcome: String, Codable, Sendable, Equatable {
-    /// The far end was subtracted and the result is on disk.
+    /// The call audio was subtracted and the result is on disk.
     case cleaned
-    /// No far end was recorded to subtract, or too little of it played for the
+    /// No call audio was recorded to subtract, or too little of it played for the
     /// canceller to be judged on.
     case skippedNoReference
     /// The pass took the user's own speech down with the echo, measured over
-    /// the windows where the far end was quiet and the microphone held
+    /// the windows where the call audio was quiet and the microphone held
     /// something. A call with no echo path to lock on to is where that
     /// happens. The recording is kept instead.
     case bypassedNoEchoPath
     /// One track holding everyone, which is every import and every in-person
-    /// session. There is no separate far end and nothing to subtract.
+    /// session. There is no separate call audio and nothing to subtract.
     case skippedOneTrack
     /// The pass did not finish. What went wrong is on this Mac rather than in
     /// the recording, so the meeting is read on the microphone as it was
@@ -366,8 +373,8 @@ public struct MeetingMetadata: Codable, Sendable, Equatable, Identifiable {
     /// The marker is what makes that redo resumable. The meeting is moved back
     /// to the transcription stage for the length of it, and a stage that is
     /// interrupted is picked up at launch like any other. Without a marker the
-    /// resumed stage would be a first transcription, which also redoes the far
-    /// end. Cleared in the same write that marks the meeting complete again.
+    /// resumed stage would be a first transcription, which also redoes the call
+    /// audio. Cleared in the same write that marks the meeting complete again.
     public var microphoneRedoRequestedAt: Date?
     /// When the user took this meeting out of the list. Every file it holds
     /// stays where it is. Archiving changes which list a meeting is in and
@@ -458,9 +465,9 @@ public struct MeetingMetadata: Codable, Sendable, Equatable, Identifiable {
     public var isProcessingComplete: Bool { processing.state == .complete }
 
     /// Whether the microphone can be cleaned and transcribed again: a finished
-    /// meeting with a microphone track of its own and a far end recorded apart
+    /// meeting with a microphone track of its own and call audio recorded apart
     /// from it. An in-person or imported recording has one track holding
-    /// everyone, so there is no far end to take out of it. Whether the far end
+    /// everyone, so there is no call audio to take out of it. Whether the call audio
     /// was actually recorded is a fact about the files and is checked against
     /// them when the action runs.
     public var canRedoMicrophone: Bool {

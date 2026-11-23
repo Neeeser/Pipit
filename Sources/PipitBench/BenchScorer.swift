@@ -124,8 +124,8 @@ public struct BenchScore: Codable, Sendable, Equatable {
     /// pasted at the wrong time are charged. The CHiME convention, which makes
     /// the figure comparable with published meeting-transcription systems.
     public var tcpWer: Double?
-    /// How the person holding the microphone fared on a two-track call: the far
-    /// end's words under their name, and their own words missing. Nil on a
+    /// How the person holding the microphone fared on a two-track call: the remote
+    /// track's words under their name, and their own words missing. Nil on a
     /// one-track case, where there is no local person to ask about.
     public var localTrack: LocalTrackScore?
 

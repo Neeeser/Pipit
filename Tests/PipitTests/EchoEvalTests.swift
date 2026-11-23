@@ -13,7 +13,7 @@ import Testing
 @Suite("EchoEval", .tags(.slow))
 struct EchoEvalTests {
     private static let rate = MicrophoneCleaningFixtures.rate
-    /// Seconds of fixture. Long enough that the far end is above the floor in
+    /// Seconds of fixture. Long enough that the call audio is above the floor in
     /// more than the forty windows the cleaner's decision needs.
     private static let seconds = 32.0
     /// The room noise a real capsule always has, well under the -60 dBFS floor
@@ -25,17 +25,17 @@ struct EchoEvalTests {
 
     // MARK: - fixtures
 
-    /// A call whose far end talks in two bursts, so the pair can be moved.
+    /// A call where the other people talk in two bursts, so the pair can be moved.
     ///
-    /// The far end talks over its own seconds 0 to 8 and 18 to 26, which land
+    /// The other people on the call talk over its own seconds 0 to 8 and 18 to 26, which land
     /// in the microphone two seconds later. The user talks over microphone
-    /// seconds 12 to 18, where the far end is quiet, and again over 21 to 27,
+    /// seconds 12 to 18, where the call audio is quiet, and again over 21 to 27,
     /// where it is not. That gives one stretch of the user alone and one of
     /// both at once, which is the split the retention figures are reported on.
     /// Both voices pause between sentences, so a stretch holds fewer active
     /// windows than its length says.
     ///
-    /// `micHoldsEcho` false is the same call taken on headphones: the far end
+    /// `micHoldsEcho` false is the same call taken on headphones: the call audio
     /// plays and nothing of it comes back to the capsule.
     private static func makeBurstyCall(
         root: URL, micHoldsEcho: Bool = true, userSpeaks: Bool = true,
@@ -100,8 +100,8 @@ struct EchoEvalTests {
         report.summary(windowClass)
     }
 
-    @Test("a call on speakers reports the user surviving and the far end leaving")
-    func aCallOnSpeakersReportsTheUserSurvivingAndTheFarEndLeaving() async throws {
+    @Test("a call on speakers reports the user surviving and the call audio leaving")
+    func aCallOnSpeakersReportsTheUserSurvivingAndTheCallAudioLeaving() async throws {
         let root = try TestPaths.makeTemporaryDirectory()
         defer { try? FileManager.default.removeItem(at: root) }
         let meeting = try Self.makeBurstyCall(root: root)
@@ -120,40 +120,40 @@ struct EchoEvalTests {
             "expected \(Self.seconds) ± \(0.2), got \(report.seconds)"
         )
 
-        // The far end talks for sixteen of the thirty-two seconds, less the
+        // The other people on the call talk for sixteen of the thirty-two seconds, less the
         // pauses between its sentences.
         #expect(
-            report.farEndDutyCycle > 0.4 && report.farEndDutyCycle <= 0.5,
-            "the far end was active in \(report.farEndDutyCycle) of the windows"
+            report.remoteDutyCycle > 0.4 && report.remoteDutyCycle <= 0.5,
+            "the call audio was active in \(report.remoteDutyCycle) of the windows"
         )
         #expect(
-            report.farEndActiveWindows
-                == Self.summary(report, .farEndOnly).windows + Self.summary(report, .both).windows,
-            "far-end-active is the two classes the far end is above its floor in"
+            report.remoteActiveWindows
+                == Self.summary(report, .remoteOnly).windows + Self.summary(report, .both).windows,
+            "remote-active is the two classes the call audio is above its floor in"
         )
 
-        // This fixture's room tone sits under the far end's floor, so that
+        // This fixture's room tone sits under the remote track's floor, so that
         // floor is the one that decided the microphone's.
         let microphoneQuietWindowDBFS = try #require(report.microphoneQuietWindowDBFS)
         #expect(
             abs(microphoneQuietWindowDBFS - (-73.5)) <= 0.5,
             "expected -73.5 ± 0.5, got \(microphoneQuietWindowDBFS)"
         )
-        #expect(report.microphoneFloorDBFS == report.farEndFloorDBFS)
+        #expect(report.microphoneFloorDBFS == report.remoteFloorDBFS)
 
-        // A speaker call has no far-end-only windows. The echo keeps the
-        // microphone above its floor for every window the far end talks
+        // A speaker call has no remote-only windows. The echo keeps the
+        // microphone above its floor for every window the other people on the call talk
         // in, and levels alone cannot tell that echo from the user. This is
         // the limit the retention figures are split around.
-        #expect(Self.summary(report, .farEndOnly).windows == 0)
+        #expect(Self.summary(report, .remoteOnly).windows == 0)
         #expect(
-            Self.summary(report, .farEndOnly).changeDB == nil,
+            Self.summary(report, .remoteOnly).changeDB == nil,
             "a class with no windows reports no level rather than zero"
         )
-        #expect(Self.summary(report, .farEndOnly).worstChangeDB == nil)
+        #expect(Self.summary(report, .remoteOnly).worstChangeDB == nil)
 
-        // The user alone, with the far end quiet: the 24 windows of 12 to
-        // 18 s less the user's own pauses, plus the far end's pauses under
+        // The user alone, with the call audio quiet: the 24 windows of 12 to
+        // 18 s less the user's own pauses, plus the remote track's pauses under
         // 21 to 27 s. This is the class the decision is made on, and the
         // class a level drop is a loss in. Across the class the microphone
         // moved 0.0005 dB and the window ninety-five in a hundred stayed
@@ -197,23 +197,23 @@ struct EchoEvalTests {
             "expected \(report.windowSeconds) ± \(0.001), got \(report.windowLog[1].startSeconds)"
         )
 
-        // Both at once, which on speakers is every window the far end talks
+        // Both at once, which on speakers is every window the other people on the call talk
         // in. The class ratio understates what left: the six seconds of
         // retained user speech under 21 to 27 s carry most of the energy,
         // so the class reads 0.8 dB while the median window gave up 27.1 dB
         // of echo and 42 of the 62 windows lost more than 6 dB. The median
-        // window is the figure that answers how much of the far end came
+        // window is the figure that answers how much of the call audio came
         // out.
         let together = Self.summary(report, .both)
-        #expect(together.windows == report.farEndActiveWindows)
-        #expect(together.windows <= 64, "the far end talks for sixteen seconds")
+        #expect(together.windows == report.remoteActiveWindows)
+        #expect(together.windows <= 64, "the other people on the call talk for sixteen seconds")
         let togetherChangeDB = try #require(together.changeDB)
         let togetherMedianDB = try #require(together.medianChangeDB)
-        #expect(togetherMedianDB > 15, "the median far-end window came down only \(togetherMedianDB) dB")
+        #expect(togetherMedianDB > 15, "the median remote window came down only \(togetherMedianDB) dB")
         #expect(togetherMedianDB > togetherChangeDB, "the ratio hides what the windows lost")
         #expect(
             together.windowsOverLossThreshold >= together.windows - 24,
-            "\(together.windowsOverLossThreshold) of \(together.windows) far-end windows lost more than 6 dB"
+            "\(together.windowsOverLossThreshold) of \(together.windows) remote windows lost more than 6 dB"
         )
 
         // The user alone was left alone, which is what the decision is
@@ -244,16 +244,16 @@ struct EchoEvalTests {
         let harm = try #require(report.userHarmMedianDB)
         #expect(abs(harm) < 0.5, "the user's own windows moved \(harm) dB")
 
-        // With no echo returning, the far end talks over a microphone that
-        // holds only room noise, and those windows are far-end-only. This
-        // is the class a speaker call cannot populate: the far end's
+        // With no echo returning, the other people on the call talk over a microphone that
+        // holds only room noise, and those windows are remote-only. This
+        // is the class a speaker call cannot populate: the remote track's
         // sixteen seconds less the windows the user talks in under 21 to
         // 27 s.
-        let farOnly = Self.summary(report, .farEndOnly)
+        let farOnly = Self.summary(report, .remoteOnly)
         #expect(
-            farOnly.windows >= 24 && farOnly.windows <= 48, "far-end-only held \(farOnly.windows) windows"
+            farOnly.windows >= 24 && farOnly.windows <= 48, "remote-only held \(farOnly.windows) windows"
         )
-        #expect(farOnly.windows + Self.summary(report, .both).windows == report.farEndActiveWindows)
+        #expect(farOnly.windows + Self.summary(report, .both).windows == report.remoteActiveWindows)
 
         // The user is untouched here, by the ratio and window by window
         // both. A canceller with no echo to find has nothing to subtract.
@@ -267,7 +267,7 @@ struct EchoEvalTests {
         // the user's first 24 ms land in the window before their own and
         // that window reads as 44.8 dB and 35.9 dB lost. The fault is in
         // `EchoCancellationPass.run`. One more window, at 26.25 s, is the
-        // canceller's own: the user talking under the far end came out
+        // canceller's own: the user talking under the call audio came out
         // 5.9 dB down for that quarter second.
         for windowClass in [EchoMeasurement.WindowClass.userOnly, .both] {
             let held = Self.summary(report, windowClass)
@@ -291,11 +291,11 @@ struct EchoEvalTests {
         }
     }
 
-    @Test("a room louder than the far end's floor gets a floor of its own")
-    func aRoomLouderThanTheFarEndSFloorGetsAFloorOfItsOwn() async throws {
+    @Test("a room louder than the remote track's floor gets a floor of its own")
+    func aRoomLouderThanTheRemoteTrackSFloorGetsAFloorOfItsOwn() async throws {
         // A real capsule records the room. Where its tone sits above
-        // -60 dBFS, borrowing the far end's floor would call every window
-        // microphone-active: `farEndOnly` and `neither` would come back
+        // -60 dBFS, borrowing the remote track's floor would call every window
+        // microphone-active: `remoteOnly` and `neither` would come back
         // empty on every meeting, `userOnly` would stop meaning "the user
         // spoke", and what the canceller does to a room would never appear
         // in a table. Room tone here is -44.9 dBFS, which is that regime.
@@ -314,8 +314,8 @@ struct EchoEvalTests {
         let quiet = try #require(report.microphoneQuietWindowDBFS)
         #expect(abs((quiet) - (-44.9)) <= 0.5, "expected -44.9 ± 0.5, got \(quiet)")
         #expect(
-            quiet > report.farEndFloorDBFS,
-            "this room tone at \(quiet) dBFS has to sit above the far end's floor"
+            quiet > report.remoteFloorDBFS,
+            "this room tone at \(quiet) dBFS has to sit above the remote track's floor"
         )
         #expect(
             abs((report.microphoneFloorDBFS) - (quiet + EchoMeasurement.microphoneActivationMarginDB)) <= 0.001,
@@ -325,33 +325,33 @@ struct EchoEvalTests {
             """
         )
 
-        // The counterfactual, measured rather than argued: with the far
-        // end's floor every window would have been microphone-active.
+        // The counterfactual, measured rather than argued: with the remote
+        // track's floor every window would have been microphone-active.
         #expect(
-            report.windowLog.filter { $0.microphoneBeforeDBFS > report.farEndFloorDBFS }.count == report.windowCount,
+            report.windowLog.filter { $0.microphoneBeforeDBFS > report.remoteFloorDBFS }.count == report.windowCount,
             "every window clears -60 dBFS in this room"
         )
         // With the derived floor the two quiet classes are populated:
-        // far-end-only from the far end's sixteen seconds less the windows
+        // remote-only from the remote track's sixteen seconds less the windows
         // the user talks in under 21 to 27 s, and neither from at least the
         // eight seconds nobody talks in, 10 to 12, 18 to 20 and 28 to 32.
-        let farOnly = Self.summary(report, .farEndOnly)
+        let farOnly = Self.summary(report, .remoteOnly)
         #expect(
-            farOnly.windows >= 24 && farOnly.windows <= 48, "far-end-only held \(farOnly.windows) windows"
+            farOnly.windows >= 24 && farOnly.windows <= 48, "remote-only held \(farOnly.windows) windows"
         )
-        #expect(farOnly.windows + Self.summary(report, .both).windows == report.farEndActiveWindows)
+        #expect(farOnly.windows + Self.summary(report, .both).windows == report.remoteActiveWindows)
         #expect(Self.summary(report, .neither).windows >= 32)
 
         // And what the canceller does to a microphone holding only room
-        // tone under a playing far end is then visible: a steady tone is
+        // tone under a playing call audio is then visible: a steady tone is
         // not speech to it, and the class comes down 20.5 dB with the
         // median window down 29.1 dB.
         let medianChangeDB = try #require(farOnly.medianChangeDB)
-        #expect(medianChangeDB > 10, "the room tone under the far end moved \(medianChangeDB) dB")
+        #expect(medianChangeDB > 10, "the room tone under the call audio moved \(medianChangeDB) dB")
     }
 
-    @Test("a far end that holds nothing reports no reference, not zero removal")
-    func aFarEndThatHoldsNothingReportsNoReferenceNotZeroRemoval() async throws {
+    @Test("call audio that holds nothing reports no reference, not zero removal")
+    func aRemoteTrackThatHoldsNothingReportsNoReferenceNotZeroRemoval() async throws {
         let root = try TestPaths.makeTemporaryDirectory()
         defer { try? FileManager.default.removeItem(at: root) }
         let count = Int(15 * Self.rate)
@@ -416,9 +416,9 @@ struct EchoEvalTests {
     @Test("a reference offset given by hand replaces the one the timeline holds")
     func aReferenceOffsetGivenByHandReplacesTheOneTheTimelineHolds() async throws {
         // What Task 2 runs to show the threshold does not catch a
-        // misaligned pair. The far end here talks in bursts, so moving it
+        // misaligned pair. The call audio here talks in bursts, so moving it
         // moves the echo away from where the canceller is told to look for
-        // it. A far end that never stops is the same far end after any
+        // it. Call audio that never stops is the same call audio after any
         // shift and would hide this.
         let root = try TestPaths.makeTemporaryDirectory()
         defer { try? FileManager.default.removeItem(at: root) }
@@ -428,7 +428,7 @@ struct EchoEvalTests {
             abs((EchoMeasurement.timelineReferenceOffset(timeline)) - (2)) <= 0.01,
             """
             expected 2 ± 0.01, got \(EchoMeasurement.timelineReferenceOffset(timeline)), \
-            the far end started two seconds after the microphone
+            the call audio started two seconds after the microphone
             """
         )
 
@@ -455,16 +455,16 @@ struct EchoEvalTests {
             "expected -2 ± 0.01, got \(reversed.referenceOffsetSeconds)"
         )
 
-        // The far end is read through the offset, so a reversed one moves
+        // The call audio is read through the offset, so a reversed one moves
         // the classification as well as the cancellation: the two tracks
         // are compared at moments that are not the same moment.
         #expect(
             Self.summary(reversed, .both).windows != Self.summary(aligned, .both).windows,
-            "the classification moved with the far end"
+            "the classification moved with the call audio"
         )
 
         // And the canceller has nothing to lock onto. The decision does not
-        // read that, so a misaligned pair is caught by what the far end
+        // read that, so a misaligned pair is caught by what the call audio
         // lost, not by the outcome value.
         #expect(aligned.decision == CleaningOutcome.cleaned)
         let alignedFar = try #require(Self.summary(aligned, .both).medianChangeDB)
@@ -479,17 +479,17 @@ struct EchoEvalTests {
     func theJudgementKeepsAPassThatLeftTheUserAloneAndDropsOneThatDid() async throws {
         func window(far: Double, before: Double, after: Double) -> EchoCancellationPass.Window {
             EchoCancellationPass.Window(
-                farEndDBFS: far, echoRemovedDB: 0, microphoneBeforeDBFS: before,
+                remoteDBFS: far, echoRemovedDB: 0, microphoneBeforeDBFS: before,
                 microphoneAfterDBFS: after
             )
         }
         // Room tone, so the microphone has a floor to be judged against.
         let room = (0..<30).map { _ in window(far: -90, before: -80, after: -80) }
-        // The second after the far end stops, which no window is judged in.
+        // The second after the call audio stops, which no window is judged in.
         let settle = (0..<EchoCancellationPass.echoTailWindows).map { _ in
             window(far: -90, before: -80, after: -80)
         }
-        // A call on speakers: the far end plays for most of it and the
+        // A call on speakers: the call audio plays for most of it and the
         // user's own windows lose nothing.
         let speakers =
             (0..<60).map { _ in window(far: -25, before: -30, after: -55) } + settle
@@ -533,7 +533,7 @@ struct EchoEvalTests {
         #expect(unjudged.outcome == CleaningOutcome.cleaned)
         #expect(unjudged.userHarmMedianDB == nil)
 
-        // Too little far end to have been judged on at all.
+        // Too little call audio to have been judged on at all.
         let quiet =
             (0..<10).map { _ in window(far: -25, before: -30, after: -55) }
             + (0..<60).map { _ in window(far: -90, before: -30, after: -30) } + room
@@ -548,7 +548,7 @@ struct EchoEvalTests {
         far: Double, before: Double, after: Double
     ) -> EchoCancellationPass.Window {
         EchoCancellationPass.Window(
-            farEndDBFS: far, echoRemovedDB: 0, microphoneBeforeDBFS: before,
+            remoteDBFS: far, echoRemovedDB: 0, microphoneBeforeDBFS: before,
             microphoneAfterDBFS: after
         )
     }
@@ -568,7 +568,7 @@ struct EchoEvalTests {
 
     @Test("windows in the echo's tail are not the user's own, whatever they lost")
     func windowsInTheEchosTailAreNotTheUsersOwn() {
-        // Five turns of the far end, each followed by the second its echo takes
+        // Five turns of the call audio, each followed by the second its echo takes
         // to die out of the room, where the canceller removes 25 dB, and then
         // the user speaking with nothing lost.
         var windows: [EchoCancellationPass.Window] = []
@@ -597,17 +597,17 @@ struct EchoEvalTests {
     func quietWindowsTheDetectorDoesNotCallSpeechAreNotTheUsersOwn() {
         // The network stage takes room noise at -37 dBFS down to -60, which is
         // above this microphone's floor. The user's speech at -22 is untouched.
-        let farEnd = (0..<60).map { _ in Self.judgementWindow(far: -25, before: -30, after: -55) }
+        let remote = (0..<60).map { _ in Self.judgementWindow(far: -25, before: -30, after: -55) }
         let settle = (0..<EchoCancellationPass.echoTailWindows).map { _ in
             Self.judgementWindow(far: -90, before: -80, after: -80)
         }
         let noise = (0..<30).map { _ in Self.judgementWindow(far: -90, before: -37, after: -60) }
         let talking = (0..<30).map { _ in Self.judgementWindow(far: -90, before: -22, after: -22.2) }
-        let windows = farEnd + settle + noise + talking + Self.roomWindows
+        let windows = remote + settle + noise + talking + Self.roomWindows
         let heard = Self.speech(
             windows.indices.map { index in
-                index >= farEnd.count + settle.count + noise.count
-                    && index < farEnd.count + settle.count + noise.count + talking.count
+                index >= remote.count + settle.count + noise.count
+                    && index < remote.count + settle.count + noise.count + talking.count
             })
 
         let judgement = EchoCancellationPass.judge(windows: windows, microphoneSpeech: heard)
@@ -624,16 +624,16 @@ struct EchoEvalTests {
 
     @Test("a pass that took the user's speech down is still thrown away")
     func aPassThatTookTheUsersSpeechDownIsStillThrownAway() {
-        let farEnd = (0..<60).map { _ in Self.judgementWindow(far: -25, before: -30, after: -55) }
+        let remote = (0..<60).map { _ in Self.judgementWindow(far: -25, before: -30, after: -55) }
         let settle = (0..<EchoCancellationPass.echoTailWindows).map { _ in
             Self.judgementWindow(far: -90, before: -80, after: -80)
         }
-        // The far end is silent, the tail is over and the detector hears the
+        // The call audio is silent, the tail is over and the detector hears the
         // user, and the pass took 15 dB off every window.
         let gutted = (0..<30).map { _ in Self.judgementWindow(far: -90, before: -30, after: -45) }
-        let windows = farEnd + settle + gutted + Self.roomWindows
+        let windows = remote + settle + gutted + Self.roomWindows
         let heard = Self.speech(
-            windows.indices.map { $0 >= farEnd.count + settle.count && $0 < farEnd.count + settle.count + gutted.count }
+            windows.indices.map { $0 >= remote.count + settle.count && $0 < remote.count + settle.count + gutted.count }
         )
 
         let judgement = EchoCancellationPass.judge(windows: windows, microphoneSpeech: heard)

@@ -32,12 +32,12 @@ public struct BenchCallCase: Codable, Sendable, Equatable {
         public var echoToLocalVoiceDB: Double?
     }
 
-    /// How the far-end file was made to disagree with the microphone in time.
-    public struct FarEnd: Codable, Sendable, Equatable {
-        /// How long after the microphone the far-end file begins. The bench
+    /// How the remote file was made to disagree with the microphone in time.
+    public struct RemoteTiming: Codable, Sendable, Equatable {
+        /// How long after the microphone the remote file begins. The bench
         /// imports it at that start time, as a capture stamps a late track.
         public var startSeconds: Double
-        /// Far-end audio removed with nothing in its place, which moves the
+        /// Call audio removed with nothing in its place, which moves the
         /// rest of the track earlier against the microphone by this much.
         public var lostSeconds: Double
     }
@@ -51,7 +51,14 @@ public struct BenchCallCase: Codable, Sendable, Equatable {
     public var files: Files
     public var echo: Echo
     /// Nil when the two tracks are aligned to the sample.
-    public var farEnd: FarEnd?
+    public var remoteTiming: RemoteTiming?
+
+    enum CodingKeys: String, CodingKey {
+        case `case`, meeting, variant, localAgent, localSpeaker, files, echo
+        /// The generator writes this key into every `case.json`; it predates
+        /// the rename to `remoteTiming` and is kept so cached cases still decode.
+        case remoteTiming = "farEnd"
+    }
 
     public static func read(from url: URL) throws -> BenchCallCase {
         try JSONDecoder().decode(BenchCallCase.self, from: Data(contentsOf: url))
@@ -109,14 +116,23 @@ public struct LocalTrackScore: Codable, Sendable, Equatable {
     public var localKey: String
     /// Reference words the local person said, and everyone else's.
     public var localWords: Int
-    public var farEndWords: Int
-    /// Words labelled as the local person that the far end said at that moment
+    public var remoteWords: Int
+    /// Words labelled as the local person that the other people on the call said at that moment
     /// and the local person did not.
-    public var farEndWordsUnderLocal: Int
+    public var remoteWordsUnderLocal: Int
     /// The local person's words that no part of the transcript holds.
     public var localWordsLost: Int
-    public var farEndWordsUnderLocalPerMinute: Double
+    public var remoteWordsUnderLocalPerMinute: Double
     public var localWordsLostPerMinute: Double
+
+    enum CodingKeys: String, CodingKey {
+        case localSpeaker, localKey, localWords, localWordsLost, localWordsLostPerMinute
+        // These stored keys predate the rename to `remote` and are kept so
+        // results files already written still decode.
+        case remoteWords = "farEndWords"
+        case remoteWordsUnderLocal = "farEndWordsUnderLocal"
+        case remoteWordsUnderLocalPerMinute = "farEndWordsUnderLocalPerMinute"
+    }
 }
 
 extension BenchScorer {
@@ -124,7 +140,7 @@ extension BenchScorer {
     /// utterance of it. Matches the window `Benchmarks/aec/metrics.py` uses.
     static let localTrackWindow = 3.0
 
-    /// Words the far end and the local person both say all the time, so a
+    /// Words the call audio and the local person both say all the time, so a
     /// match on one of them proves nothing about whose voice it was.
     static let leakIgnored: Set<String> = [
         "a", "an", "the", "and", "or", "of", "to", "in", "on", "it", "is", "i", "you", "we",
@@ -134,8 +150,8 @@ extension BenchScorer {
     /// The two local-track numbers. The definitions mirror
     /// `Benchmarks/aec/metrics.py`:
     ///
-    /// - A far-end word under the local person is a transcript word labelled
-    ///   `localKey` that matches a far-end reference word within three seconds
+    /// - A remote word under the local person is a transcript word labelled
+    ///   `localKey` that matches a remote reference word within three seconds
     ///   and matches none of the local person's own. Short and function words
     ///   are skipped because both sides say them.
     /// - A lost word is a reference word of the local person that no transcript
@@ -170,9 +186,9 @@ extension BenchScorer {
         let minutes = max(truth.windowSeconds / 60, 1.0 / 60)
         return LocalTrackScore(
             localSpeaker: localSpeaker, localKey: localKey,
-            localWords: local.count, farEndWords: far.count,
-            farEndWordsUnderLocal: leaked, localWordsLost: lost,
-            farEndWordsUnderLocalPerMinute: (Double(leaked) / minutes * 100).rounded() / 100,
+            localWords: local.count, remoteWords: far.count,
+            remoteWordsUnderLocal: leaked, localWordsLost: lost,
+            remoteWordsUnderLocalPerMinute: (Double(leaked) / minutes * 100).rounded() / 100,
             localWordsLostPerMinute: (Double(lost) / minutes * 100).rounded() / 100
         )
     }
@@ -214,7 +230,7 @@ extension BenchScorer {
     }
 }
 
-/// A far-end line of a transcript with the display name a reader sees on it.
+/// A remote line of a transcript with the display name a reader sees on it.
 public struct NamedUtterance: Sendable, Equatable {
     public var start: Double
     public var end: Double
@@ -230,12 +246,12 @@ public struct NamedUtterance: Sendable, Equatable {
     }
 }
 
-/// How the far end's words fared on naming, on the words that can be checked.
+/// How the remote track's words fared on naming, on the words that can be checked.
 ///
 /// The checked words are the content words of the transcript that match a
-/// reference word of a far-end speaker within three seconds. Short and function
+/// reference word of a remote speaker within three seconds. Short and function
 /// words are skipped because several speakers say them at the same moment.
-public struct FarEndNameScore: Codable, Sendable, Equatable {
+public struct RemoteNameScore: Codable, Sendable, Equatable {
     /// Under the display name of the reference speaker who said them.
     public var right: Int
     /// Under a different name.
@@ -251,24 +267,24 @@ public struct FarEndNameScore: Codable, Sendable, Equatable {
 }
 
 extension BenchScorer {
-    /// Compares the name on each far-end word with the name of the reference
+    /// Compares the name on each remote word with the name of the reference
     /// speaker who said it.
     ///
     /// A simulated call names a participant after the reference speaker, so the
     /// two names are equal where the transcript is right. The reference speaker
     /// of a word is the one whose same word lies nearest in time, within three
-    /// seconds, among the far-end speakers. An utterance's words are spread
+    /// seconds, among the remote speakers. An utterance's words are spread
     /// evenly across its span, as the other scores do.
-    public static func farEndNames(
+    public static func remoteNames(
         truth: BenchTruth, utterances: [NamedUtterance], localSpeaker: String
-    ) -> FarEndNameScore {
+    ) -> RemoteNameScore {
         var byText: [String: [(start: Double, speaker: String)]] = [:]
         for (speaker, tokens) in referenceSpeakerStreams(truth) where speaker != localSpeaker {
             for token in tokens { byText[token.text, default: []].append((token.start, speaker)) }
         }
         let sorted = byText.mapValues { $0.sorted { $0.start < $1.start } }
 
-        var score = FarEndNameScore(right: 0, wrong: 0, unnamed: 0)
+        var score = RemoteNameScore(right: 0, wrong: 0, unnamed: 0)
         for utterance in utterances {
             let parts = normalise(utterance.text)
             guard !parts.isEmpty else { continue }

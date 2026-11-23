@@ -7,7 +7,7 @@ public enum RemoteTargetScope: Sendable, Equatable {
     /// the rest of the machine out of the recording.
     case bundlePrefixes([String])
     /// Every audio process except Pipit's own. A recording the user starts by
-    /// hand has no provider, so the far end is whatever application is playing
+    /// hand has no provider, so the call audio is whatever application is playing
     /// the call: a browser's GPU process, Zoom, Teams, FaceTime.
     ///
     /// Anything else playing audio during the recording is on the track as
@@ -27,7 +27,7 @@ public enum RemoteTargetScope: Sendable, Equatable {
 
     /// Whether the scope covers `target`. `ownProcessID` is Pipit's PID: tapping
     /// the process that plays Pipit's own notification sounds would write them
-    /// into the far-end track.
+    /// into the remote track.
     public func selects(_ target: RemoteAudioTarget, ownProcessID: Int32) -> Bool {
         switch self {
         case .bundlePrefixes(let prefixes):

@@ -32,7 +32,7 @@ struct MeetingTrimPipelineTests {
     }
 
     /// A 30 s call, processed and compacted, with one word at 2 s, 12 s and
-    /// 24 s on the far end.
+    /// 24 s on the call audio.
     private static func makeProcessed(
         root: URL, speakers: SpeakerRecognitionService? = nil, backend: FakeAIBackend = FakeAIBackend(),
         settings: AppSettings = MeetingTrimPipelineTests.settings,
@@ -553,7 +553,7 @@ struct MeetingTrimPipelineTests {
         }
     }
 
-    /// A minute of one speaker on the far end, as a single line, and a
+    /// A minute of one speaker on the call audio, as a single line, and a
     /// pipeline that can learn from a correction made to it.
     private static func makeCorrectable(
         root: URL, voices: SpeakerStore, requireModels: (@Sendable () async throws -> Void)? = nil

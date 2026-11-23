@@ -1283,7 +1283,7 @@ public final class PipitRuntime {
     }
 
     /// Cleans the microphone of each recording again and transcribes it again,
-    /// leaving the far end, the names, the title, notes and summary as they are.
+    /// leaving the call audio, the names, the title, notes and summary as they are.
     ///
     /// Takes every recording of a conversation, because a call that dropped and
     /// was rejoined has an echo in each half. A recording that cannot be redone
@@ -1658,7 +1658,7 @@ public final class PipitRuntime {
                 // Without the microphone grant the input engine throws on
                 // every build and the meeting is a folder of nothing. Without
                 // the system audio grant the tap delivers digital zero and
-                // reports healthy, and the far end is lost with nothing said
+                // reports healthy, and the call audio is lost with nothing said
                 // until the silence detector gives up forty seconds in.
                 let microphone = await permissions.status(for: .microphone).state
                 let systemAudio =
@@ -1855,7 +1855,7 @@ public final class PipitRuntime {
     private func recordSensorReading(_ reading: SensorReading) {
         // Only readings about the meeting being recorded. A room conversation
         // recorded in person while a colleague sits in a Meet call on the same
-        // Mac would otherwise take the Meet roster as its own: the far end's two
+        // Mac would otherwise take the Meet roster as its own: the remote track's two
         // names on the room's voices, and the room re-clustered down to two.
         guard let meeting = currentMeeting, meeting.metadata.provider == reading.provider else {
             return

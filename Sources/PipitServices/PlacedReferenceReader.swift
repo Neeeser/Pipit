@@ -2,16 +2,16 @@ import Foundation
 import PipitAudio
 import PipitCore
 
-/// The far end over one run of the microphone, read against the microphone's
+/// The call audio over one run of the microphone, read against the microphone's
 /// clock.
 ///
 /// The microphone is the clock. The sample asked for at microphone position
-/// `p` is the far end as it stood against the microphone at `p`, which is
-/// `p - offset` seconds into the far end's own track. Nothing outside
-/// `farEnd` is handed over. A run's far end is the stretch of the track that
+/// `p` is the call audio as it stood against the microphone at `p`, which is
+/// `p - offset` seconds into the remote track. Nothing outside
+/// `remoteSpan` is handed over. A run's call audio is the stretch of the track that
 /// run wrote, and the audio before it was recorded in an earlier run and the
 /// audio after it in a later one, neither of which was playing here. Without
-/// that, a run whose far end began a few seconds after its microphone would be
+/// that, a run whose call audio began a few seconds after its microphone would be
 /// handed the tail of the run before it for those seconds.
 final class RunReferenceReader {
     private var reader: TimelineTrackReader?
@@ -20,24 +20,24 @@ final class RunReferenceReader {
 
     /// - Parameter micStartSeconds: where on the microphone's clock the first
     ///   sample read belongs.
-    /// - Parameter offsetSeconds: seconds the far end moves to line up with the
+    /// - Parameter offsetSeconds: seconds the call audio moves to line up with the
     ///   microphone, in the sense `EchoCancellationPass.run` takes it.
-    /// - Parameter leadSeconds: seconds the far end is handed over early, on
+    /// - Parameter leadSeconds: seconds the call audio is handed over early, on
     ///   top of the offset.
-    /// - Parameter farEnd: the part of the far end's track this run may draw
+    /// - Parameter remoteSpan: the part of the remote track this run may draw
     ///   on, in the track's own seconds.
     /// - Returns: nil when the track cannot be read.
     init?(
         location: TrackAudioLocation, format: AudioFormatDescriptor, micStartSeconds: Double,
-        offsetSeconds: Double, leadSeconds: Double, farEnd: ClosedRange<Double>
+        offsetSeconds: Double, leadSeconds: Double, remoteSpan: ClosedRange<Double>
     ) {
         let rate = format.sampleRate
-        // Where in the far end's track the first sample asks to be, and where
+        // Where in the remote track the first sample asks to be, and where
         // reading actually has to begin.
         let wanted = micStartSeconds - offsetSeconds + leadSeconds
-        let begin = max(wanted, farEnd.lowerBound)
+        let begin = max(wanted, remoteSpan.lowerBound)
         silenceRemaining = Int(((begin - wanted) * rate).rounded())
-        let available = farEnd.upperBound - begin
+        let available = remoteSpan.upperBound - begin
         audioRemaining =
             available <= 0 ? 0 : (available.isFinite ? Int((available * rate).rounded()) : .max)
         if audioRemaining > 0 {
@@ -50,7 +50,7 @@ final class RunReferenceReader {
         }
     }
 
-    /// The next `count` samples, padded with silence where the far end has run
+    /// The next `count` samples, padded with silence where the call audio has run
     /// out.
     func next(count: Int) throws -> [Float] {
         var out = try nextUnpadded(count: count)
@@ -60,9 +60,9 @@ final class RunReferenceReader {
         return out
     }
 
-    /// The next `count` samples, or fewer once the far end has run out. The
+    /// The next `count` samples, or fewer once the call audio has run out. The
     /// silence before it begins is still handed back, as it is the part of the
-    /// run the far end had not reached yet.
+    /// run the call audio had not reached yet.
     func nextUnpadded(count: Int) throws -> [Float] {
         var out: [Float] = []
         out.reserveCapacity(count)
@@ -80,16 +80,16 @@ final class RunReferenceReader {
     }
 }
 
-/// The far end read against the microphone's clock, one run at a time.
+/// The call audio read against the microphone's clock, one run at a time.
 ///
 /// A call that dropped and was rejoined is several runs under one manifest, and
-/// the far end does not sit the same distance from the microphone in all of
+/// the call audio does not sit the same distance from the microphone in all of
 /// them. Each stretch of the microphone has a placement of its own, and this
-/// hands back the far end for whichever one the position is in.
+/// hands back the call audio for whichever one the position is in.
 ///
 /// Each run is read by a `RunReferenceReader` of its own, opened when the
 /// position reaches it and dropped when it leaves. A reader only moves forward,
-/// and the next run's placement can ask for an earlier part of the far end than
+/// and the next run's placement can ask for an earlier part of the call audio than
 /// the last one reached, so it starts again and skips to where it is needed.
 final class PlacedReferenceReader {
     private let location: TrackAudioLocation
@@ -102,7 +102,7 @@ final class PlacedReferenceReader {
     private var current = 0
     private var reader: RunReferenceReader?
 
-    /// - Parameter leadSeconds: seconds the far end is handed over early, on
+    /// - Parameter leadSeconds: seconds the call audio is handed over early, on
     ///   top of wherever each placement put it.
     init(
         location: TrackAudioLocation, format: AudioFormatDescriptor,
@@ -119,7 +119,7 @@ final class PlacedReferenceReader {
         reader = try open(0)
     }
 
-    /// The next `count` samples of the far end, padded with silence where it
+    /// The next `count` samples of the call audio, padded with silence where it
     /// has run out or where a run recorded none.
     func next(count: Int) throws -> [Float] {
         var out: [Float] = []
@@ -143,7 +143,7 @@ final class PlacedReferenceReader {
         return out
     }
 
-    /// The reader for one run, or nil where the far end recorded nothing and
+    /// The reader for one run, or nil where the call audio recorded nothing and
     /// the run is silence.
     private func open(_ index: Int) throws -> RunReferenceReader? {
         let placement = placements[index]
@@ -152,7 +152,7 @@ final class PlacedReferenceReader {
             let opened = RunReferenceReader(
                 location: location, format: format,
                 micStartSeconds: index == 0 ? 0 : placement.startSeconds,
-                offsetSeconds: offset, leadSeconds: leadSeconds, farEnd: placement.farEnd
+                offsetSeconds: offset, leadSeconds: leadSeconds, remoteSpan: placement.remoteSpan
             )
         else {
             throw ProcessingError.audioUnreadable(path: location.directory.lastPathComponent)

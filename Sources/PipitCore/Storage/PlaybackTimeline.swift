@@ -214,7 +214,7 @@ extension PlaybackTimeline {
     /// The turn is the one whose lines hold the moment, or else the last turn
     /// of that recording that had started by then, so the band stays on the
     /// turn just heard through the pause before the next. Where the microphone
-    /// and the far end overlap, the turn printed first wins, which is the one
+    /// and the call audio overlap, the turn printed first wins, which is the one
     /// the reader's eye is already on.
     public func cursor(at position: Double, in blocks: [CombinedLineBlock]) -> PlaybackCursor? {
         guard let located = locate(position) else { return nil }

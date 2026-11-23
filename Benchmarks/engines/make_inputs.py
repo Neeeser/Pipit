@@ -1,6 +1,6 @@
 """Build inputs.json: the tracks every engine transcribes, with their references.
 
-AMI calls: the four six-minute meetings, far-end track from the `laptop` case
+AMI calls: the four six-minute meetings, remote track from the `laptop` case
 and the local microphone from the `headphones` case (no echo). Synthetic pilot:
 the same two tracks plus the in-person room microphone, when they exist.
 """
@@ -26,6 +26,8 @@ def add(items, ident, group, wav, words):
                   "reference": words})
 
 
+# The "-far-end" case ids and group names predate the rename of that track to
+# "remote" and are kept so new runs line up with the recorded results.
 items = []
 for meeting in ["EN2002a", "EN2002b", "EN2002d", "IS1009a"]:
     truth = json.loads((ROOT / (f"Benchmarks/ground-truth/{meeting}.json")).read_text())

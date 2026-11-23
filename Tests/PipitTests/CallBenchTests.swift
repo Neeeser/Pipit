@@ -94,8 +94,8 @@ struct CallBenchTests {
         )
     }
 
-    @Test("a call import with a late far end starts that track at its start time")
-    func aCallImportWithALateFarEndStartsThatTrackAtItsStartTime() throws {
+    @Test("a call import with a late call audio starts that track at its start time")
+    func aCallImportWithALateRemoteStartsThatTrackAtItsStartTime() throws {
         let root = try TestPaths.makeTemporaryDirectory()
         defer { try? FileManager.default.removeItem(at: root) }
         let microphone = root.appendingPathComponent("mic.wav")
@@ -112,8 +112,8 @@ struct CallBenchTests {
             into: created.store, meetingID: created.metadata.id, remoteStartSeconds: 1.5
         )
 
-        // A capture places a track by its first frame's host time, so the far
-        // end's audio lands 1.5 s into the meeting and the echo pass starts
+        // A capture places a track by its first frame's host time, so the remote
+        // track's audio lands 1.5 s into the meeting and the echo pass starts
         // its search from there.
         let timeline = try created.store.readTimeline()
         #expect(abs(timeline.leadIn(track: .remote) - 1.5) <= 0.001)
@@ -122,8 +122,8 @@ struct CallBenchTests {
         #expect(abs(try #require(run.referenceOffset) - 1.5) <= 0.001)
     }
 
-    @Test("a call import with an unreadable far end is recorded as failed")
-    func aCallImportWithAnUnreadableFarEndIsRecordedAsFailed() throws {
+    @Test("a call import with an unreadable call audio is recorded as failed")
+    func aCallImportWithAnUnreadableRemoteTrackIsRecordedAsFailed() throws {
         let root = try TestPaths.makeTemporaryDirectory()
         defer { try? FileManager.default.removeItem(at: root) }
         let microphone = root.appendingPathComponent("mic.wav")
@@ -150,8 +150,8 @@ struct CallBenchTests {
         #expect(sessionEnds.first?.contains("import_failed") == true)
     }
 
-    @Test("a call import with a source that has no far end throws")
-    func aCallImportWithASourceThatHasNoFarEndThrows() throws {
+    @Test("a call import with a source that has no call audio throws")
+    func aCallImportWithASourceThatHasNoRemoteTrackThrows() throws {
         let root = try TestPaths.makeTemporaryDirectory()
         defer { try? FileManager.default.removeItem(at: root) }
         let microphone = root.appendingPathComponent("mic.wav")
@@ -174,7 +174,7 @@ struct CallBenchTests {
     // MARK: scoring
 
     /// Two people on a call, one word per second each, in turns: the local
-    /// person says "alpha" words and the far end says "bravo" words, so a
+    /// person says "alpha" words and the other people on the call say "bravo" words, so a
     /// transcript can be wrong about whose words are whose.
     private static func callTruth() -> BenchTruth {
         var words: [BenchTruth.Word] = []
@@ -220,15 +220,15 @@ struct CallBenchTests {
             localPerson: (speaker: "ME", key: "local")
         )
         let local = score.localTrack
-        #expect(local?.farEndWordsUnderLocal == 0)
+        #expect(local?.remoteWordsUnderLocal == 0)
         #expect(local?.localWordsLost == 0)
         #expect(local?.localWords == 30)
-        #expect(local?.farEndWords == 30)
+        #expect(local?.remoteWords == 30)
     }
 
-    @Test("the far end's words under the local person's key are counted per minute")
-    func theFarEndsWordsUnderTheLocalPersonsKeyAreCountedPerMinute() {
-        // The far end's second turn is written under the local key as well.
+    @Test("the remote track's words under the local person's key are counted per minute")
+    func remoteWordsUnderTheLocalPersonsKeyAreCountedPerMinute() {
+        // The remote track's second turn is written under the local key as well.
         let utterances = [
             Self.line(0, "alpha", key: "local"), Self.line(10, "bravo", key: "speaker_1"),
             Self.line(20, "alpha", key: "local"), Self.line(30, "bravo", key: "local"),
@@ -237,13 +237,13 @@ struct CallBenchTests {
         let local = BenchScorer.localTrack(
             truth: Self.callTruth(), utterances: utterances, localSpeaker: "ME", localKey: "local"
         )
-        #expect(local.farEndWordsUnderLocal == 10)
+        #expect(local.remoteWordsUnderLocal == 10)
         #expect(local.localWordsLost == 0)
         // 60 seconds is one minute.
-        #expect(local.farEndWordsUnderLocalPerMinute == 10)
+        #expect(local.remoteWordsUnderLocalPerMinute == 10)
     }
 
-    @Test("the local person's missing words are counted, and a far-end label does not hide them")
+    @Test("the local person's missing words are counted, and a remote label does not hide them")
     func theLocalPersonsMissingWordsAreCounted() {
         // The middle block of the local person's speech is absent entirely.
         let missing = [
@@ -256,7 +256,7 @@ struct CallBenchTests {
         )
         #expect(lost.localWordsLost == 10)
         #expect(lost.localWordsLostPerMinute == 10)
-        #expect(lost.farEndWordsUnderLocal == 0)
+        #expect(lost.remoteWordsUnderLocal == 0)
 
         // The same words under the other label are not lost, only mislabelled,
         // which the attribution scores charge and this number does not.
@@ -313,7 +313,7 @@ struct CallBenchTests {
     @Test("a word the local person said too is not a leak")
     func aWordTheLocalPersonSaidTooIsNotALeak() {
         var truth = Self.callTruth()
-        // The local person also says "bravo" during the far end's first turn.
+        // The local person also says "bravo" during the remote track's first turn.
         truth.words.append(
             .init(start: 14, end: 14.5, text: "bravo", speaker: "ME", truncated: false))
         // The scorer reads a word only inside a turn of its speaker.
@@ -324,7 +324,7 @@ struct CallBenchTests {
         let local = BenchScorer.localTrack(
             truth: truth, utterances: utterances, localSpeaker: "ME", localKey: "local"
         )
-        #expect(local.farEndWordsUnderLocal == 0)
+        #expect(local.remoteWordsUnderLocal == 0)
     }
 
     @Test("a one-track score carries no local-track numbers")
@@ -371,12 +371,12 @@ struct CallBenchTests {
         #expect(description.localSpeaker == "FEO072")
         #expect(description.files.remote.name == "remote.wav")
         #expect(description.echo.targetCorrelation == 0.69)
-        #expect(description.farEnd == nil)
+        #expect(description.remoteTiming == nil)
     }
 
-    @Test("a case whose far end starts late or loses audio says so")
-    func aCaseWhoseFarEndStartsLateOrLosesAudioSaysSo() throws {
-        // The block `Benchmarks/calls/callsim.py` adds for a misaligned far end.
+    @Test("a case whose call audio starts late or loses audio says so")
+    func aCaseWhoseRemoteStartsLateOrLosesAudioSaysSo() throws {
+        // The block `Benchmarks/calls/callsim.py` adds for a misaligned call audio.
         let json = """
             {"case":"X-laptop-far-end-late","meeting":"X","variant":"laptop-far-end-late",
              "localAgent":"A","localSpeaker":"S",
@@ -387,8 +387,8 @@ struct CallBenchTests {
                        "correlationAsRecorded":0.66,"correlationLagAsRecordedSeconds":0.09}}
             """
         let description = try JSONDecoder().decode(BenchCallCase.self, from: Data(json.utf8))
-        #expect(description.farEnd?.startSeconds == 1.12)
-        #expect(description.farEnd?.lostSeconds == 0.107)
+        #expect(description.remoteTiming?.startSeconds == 1.12)
+        #expect(description.remoteTiming?.lostSeconds == 0.107)
     }
 
     @Test("the simulated meeting-client record reads as the app's own sensor file")
@@ -428,11 +428,11 @@ struct CallBenchTests {
         #expect(calls.variants.map(\.name).contains("headphones"))
         #expect(calls.variants.filter { $0.echoCorrelation != nil }.count >= 1)
         #expect(calls.variants.contains { $0.sensors != nil })
-        // The misaligned variants change only the far end, so each keeps the
+        // The misaligned variants change only the call audio, so each keeps the
         // laptop's echo and a difference against it comes from the alignment.
         let laptop = try #require(calls.variants.first { $0.name == "laptop" })
-        let late = calls.variants.filter { ($0.farEndStartSeconds ?? 0) > 0 }
-        let dropping = calls.variants.filter { $0.farEndDropouts != nil }
+        let late = calls.variants.filter { ($0.remoteStartSeconds ?? 0) > 0 }
+        let dropping = calls.variants.filter { $0.remoteDropouts != nil }
         #expect(!late.isEmpty && !dropping.isEmpty)
         for variant in late + dropping {
             #expect(variant.echoCorrelation == laptop.echoCorrelation)
@@ -465,9 +465,9 @@ struct CallBenchTests {
         #expect(calls.parse(case: "nothing-laptop") == nil)
     }
 
-    // MARK: far-end names
+    // MARK: remote names
 
-    private static func twoFarEndTruth() -> BenchTruth {
+    private static func twoRemoteTrackTruth() -> BenchTruth {
         var words: [BenchTruth.Word] = []
         for second in 0..<10 {
             words.append(
@@ -492,15 +492,15 @@ struct CallBenchTests {
             ])
     }
 
-    @Test("far-end words are counted under the right name, a wrong name and no name")
-    func farEndWordsAreCountedUnderTheRightNameAWrongNameAndNoName() {
+    @Test("remote words are counted under the right name, a wrong name and no name")
+    func remoteWordsAreCountedUnderTheRightNameAWrongNameAndNoName() {
         func line(_ start: Double, _ text: String, _ name: String?) -> NamedUtterance {
             NamedUtterance(
                 start: start, end: start + 10,
                 text: Array(repeating: text, count: 10).joined(separator: " "), name: name)
         }
-        let score = BenchScorer.farEndNames(
-            truth: Self.twoFarEndTruth(),
+        let score = BenchScorer.remoteNames(
+            truth: Self.twoRemoteTrackTruth(),
             utterances: [
                 // Ada's ten words under her name.
                 line(0, "bravo", "ADA"),
@@ -509,13 +509,13 @@ struct CallBenchTests {
                 line(0.5, "bravo", nil),
             ],
             localSpeaker: "ME")
-        #expect(score == FarEndNameScore(right: 10, wrong: 10, unnamed: 10))
+        #expect(score == RemoteNameScore(right: 10, wrong: 10, unnamed: 10))
     }
 
-    @Test("the local person's words and words nobody on the far end said are not counted")
+    @Test("the local person's words and words nobody on the other people on the call said are not counted")
     func theLocalPersonsWordsAreNotCounted() {
-        let score = BenchScorer.farEndNames(
-            truth: Self.twoFarEndTruth(),
+        let score = BenchScorer.remoteNames(
+            truth: Self.twoRemoteTrackTruth(),
             utterances: [
                 NamedUtterance(
                     start: 40, end: 50,
@@ -523,6 +523,6 @@ struct CallBenchTests {
                 NamedUtterance(start: 0, end: 10, text: "zulu zulu zulu", name: "ADA"),
             ],
             localSpeaker: "ME")
-        #expect(score == FarEndNameScore(right: 0, wrong: 0, unnamed: 0))
+        #expect(score == RemoteNameScore(right: 0, wrong: 0, unnamed: 0))
     }
 }

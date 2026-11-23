@@ -176,7 +176,7 @@ public actor SpeakerRecognitionService {
         return results
     }
 
-    /// Names for the far-end speakers of a meeting that is still recording.
+    /// Names for the remote speakers of a meeting that is still recording.
     ///
     /// Read-only: it scores each cluster against the named voices with the
     /// same policy as `resolve` and writes nothing, because a live pass reruns
@@ -696,7 +696,7 @@ public actor SpeakerRecognitionService {
         guard !spans.isEmpty else { return nil }
         // The microphone track is the local user only when it holds the local
         // user. Nothing cancels the speakers out of the microphone, so on
-        // speakers the far end reaches it too, and a listener in a long
+        // speakers the call audio reaches it too, and a listener in a long
         // presentation is not the dominant voice on their own track. Dominance
         // alone would then enrol the presenter here, human-verified, into the
         // one profile no person ever confirms.
@@ -763,10 +763,10 @@ public actor SpeakerRecognitionService {
         // filled in later by a pass that both recognition settings can switch
         // off, so with the wrong combination there was nothing to compare
         // against and the check silently passed everything. The same hole opens
-        // when the far end produced no clusters at all: an unreadable track or a
+        // when the call audio produced no clusters at all: an unreadable track or a
         // tap that recorded silence leaves `others` empty, and treating "nothing
         // to compare against" as "no bleed" is the failure this guard exists to
-        // stop. The caller has already established that the far end has audio.
+        // stop. The caller has already established that the call audio has audio.
         // Refusing costs one meeting's worth of learning; allowing costs the one
         // profile no person ever confirms or reviews.
         guard comparable > 0 else { return (others.first?.track, 0) }

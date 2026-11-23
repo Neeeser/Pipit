@@ -273,7 +273,7 @@ public struct RawSensors: Codable, Sendable, Equatable {
     /// one of those is the local user, and is marked beside whoever the
     /// microphone picks. The tile that reads the user's own name is the user's
     /// own join, and a Meet recording had one whose floor indicator followed
-    /// the far end: 348 seconds of a colleague's speech went out under the
+    /// the call audio: 348 seconds of a colleague's speech went out under the
     /// user's name because that tile was treated as a remote person. A real
     /// namesake in the call is the cost; their turns go to the diarizer, which
     /// names them by voice.
@@ -281,7 +281,7 @@ public struct RawSensors: Codable, Sendable, Equatable {
     /// What the reading measures is how much of a participant's turn the
     /// detector heard the microphone carrying. On a clean microphone that
     /// separates the local user from everyone else outright. On a call played
-    /// out of the laptop's speakers it does not: the far end is in the
+    /// out of the laptop's speakers it does not: the call audio is in the
     /// microphone too, so a turn anybody holds overlaps something the detector
     /// fires on, and the readings converge. Only the highest is the local
     /// user's, so only the highest is marked. Being wrong here deletes a real
@@ -321,7 +321,7 @@ public struct RawSensors: Codable, Sendable, Equatable {
         // which is the behaviour those meetings already have.
         guard let evidence else { return self }
 
-        // No far end recorded means the two clauses that separate the user's
+        // No call audio recorded means the two clauses that separate the user's
         // own voice from the room's cannot answer, and the detector alone would
         // decide. On speakers that marks everybody, and a participant marked
         // self loses their name everywhere. A process tap that produced nothing
@@ -330,12 +330,12 @@ public struct RawSensors: Codable, Sendable, Equatable {
         // Signal rather than presence. A tap bound to a silent application
         // still writes a full-length track, so the series is there and every
         // window of it reads the floor. One meeting on disk did exactly that
-        // and this guard let it through: with the far end at -120 the level
+        // and this guard let it through: with the call audio at -120 the level
         // difference is +62 dB for every window and the echo clause reads 0.0,
         // so the share collapses to whether the detector fired on the
         // microphone, which it does for whoever is talking in the room. All six
         // participants scored above 0.87 and every one of them was marked self.
-        guard evidence.farEndCarriesSignal else { return self }
+        guard evidence.remoteCarriesSignal else { return self }
 
         let selfIDs = Set(participants.filter(\.isSelf).map(\.id))
         var byParticipant: [String: [SensorTurn]] = [:]
@@ -369,7 +369,7 @@ public struct RawSensors: Codable, Sendable, Equatable {
         // Every participant clearing the bar used to be marked, on the reading
         // that the bar is what separates the user from the room. It is, while
         // the microphone holds the user alone. A call taken on speakers puts
-        // the far end into the microphone at a level the detector fires on, and
+        // the call audio into the microphone at a level the detector fires on, and
         // then the reading says how much of a turn overlapped anybody talking.
         // On the standup of 10 September 2026 all five people in the call
         // scored 0.418 to 0.814 and all five were marked self, which threw the
@@ -423,7 +423,7 @@ public struct RawSensors: Codable, Sendable, Equatable {
         // refuses to walk to it.
         let measurable = Double(evidence.micLevels.count) * window
         // Once for the walk rather than once per window.
-        let farEndUsable = evidence.farEndCarriesSignal
+        let remoteUsable = evidence.remoteCarriesSignal
         let floor = EmptyTranscriptPolicy.silenceFloorDBFS
         var measured = 0
         var carrying = 0
@@ -435,10 +435,10 @@ public struct RawSensors: Codable, Sendable, Equatable {
                 defer { at += window }
                 guard
                     let reading = evidence.reading(
-                        from: at, to: min(at + window, stop), farEndUsable: farEndUsable
+                        from: at, to: min(at + window, stop), remoteUsable: remoteUsable
                     )
                 else { continue }
-                // A window whose far end reads the silence floor was not
+                // A window whose call audio reads the silence floor was not
                 // measured against anything, whatever the rest of the series
                 // holds. A tap that captured the first minutes and then stopped
                 // leaves a track that carries signal overall and nothing at all
@@ -446,7 +446,7 @@ public struct RawSensors: Codable, Sendable, Equatable {
                 // trusting a track that never carried any: the level clause
                 // reads +100 dB and the echo clause reads zero, so every one of
                 // them says the microphone holds the local user.
-                if farEndUsable, let far = reading.loudestFarDB, far <= floor { continue }
+                if remoteUsable, let far = reading.loudestFarDB, far <= floor { continue }
                 measured += 1
                 guard let probability = reading.speechProbability,
                     probability >= LocalSpeechPolicy.speechProbability

@@ -76,7 +76,7 @@ public struct TranscriptAssembler: Sendable {
         /// wider because an aligner that squeezes a phrase onto one timestamp
         /// moves its words by seconds.
         public var overlapMatchSeconds: Double
-        /// How the client's speaker record and the diarizer divide the far end.
+        /// How the client's speaker record and the diarizer divide the call audio.
         /// The application leaves this at `current`; `pipit-eval` varies it.
         public var sensorMode: SensorAttributionMode
 
@@ -145,7 +145,7 @@ public struct TranscriptAssembler: Sendable {
         micTrackIsLocalUser: Bool,
         generatedAt: Date
     ) -> CanonicalTranscript {
-        // Sensor turns describe the far end alone: the local user's own track
+        // Sensor turns describe the call audio alone: the local user's own track
         // never needs them, and an in-person recording never has them.
         let sensorWords =
             sensors.map {
@@ -198,13 +198,13 @@ public struct TranscriptAssembler: Sendable {
                 : attribute(
                     chunks, using: activeRun,
                     sensors: track == .remote
-                        ? farEndSensorWords(sensorWords, sensors: sensors, run: activeRun)
+                        ? remoteSensorWords(sensorWords, sensors: sensors, run: activeRun)
                         : .none
                 )
             let assembled = assembleTrack(
                 attributed,
                 treatAsLocalUser: treatAsLocalUser,
-                // Only the local user's track. The far end arrives on its own
+                // Only the local user's track. The call audio arrives on its own
                 // tap, which is silent when nobody is speaking and carries no
                 // leakage of anybody else, and the harm this guards against is
                 // a sentence the user is shown as having said.
@@ -212,11 +212,11 @@ public struct TranscriptAssembler: Sendable {
             )
             utterances.append(contentsOf: assembled)
         }
-        // After both tracks exist. A microphone line that is the far end's
-        // own words at the same moment is the far end, back through the
+        // After both tracks exist. A microphone line that is the remote track's
+        // own words at the same moment is the call audio, back through the
         // speakers, and goes before the lines are divided against each other.
         if micTrackIsLocalUser {
-            utterances = FarEndOverlap.drop(utterances)
+            utterances = RemoteOverlap.drop(utterances)
         }
         // A line divides where the other track starts.
         utterances = TurnInterleaving.apply(utterances)
@@ -226,14 +226,14 @@ public struct TranscriptAssembler: Sendable {
         return CanonicalTranscript(generatedAt: generatedAt, utterances: utterances)
     }
 
-    /// The sensor turns as the far-end track's words are filled from them: each
+    /// The sensor turns as the remote track's words are filled from them: each
     /// person's turns filed under the diarization cluster matched to that
     /// person, so a word a turn fills and a word the cluster reaches are one
     /// speaker. A person with no matched cluster keeps the sensor key.
     ///
     /// `sensor-first` is what the application did before clusters took
     /// precedence, and keeps the sensor keys it always had.
-    private func farEndSensorWords(
+    private func remoteSensorWords(
         _ words: SensorAttribution.WordSources, sensors: RawSensors?, run: DiarizationRun?
     ) -> SensorAttribution.WordSources {
         guard configuration.sensorMode != .sensorFirst, let sensors, let run,
@@ -276,7 +276,7 @@ public struct TranscriptAssembler: Sendable {
     /// nearest cluster within the fallback distance.
     ///
     /// The order is the design. Where the client names the only other person in
-    /// the call, every word on the far end is theirs and that decides first.
+    /// the call, every word on the call audio is theirs and that decides first.
     /// Otherwise the diarizer hears the voices, so it decides who spoke where,
     /// and a turn only labels the words no cluster interval overlaps: a call
     /// with no diarization, and the stretches the diarizer dropped.
@@ -289,7 +289,7 @@ public struct TranscriptAssembler: Sendable {
     /// A turn used to outrank the cluster. A turn is the client's guess at who
     /// held the floor, one person at a time, so it is wrong wherever two people
     /// talk at once. The words a turn fills are filed under the cluster matched
-    /// to that person (see `farEndSensorWords`), so a person the turns cover
+    /// to that person (see `remoteSensorWords`), so a person the turns cover
     /// only in part is one speaker rather than a named one and an unnamed one.
     private func assignSpans(
         _ spans: [TimedSpan], sensors: SensorAttribution.WordSources,
@@ -789,7 +789,7 @@ public struct TranscriptAssembler: Sendable {
 
         // Once per chunk rather than once per segment; it is a property of the
         // whole series.
-        let farEndUsable = speech?.farEndCarriesSignal ?? false
+        let remoteUsable = speech?.remoteCarriesSignal ?? false
         for segment in chunk.segments.sorted(by: { $0.start < $1.start }) {
             let text = segment.text.trimmingCharacters(in: .whitespaces)
             guard !text.isEmpty else { continue }
@@ -797,7 +797,7 @@ public struct TranscriptAssembler: Sendable {
             // evidence does not cover is kept: nothing measured it.
             let start = chunk.timelineOffset + segment.start
             let end = chunk.timelineOffset + segment.end
-            if let reading = speech?.reading(from: start, to: end, farEndUsable: farEndUsable),
+            if let reading = speech?.reading(from: start, to: end, remoteUsable: remoteUsable),
                 LocalSpeechPolicy.decide(text: text, reading: reading) == .notSpoken
             {
                 continue

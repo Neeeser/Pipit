@@ -76,10 +76,10 @@ public struct AudioCompactor: Sendable {
                 return .nothingToDo
             }
             // Mixed while the metadata still points at the segments, so the
-            // far end comes from the 48 kHz PCM rather than from the 16 kHz
+            // call audio comes from the 48 kHz PCM rather than from the 16 kHz
             // archive about to replace it. The microphone side comes from the
             // cleaned track where there is one. That track is 16 kHz already,
-            // and taking it keeps the far end out of the mix twice over.
+            // and taking it keeps the call audio out of the mix twice over.
             ensureMixdown(store: store, metadata: metadata, timeline: timeline)
             metadata = try store.updateMetadata { $0.audioArchive = archive }
         }

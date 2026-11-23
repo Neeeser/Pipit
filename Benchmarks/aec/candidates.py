@@ -54,7 +54,7 @@ class DTLN:
     """DTLN-aec from the published weights, run through onnxruntime.
 
     Two models per size. The first masks the microphone magnitude spectrum
-    given the far end's; the second refines the time-domain block. States are
+    given the remote track's; the second refines the time-domain block. States are
     carried between hops by the caller. Block 512, hop 128, no alignment
     stage of its own.
     """

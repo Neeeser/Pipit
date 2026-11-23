@@ -5,8 +5,8 @@ import Foundation
 /// A process tap created without the Screen & System Audio Recording grant
 /// returns no error anywhere. The tap, the aggregate device, the IOProc and
 /// the start call all succeed, and the callback then delivers digital zero at
-/// full rate for the whole meeting. Seven recordings on this Mac lost their far
-/// end that way, every one made by a build launched after a reinstall and
+/// full rate for the whole meeting. Seven recordings on this Mac lost their call
+/// audio that way, every one made by a build launched after a reinstall and
 /// before the grant was given again. The tap cannot tell, so the grant is
 /// checked before capture is armed and the answer is said out loud.
 public enum RecordingPreflight {
@@ -20,13 +20,13 @@ public enum RecordingPreflight {
     }
 
     /// - Parameters:
-    ///   - capturesRemote: whether this source records the far end through a
+    ///   - capturesRemote: whether this source records the call audio through a
     ///     process tap at all.
     ///   - microphone: the Microphone grant. Without it the input engine
     ///     throws on every build and the meeting is a folder of nothing, so
     ///     the recording is refused rather than started.
     ///   - systemAudio: the Screen & System Audio Recording grant, read only
-    ///     when the far end is captured. Without it the tap delivers silence
+    ///     when the call audio is captured. Without it the tap delivers silence
     ///     and reports healthy; the microphone still records, so the meeting
     ///     goes ahead with the warning said at once.
     public static func decide(
@@ -37,7 +37,7 @@ public enum RecordingPreflight {
     }
 
     /// - Parameters:
-    ///   - capturesRemote: whether this source records the far end through a
+    ///   - capturesRemote: whether this source records the call audio through a
     ///     process tap at all. An in-person or imported recording does not.
     ///   - systemAudio: the state of the Screen & System Audio Recording
     ///     grant as probed for the running build. Anything but `granted`
@@ -75,7 +75,7 @@ public struct PermissionNotice: Equatable, Sendable, Identifiable {
 
     /// Whether the microphone is still being recorded behind the notice.
     /// Without the Microphone grant nothing is; without the system audio
-    /// grant the microphone runs and the far end is lost.
+    /// grant the microphone runs and the call audio is lost.
     public var recordingContinues: Bool { !missing.contains(.microphone) }
 
     public var title: String {

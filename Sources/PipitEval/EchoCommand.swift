@@ -6,7 +6,7 @@ import PipitServices
 /// Runs the echo canceller over one recorded meeting and prints what it did.
 ///
 /// The developer tool that turns the canceller's tone measurements into
-/// measurements of a real call. It reads the microphone and the far end as
+/// measurements of a real call. It reads the microphone and the call audio as
 /// they were recorded, runs the same pass `MicrophoneCleaner` runs, and
 /// reports the levels either side of it. The meeting need never have been
 /// cleaned, which is what lets it measure the recordings made before the
@@ -91,7 +91,7 @@ enum EchoCommand {
 
     /// The detector's reading of the raw microphone, which is what the app
     /// hands the cleaner so that this command judges the windows it does. Nil
-    /// where the meeting has no far end to subtract or the detector is
+    /// where the meeting has no call audio to subtract or the detector is
     /// unavailable, and the decision is then made on levels alone, as the
     /// report says.
     private static func rawMicrophoneSpeech(
@@ -153,28 +153,28 @@ enum EchoCommand {
     private static func printNoReference(_ reason: EchoMeasurement.MissingReference) {
         let explanation =
             switch reason {
-            case .oneTrack: "one track holds everyone, so there is no separate far end"
-            case .notRecorded: "no far-end track was recorded"
-            case .recordedSilence: "the far-end track was recorded and holds silence"
+            case .oneTrack: "one track holds everyone, so there is no separate call audio"
+            case .notRecorded: "no remote track was recorded"
+            case .recordedSilence: "the remote track was recorded and holds silence"
             }
         print("no reference    \(explanation)")
         print("")
-        print("  Nothing was measured. There was no far end to subtract, and this")
+        print("  Nothing was measured. There was no call audio to subtract, and this")
         print("  meeting is read on the microphone it recorded.")
     }
 
-    /// A call that dropped and was rejoined, with the far end placed in each
+    /// A call that dropped and was rejoined, with the call audio placed in each
     /// run on its own. The figures above describe the first run.
     private static func printRuns(_ report: EchoMeasurement.Report) {
         print("runs            \(report.runs.count) under one manifest, each lined up on its own")
         for (index, run) in report.runs.enumerated() {
             let source =
-                !run.farEndRecorded
-                ? "no far end recorded"
+                !run.remoteRecorded
+                ? "no call audio recorded"
                 : (run.measuredOffsetIsUsable ? "measured off the recording" : "from the manifest")
             print(
                 String(
-                    format: "  run %d         from %.1fs for %.1fs, far end moved %+.2fs, %@, "
+                    format: "  run %d         from %.1fs for %.1fs, call audio moved %+.2fs, %@, "
                         + "envelopes agree %.3f there and %.3f at the manifest's offset",
                     index + 1, run.startSeconds, run.seconds, run.referenceOffsetSeconds, source,
                     run.measuredOffsetCorrelation, run.timelineOffsetCorrelation
@@ -193,7 +193,7 @@ enum EchoCommand {
                 format: "duration        %.1fs in %d windows of %.2fs",
                 report.seconds, report.windowCount, report.windowSeconds
             ))
-        print("reference       far end moved \(offset)s onto the microphone's clock, \(source)")
+        print("reference       call audio moved \(offset)s onto the microphone's clock, \(source)")
         print(
             String(
                 format: "alignment       envelopes agree %.3f at %+.2fs and %.3f at the manifest's"
@@ -205,8 +205,8 @@ enum EchoCommand {
         if report.runs.count > 1 { printRuns(report) }
         print(
             String(
-                format: "far end         above %.1f dBFS in %d windows, %.1f%% of the meeting",
-                report.farEndFloorDBFS, report.farEndActiveWindows, report.farEndDutyCycle * 100
+                format: "call audio         above %.1f dBFS in %d windows, %.1f%% of the meeting",
+                report.remoteFloorDBFS, report.remoteActiveWindows, report.remoteDutyCycle * 100
             ))
         printMicrophoneFloor(report)
         print("")
@@ -228,12 +228,12 @@ enum EchoCommand {
         print("")
         let median =
             report.reportedEnhancementMedianDB.map { "\(fixed($0)) dB" }
-            ?? "no far-end-active window"
+            ?? "no remote-active window"
         print("reported        \(median) median enhancement, which nothing is decided on")
         let judged =
             report.userWindowsPickedBySpeech
-            ? "speech windows with the far end quiet for \(fixed(report.echoTailSeconds))s"
-            : "windows above the microphone floor with the far end quiet for "
+            ? "speech windows with the call audio quiet for \(fixed(report.echoTailSeconds))s"
+            : "windows above the microphone floor with the call audio quiet for "
                 + "\(fixed(report.echoTailSeconds))s, no voice detector"
         if let harmMedian = report.userHarmMedianDB, let harmShare = report.userHarmShare {
             print(
@@ -250,7 +250,7 @@ enum EchoCommand {
         print(
             String(
                 format:
-                    "limits          %.1f dB median, %.0f%% over %.0f dB, judged on at least %d far-end-active windows",
+                    "limits          %.1f dB median, %.0f%% over %.0f dB, judged on at least %d remote-active windows",
                 report.harmMedianLimitDB, report.harmShareLimit * 100, report.harmNotableLossDB,
                 report.minimumActiveWindows
             ))
@@ -261,7 +261,7 @@ enum EchoCommand {
         print("  rather than what was removed. The class figure is a power ratio, so the")
         print("  loudest windows decide it. The per-window columns are where a passage")
         print("  gated to silence shows up. A window is classed from the two recorded")
-        print("  levels alone, and those levels cannot tell the user from the far end's")
+        print("  levels alone, and those levels cannot tell the user from the remote track's")
         print("  own echo in the microphone. The user only row is therefore wider than")
         print("  the windows the decision judges, which are listed on the user alone line.")
     }
@@ -276,12 +276,12 @@ enum EchoCommand {
             print("microphone      above \(floor) dBFS, with no window to derive one from")
             return
         }
-        if report.microphoneFloorDBFS > report.farEndFloorDBFS {
+        if report.microphoneFloorDBFS > report.remoteFloorDBFS {
             print(
                 "microphone      above \(floor) dBFS, from a quietest twentieth of "
                     + "\(fixed(quiet)) dBFS")
         } else {
-            print("microphone      above \(floor) dBFS, the far end's floor. The quietest")
+            print("microphone      above \(floor) dBFS, the remote track's floor. The quietest")
             print(
                 "                twentieth of this recording sits under it, at "
                     + "\(fixed(quiet)) dBFS")
@@ -320,7 +320,7 @@ enum EchoCommand {
 
     private static func label(_ windowClass: EchoMeasurement.WindowClass) -> String {
         switch windowClass {
-        case .farEndOnly: "far end only"
+        case .remoteOnly: "call audio only"
         case .userOnly: "user only"
         case .both: "both"
         case .neither: "neither"

@@ -11,7 +11,7 @@ extension EchoCancellationPass {
         public let frames: Int64
         /// The measurement grid the pass keeps, one entry per quarter second.
         public let windows: [Window]
-        /// Where the far end was measured to sit against the microphone.
+        /// Where the call audio was measured to sit against the microphone.
         public let alignment: Alignment
         /// The offset the run actually used.
         public let referenceOffset: Double
@@ -26,7 +26,7 @@ extension EchoCancellationPass {
     /// public corpus can be scored against the pass that ships, and so a port
     /// of the canceller can be checked against a reference output.
     ///
-    /// - Parameter referenceOffset: seconds the far end has to move to line up
+    /// - Parameter referenceOffset: seconds the call audio has to move to line up
     ///   with the microphone, as `run` takes it. Nil measures the alignment
     ///   from the envelopes and uses it when it clears the usual bars, else 0.
     /// - Parameter canceller: the canceller to run. The shipped one by

@@ -47,7 +47,7 @@ public struct LiveTranscriptLine: Sendable, Equatable, Identifiable {
     }
 }
 
-/// Who spoke on the far-end track over a stretch of the recording, from a
+/// Who spoke on the remote track over a stretch of the recording, from a
 /// speaker pass over the audio so far.
 public struct LiveSpeakerTurn: Sendable, Equatable {
     public var start: Double
@@ -65,12 +65,12 @@ public struct LiveSpeakerTurn: Sendable, Equatable {
 
 /// The live transcript of one recording, as plain values.
 ///
-/// Engines push updates per track; the speaker pass labels the far-end lines
+/// Engines push updates per track; the speaker pass labels the remote lines
 /// afterwards. Nothing here is saved: the meeting's transcript is written by
 /// the pass over the whole recording once it ends.
 public struct LiveTranscript: Sendable, Equatable {
     public private(set) var lines: [LiveTranscriptLine] = []
-    /// The far end's speaker turns from the latest speaker pass.
+    /// The remote track's speaker turns from the latest speaker pass.
     public private(set) var turns: [LiveSpeakerTurn] = []
     /// Display names for speakers the voice memory recognised.
     public private(set) var names: [String: String] = [:]
@@ -123,13 +123,13 @@ public struct LiveTranscript: Sendable, Equatable {
         sortIfNeeded()
     }
 
-    /// Replaces the far end's speaker turns and the names known for them.
+    /// Replaces the remote track's speaker turns and the names known for them.
     public mutating func label(turns: [LiveSpeakerTurn], names: [String: String]) {
         self.turns = turns.sorted { $0.start < $1.start }
         self.names = names
     }
 
-    /// The far-end speaker who talked most over the line, or nil before a
+    /// The remote speaker who talked most over the line, or nil before a
     /// speaker pass has covered it.
     public func speaker(of line: LiveTranscriptLine) -> String? {
         guard line.kind == .speech(.remote) else { return nil }
@@ -148,18 +148,18 @@ public struct LiveTranscript: Sendable, Equatable {
         return nearest.speaker
     }
 
-    /// The name to show for a far-end speaker: a recognised person's name, or
+    /// The name to show for a remote speaker: a recognised person's name, or
     /// a numbered label that stays the same for the whole call.
     public func displayName(ofSpeaker speaker: String) -> String {
         if let name = names[speaker] { return name }
         // Labels from `LiveSpeakerLabels` count up from 1 in the order the
         // speakers first spoke, and keep their number for the whole call.
-        // Speaker 1 is the person recording, so the far end starts at 2.
+        // Speaker 1 is the person recording, so the call audio starts at 2.
         let number = Int(speaker.split(separator: "-").last ?? "") ?? 0
         return "Speaker \(number + 1)"
     }
 
-    /// Whether a far-end line says `name` as a word, which is how the window
+    /// Whether a remote line says `name` as a word, which is how the window
     /// tells the person they were mentioned.
     public static func mentions(_ name: String, in text: String) -> Bool {
         let first = name.split(separator: " ").first.map(String.init) ?? ""

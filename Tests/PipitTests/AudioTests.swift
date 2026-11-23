@@ -277,7 +277,7 @@ struct AudioTests {
         // The frames are gone either way. What matters is that the file
         // still says how long the silence was, because everything above
         // reads a track's audio as one contiguous run: without this the
-        // microphone ran 0.74 s ahead of the far end for a whole
+        // microphone ran 0.74 s ahead of the call audio for a whole
         // meeting, and every time downstream was measured against it.
         let root = try TestPaths.makeTemporaryDirectory()
         defer { try? FileManager.default.removeItem(at: root) }
@@ -325,8 +325,8 @@ struct AudioTests {
         // the first one written live. Both are handed over inside the lock that
         // flips the engine into recording, so a running source makes them
         // contiguous. A stalled one leaves a hole, and this used to discard it:
-        // on 10 September 2026 that put the microphone 2.45 s ahead of the far
-        // end for 31 minutes and the echo canceller never locked on.
+        // on 10 September 2026 that put the microphone 2.45 s ahead of the call
+        // audio for 31 minutes and the echo canceller never locked on.
         let root = try TestPaths.makeTemporaryDirectory()
         defer { try? FileManager.default.removeItem(at: root) }
         let layout = MeetingLayout(root: root)

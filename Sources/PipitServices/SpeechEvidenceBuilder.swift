@@ -13,7 +13,7 @@ import PipitCore
 /// Everything is put on the meeting timeline before it is stored. The two
 /// tracks do not start at the same instant, and the transcript segments this is
 /// compared against already carry their track's lead-in, so a profile measured
-/// from each track's own zero would put the microphone and the far end a second
+/// from each track's own zero would put the microphone and the call audio a second
 /// out of step with each other.
 public enum SpeechEvidenceBuilder {
     /// Seconds one level sample covers.

@@ -13,8 +13,8 @@ import PipitSpeakers
 /// the buffer.
 ///
 /// From the queue each track is resampled to 16 kHz mono on one timeline. The
-/// microphone is cleaned of the far end, both tracks go to the chosen engine,
-/// and the far end is written to a scratch file that speaker passes read,
+/// microphone is cleaned of the call audio, both tracks go to the chosen engine,
+/// and the call audio is written to a scratch file that speaker passes read,
 /// from about 20 seconds in, to label who spoke. None of it is the meeting's transcript:
 /// the pass over the whole recording writes that after the call.
 public actor LiveTranscriptSession {
@@ -60,10 +60,10 @@ public actor LiveTranscriptSession {
     private var readers: [Task<Void, Never>] = []
     private var consumer: Task<Void, Never>?
     private var speakerLoop: Task<Void, Never>?
-    private var farEnd: GrowingWaveFile?
+    private var remote: GrowingWaveFile?
     /// Timeline index of the scratch file's first sample.
-    private var farEndStart: Int?
-    private var farEndWritten = 0
+    private var remoteStart: Int?
+    private var remoteWritten = 0
     private var heard = 0
     private var turns: [LiveSpeakerTurn] = []
     private var usedLabels: Set<String> = []
@@ -101,7 +101,7 @@ public actor LiveTranscriptSession {
         do {
             echo = try LiveEchoRemover()
         } catch {
-            // Without it the microphone's live text also carries the far end
+            // Without it the microphone's live text also carries the call audio
             // on a call taken on speakers; the saved transcript is unaffected.
             Log.processing.notice("live echo removal unavailable")
         }
@@ -145,7 +145,7 @@ public actor LiveTranscriptSession {
         for reader in readers { await reader.value }
         readers = []
         engines = [:]
-        farEnd = nil
+        remote = nil
         try? FileManager.default.removeItem(at: scratch)
         if dropped > 0 {
             Log.processing.notice("live transcript dropped \(self.dropped, privacy: .public) buffers")
@@ -179,7 +179,7 @@ public actor LiveTranscriptSession {
         switch item.track {
         case .remote:
             echo?.addReference(converted.samples, start: converted.start)
-            writeFarEnd(converted.samples, start: converted.start)
+            writeRemoteTrack(converted.samples, start: converted.start)
             send(converted.samples, start: converted.start, to: .remote)
         case .mic:
             if let echo {
@@ -207,32 +207,32 @@ public actor LiveTranscriptSession {
         feeds[track]?.yield(EngineChunk(samples: samples, start: start))
     }
 
-    private func writeFarEnd(_ samples: [Float], start: Int) {
+    private func writeRemoteTrack(_ samples: [Float], start: Int) {
         do {
-            if farEnd == nil {
-                farEnd = try GrowingWaveFile(url: scratch.appendingPathComponent("far-end.wav"))
-                farEndStart = start
+            if remote == nil {
+                remote = try GrowingWaveFile(url: scratch.appendingPathComponent("remote.wav"))
+                remoteStart = start
             }
-            guard let farEnd, let first = farEndStart else { return }
-            let position = first + farEndWritten
+            guard let remote, let first = remoteStart else { return }
+            let position = first + remoteWritten
             if start > position {
                 // A gap is silence, so the file's clock stays the timeline's.
                 let gap = [Float](repeating: 0, count: start - position)
-                try farEnd.append(gap)
-                farEndWritten += gap.count
+                try remote.append(gap)
+                remoteWritten += gap.count
             }
             let skip = max(0, position - start)
             guard skip < samples.count else { return }
             let kept = skip == 0 ? samples : Array(samples[skip...])
-            try farEnd.append(kept)
-            farEndWritten += kept.count
+            try remote.append(kept)
+            remoteWritten += kept.count
         } catch {
             Log.processing.notice("live speaker audio could not be written")
-            farEnd = nil
+            remote = nil
         }
     }
 
-    /// Runs a speaker pass over the far end so far. The first runs as soon as
+    /// Runs a speaker pass over the call audio so far. The first runs as soon as
     /// there is enough audio to tell voices apart, so lines get names early in
     /// the call. After that the wait is a multiple of how long the last pass
     /// took: each pass covers the whole call so far, so passes slow down as it
@@ -252,18 +252,18 @@ public actor LiveTranscriptSession {
         }
     }
 
-    /// How often to check whether there is enough far end for a first pass.
+    /// How often to check whether there is enough call audio for a first pass.
     private static let speakerPassPoll: Double = 5
     private static let speakerPassShortestWait: Double = 20
     private static let speakerPassLongestWait: Double = 240
 
-    /// One speaker pass. False when there was too little far end to run one.
+    /// One speaker pass. False when there was too little call audio to run one.
     private func labelOnce() async -> Bool {
-        guard let farEnd, let first = farEndStart, farEnd.seconds >= 20 else { return false }
+        guard let remote, let first = remoteStart, remote.seconds >= 20 else { return false }
         defer { speakerPasses += 1 }
         do {
-            try farEnd.seal()
-            let output = try await models.diarizeLive(audio: farEnd.url)
+            try remote.seal()
+            let output = try await models.diarizeLive(audio: remote.url)
             let offset = Double(first) / LiveTrackResampler.sampleRate
             let intervals = output.intervals.map {
                 LiveSpeakerLabels.Interval(start: $0.start + offset, end: $0.end + offset, cluster: $0.clusterID)

@@ -1870,7 +1870,7 @@ struct MeetingsWindowTests {
         #expect(row.id == conversation)
         #expect(row.speakers.count == 2, "one voice from each half")
         #expect(row.namedSpeakers.map(\.displayName) == ["Bryn Halloway"])
-        #expect(row.unnamedCount == 1, "the far end after the rejoin")
+        #expect(row.unnamedCount == 1, "the call audio after the rejoin")
         #expect(
             Set(row.speakers.map(\.key)).count == 2,
             """

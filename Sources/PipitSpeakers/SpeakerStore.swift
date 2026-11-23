@@ -1965,7 +1965,7 @@ public actor SpeakerStore {
     /// holds no verified vector, and its centroid is at least
     /// `blendedCandidateSimilarity` from some person's but short of
     /// `twinCentroidSimilarity`, where it would be folded as a copy instead.
-    /// Such a candidate came from a microphone that also held the far end, and
+    /// Such a candidate came from a microphone that also held the call audio, and
     /// left in the gallery it can take a person's naming margin. Forgetting it
     /// loses nothing a person saw: an ephemeral candidate is never shown, and
     /// expires on its own after `ephemeralExpiryDays`.

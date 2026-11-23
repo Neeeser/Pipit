@@ -4,8 +4,8 @@ import Foundation
 ///
 /// `speechProbability` is a voice activity detector's highest reading anywhere
 /// in the span. The two level figures are the loudest window on each track, in
-/// dBFS. A meeting with one track leaves the far end nil, and so does a span
-/// the far end's track never reached.
+/// dBFS. A meeting with one track leaves the call audio nil, and so does a span
+/// the remote track never reached.
 public struct SpeechReading: Sendable, Equatable {
     /// The detector's highest reading over the span, or nil where no detector
     /// ran.
@@ -41,12 +41,12 @@ public struct SpeechReading: Sendable, Equatable {
 /// span, which is what fabrication over silence fails: two segments in the
 /// 29-minute meeting sit on audio Silero scores 0.000 and 0.002.
 ///
-/// The far end coming back through the speakers is not judged here any more.
+/// The call audio coming back through the speakers is not judged here any more.
 /// It used to be, by comparing the two tracks' levels and by measuring how much
-/// of the microphone a filtered copy of the far end accounted for, and both
+/// of the microphone a filtered copy of the call audio accounted for, and both
 /// were guesses about whose voice the microphone held. Guessing wrong deleted
 /// the user: on a Slack huddle of 3 September 2026 every one of the 3957 words
-/// they said was dropped as leakage. The far end is now subtracted out of the
+/// they said was dropped as leakage. The call audio is now subtracted out of the
 /// microphone before transcription, by `MicrophoneCleaner`, so what reaches
 /// this policy holds the user and nothing else, and the detector's reading on
 /// it means what it says.

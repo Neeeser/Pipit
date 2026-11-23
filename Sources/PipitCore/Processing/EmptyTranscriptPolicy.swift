@@ -56,8 +56,8 @@ public enum EmptyTranscriptPolicy {
     /// Audible seconds under which, together with the share below, an empty
     /// transcript is the audio's own answer whatever its peak.
     ///
-    /// The microphone of a user who said two words in an hour, once the far
-    /// end has been subtracted from it, is silence with a couple of loud
+    /// The microphone of a user who said two words in an hour, once the call
+    /// audio has been subtracted from it, is silence with a couple of loud
     /// moments in it: on the call of 11 September 2026 the cleaned track
     /// held 5.5 s above -50 dBFS in 58 minutes and a peak of -20 dBFS, and
     /// the peak alone failed the meeting for good. A chunk that a backend

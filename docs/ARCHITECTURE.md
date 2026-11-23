@@ -144,7 +144,7 @@ meeting imported from a file is not offered Trim, because its original file in
 The track archives and the cleaned microphone are re-exported by position in
 their own audio, and `recording.m4a` is cut with the same range at its own
 sample rate. A range that keeps the end keeps each track to its last frame,
-because the far end can start later than the microphone and so end later than
+because the call audio can start later than the microphone and so end later than
 the meeting's recorded length. Every time on the meeting timeline is clipped
 and moved so the kept stretch starts at zero: raw and assembled transcripts,
 diarization, sensor turns, speech evidence, the speaker map's line corrections
@@ -206,7 +206,7 @@ The pipeline keeps the job slot and the meeting's folder from the first swap
 to the end of the voice step, and every other job that takes the slot checks
 for the journal afterwards and stands down while it exists. A meeting
 that ends up with an earlier first frame removed whole (the microphone ends
-before the cut, the far end starts after it) starts at the first frame that is
+before the cut, the call audio starts after it) starts at the first frame that is
 kept, and everything is moved to that start.
 
 A meeting that still holds a legacy `mixed.caf` is refused, since the file
@@ -285,40 +285,40 @@ download) is started again at every launch and is never counted, so an outage
 neither uses up that cap nor resets it. A success clears the count, and a quit
 during a stage is not counted.
 
-`transcribing` begins by subtracting the far end from the microphone. A call
-taken on speakers puts the far end back into the microphone through the air.
-Pipit records that far end separately through the process tap, and that
+`transcribing` begins by subtracting the call audio from the microphone. A call
+taken on speakers puts the call audio back into the microphone through the air.
+Pipit records that call audio separately through the process tap, and that
 recording is the reference an echo canceller needs. The canceller is two stages:
-LocalVQE's adaptive filter, which lines the far end up on its own and removes
+LocalVQE's adaptive filter, which lines the call audio up on its own and removes
 the linear part of the echo path, then DTLN-aec, a network trained on speech
 that removes the distortion a loud laptop speaker adds. Both are vendored, the
 filter as C++ under `Sources/CLocalVQE` and the network as Swift over
 Accelerate in `PipitAudio`, with their model files as resources of that module.
 `Benchmarks/aec` is the harness that chose them. It scores a canceller by the
-far-end words a transcript would put under the user's name and the user's own
+remote words a transcript would put under the user's name and the user's own
 words it would lose. Measured on 10 October 2026, this pair leaked 0.18 words
-per minute on clips with a nonlinear far end, as a loud laptop speaker
-produces, and kept 76.6% of the near-end words, where the WebRTC canceller
+per minute on clips with nonlinear echo, as a loud laptop speaker produces,
+and kept 76.6% of the user's words, where the WebRTC canceller
 that shipped before it kept 60.4%. On real-device recordings the pair leaked
 0.56 words per minute and kept 92.8% (WebRTC: 0.85 and 98.3%), and on 65
-recorded meetings the two scored the same. The far end is handed to the
+recorded meetings the two scored the same. The call audio is handed to the
 canceller 10 ms early, because the tap's timestamps can run a few milliseconds
 behind the microphone's and no canceller models an echo that arrives before its
 reference.
 
-The far end is lined up with the microphone once per run of the recording. A
+The call audio is lined up with the microphone once per run of the recording. A
 call that dropped and was rejoined holds several runs under one manifest, and
 each run opens writers of its own. A source that stalled around the rejoin lost
-a different amount of audio on each track, so the far end can sit seconds from
+a different amount of audio on each track, so the call audio can sit seconds from
 where it sat in the run before: on one 59 minute call it had to move +1.76 s onto
 the microphone's clock before the rejoin and -1.46 s after. Each run is placed from
 its own host times, then measured. The loudness envelopes of that run's
-microphone and far end are compared, and the measured offset replaces the
+microphone and call audio are compared, and the measured offset replaces the
 manifest's when the peak is clear, beats the manifest's offset by a margin and is
 larger than the filter absorbs on its own. A run too short to measure keeps the
-manifest's offset, and a run in which the far end recorded nothing is handed to
+manifest's offset, and a run in which the call audio recorded nothing is handed to
 the canceller as silence. The canceller runs once, in order, over the whole
-microphone and is given the far end at each run's own offset. The cleaned file
+microphone and is given the call audio at each run's own offset. The cleaned file
 stays one file on the microphone's clock.
 
 The result is written to `raw/audio/mic.cleaned.m4a`, and every stage from
@@ -328,45 +328,45 @@ written to. The cleaned file is kept unless the pass measurably took the user's
 own speech down. Before cleaning, Silero voice activity detection runs over the
 raw microphone. The judged windows are the quarter-second windows where that
 detector marks speech, the microphone is above its floor (its quietest twentieth
-plus 10 dB), and the far end was quiet in the window and for the second before
-it. The second after the far end is left out because the room's reverberant tail
+plus 10 dB), and the call audio was quiet in the window and for the second before
+it. The second after the call audio is left out because the room's reverberant tail
 of the echo is still arriving and the canceller is right to remove it. Quiet room
 noise is left out because the speech network stage suppresses it by design.
 Over the judged windows the level must not have dropped more than 2 dB at the
 median, and no more than one window in ten may have dropped by more than 10 dB.
 Where no detector is installed the speech requirement is dropped and the level
 floor and the one-second tail pick the windows alone. Four cases keep the
-microphone exactly as it was captured: a pass that damaged the user's own windows, a meeting whose far-end track holds nothing, a
-meeting whose far end played for under ten seconds or an imported single-track
+microphone exactly as it was captured: a pass that damaged the user's own windows, a meeting whose remote track holds nothing, a
+meeting whose call audio played for under ten seconds or an imported single-track
 recording, and a meeting whose cleaning pass failed.
 
-The record of a cleaned meeting holds what happened to the far end, measured
+The record of a cleaned meeting holds what happened to the call audio, measured
 on the audio: the median drop over the windows it was playing in, and how well
-the microphone's loudness envelope followed the far end's before and after the
+the microphone's loudness envelope followed the remote track's before and after the
 pass, averaged over the runs with each weighted by the audio it was measured on.
-A cleaned track whose envelope still follows the far end holds the
+A cleaned track whose envelope still follows the call audio holds the
 speakers, and the meeting shows a line saying so, because the transcript may
 then show the other side's words as the user's. The assembler also drops a
-run of microphone words that is mostly the far end's own words said at the
-same moment, which is what such a track produces. A word counts when the far
-end said the same word within a second of it, and each far-end word counts for
-one microphone word at most, so a user who answers in the far end's words a few
-seconds later, or repeats a word the far end said once, keeps them. Backchannels
+run of microphone words that is mostly the remote track's own words said at the
+same moment, which is what such a track produces. A word counts when the remote
+track holds the same word within a second of it, and each remote word counts for
+one microphone word at most, so a user who answers in the remote track's words a few
+seconds later, or repeats a word the other people on the call said once, keeps them. Backchannels
 ("yes", "okay") are never counted either way, so a reply made of them stays. A run ends at the user's own content words, so a
 line that joins an echo, the user's sentence and more echo loses both echoes and
 keeps the sentence. Lines less than two seconds apart are searched together,
 because an echo can be split across two lines. A word or two the microphone
-mis-heard at the edge of a run goes with it when it is spelled like the far-end
+mis-heard at the edge of a run goes with it when it is spelled like the remote
 words beside the run's source. A line without word timings is judged whole, by
 its span.
 
-That rule needs the far end's words, so it cannot see a far-end voice that
-reached the microphone while the far-end track recorded nothing, which is what
-a process tap delivering digital silence leaves behind. After the far-end
+That rule needs the remote track's words, so it cannot see a remote voice that
+reached the microphone while the remote track recorded nothing, which is what
+a process tap delivering digital silence leaves behind. After the remote
 voices are recognised, `MicrophoneVoiceCheck` judges each microphone line of
 three seconds or more by its voice: the line's embedding is scored against the
-local user's profile and against every far-end cluster of the meeting. A line
-that does not sound like the user and clearly matches a far-end cluster moves
+local user's profile and against every remote cluster of the meeting. A line
+that does not sound like the user and clearly matches a remote cluster moves
 to that cluster's speaker key; one that clearly is not the user and matches
 nobody becomes unattributed; every other line stays with the user. Nothing is
 removed, and a line a person already moved stays where they put it. The check
@@ -384,18 +384,18 @@ whole meeting on every resumed run of a machine that cannot write the file.
 A person can run it again on a finished call (Remove echo in the meeting
 header), for a meeting recorded before the current canceller or cleaned under
 an older rule. `ProcessingPipeline.redoMicrophone` refuses a one-track
-recording, a meeting that is not finished, and one with no far end recorded.
+recording, a meeting that is not finished, and one with no call audio recorded.
 Otherwise it copies the files it will replace to
 `Application Support/Pipit/Backups/<meeting>/<time>/`, sets
 `microphoneRedoRequestedAt`, moves the meeting back to `transcribing`, and runs
 that stage as a microphone-only pass: drop the microphone's raw chunks,
 alignments and `speech.json`, clean the recording again (the cleaner reads the
 recording, never its own output), transcribe the microphone, then assemble the
-transcript and markdown again and rebuild the mixdown. The far end's words, the
+transcript and markdown again and rebuild the mixdown. The remote track's words, the
 diarization runs, every cluster name, the local user's name, titles, notes and
 the summary are not touched. Corrections and line cuts on microphone lines are
 removed, because they are anchored to the old words and chunks. Corrections on
-the far end's lines stay. The marker is cleared in the same write that marks
+the remote track's lines stay. The marker is cleared in the same write that marks
 the meeting complete, so a crash or a failure leaves the old transcript
 readable. A quit is finished by the launch sweep, and a failure by the sweep
 or Retry as described above. Voice profiles are
@@ -403,7 +403,7 @@ not re-learned, and enrolments that came from a removed correction are not
 retracted.
 
 The alignment is per run and the decision is not: one decision covers the whole
-meeting. The median is taken over every window where the far end was playing,
+meeting. The median is taken over every window where the call audio was playing,
 whichever run it fell in, and the cleaned file is kept or thrown away entire. A
 call that starts on speakers and moves to headphones half way through keeps the
 cleaned track across the headphone stretch. Plugging in headphones mid-call is
@@ -483,7 +483,7 @@ recording after the call.
 SegmentWriter receives a buffer -> LiveAudioQueue -> LiveTranscriptSession
   mic:    LiveTrackResampler -> LiveEchoRemover -> live engine -> lines
   remote: LiveTrackResampler -> live engine -> lines
-          -> far-end scratch file -> repeated speaker passes
+          -> remote scratch file -> repeated speaker passes
 ```
 
 `CaptureEngine` pushes every buffer that reaches a segment writer into a
@@ -493,8 +493,8 @@ buffers and counts them; the recording is already written by then.
 
 `LiveTranscriptSession` drains the queue on its own task. Each track is
 resampled to 16 kHz mono and placed on one timeline by host time. The
-microphone is cleaned of the far end with the shipped echo canceller, using the
-far end at the same timeline position as the reference. Each track feeds its own
+microphone is cleaned of the call audio with the shipped echo canceller, using the
+call audio at the same timeline position as the reference. Each track feeds its own
 engine through its own stream, so an engine waiting for the speech model does
 not hold up the other track. The session never waits on the main actor.
 
@@ -504,8 +504,8 @@ into phrases at pauses with the voice detector, reads an open phrase every two
 seconds for provisional text, and settles it when the phrase closes. The engine
 is chosen in Settings, separately from the one that writes the saved transcript.
 
-Far-end speakers are labelled by running the offline diarizer over a scratch
-file of the far end so far. The first pass runs once 20 seconds of far end are
+Remote speakers are labelled by running the offline diarizer over a scratch
+file of the call audio so far. The first pass runs once 20 seconds of call audio are
 written; each later pass waits four times as long as the previous one took,
 between 20 seconds and 4 minutes. `LiveSpeakerLabels` keeps each speaker's label across
 passes by time overlap, and `SpeakerRecognitionService.liveNames` names voices
@@ -546,7 +546,7 @@ the platform's own participant identifier only for a participant no cluster is
 matched to. A word near a cluster but outside it goes to a turn that covers it
 before it goes to that cluster. The exception is a call whose roster holds one
 other person and where the local user is known, from the client's own flag, the
-English "You" on a Meet tile or the microphone: every far-end word up to the last
+English "You" on a Meet tile or the microphone: every remote word up to the last
 reading is theirs. A third person in the roster, however briefly, ends that
 reading. Cluster naming (below) is what puts the client's names on
 the clusters. Voice enrollment embeds each participant's turns cut to the
@@ -565,7 +565,7 @@ Sensor names sit at an origin above a voice match and below the microphone
 track, so a person's own correction always wins. The sensor never sets the
 diarizer's speaker count and never moves a boundary.
 
-The far-end track never holds the local user, so a participant who is the local
+The remote track never holds the local user, so a participant who is the local
 user is marked and kept out of word attribution and cluster naming. The meeting
 client's own flag is used where it is authoritative. Otherwise the participant
 the microphone heard speaking is marked, and so is any participant whose name is

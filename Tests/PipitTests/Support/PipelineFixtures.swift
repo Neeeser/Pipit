@@ -13,7 +13,7 @@ import Synchronization
 public final class StubLocalTranscriber: TranscriptionBackend, @unchecked Sendable {
     public var segments: [RawTranscriptSegment]
     /// What the microphone track says, where a test needs the two tracks to say
-    /// different things. Identical words on both tracks are read as the far end
+    /// different things. Identical words on both tracks are read as the call audio
     /// reaching the microphone, and the local lines are dropped.
     public var micSegments: [RawTranscriptSegment]?
     public var identifier = "stub-whisper"
@@ -216,7 +216,7 @@ public enum PipelineFixtures {
         metadata.processing = ProcessingStatus(state: .audioSafe, updatedAt: started)
         if cleaning == .alreadyDecided {
             // What the cleaner records when it keeps the recording, or finds
-            // no far end to subtract.
+            // no call audio to subtract.
             metadata.cleaningOutcome = source.capturesRemoteAudio ? .bypassedNoEchoPath : .skippedOneTrack
         }
         try created.store.writeMetadata(metadata)

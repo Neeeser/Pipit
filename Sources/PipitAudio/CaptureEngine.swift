@@ -365,7 +365,7 @@ public final class CaptureEngine: Sendable {
                 firstSegmentIndex: micBase + 1,
                 onFailure: { error in engine.value?.handleWriteFailure(error, track: .mic) }
             )
-            // Drained whenever the session captures the far end, so a ring left
+            // Drained whenever the session captures the call audio, so a ring left
             // behind by a tap with no usable format now is not flushed later,
             // out of order.
             let remotePackets = capturesRemote ? self.remotePreRoll.drain() : []
@@ -791,7 +791,7 @@ public final class CaptureEngine: Sendable {
     /// 5 October 2026 the microphone stalled for 3.3 s at the end of a
     /// reconnect window, was rebuilt twice with nobody to tell, and came back
     /// after the flush. Nothing was written for the hole, and the microphone
-    /// ran 3.3 s ahead of the far end for the rest of the call.
+    /// ran 3.3 s ahead of the call audio for the rest of the call.
     fileprivate func noteRestart(track: CaptureTrack) {
         let writer = state.withLock { state -> SegmentWriter? in
             switch state.mode {

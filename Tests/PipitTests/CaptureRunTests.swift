@@ -4,7 +4,7 @@ import Testing
 
 /// A call that dropped and was rejoined is several runs under one manifest.
 /// Each run opens fresh writers, so each has its own place on the capture
-/// clock, and the far end is not necessarily the same distance from the
+/// clock, and the call audio is not necessarily the same distance from the
 /// microphone in all of them.
 @Suite("CaptureRun")
 struct CaptureRunTests {
@@ -71,14 +71,14 @@ struct CaptureRunTests {
         #expect(abs((run.referenceOffset ?? .nan) - 2) <= 0.001)
     }
 
-    @Test("a rejoin starts another run, and each run places the far end by its own host times")
-    func aRejoinStartsAnotherRunAndEachRunPlacesTheFarEndByItsOwnHostTimes() async throws {
+    @Test("a rejoin starts another run, and each run places the call audio by its own host times")
+    func aRejoinStartsAnotherRunAndEachRunPlacesTheRemoteTrackByItsOwnHostTimes() async throws {
         let timeline = Self.timeline([
-            // First run: the far end begins 2 s after the microphone.
+            // First run: the call audio begins 2 s after the microphone.
             Piece(track: .mic, index: 1, reason: "start", host: 1_000, seconds: 100),
             Piece(track: .remote, index: 1, reason: "start", host: 1_002, seconds: 98),
             // A minute of reconnect wait, then new writers continue the
-            // numbering. This time the far end begins 5 s after the microphone.
+            // numbering. This time the call audio begins 5 s after the microphone.
             Piece(track: .mic, index: 2, reason: "start", host: 1_160, seconds: 50),
             Piece(track: .remote, index: 2, reason: "start", host: 1_165, seconds: 45),
         ])
@@ -89,7 +89,7 @@ struct CaptureRunTests {
         let first = timeline.runs[0]
         let second = timeline.runs[1]
         #expect(abs((first.referenceOffset ?? .nan) - 2) <= 0.001)
-        // 5 s on the capture clock, and the 2 s by which the first run's far end
+        // 5 s on the capture clock, and the 2 s by which the first run's call audio
         // is shorter than its microphone, which the concatenated tracks carry
         // forward as the offset of everything after it.
         #expect(abs((second.referenceOffset ?? .nan) - 7) <= 0.001)
@@ -101,8 +101,8 @@ struct CaptureRunTests {
         #expect(abs((second.mic?.seconds ?? .nan) - 50) <= 0.001)
     }
 
-    @Test("audio a track lost in one run is carried into where the next run places the far end")
-    func audioATrackLostInOneRunIsCarriedIntoWhereTheNextRunPlacesTheFarEnd() async throws {
+    @Test("audio a track lost in one run is carried into where the next run places the call audio")
+    func audioATrackLostInOneRunIsCarriedIntoWhereTheNextRunPlacesTheRemoteTrack() async throws {
         // The microphone lost 3 s inside the first run, so its audio runs 3 s
         // shorter than the capture clock says. Everything after the loss sits
         // 3 s earlier in the track, and the next run's placement comes from
@@ -118,8 +118,8 @@ struct CaptureRunTests {
         #expect(abs((timeline.runs[1].referenceOffset ?? .nan) - (-1)) <= 0.001)
     }
 
-    @Test("a run with no far end has nothing to place")
-    func aRunWithNoFarEndHasNothingToPlace() async throws {
+    @Test("a run with no call audio has nothing to place")
+    func aRunWithNoRemoteTrackHasNothingToPlace() async throws {
         let timeline = Self.timeline([
             Piece(track: .mic, index: 1, reason: "start", host: 1_000, seconds: 100),
             Piece(track: .remote, index: 1, reason: "start", host: 1_002, seconds: 98),

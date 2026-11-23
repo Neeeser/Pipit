@@ -7,7 +7,7 @@ import Testing
 
 /// The live transcript's plain parts: how engine updates become lines, how
 /// speaker labels survive repeated passes, and how the microphone is lined up
-/// with the far end before echo removal.
+/// with the call audio before echo removal.
 @Suite("Live transcript")
 struct LiveTranscriptTests {
     // MARK: lines
@@ -58,7 +58,7 @@ struct LiveTranscriptTests {
 
     // MARK: speakers
 
-    @Test("a far-end line takes the speaker who talked most over it")
+    @Test("a remote line takes the speaker who talked most over it")
     func speakerByOverlap() {
         var transcript = LiveTranscript()
         transcript.apply(.init(text: "hello there", isFinal: true, start: 10, end: 14), track: .remote)
@@ -136,7 +136,7 @@ struct LiveTranscriptTests {
 
     // MARK: audio
 
-    @Test("the microphone is cleaned against the far end at the same timeline position")
+    @Test("the microphone is cleaned against the call audio at the same timeline position")
     func echoUsesAlignedReference() {
         let canceller = RecordingCanceller(block: 4)
         let remover = LiveEchoRemover(canceller: canceller)
@@ -146,7 +146,7 @@ struct LiveTranscriptTests {
         #expect(canceller.references == [[5, 6, 7, 8]])
     }
 
-    @Test("the microphone waits for the far end, then goes ahead with silence")
+    @Test("the microphone waits for the call audio, then goes ahead with silence")
     func echoWaitsThenGivesUp() {
         let canceller = RecordingCanceller(block: 160)
         let remover = LiveEchoRemover(canceller: canceller)
@@ -208,7 +208,7 @@ struct LiveTranscriptTests {
     func growingWaveReadsBack() throws {
         let url = FileManager.default.temporaryDirectory
             .appendingPathComponent("live-\(UUID().uuidString)", isDirectory: true)
-            .appendingPathComponent("far-end.wav")
+            .appendingPathComponent("remote.wav")
         defer { try? FileManager.default.removeItem(at: url.deletingLastPathComponent()) }
         let file = try GrowingWaveFile(url: url)
         try file.append([Float](repeating: 0.25, count: 16_000))

@@ -220,7 +220,7 @@ public enum SpeakerLabel {
     }
 
     /// A key for one track's unattributed words. Namespaced by track so the
-    /// microphone's and the far end's do not merge into one row.
+    /// microphone's and the remote track's do not merge into one row.
     public static func unattributed(track: CaptureTrack) -> String {
         "\(track.rawValue)_\(unattributed)"
     }

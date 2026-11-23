@@ -132,8 +132,8 @@
       {"name": "laptop", "echoCorrelation": 0.69},
       {"name": "laptop-strong", "echoCorrelation": 0.89},
       {"name": "laptop-meet", "echoCorrelation": 0.69, "sensors": {"pollSeconds": 0.5, "holdSeconds": 1.5, "dropoutShare": 0.1}},
-      {"name": "laptop-far-end-late", "echoCorrelation": 0.69, "farEndStartSeconds": 1.12},
-      {"name": "laptop-far-end-dropouts", "echoCorrelation": 0.69, "farEndDropouts": {"millisecondsPerMinute": 13.0, "buffers": [1, 2, 3, 4], "weights": [33, 18, 21, 54]}}
+      {"name": "laptop-far-end-late", "echoCorrelation": 0.69, "remoteStartSeconds": 1.12},
+      {"name": "laptop-far-end-dropouts", "echoCorrelation": 0.69, "remoteDropouts": {"millisecondsPerMinute": 13.0, "buffers": [1, 2, 3, 4], "weights": [33, 18, 21, 54]}}
     ],
     "meetings": {
       "IS1009a": {

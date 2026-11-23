@@ -77,7 +77,7 @@ public struct MeetingLayout: Sendable, Equatable {
     /// Per-track archive files that replace the segment chain after compaction.
     public var trackArchiveDirectory: URL { raw.appendingPathComponent("audio", isDirectory: true) }
 
-    /// The microphone with the far end subtracted out of it.
+    /// The microphone with the call audio subtracted out of it.
     ///
     /// This sits beside the raw track rather than in place of it. The
     /// recording is immutable, and a cleaner that turned out to have taken the

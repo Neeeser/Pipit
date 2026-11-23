@@ -5,7 +5,7 @@
 # macOS ties Microphone, Accessibility and Screen & System Audio Recording
 # grants to the application's signature. An ad-hoc signature changes with every
 # build, so every reinstall drops all three, and a recording made before they
-# are granted again captures a silent far end without saying so. A certificate
+# are granted again records silent call audio without saying so. A certificate
 # gives the signature a stable designated requirement, and the grants survive.
 #
 # Run once. `scripts/bundle-app.sh` picks the identity up by name. macOS asks

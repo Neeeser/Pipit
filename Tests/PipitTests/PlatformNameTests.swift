@@ -62,7 +62,7 @@ private struct Call {
         // The recording is two tones, and cancelling one from the other is
         // not what is under test.
         _ = try meeting.store.updateMetadata { $0.cleaningOutcome = .bypassedNoEchoPath }
-        // The far end carries signal and the microphone holds no speech, so
+        // The call audio carries signal and the microphone holds no speech, so
         // the recording names nobody as the local user by itself.
         try meeting.store.writeSpeechEvidence(
             SpeechEvidence(
@@ -118,8 +118,8 @@ private struct Call {
         try? FileManager.default.removeItem(at: storeRoot)
     }
 
-    /// What the speaker map calls each key the far end's lines are filed under.
-    func farEndNames() throws -> Set<String> {
+    /// What the speaker map calls each key the remote track's lines are filed under.
+    func remoteNames() throws -> Set<String> {
         let map = try meeting.store.readSpeakerMap()
         let keys = try meeting.store.readTranscriptSpeakers()
             .map(\.key).filter { $0 != SpeakerLabel.localUser }
@@ -131,29 +131,29 @@ private struct Call {
 
 @Suite("PlatformNames")
 struct PlatformNameTests {
-    @Test("a confident voice outranks the local user's own name on the far end")
-    func aConfidentVoiceOutranksTheLocalUserSOwnNameOnTheFarEnd() async throws {
+    @Test("a confident voice outranks the local user's own name on the call audio")
+    func aConfidentVoiceOutranksTheLocalUserSOwnNameOnTheRemoteTrack() async throws {
         // A Meet call where the page marked nobody as the user and the tile
         // reading their full name held the floor while a colleague talked.
-        // The far end cannot hold the local user, and the voice was a known
+        // The call audio cannot hold the local user, and the voice was a known
         // colleague's.
         let call = try await Call(platformName: "Marlow Fenn", voice: Call.daraVoice)
         defer { call.cleanUp() }
 
-        #expect(try call.farEndNames() == ["Dara K"])
+        #expect(try call.remoteNames() == ["Dara K"])
         #expect(call.markdown.contains("Dara K"))
         #expect(!call.markdown.contains("Marlow Fenn"))
         #expect(!call.markdown.contains("**Marlow**"), "and not under the short name either")
     }
 
-    @Test("the user's own name, stored as an alias, never names the far end")
-    func theUserSOwnNameStoredAsAnAliasNeverNamesTheFarEnd() async throws {
+    @Test("the user's own name, stored as an alias, never names the call audio")
+    func theUserSOwnNameStoredAsAnAliasNeverNamesTheOtherPeople() async throws {
         let call = try await Call(
             platformName: "Marlow Fenn", voice: Call.daraVoice, localAliases: ["Marlow Fenn"]
         )
         defer { call.cleanUp() }
 
-        #expect(try call.farEndNames() == ["Dara K"])
+        #expect(try call.remoteNames() == ["Dara K"])
         let map = try call.meeting.store.readSpeakerMap()
         #expect(
             !map.entries.keys.contains(SpeakerLabel.sensor(participantID: "d1")),
@@ -161,14 +161,14 @@ struct PlatformNameTests {
         )
     }
 
-    @Test("a far-end voice nobody knows is not the user whose alias the tile reads")
-    func aFarEndVoiceNobodyKnowsIsNotTheUser() async throws {
+    @Test("a remote voice nobody knows is not the user whose alias the tile reads")
+    func aRemoteVoiceNobodyKnowsIsNotTheUser() async throws {
         let call = try await Call(
             platformName: "Marlow Fenn", voice: Call.strangerVoice, localAliases: ["Marlow Fenn"]
         )
         defer { call.cleanUp() }
 
-        #expect(try call.farEndNames().isDisjoint(with: ["Marlow", "Marlow Fenn"]))
+        #expect(try call.remoteNames().isDisjoint(with: ["Marlow", "Marlow Fenn"]))
         #expect(!call.markdown.contains("Marlow Fenn"))
     }
 
@@ -177,7 +177,7 @@ struct PlatformNameTests {
         let call = try await Call(platformName: "Lucan Ward", voice: Call.strangerVoice)
         defer { call.cleanUp() }
 
-        #expect(try call.farEndNames() == ["Lucan Ward"])
+        #expect(try call.remoteNames() == ["Lucan Ward"])
         #expect(call.markdown.contains("Lucan Ward"))
         let aliases = try await call.store.current(call.dara.id)?.aliases ?? []
         #expect(aliases.isEmpty, "a name nobody vouched for is not recorded against anyone")
@@ -188,7 +188,7 @@ struct PlatformNameTests {
         let call = try await Call(platformName: "Dara Kestrel", voice: Call.daraVoice)
         defer { call.cleanUp() }
 
-        #expect(try call.farEndNames() == ["Dara K"])
+        #expect(try call.remoteNames() == ["Dara K"])
         #expect(call.markdown.contains("Dara K"))
         #expect(!call.markdown.contains("Dara Kestrel"))
         let person = try #require(await call.store.current(call.dara.id))
@@ -209,7 +209,7 @@ struct PlatformNameTests {
         )
         defer { try? FileManager.default.removeItem(at: second.root) }
 
-        #expect(try second.farEndNames() == ["Dara K"])
+        #expect(try second.remoteNames() == ["Dara K"])
         let map = try second.meeting.store.readSpeakerMap()
         // Whichever key carries the participant: the cluster the words went to,
         // or the sensor key where no cluster is matched to them.

@@ -12,7 +12,7 @@ import Testing
 /// like to the pipeline: an answer on file, so the cleaner never runs again.
 @Suite("MicrophoneRedo", .tags(.slow))
 struct MicrophoneRedoTests {
-    private static let farEndWords = RawTranscriptSegment(
+    private static let remoteWords = RawTranscriptSegment(
         start: 0, end: 5, text: "we should look at the plan", speaker: nil,
         words: [
             RawTranscriptWord(start: 0.0, end: 0.4, text: " we"),
@@ -24,7 +24,7 @@ struct MicrophoneRedoTests {
         ]
     )
 
-    /// What the microphone said before: the far end's own sentence, arriving
+    /// What the microphone said before: the remote track's own sentence, arriving
     /// through the speakers.
     private static let echoedMicrophone = RawTranscriptSegment(
         start: 1, end: 4, text: "deployment before friday", speaker: nil,
@@ -84,7 +84,7 @@ struct MicrophoneRedoTests {
         // recording, and is on file, so it never runs again.
         _ = try store.updateMetadata { $0.cleaningOutcome = .bypassedNoEchoPath }
 
-        let transcriber = StubLocalTranscriber(segments: [Self.farEndWords])
+        let transcriber = StubLocalTranscriber(segments: [Self.remoteWords])
         transcriber.micSegments = [Self.echoedMicrophone]
         let pipeline = Self.makePipeline(meeting: meeting, transcriber: transcriber, root: root)
         await pipeline.process(meetingID: meeting.metadata.id)
@@ -151,7 +151,7 @@ struct MicrophoneRedoTests {
         #expect(transcriber.received.filter { $0.hasPrefix("mic") }.count == micReadsBefore + 1)
         #expect(transcriber.received.filter { !$0.hasPrefix("mic") }.count == remoteReadsBefore)
         let raw = try store.readRawTranscript()
-        #expect(raw.chunks(track: .remote) == remoteRawBefore, "the far end's words are untouched")
+        #expect(raw.chunks(track: .remote) == remoteRawBefore, "the remote track's words are untouched")
         let micText = raw.chunks(track: .mic).flatMap(\.segments).map(\.text).joined(separator: " ")
         #expect(micText == Self.cleanedMicrophone.text)
         #expect(
@@ -160,7 +160,7 @@ struct MicrophoneRedoTests {
         )
 
         // The transcript says the new words on the microphone and the old ones
-        // on the far end.
+        // on the call audio.
         let after = try #require(try store.readCanonicalTranscript())
         #expect(after.utterances.filter { $0.track == .remote } == remoteBefore)
         let micAfter = after.utterances.filter { $0.track == .mic }
@@ -175,7 +175,7 @@ struct MicrophoneRedoTests {
             "the mixdown holds the cleaned microphone"
         )
 
-        // Names and corrections on the far end stay. Edits to the user's own
+        // Names and corrections on the call audio stay. Edits to the user's own
         // lines cannot outlive the lines.
         let kept = try store.readSpeakerMap()
         #expect(kept.entries[farSpeaker]?.displayName == "Ada")
@@ -207,14 +207,14 @@ struct MicrophoneRedoTests {
         #expect(FileManager.default.fileExists(atPath: backup.appendingPathComponent("recording.m4a").path))
     }
 
-    @Test("an interrupted redo is finished by the next run and the far end is not read again")
+    @Test("an interrupted redo is finished by the next run and the call audio is not read again")
     func anInterruptedRedoIsFinishedByTheNextRun() async throws {
         let root = try TestPaths.makeTemporaryDirectory()
         defer { try? FileManager.default.removeItem(at: root) }
         let meeting = try MicrophoneCleaningFixtures.makeCallOnSpeakers(root: root)
         let store = meeting.store
         _ = try store.updateMetadata { $0.cleaningOutcome = .bypassedNoEchoPath }
-        let transcriber = StubLocalTranscriber(segments: [Self.farEndWords])
+        let transcriber = StubLocalTranscriber(segments: [Self.remoteWords])
         transcriber.micSegments = [Self.echoedMicrophone]
         let pipeline = Self.makePipeline(meeting: meeting, transcriber: transcriber, root: root)
         await pipeline.process(meetingID: meeting.metadata.id)
@@ -251,7 +251,7 @@ struct MicrophoneRedoTests {
         let root = try TestPaths.makeTemporaryDirectory()
         defer { try? FileManager.default.removeItem(at: root) }
         let meeting = try MicrophoneCleaningFixtures.makeCallOnSpeakers(root: root)
-        let transcriber = StubLocalTranscriber(segments: [Self.farEndWords])
+        let transcriber = StubLocalTranscriber(segments: [Self.remoteWords])
         transcriber.micSegments = [Self.cleanedMicrophone]
         let pipeline = Self.makePipeline(meeting: meeting, transcriber: transcriber, root: root)
         await pipeline.process(meetingID: meeting.metadata.id)
@@ -266,7 +266,7 @@ struct MicrophoneRedoTests {
         let second = try meeting.store.readMetadata()
         #expect(second.cleaningOutcome == CleaningOutcome.cleaned)
         let after = try #require(second.cleanedMic)
-        #expect(after.echoRemovedMedianDB > 6, "and it took the far end down by a real margin")
+        #expect(after.echoRemovedMedianDB > 6, "and it took the call audio down by a real margin")
     }
 
     @Test("a recording with one track refuses and is left as it was")
@@ -274,7 +274,7 @@ struct MicrophoneRedoTests {
         let root = try TestPaths.makeTemporaryDirectory()
         defer { try? FileManager.default.removeItem(at: root) }
         let meeting = try PipelineFixtures.makeRecordedMeeting(root: root, source: .inPerson)
-        let transcriber = StubLocalTranscriber(segments: [Self.farEndWords])
+        let transcriber = StubLocalTranscriber(segments: [Self.remoteWords])
         let pipeline = Self.makePipeline(meeting: meeting, transcriber: transcriber, root: root)
         await pipeline.process(meetingID: meeting.metadata.id)
         let before = try Data(contentsOf: meeting.store.layout.metadata)
@@ -295,7 +295,7 @@ struct MicrophoneRedoTests {
         let root = try TestPaths.makeTemporaryDirectory()
         defer { try? FileManager.default.removeItem(at: root) }
         let meeting = try PipelineFixtures.makeRecordedMeeting(root: root)
-        let transcriber = StubLocalTranscriber(segments: [Self.farEndWords])
+        let transcriber = StubLocalTranscriber(segments: [Self.remoteWords])
         let pipeline = Self.makePipeline(meeting: meeting, transcriber: transcriber, root: root)
         #expect(meeting.metadata.processing.state == .audioSafe)
 
@@ -307,8 +307,8 @@ struct MicrophoneRedoTests {
         }
     }
 
-    @Test("removing microphone line edits keeps the far end's")
-    func removingMicrophoneLineEditsKeepsTheFarEnds() {
+    @Test("removing microphone line edits keeps the remote track's")
+    func removingMicrophoneLineEditsKeepsTheRemoteOnes() {
         let when = Date(timeIntervalSince1970: 1_787_080_000)
         let assignment = SpeakerAssignment(displayName: "Ada", origin: .human)
         var map = SpeakerMap()

@@ -1,12 +1,12 @@
 import Foundation
 
-/// Removes the far end from the microphone while the meeting records, so the
+/// Removes the call audio from the microphone while the meeting records, so the
 /// live transcript does not hear everyone twice on a call taken on speakers.
 ///
 /// Both tracks arrive as 16 kHz samples placed on one timeline by host time.
-/// The microphone is cleaned a block at a time once the far end's audio for
+/// The microphone is cleaned a block at a time once the remote track's audio for
 /// that block has arrived, or once the microphone is `maximumWaitSeconds`
-/// ahead of it, when the missing far end is treated as silence: a tap that
+/// ahead of it, when the missing call audio is treated as silence: a tap that
 /// stalls must not stop the microphone's live text.
 ///
 /// The after-call pass measures the offset between the tracks before it
@@ -26,7 +26,7 @@ public final class LiveEchoRemover {
     /// Microphone samples not cleaned yet, starting at `micStart`.
     private var mic: [Float] = []
     private var micStart = 0
-    /// Far-end samples from `referenceStart`, kept until the microphone has
+    /// Remote samples from `referenceStart`, kept until the microphone has
     /// been cleaned past them.
     private var reference: [Float] = []
     private var referenceStart = 0
@@ -41,7 +41,7 @@ public final class LiveEchoRemover {
         self.init(canceller: try EchoModels.shippedCanceller(sampleRate: Int(LiveTrackResampler.sampleRate)))
     }
 
-    /// Adds far-end samples starting at timeline index `start`.
+    /// Adds remote samples starting at timeline index `start`.
     public func addReference(_ samples: [Float], start: Int) {
         if reference.isEmpty || start - (referenceStart + reference.count) > Self.restartGap {
             reference = []
@@ -79,7 +79,7 @@ public final class LiveEchoRemover {
         return drain(force: false)
     }
 
-    /// Cleans everything held, padding the far end with silence, for the end
+    /// Cleans everything held, padding the call audio with silence, for the end
     /// of the recording.
     public func flush() -> (samples: [Float], start: Int)? {
         drain(force: true)
@@ -110,7 +110,7 @@ public final class LiveEchoRemover {
             mic.removeFirst(real)
             micStart += real
         }
-        // The far end before the microphone's position is no longer needed.
+        // The call audio before the microphone's position is no longer needed.
         let keepFrom = micStart - referenceStart
         if keepFrom > 0 {
             let drop = min(keepFrom, reference.count)

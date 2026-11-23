@@ -9,7 +9,7 @@ public enum AudioFixtures {
     /// channel has its own pointer.
     ///
     /// `toneChannel` puts the tone on one channel and leaves the others at
-    /// zero, which is what a far end talking on one side of a stereo mixdown
+    /// zero, which is what call audio talking on one side of a stereo mixdown
     /// sounds like.
     public static func makeTone(
         seconds: Double, sampleRate: Double, channels: AVAudioChannelCount = 1,
@@ -64,7 +64,7 @@ public enum AudioFixtures {
 
     /// Energy summed across the whole band.
     ///
-    /// Use this where the microphone holds no copy of the far end. There is
+    /// Use this where the microphone holds no copy of the call audio. There is
     /// nothing to subtract, so the difference between input and output is
     /// what the canceller took out of the user.
     public static func energy(_ samples: [Float]) -> Double {
@@ -74,7 +74,7 @@ public enum AudioFixtures {
     /// Energy at one frequency, by the Goertzel recurrence.
     ///
     /// One narrow band rather than the whole spectrum. Where the microphone
-    /// does hold a copy of the far end, broadband energy after cancellation is
+    /// does hold a copy of the call audio, broadband energy after cancellation is
     /// mostly residue from subtracting it, so it says nothing about whether
     /// the user's own voice came through.
     public static func toneEnergy(

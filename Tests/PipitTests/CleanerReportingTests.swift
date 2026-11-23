@@ -5,7 +5,7 @@ import PipitServices
 import Testing
 
 /// A canceller that leaves every block exactly as it came, standing in for a
-/// pass that could not take the far end out.
+/// pass that could not take the call audio out.
 private final class PassThroughCanceller: EchoCancelling {
     let blockFrames = 160
     let latencyFrames = 0
@@ -13,20 +13,20 @@ private final class PassThroughCanceller: EchoCancelling {
     func process(microphone: inout [Float], reference: [Float]) -> Bool { true }
 }
 
-/// The cleaner writes down what happened to the far end, measured on the
+/// The cleaner writes down what happened to the call audio, measured on the
 /// audio, so a meeting whose microphone still holds the speakers says so.
-/// The fixture is the spoken call, where the far end dominates the
+/// The fixture is the spoken call, where the call audio dominates the
 /// microphone the way it does on a call taken on speakers: the envelope bar
 /// was calibrated on such calls, and a call where the user out-talks the
 /// echo reads under it before and after.
-/// On the Zoom call of 11 September 2026 the pass took 10 dB off a far end
+/// On the Zoom call of 11 September 2026 the pass took 10 dB off call audio
 /// that needed 30, recorded the outcome as cleaned, and 249 of 268 lines on
-/// the microphone were the far end's words with nothing on the meeting to
+/// the microphone were the remote track's words with nothing on the meeting to
 /// say why.
 @Suite("CleanerReporting", .tags(.slow))
 struct CleanerReportingTests {
-    @Test("a cleaned call on speakers records the far end gone from the microphone")
-    func aCleanedCallRecordsTheFarEndGone() async throws {
+    @Test("a cleaned call on speakers records the call audio gone from the microphone")
+    func aCleanedCallRecordsTheCallAudioGone() async throws {
         let root = try TestPaths.makeTemporaryDirectory()
         defer { try? FileManager.default.removeItem(at: root) }
         let meeting = try MicrophoneCleaningFixtures.makeSpokenCall(root: root)
@@ -40,13 +40,14 @@ struct CleanerReportingTests {
         let before = try #require(cleaned.echoCorrelationBefore)
         let after = try #require(cleaned.echoCorrelationAfter)
         #expect(before >= CleanedMicrophone.echoCorrelationBar, "the recording holds an echo path: \(before)")
-        #expect(after < CleanedMicrophone.echoCorrelationBar, "the cleaned track still follows the far end: \(after)")
+        #expect(
+            after < CleanedMicrophone.echoCorrelationBar, "the cleaned track still follows the call audio: \(after)")
         #expect(!cleaned.echoRemains)
         #expect(cleaned.echoRemovedMedianDB > 10, "measured \(cleaned.echoRemovedMedianDB) dB")
     }
 
-    @Test("a pass that left the far end in the microphone is recorded as such")
-    func aPassThatLeftTheFarEndIsRecorded() async throws {
+    @Test("a pass that left the call audio in the microphone is recorded as such")
+    func aPassThatLeftTheCallAudioIsRecorded() async throws {
         let root = try TestPaths.makeTemporaryDirectory()
         defer { try? FileManager.default.removeItem(at: root) }
         let meeting = try MicrophoneCleaningFixtures.makeSpokenCall(root: root)
@@ -60,19 +61,19 @@ struct CleanerReportingTests {
         #expect(outcome == CleaningOutcome.cleaned)
         let cleaned = try #require(try store.readMetadata().cleanedMic)
         let after = try #require(cleaned.echoCorrelationAfter)
-        #expect(after >= CleanedMicrophone.echoCorrelationBar, "the far end is still there: \(after)")
+        #expect(after >= CleanedMicrophone.echoCorrelationBar, "the call audio is still there: \(after)")
         #expect(cleaned.echoRemains)
         #expect(abs(cleaned.echoRemovedMedianDB) < 1, "measured \(cleaned.echoRemovedMedianDB) dB")
     }
 
-    @Test("a record without the measurement does not claim the far end remained")
+    @Test("a record without the measurement does not claim the call audio remained")
     func aRecordWithoutTheMeasurementClaimsNothing() {
         let record = CleanedMicrophone(
             track: AudioArchive.Track(
                 file: "mic.cleaned.m4a", sampleRate: 16_000, channelCount: 1, frameCount: 16_000,
                 seconds: 1, firstFrameHostTime: nil
             ),
-            echoRemovedMedianDB: 0.2, farEndActiveWindows: 200, producedAt: Date()
+            echoRemovedMedianDB: 0.2, remoteActiveWindows: 200, producedAt: Date()
         )
         #expect(!record.echoRemains)
     }

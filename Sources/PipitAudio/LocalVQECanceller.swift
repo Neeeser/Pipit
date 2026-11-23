@@ -6,10 +6,10 @@ import Foundation
 /// over what the filter leaves.
 ///
 /// The filter-only model is the first stage of the pass Pipit ships. It lines
-/// the far end up on its own (a lead of up to a second), takes the bulk of the
+/// the call audio up on its own (a lead of up to a second), takes the bulk of the
 /// echo out linearly, and hands the rest to the neural stage. Measured on the
 /// bake-off of 10 October 2026 (`Benchmarks/aec`): alone it leaves 11.6
-/// far-end words per minute on clips with a nonlinear far end and 31 on
+/// remote words per minute on clips with a nonlinear call audio and 31 on
 /// real-device recordings, which the neural stage brings down to 0.2 and 0.6.
 ///
 /// The library reads the model from a path and checks its digest against a

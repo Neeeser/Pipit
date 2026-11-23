@@ -864,7 +864,7 @@ struct SpeakerStoreTests {
         defer { try? FileManager.default.removeItem(at: root) }
         let service = SpeakerRecognitionService(store: store)
         let me = try await store.createPerson(name: "Marlow", isLocalUser: true)
-        // The far end, on its own track, which is what makes "the
+        // The call audio, on its own track, which is what makes "the
         // microphone track is the local user" mean anything.
         try await store.recordOccurrence(
             meetingID: "m1", clusterID: "remote-001_speaker_00", track: .remote,
@@ -883,7 +883,7 @@ struct SpeakerStoreTests {
 
     @Test("nothing to check bleed against is a refusal, not a pass")
     func nothingToCheckBleedAgainstIsARefusalNotAPass() async throws {
-        // The far end is recorded but produced no vectors: a cloud
+        // The call audio is recorded but produced no vectors: a cloud
         // diarizer with the fill-in pass switched off, or a track that
         // would not decode. Reading "nothing to compare against" as "no
         // bleed" let the microphone's dominant voice into the one profile
@@ -909,7 +909,7 @@ struct SpeakerStoreTests {
         let service = SpeakerRecognitionService(store: store)
         let me = try await store.createPerson(name: "Marlow", isLocalUser: true)
 
-        // The far end, already diarized on the remote track.
+        // The call audio, already diarized on the remote track.
         let presenter = SpeakerFixtures.vector(seed: 77)
         try await store.recordOccurrence(
             meetingID: "m1", clusterID: "remote-001_speaker_00", track: .remote,

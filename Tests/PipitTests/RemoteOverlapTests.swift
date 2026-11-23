@@ -41,51 +41,51 @@ private func micText(_ utterances: [Utterance]) -> [String] {
     utterances.filter { $0.track == .mic }.map(\.text)
 }
 
-/// The far end played out of the speakers and back into the microphone, and
+/// The call audio played out of the speakers and back into the microphone, and
 /// what the canceller left of it was transcribed under the user's name. On a
 /// call of 11 September 2026, 249 of 268 lines on the microphone repeated the
-/// far end's words at the same moment. A line that is mostly the far end's
-/// own words, said at the same moment, is the far end.
-@Suite("FarEndOverlap")
-struct FarEndOverlapTests {
-    @Test("a microphone line that repeats the far end's words at the same moment is dropped")
-    func aMicrophoneLineThatRepeatsTheFarEndIsDropped() {
+/// remote track's words at the same moment. A line that is mostly the remote track's
+/// own words, said at the same moment, is the call audio.
+@Suite("RemoteOverlap")
+struct RemoteOverlapTests {
+    @Test("a microphone line that repeats the remote track's words at the same moment is dropped")
+    func aMicrophoneLineThatRepeatsTheCallAudioIsDropped() {
         let remote = line("we should look at the deployment plan before friday", track: .remote, from: 10)
         let echo = line("we should look at the deployment plan before friday", track: .mic, from: 10.1)
-        let kept = FarEndOverlap.drop([remote, echo])
+        let kept = RemoteOverlap.drop([remote, echo])
         #expect(kept.map(\.id) == [remote.id])
     }
 
-    @Test("a garbled copy of the far end still counts as the far end")
+    @Test("a garbled copy of the call audio still counts as the call audio")
     func aGarbledCopyStillCounts() {
         let remote = line("maybe just a quick intro of myself and then the team", track: .remote, from: 10)
         let echo = line("maybe just uh quick intro myself and then the team", track: .mic, from: 10.2)
-        #expect(FarEndOverlap.drop([remote, echo]).map(\.id) == [remote.id])
+        #expect(RemoteOverlap.drop([remote, echo]).map(\.id) == [remote.id])
     }
 
     @Test("the user's own sentence stays even when a few words match")
     func theUsersOwnSentenceStays() {
         let remote = line("the deployment plan needs another review", track: .remote, from: 10)
         let user = line("I think the plan is fine but the budget needs work first", track: .mic, from: 10.5)
-        #expect(FarEndOverlap.drop([remote, user]).count == 2)
+        #expect(RemoteOverlap.drop([remote, user]).count == 2)
     }
 
-    @Test("a short reply stays even when every word was also said by the far end")
+    @Test("a short reply stays even when every word was also said by the call audio")
     func aShortReplyStays() {
         let remote = line("that sounds right to me", track: .remote, from: 10)
         let reply = line("sounds right", track: .mic, from: 11)
-        #expect(FarEndOverlap.drop([remote, reply]).count == 2)
+        #expect(RemoteOverlap.drop([remote, reply]).count == 2)
     }
 
     @Test("the same words said ten seconds apart are two people")
     func theSameWordsTenSecondsApartStay() {
         let remote = line("we should look at the deployment plan before friday", track: .remote, from: 10)
         let later = line("we should look at the deployment plan before friday", track: .mic, from: 22)
-        #expect(FarEndOverlap.drop([remote, later]).count == 2)
+        #expect(RemoteOverlap.drop([remote, later]).count == 2)
     }
 
-    @Test("a user who repeats the far end's words a few seconds later keeps the line")
-    func aUserRepeatingTheFarEndAFewSecondsLaterKeepsTheLine() {
+    @Test("a user who repeats the remote track's words a few seconds later keeps the line")
+    func aUserRepeatingTheCallAudioAFewSecondsLaterKeepsTheLine() {
         // Two people in one conversation, one saying back what the other said.
         // The two lines overlap in time, so the lines are near each other, but
         // every shared word is spoken seconds apart. Echo is the same sound at
@@ -93,21 +93,21 @@ struct FarEndOverlapTests {
         let remote = line("we should look at the deployment plan before friday", track: .remote, from: 10)
         let repeated = line(
             "so look at the deployment plan before friday", track: .mic, from: 12.4)
-        #expect(FarEndOverlap.drop([remote, repeated]).count == 2)
+        #expect(RemoteOverlap.drop([remote, repeated]).count == 2)
     }
 
-    @Test("a line is the far end only when its words fall at the far end's own moments")
-    func aLineIsTheFarEndOnlyWhenItsWordsFallAtTheFarEndsMoments() {
+    @Test("a line is the call audio only when its words fall at the remote track's own moments")
+    func aLineIsRemoteOnlyWhenItsWordsFallWhileTheRemoteTrackSpeaks() {
         let remote = line("we should look at the deployment plan before friday", track: .remote, from: 10)
-        // The echo is slower than the far end by a fraction of a second per word,
+        // The echo is slower than the call audio by a fraction of a second per word,
         // so its words drift but each stays within a second of the original.
         let drifting = line(
             "we should look at the deployment plan before friday", track: .mic, from: 10.3,
             wordSeconds: 0.45)
-        #expect(FarEndOverlap.drop([remote, drifting]).map(\.id) == [remote.id])
+        #expect(RemoteOverlap.drop([remote, drifting]).map(\.id) == [remote.id])
     }
 
-    @Test("a line that joins the user's own words to the far end's echo loses only the echo")
+    @Test("a line that joins the user's own words to the remote track's echo loses only the echo")
     func aLineJoiningTheUsersWordsToEchoLosesOnlyTheEcho() {
         // The transcript joins segments less than a second and a quarter apart,
         // so the user's sentence and the echo that follows it arrive as one line.
@@ -119,7 +119,7 @@ struct FarEndOverlapTests {
         joined.text = own.text + " " + echo.text
         joined.end = echo.end
 
-        let kept = FarEndOverlap.drop([remote, joined]).filter { $0.track == .mic }
+        let kept = RemoteOverlap.drop([remote, joined]).filter { $0.track == .mic }
         #expect(kept.map(\.text) == ["I checked the budget numbers yesterday morning"])
         #expect(kept.first?.start == own.start)
         #expect(kept.first?.end == own.end)
@@ -136,7 +136,7 @@ struct FarEndOverlapTests {
         joined.text = [before.text, echo.text, after.text].joined(separator: " ")
         joined.end = after.end
 
-        let kept = FarEndOverlap.drop([remote, joined]).filter { $0.track == .mic }
+        let kept = RemoteOverlap.drop([remote, joined]).filter { $0.track == .mic }
         #expect(
             kept.map(\.text) == [
                 "I checked the budget numbers yesterday", "and the hiring plan next",
@@ -144,10 +144,10 @@ struct FarEndOverlapTests {
         #expect(Set(kept.map(\.id)).count == 2)
     }
 
-    @Test("with no far end on record nothing is dropped")
-    func withNoFarEndNothingIsDropped() {
+    @Test("with no call audio on record nothing is dropped")
+    func withNoRemoteTrackNothingIsDropped() {
         let user = line("we should look at the deployment plan before friday", track: .mic, from: 10)
-        #expect(FarEndOverlap.drop([user]).count == 1)
+        #expect(RemoteOverlap.drop([user]).count == 1)
     }
 
     @Test("echo, then the user's own sentence, then more echo keeps the sentence")
@@ -159,7 +159,7 @@ struct FarEndOverlapTests {
         let own = line("I checked the budget numbers yesterday morning", track: .mic, from: 14)
         let echo2 = line(
             "please send the updated budget numbers after lunch today", track: .mic, from: 18.1)
-        let kept = FarEndOverlap.drop([first, second, joined(echo1, own, echo2)])
+        let kept = RemoteOverlap.drop([first, second, joined(echo1, own, echo2)])
         #expect(micText(kept) == ["I checked the budget numbers yesterday morning"])
     }
 
@@ -167,7 +167,7 @@ struct FarEndOverlapTests {
     func misheardEchoAtTheEndGoesWithTheRun() {
         let remote = line("we should look at the deployment plan before friday", track: .remote, from: 10)
         let echo = line("we should look at the deployment plan before fry day", track: .mic, from: 10.2)
-        #expect(micText(FarEndOverlap.drop([remote, echo])).isEmpty)
+        #expect(micText(RemoteOverlap.drop([remote, echo])).isEmpty)
     }
 
     @Test("echo the microphone mis-hears at the start of a run goes with the run")
@@ -175,32 +175,32 @@ struct FarEndOverlapTests {
         let remote = line("we should look at the deployment plan before friday", track: .remote, from: 10)
         let echo = line(
             "wee shoulder look at the deployment plan before friday", track: .mic, from: 10.2)
-        #expect(micText(FarEndOverlap.drop([remote, echo])).isEmpty)
+        #expect(micText(RemoteOverlap.drop([remote, echo])).isEmpty)
     }
 
-    @Test("the user's words after an echo stay, even where the far end goes on talking")
+    @Test("the user's words after an echo stay, even where the call audio goes on talking")
     func theUsersWordsAfterEchoStay() {
         let remote = line(
             "we should look at the deployment plan before friday and then check the budget",
             track: .remote, from: 10)
         let echo = line("we should look at the deployment plan before friday", track: .mic, from: 10.1)
         let own = line("lunch tomorrow", track: .mic, from: 10.1 + 9 * 0.4)
-        let kept = FarEndOverlap.drop([remote, joined(echo, own)])
+        let kept = RemoteOverlap.drop([remote, joined(echo, own)])
         #expect(micText(kept) == ["lunch tomorrow"])
     }
 
-    @Test("a short word the far end repeats once counts once")
-    func aRepeatedWordPairsWithOneFarEndWord() {
+    @Test("a short word the call audio repeats once counts once")
+    func aRepeatedWordPairsWithOneRemoteWord() {
         let remote = line("the budget is fine", track: .remote, from: 10)
         let user = line("budget budget budget budget", track: .mic, from: 10.2)
-        #expect(micText(FarEndOverlap.drop([remote, user])) == ["budget budget budget budget"])
+        #expect(micText(RemoteOverlap.drop([remote, user])) == ["budget budget budget budget"])
     }
 
-    @Test("backchannels the far end also said never make a line the far end's")
+    @Test("backchannels the call audio also said never make a line the remote track's")
     func backchannelsStay() {
         let remote = line("yes okay yes okay right", track: .remote, from: 20)
         let user = line("yeah okay yes okay right", track: .mic, from: 20.3)
-        #expect(micText(FarEndOverlap.drop([remote, user])) == ["yeah okay yes okay right"])
+        #expect(micText(RemoteOverlap.drop([remote, user])) == ["yeah okay yes okay right"])
     }
 
     @Test("function words in an echo count toward it, so a short echo run is still removed")
@@ -209,7 +209,7 @@ struct FarEndOverlapTests {
             "and we all agree on the schedule we want to have something ready", track: .remote, from: 10)
         let echo = line(
             "the early schedule we want to have something", track: .mic, from: 11.3)
-        #expect(micText(FarEndOverlap.drop([remote, echo])).isEmpty)
+        #expect(micText(RemoteOverlap.drop([remote, echo])).isEmpty)
     }
 
     @Test("a trailing echo with few distinctive words goes and the words before it stay")
@@ -218,7 +218,7 @@ struct FarEndOverlapTests {
             "around eight o'clock I want to see the news in the television", track: .remote, from: 10)
         let mixed = line(
             "I should look at that data to see the news in the television", track: .mic, from: 9.7)
-        #expect(micText(FarEndOverlap.drop([remote, mixed])) == ["I should look at that data"])
+        #expect(micText(RemoteOverlap.drop([remote, mixed])) == ["I should look at that data"])
     }
 
     @Test("echo split across two microphone lines goes")
@@ -226,7 +226,7 @@ struct FarEndOverlapTests {
         let remote = line("we should look at the deployment plan before friday", track: .remote, from: 10)
         let first = line("we should look at the", track: .mic, from: 10.1)
         let second = line("deployment plan before friday", track: .mic, from: 12.1)
-        #expect(micText(FarEndOverlap.drop([remote, first, second])).isEmpty)
+        #expect(micText(RemoteOverlap.drop([remote, first, second])).isEmpty)
     }
 
     @Test("a line after a short echo line stays")
@@ -234,7 +234,7 @@ struct FarEndOverlapTests {
         let remote = line("we should look at the deployment plan before friday", track: .remote, from: 10)
         let first = line("we should look at the", track: .mic, from: 10.1)
         let own = line("I will send the budget numbers", track: .mic, from: 12.1)
-        #expect(micText(FarEndOverlap.drop([remote, first, own])).contains(own.text))
+        #expect(micText(RemoteOverlap.drop([remote, first, own])).contains(own.text))
     }
 
     @Test("a microphone line without word timings is judged whole by its span")
@@ -242,20 +242,20 @@ struct FarEndOverlapTests {
         let remote = line("we should look at the deployment plan before friday", track: .remote, from: 10)
         let echo = untimed(line("we should look at the deployment plan before friday", track: .mic, from: 10.1))
         let later = untimed(line("we should look at the deployment plan before friday", track: .mic, from: 22))
-        #expect(FarEndOverlap.drop([remote, echo]).map(\.id) == [remote.id])
-        #expect(FarEndOverlap.drop([remote, later]).count == 2)
+        #expect(RemoteOverlap.drop([remote, echo]).map(\.id) == [remote.id])
+        #expect(RemoteOverlap.drop([remote, later]).count == 2)
     }
 
-    @Test("a far-end line without word timings gives its span to every word")
-    func aFarEndLineWithoutTimingsGivesItsSpan() {
+    @Test("a remote line without word timings gives its span to every word")
+    func aRemoteLineWithoutTimingsGivesItsSpan() {
         let remote = untimed(
             line(
                 "we should look at the deployment plan before friday and then check the budget",
                 track: .remote, from: 10))
         let echo = line("we should look at the deployment plan before friday", track: .mic, from: 10.1)
         let late = line("so look at the deployment plan before friday then", track: .mic, from: 18)
-        #expect(micText(FarEndOverlap.drop([remote, echo])).isEmpty)
-        #expect(micText(FarEndOverlap.drop([remote, late])) == [late.text])
+        #expect(micText(RemoteOverlap.drop([remote, echo])).isEmpty)
+        #expect(micText(RemoteOverlap.drop([remote, late])) == [late.text])
     }
 
     @Test("the assembler drops the echo before it interleaves turns")

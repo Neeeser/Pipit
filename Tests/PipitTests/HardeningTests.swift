@@ -105,7 +105,7 @@ private final class EmittingTap: ProcessTapController, @unchecked Sendable {
 
     /// `amplitude: 0` is the digital zero a tap reads when it is pointed at
     /// the wrong stream of the aggregate device. `toneChannel` leaves every
-    /// other channel at zero, which is a far end sitting on one side of the
+    /// other channel at zero, which is call audio sitting on one side of the
     /// tap's stereo mixdown.
     func emit(
         seconds: Double, hostTime: Double, amplitude: Float = 0.5, toneChannel: Int? = nil
@@ -403,7 +403,7 @@ struct CaptureEngineHardeningTests {
         // A candidate arms the tap while a browser sits on a provider page,
         // and the browser reports output for as long as any page holds an
         // audio stream open. Warning about the zeros then told the user a
-        // recording was losing its far end while nothing was recorded, and
+        // recording was losing its call audio while nothing was recorded, and
         // told them again every time the candidate was armed anew.
         let root = try TestPaths.makeTemporaryDirectory()
         defer { try? FileManager.default.removeItem(at: root) }
@@ -433,7 +433,7 @@ struct CaptureEngineHardeningTests {
         }
         #expect(delegate.warnings.isEmpty, "nothing is recorded, so nothing is lost: \(delegate.warnings)")
 
-        // The same zeros once the meeting is on disk are the far end missing.
+        // The same zeros once the meeting is on disk are the call audio missing.
         try await engine.commit(layout: layout, meetingID: "m", source: .googleMeet)
         for _ in 0..<25 {
             tap.withLock { $0?.emit(seconds: 0.02, hostTime: HostTime.now, amplitude: 0) }
@@ -456,14 +456,14 @@ struct CaptureEngineHardeningTests {
         )
     }
 
-    @Test("a far end on one channel of a stereo tap raises nothing")
-    func aFarEndOnOneChannelOfAStereoTapRaisesNothing() async throws {
+    @Test("call audio on one channel of a stereo tap raises nothing")
+    func aRemoteTrackOnOneChannelOfAStereoTapRaisesNothing() async throws {
         // The production shape. A tap's format is always
         // `standardFormatWithSampleRate:channels:2`, so every real
         // remote buffer is deinterleaved with two channel pointers, and
-        // a peak read from the first pointer alone calls a far end that
+        // a peak read from the first pointer alone calls call audio that
         // sits on the second one digital zero. That reads as silence
-        // for as long as the far end stays there, rebinding the tap and
+        // for as long as the call audio stays there, rebinding the tap and
         // warning the user through a meeting that is being recorded
         // correctly.
         let (delegate, _) = try await Self.recordTapAudio(
@@ -701,7 +701,7 @@ struct CaptureEngineHardeningTests {
         // reported to nobody. On a call of 5 October 2026 the microphone
         // stalled for 3.3 s at the end of the window, was rebuilt twice, and
         // came back after the ring was flushed. The recording lost the 3.3 s,
-        // the microphone ran that far ahead of the far end for the rest of the
+        // the microphone ran that far ahead of the call audio for the rest of the
         // call, and the echo canceller was handed a reference 3.2 s out of
         // step.
         let root = try TestPaths.makeTemporaryDirectory()
@@ -895,7 +895,7 @@ struct FirstSegmentFormatTests {
 
     @Test("a first remote segment opens at the format of the audio in the ring")
     func aFirstRemoteSegmentOpensAtTheFormatOfTheAudioInTheRing() async throws {
-        // The far-end tap rebinds while armed, for instance when the output
+        // The remote tap rebinds while armed, for instance when the output
         // switches to a headset at another sample rate. Its ring starts with
         // the old rate's audio.
         let root = try TestPaths.makeTemporaryDirectory()

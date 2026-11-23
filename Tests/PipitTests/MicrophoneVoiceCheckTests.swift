@@ -5,48 +5,48 @@ import Testing
 @Suite("MicrophoneVoiceCheck")
 struct MicrophoneVoiceCheckTests {
     // Scores are the ones measured on real meetings, recorded in the type's
-    // documentation: the user's own lines, and lines a far-end voice leaked
-    // onto the microphone while the far-end tap recorded silence.
+    // documentation: the user's own lines, and lines a remote voice leaked
+    // onto the microphone while the remote tap recorded silence.
 
     @Test("the user's own lines stay theirs")
     func theUsersOwnLinesStayTheirs() {
-        #expect(MicrophoneVoiceCheck.decide(ownScore: 0.63, farEnd: ["remote-001_speaker_04": 0.40]) == .keep)
-        #expect(MicrophoneVoiceCheck.decide(ownScore: 0.95, farEnd: ["remote-001_speaker_02": 0.43]) == .keep)
+        #expect(MicrophoneVoiceCheck.decide(ownScore: 0.63, remote: ["remote-001_speaker_04": 0.40]) == .keep)
+        #expect(MicrophoneVoiceCheck.decide(ownScore: 0.95, remote: ["remote-001_speaker_02": 0.43]) == .keep)
     }
 
-    @Test("a far-end voice on the microphone goes to the far-end speaker it matches")
-    func aFarEndVoiceGoesToItsSpeaker() {
+    @Test("a remote voice on the microphone goes to the remote speaker it matches")
+    func aRemoteVoiceGoesToItsSpeaker() {
         let decision = MicrophoneVoiceCheck.decide(
             ownScore: 0.15,
-            farEnd: ["remote-001_speaker_06": 0.73, "remote-001_speaker_00": 0.22])
-        #expect(decision == .farEnd(speakerKey: "remote-001_speaker_06"))
+            remote: ["remote-001_speaker_06": 0.73, "remote-001_speaker_00": 0.22])
+        #expect(decision == .remote(speakerKey: "remote-001_speaker_06"))
         #expect(
-            MicrophoneVoiceCheck.decide(ownScore: 0.45, farEnd: ["remote-001_speaker_03": 0.68])
-                == .farEnd(speakerKey: "remote-001_speaker_03"))
+            MicrophoneVoiceCheck.decide(ownScore: 0.45, remote: ["remote-001_speaker_03": 0.68])
+                == .remote(speakerKey: "remote-001_speaker_03"))
     }
 
     @Test("a voice that is not the user and matches nobody is unattributed")
     func anUnmatchedVoiceIsUnattributed() {
-        #expect(MicrophoneVoiceCheck.decide(ownScore: 0.17, farEnd: ["remote-001_speaker_10": 0.26]) == .unattributed)
-        #expect(MicrophoneVoiceCheck.decide(ownScore: 0.12, farEnd: [:]) == .unattributed)
+        #expect(MicrophoneVoiceCheck.decide(ownScore: 0.17, remote: ["remote-001_speaker_10": 0.26]) == .unattributed)
+        #expect(MicrophoneVoiceCheck.decide(ownScore: 0.12, remote: [:]) == .unattributed)
     }
 
-    @Test("an uncertain line with no clear far-end match stays with the user")
+    @Test("an uncertain line with no clear remote match stays with the user")
     func anUncertainLineStays() {
-        #expect(MicrophoneVoiceCheck.decide(ownScore: 0.45, farEnd: ["remote-001_speaker_01": 0.50]) == .keep)
+        #expect(MicrophoneVoiceCheck.decide(ownScore: 0.45, remote: ["remote-001_speaker_01": 0.50]) == .keep)
         #expect(
-            MicrophoneVoiceCheck.decide(ownScore: 0.50, farEnd: ["remote-001_speaker_01": 0.62]) == .keep,
-            "a far-end match within the margin of the user's own score is not enough")
+            MicrophoneVoiceCheck.decide(ownScore: 0.50, remote: ["remote-001_speaker_01": 0.62]) == .keep,
+            "a remote match within the margin of the user's own score is not enough")
     }
 
     @Test("a line too quiet to judge stays with the user")
     func aLineTooQuietToJudgeStays() {
         let lines = [
-            MicrophoneVoiceCheck.Line(id: "own", levelDB: -35, ownScore: 0.84, farEnd: ["remote-001_speaker_01": 0.20]),
+            MicrophoneVoiceCheck.Line(id: "own", levelDB: -35, ownScore: 0.84, remote: ["remote-001_speaker_01": 0.20]),
             MicrophoneVoiceCheck.Line(
-                id: "quiet", levelDB: -81, ownScore: 0.05, farEnd: ["remote-001_speaker_01": 0.10]),
+                id: "quiet", levelDB: -81, ownScore: 0.05, remote: ["remote-001_speaker_01": 0.10]),
             MicrophoneVoiceCheck.Line(
-                id: "unmatched", levelDB: -40, ownScore: 0.12, farEnd: ["remote-001_speaker_01": 0.20]),
+                id: "unmatched", levelDB: -40, ownScore: 0.12, remote: ["remote-001_speaker_01": 0.20]),
         ]
         let decisions = MicrophoneVoiceCheck.decide(lines)
         #expect(decisions["own"] == .keep)
@@ -57,17 +57,17 @@ struct MicrophoneVoiceCheckTests {
     @Test("a meeting where most lines fail the profile makes nobody unattributed")
     func aMeetingTheProfileDoesNotFitMakesNobodyUnattributed() {
         // Three of four lines fail the profile: the profile does not fit this
-        // recording, so failing it says nothing. The far-end match still counts.
+        // recording, so failing it says nothing. The remote match still counts.
         let lines = [
-            MicrophoneVoiceCheck.Line(id: "a", levelDB: -40, ownScore: 0.05, farEnd: ["remote-001_speaker_01": 0.20]),
-            MicrophoneVoiceCheck.Line(id: "b", levelDB: -40, ownScore: 0.10, farEnd: ["remote-001_speaker_01": 0.25]),
-            MicrophoneVoiceCheck.Line(id: "c", levelDB: -40, ownScore: 0.15, farEnd: ["remote-001_speaker_01": 0.72]),
-            MicrophoneVoiceCheck.Line(id: "d", levelDB: -40, ownScore: 0.80, farEnd: ["remote-001_speaker_01": 0.20]),
+            MicrophoneVoiceCheck.Line(id: "a", levelDB: -40, ownScore: 0.05, remote: ["remote-001_speaker_01": 0.20]),
+            MicrophoneVoiceCheck.Line(id: "b", levelDB: -40, ownScore: 0.10, remote: ["remote-001_speaker_01": 0.25]),
+            MicrophoneVoiceCheck.Line(id: "c", levelDB: -40, ownScore: 0.15, remote: ["remote-001_speaker_01": 0.72]),
+            MicrophoneVoiceCheck.Line(id: "d", levelDB: -40, ownScore: 0.80, remote: ["remote-001_speaker_01": 0.20]),
         ]
         let decisions = MicrophoneVoiceCheck.decide(lines)
         #expect(decisions["a"] == .keep)
         #expect(decisions["b"] == .keep)
-        #expect(decisions["c"] == .farEnd(speakerKey: "remote-001_speaker_01"))
+        #expect(decisions["c"] == .remote(speakerKey: "remote-001_speaker_01"))
         #expect(decisions["d"] == .keep)
     }
 
@@ -88,10 +88,10 @@ struct MicrophoneVoiceCheckTests {
             ])
         let updated = MicrophoneVoiceCheck.apply(
             [
-                "leaked": .farEnd(speakerKey: "remote-001_speaker_06"),
+                "leaked": .remote(speakerKey: "remote-001_speaker_06"),
                 "unmatched": .unattributed,
                 "own": .keep,
-                "already-moved": .farEnd(speakerKey: "remote-001_speaker_06"),
+                "already-moved": .remote(speakerKey: "remote-001_speaker_06"),
             ], to: transcript)
         #expect(
             updated.utterances.map(\.speakerKey) == [
