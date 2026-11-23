@@ -45,6 +45,10 @@
         {
           "version": "0.1.12.63",
           "update_link": "https://github.com/Neeeser/Pipit/releases/download/v0.1.12/pipit-sensor.xpi"
+        },
+        {
+          "version": "0.1.13.90",
+          "update_link": "https://github.com/Neeeser/Pipit/releases/download/v0.1.13/pipit-sensor.xpi"
         }
       ]
     }
