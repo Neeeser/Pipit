@@ -11,8 +11,8 @@ revision of each named model as found in the local cache, the packages
 installed for a Python interpreter, and a SHA-256 for each input file.
 
 It cannot see inside folders git ignores, such as `probes/`: scripts there
-appear only if named with `--code`. A diff that contains the home directory
-has it replaced by `~`.
+appear only if named with `--code`. A diff or input path that contains the home
+directory has it replaced by `~`.
 """
 
 import argparse
@@ -63,6 +63,11 @@ def untracked_files() -> dict[str, str]:
     return {name: sha256(ROOT / name) for name in names}
 
 
+def input_checksums(paths: list[Path], home: str) -> dict[str, str]:
+    """A SHA-256 for each input, keyed by its path with the home directory written as `~`."""
+    return {redact_home(str(path), home)[0]: sha256(path) for path in paths}
+
+
 def sha256(path: Path) -> str:
     digest = hashlib.sha256()
     with path.open("rb") as file:
@@ -97,7 +102,7 @@ def main() -> None:
         "swiftPackages": swift_packages(),
         "huggingFaceModels": {model: hf_revision(model) for model in args.hf_model},
         "pythonPackages": python_packages(args.python) if args.python else {},
-        "inputs": {str(path): sha256(path) for path in args.input},
+        "inputs": input_checksums(args.input, str(Path.home())),
     }
     print(json.dumps(record, indent=1))
 
