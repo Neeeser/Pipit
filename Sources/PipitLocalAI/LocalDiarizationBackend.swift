@@ -1,5 +1,6 @@
 import Foundation
 import PipitCore
+import Synchronization
 
 /// The diarizer Pipit ships for a finished meeting's remote speakers: Nemotron
 /// 3 Diarization, with the offline clusterer behind it for the meetings
@@ -65,24 +66,34 @@ public struct LocalDiarizationBackend: DiarizationBackend {
     public var producesEmbeddings: Bool { false }
     public var producesTranscript: Bool { false }
 
+    /// How much of the bar Nemotron's own progress fills.
+    static let primaryShare = 0.9
+
     public func diarize(
         audio: URL, progress: @escaping @Sendable (Double) -> Void
     ) async throws -> DiarizationOutput {
-        // Nemotron's progress fills the first half and the clusterer's the
-        // second, so a fallback continues the bar instead of restarting it. A
-        // finished Nemotron run reports the rest itself.
+        // Nemotron fills nine tenths of the bar, and only an answer that is
+        // kept fills the rest. A rejected or failed run hands the clusterer the
+        // bar from where Nemotron stopped, so it never sits full or goes back.
+        let sent = Mutex(0.0)
+        let send: @Sendable (Double) -> Void = { value in
+            let forward = sent.withLock { last -> Double in
+                last = max(last, min(max(value, 0), 1))
+                return last
+            }
+            progress(forward)
+        }
         let reason: Reason
         do {
             let output = try await primary.diarize(
-                audio: audio, progress: { progress(min(max($0, 0), 1) * 0.5) }
-            )
+                audio: audio, progress: { send(min(max($0, 0), 1) * Self.primaryShare) })
             if Self.foundNoSpeakerInLoudAudio(output) {
                 reason = .modelFailed
                 Log.processing.notice("nemotron diarization found no speaker in audible audio, using the clusterer")
             } else if output.clusters.count >= slotLimit {
                 reason = .allSpeakerSlotsUsed
             } else {
-                progress(1)
+                send(1)
                 return Self.recording(.preferred, in: output)
             }
         } catch is CancellationError {
@@ -100,8 +111,9 @@ public struct LocalDiarizationBackend: DiarizationBackend {
             )
             reason = .modelFailed
         }
+        let start = sent.withLock { $0 }
         let output = try await fallback.diarize(
-            audio: audio, progress: { progress(0.5 + min(max($0, 0), 1) * 0.5) }
+            audio: audio, progress: { send(start + (1 - start) * min(max($0, 0), 1)) }
         )
         return Self.recording(reason, in: output)
     }

@@ -102,7 +102,36 @@ struct MeetingTranscriptView: View {
         .padding(.bottom, 16)
     }
 
-    private var waiting: some View {
+    @ViewBuilder private var waiting: some View {
+        if let steps = processingSteps {
+            ScrollView {
+                ProcessingStepsView(
+                    steps: steps, clock: detail.processingClock, history: detail.processingTimes,
+                    now: { [detail] in detail.processingNow }
+                )
+                .padding(.horizontal, 24)
+                .padding(.top, 20)
+                .padding(.bottom, 20)
+                .frame(maxWidth: MeetingDetailView.columnWidth, alignment: .leading)
+                .frame(maxWidth: .infinity)
+            }
+        } else {
+            statusLine
+        }
+    }
+
+    /// The steps while the meeting is processed. The live progress line names
+    /// the stage before the metadata on disk is reloaded, so it wins.
+    private var processingSteps: ProcessingSteps? {
+        guard let state = detail.progress?.state ?? detail.metadata?.processing.state else { return nil }
+        return ProcessingSteps(
+            state: state, progress: detail.progress, metadata: detail.metadata,
+            reached: detail.processingClock?.reached)
+    }
+
+    /// For a meeting still recording, one that failed, or one with nothing on
+    /// disk yet.
+    private var statusLine: some View {
         VStack(alignment: .leading, spacing: 10) {
             HStack(spacing: 8) {
                 if detail.metadata?.processing.state != .failed {
@@ -111,12 +140,6 @@ struct MeetingTranscriptView: View {
                 Text(processingLabel).foregroundStyle(.secondary)
                 Button("Refresh") { detail.reload() }.buttonStyle(.link)
             }
-            if let progress = detail.progress, progress.totalChunks > 0 {
-                ProgressView(
-                    value: Double(progress.completedChunks), total: Double(progress.totalChunks)
-                )
-                .frame(maxWidth: 360)
-            }
             Spacer()
         }
         .padding(.horizontal, 20)
@@ -124,16 +147,10 @@ struct MeetingTranscriptView: View {
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 
-    /// What the pane says while it waits.
+    /// What the pane says when there are no steps to show. A run in progress
+    /// shows its steps instead, so no progress is read here.
     private var processingLabel: String {
-        guard let state = detail.metadata?.processing.state else { return "Waiting" }
-        if let progress = detail.progress, let text = progress.detail { return text }
-        if let progress = detail.progress, let fraction = progress.fraction,
-            fraction > 0, fraction < 1
-        {
-            return "\(state.displayName), \(Int(fraction * 100))%"
-        }
-        return state.displayName
+        detail.metadata?.processing.state.displayName ?? "Waiting"
     }
 
     /// What the pane says when the conversation is held in more than one

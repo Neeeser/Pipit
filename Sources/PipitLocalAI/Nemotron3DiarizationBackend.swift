@@ -334,7 +334,10 @@ extension LocalModelManager {
         }
         return try await Self.nemotron3Runs.run {
             var provenance = Nemotron3DiarizationBackend.provenance(preset: preset)
-            progress(0.02)
+            // Nothing is reported until audio flows through the model. A
+            // fraction sent while the model loads would sit still for that
+            // whole minute, which reads as stuck; the pipeline says the model
+            // is loading instead.
             let silent = try Nemotron3DiarizationBackend.isEffectivelySilent(audio: audio).silent
             try Task.checkCancellation()
             guard !silent else {
@@ -342,19 +345,17 @@ extension LocalModelManager {
                 progress(1)
                 return DiarizationOutput(intervals: [], clusters: [], configuration: provenance)
             }
-            progress(0.05)
             let config = preset.configuration
             let models = try await Nemotron3Models.loadFromHuggingFace(
                 config: config, cacheDirectory: root,
                 computeUnits: LocalModelManager.nemotron3ComputeUnits
             )
             try Task.checkCancellation()
-            progress(0.1)
             // Cancellation is checked between blocks, so a cancelled job stops
             // within a few seconds of audio instead of finishing the file.
             let diarizer = Nemotron3Diarizer(config: config, models: models)
             let found = try Nemotron3DiarizationBackend.streamedSegments(
-                audio: audio, diarizer: diarizer, progress: { progress(0.1 + 0.9 * $0) }
+                audio: audio, diarizer: diarizer, progress: progress
             )
             progress(1)
             return Nemotron3DiarizationBackend.output(

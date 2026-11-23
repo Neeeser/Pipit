@@ -3466,7 +3466,7 @@ struct LocalPipelineTests {
             transcriber: transcriber, diarizer: diarizer, speakers: nil,
             settings: settings, scratchRoot: root.appendingPathComponent("scratch"),
             onProgress: { progress in
-                if progress.detail == "Removing the far end from the microphone" {
+                if progress.step == .removeEcho {
                     started.open()
                 }
             }
@@ -3476,8 +3476,8 @@ struct LocalPipelineTests {
             await run.value
             Issue.record(
                 """
-                waited 120 s for the progress line "Removing the far end \
-                from the microphone" and it never came
+                waited 120 s for the echo removal step to be reported \
+                and it never came
                 """
             )
             return

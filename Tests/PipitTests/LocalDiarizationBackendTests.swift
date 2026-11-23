@@ -152,6 +152,19 @@ struct LocalDiarizationBackendTests {
         #expect(direct.withLock { $0 }.last == 1, "a finished Nemotron run reaches the end")
     }
 
+    @Test("a rejected Nemotron answer leaves the clusterer room to fill")
+    func aRejectedAnswerLeavesRoom() async throws {
+        let seen = Mutex<[Double]>([])
+        _ = try await Self.backend(
+            primary: .success(Self.output(speakers: 8)), primarySteps: [0.5, 1], fallbackSteps: [0, 0.5, 1]
+        ).diarize(audio: Self.audio, progress: { value in seen.withLock { $0.append(value) } })
+        let values = seen.withLock { $0 }
+        #expect(values == values.sorted(), "never goes back: \(values)")
+        #expect(values.prefix(2).allSatisfy { $0 < 1 }, "Nemotron alone never fills the bar: \(values)")
+        #expect(Set(values.dropFirst(2)).count == 3, "the clusterer moves the bar: \(values)")
+        #expect(values.last == 1)
+    }
+
     @Test("cancelling the job does not start the clusterer")
     func cancellingTheJobDoesNotStartTheClusterer() async throws {
         await #expect(throws: CancellationError.self) {
