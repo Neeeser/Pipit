@@ -374,8 +374,8 @@ struct CallBenchTests {
         #expect(description.remoteTiming == nil)
     }
 
-    @Test("a case whose call audio starts late or loses audio says so")
-    func aCaseWhoseRemoteStartsLateOrLosesAudioSaysSo() throws {
+    @Test("a case whose remote track starts late or drops audio says so")
+    func aCaseWhoseRemoteTrackStartsLateOrDropsAudioSaysSo() throws {
         // The block `Benchmarks/calls/callsim.py` adds for a misaligned call audio.
         let json = """
             {"case":"X-laptop-far-end-late","meeting":"X","variant":"laptop-far-end-late",

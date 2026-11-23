@@ -881,7 +881,7 @@ enum BenchCommand {
         print(
             "  engine       " + "variant".padding(toLength: kindWidth + 2, withPad: " ", startingAt: 0)
                 + "cases     tcp    cpWER   WER  attribution"
-                + "     DER   call audio/min   lost/min   names right/wrong/unnamed   echo   built   dB"
+                + "     DER   others/min    lost/min   names right/wrong/unnamed   echo   built   dB"
         )
         for engine in Array(Set(calls.map(\.engine))).sorted() {
             let ofEngine = calls.filter { $0.engine == engine }

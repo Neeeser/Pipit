@@ -96,7 +96,7 @@ struct RemoteOverlapTests {
         #expect(RemoteOverlap.drop([remote, repeated]).count == 2)
     }
 
-    @Test("a line is the call audio only when its words fall at the remote track's own moments")
+    @Test("a line is from the remote track only when its words fall while the remote track speaks")
     func aLineIsRemoteOnlyWhenItsWordsFallWhileTheRemoteTrackSpeaks() {
         let remote = line("we should look at the deployment plan before friday", track: .remote, from: 10)
         // The echo is slower than the call audio by a fraction of a second per word,

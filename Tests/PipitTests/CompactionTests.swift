@@ -190,7 +190,7 @@ struct CompactionTests {
         #expect(
             keptDB > 20,
             """
-            mic.m4a holds the call audio only \(keptDB) dB above the cleaned track, so it was \
+            mic.m4a holds the call audio left in the microphone only \(keptDB) dB above the cleaned track, so it was \
             written from the cleaned microphone
             """
         )

@@ -205,7 +205,7 @@ enum EchoCommand {
         if report.runs.count > 1 { printRuns(report) }
         print(
             String(
-                format: "call audio         above %.1f dBFS in %d windows, %.1f%% of the meeting",
+                format: "call audio      above %.1f dBFS in %d windows, %.1f%% of the meeting",
                 report.remoteFloorDBFS, report.remoteActiveWindows, report.remoteDutyCycle * 100
             ))
         printMicrophoneFloor(report)
@@ -320,7 +320,7 @@ enum EchoCommand {
 
     private static func label(_ windowClass: EchoMeasurement.WindowClass) -> String {
         switch windowClass {
-        case .remoteOnly: "call audio only"
+        case .remoteOnly: "remote only"
         case .userOnly: "user only"
         case .both: "both"
         case .neither: "neither"

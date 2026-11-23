@@ -166,7 +166,7 @@ enum ReprocessCommand {
         print("")
         print("                      before      after")
         print("mic words       \(pad("\(before.micWords)", 12))\(after.micWords)")
-        print("remote words   \(pad("\(before.remoteWords)", 12))\(after.remoteWords)")
+        print("remote words    \(pad("\(before.remoteWords)", 12))\(after.remoteWords)")
         print("utterances      \(pad("\(before.utterances)", 12))\(after.utterances)")
         print("named speakers  \(pad("\(before.named)", 12))\(after.named)")
         if !recognize {

@@ -9,7 +9,7 @@ public enum AudioFixtures {
     /// channel has its own pointer.
     ///
     /// `toneChannel` puts the tone on one channel and leaves the others at
-    /// zero, which is what call audio talking on one side of a stereo mixdown
+    /// zero, which is what one person talking on one side of a stereo mixdown
     /// sounds like.
     public static func makeTone(
         seconds: Double, sampleRate: Double, channels: AVAudioChannelCount = 1,

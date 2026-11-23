@@ -95,7 +95,7 @@ enum AecCommand {
                 + " \(String(format: "%.3f", report.alignmentCorrelation)),"
                 + " \(report.alignmentUsable ? "used" : "not used")")
         print("offset used     \(String(format: "%+.3f", report.referenceOffsetSeconds))s")
-        print("call audio active  \(report.remoteActiveWindows) windows")
+        print("remote active   \(report.remoteActiveWindows) windows")
         print("median change   \(String(format: "%.1f", report.medianChangeDB)) dB")
         print("reported        \(String(format: "%.1f", report.reportedMedianDB)) dB")
         print("decision        \(report.decision)")

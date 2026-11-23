@@ -26,7 +26,7 @@ name, and how many of my own words went missing.
   talk (the user's own level and words), double talk (leaked words, AECMOS).
 - `meetings`: Pipit meeting folders read in place with `--meetings DIR`.
   Private. Decoded excerpts go under `--work` and nowhere else. The user's
-  own words are taken as the microphone's words the call audio did not also say.
+  own words are taken as the microphone's words the other people on the call did not also say.
   A meeting that ends before `--start` is skipped.
 - `mixes`: remote-only stretches of one private meeting plus user-only
   stretches of another, prepared as WAV files listed in a JSON spec.

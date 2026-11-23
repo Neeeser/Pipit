@@ -3201,7 +3201,7 @@ struct LocalPipelineTests {
         #expect(
             measured.remoteLostDB > 20,
             """
-            the transcriber read a microphone whose call audio is only \
+            the transcriber read a microphone with the call audio left in it only \
             \(measured.remoteLostDB) dB down on the recording
             """
         )

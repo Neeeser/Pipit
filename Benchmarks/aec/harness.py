@@ -221,7 +221,7 @@ def score_case(case: Case, out: Path, asr: dict, aecmos, skip_seconds: float = 0
     truth_words = after_start(metrics.words_from(asr[str(case.truth)])) if case.truth else None
     if case.tier == "meetings":
         # No clean target. The user's own words are the microphone's words
-        # that the call audio did not also say nearby.
+        # that the other people on the call did not also say nearby.
         mic_words = after_start(metrics.words_from(asr[str(case.mic)]))
         truth_words = [w for w in mic_words if not metrics._near(w, far_words, 3.0)]
     ts = metrics.transcript_score(out_words, far_words, truth_words)

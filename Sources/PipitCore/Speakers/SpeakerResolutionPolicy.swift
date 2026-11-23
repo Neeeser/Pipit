@@ -102,7 +102,7 @@ public struct SpeakerResolutionPolicy: Sendable, Equatable, Codable {
     /// of its own.
     ///
     /// Recordings made before the call audio was cleaned out of the microphone,
-    /// and calls whose call audio was never recorded, put the other side into the
+    /// and calls where the other side was never recorded, put the other side into the
     /// microphone's clusters. Those clusters were remembered as candidates that
     /// sit between a person and nobody: on one real store nine of sixty
     /// candidates scored 0.60 to 0.78 against a named person, each heard in a

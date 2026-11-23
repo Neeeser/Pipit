@@ -6,10 +6,10 @@ own, so they are fetched from Microsoft's repository each time and verified
 against the sha256 in each file's Git LFS pointer.
 
   synthetic/   AEC Challenge synthetic validation clips (file ids under 500,
-               call audio nonlinear, first 200): nearend_speech (clean target),
+               nonlinear echo, first 200): nearend_speech (clean target),
                farend_speech (reference), echo_signal, nearend_mic_signal
-  real/clean/  AEC Challenge 2021 real-device blind set, clean half: remote
-               single talk, near-end single talk and double talk pairs
+  real/clean/  AEC Challenge 2021 real-device blind set, clean half: single
+               talk from each side and double talk pairs
   models/      AECMOS scorer (MIT), DTLN-aec ONNX exports, LocalVQE weights
 
 Usage: python3 fetch.py [--synthetic N] [--jobs 8]
