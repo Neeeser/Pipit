@@ -377,10 +377,7 @@ public final class MenuBarController: NSObject, NSMenuDelegate {
             menu.addItem(.separator())
             menu.addItem(Self.informationItem("Processing", emphasis: true))
             for progress in runtime.processing.values.sorted(by: { $0.meetingID < $1.meetingID }) {
-                let detail =
-                    progress.totalChunks > 0
-                    ? "\(progress.state.displayName) \(progress.completedChunks)/\(progress.totalChunks)"
-                    : progress.state.displayName
+                let detail = Self.processingLine(progress)
                 menu.addItem(Self.informationItem("  \(progress.title): \(detail)"))
             }
         }
@@ -495,6 +492,18 @@ public final class MenuBarController: NSObject, NSMenuDelegate {
         let stop = NSMenuItem(title: "End Meeting Now", action: #selector(stopRecording), keyEquivalent: "")
         stop.target = self
         menu.addItem(stop)
+    }
+
+    /// One meeting's line under Processing: why it is waiting, or its step
+    /// and how far the step has got when the step reports it.
+    nonisolated static func processingLine(_ progress: ProcessingPipeline.Progress) -> String {
+        if progress.isWaiting, let detail = progress.detail { return detail }
+        let name = progress.step?.name ?? progress.state.displayName
+        let fraction =
+            progress.fraction
+            ?? (progress.totalChunks > 0 ? Double(progress.completedChunks) / Double(progress.totalChunks) : nil)
+        guard let fraction, fraction > 0, fraction < 1 else { return name }
+        return "\(name) \(Int(fraction * 100))%"
     }
 
     /// A menu row that carries information rather than a command.

@@ -7,12 +7,12 @@ import Testing
 
 @testable import PipitUI
 
-/// An invented archive and a way to draw a window over it, shared by the two
-/// suites below.
+/// An invented archive and a way to draw a window over it, shared by the
+/// suites below and the processing steps drawings.
 ///
 /// Set `PIPIT_RENDER_DIR` to a folder to keep the drawings as PNG files.
 @MainActor
-private enum WindowRender {
+enum WindowRender {
     private static let summary = GeneratedSummary(
         overview: "The team checked whether the beta can open to the waitlist on Thursday. Sign-up and "
             + "payments are ready; the offline sync bug is the one blocker, with a fix expected Wednesday.",

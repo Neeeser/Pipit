@@ -152,6 +152,15 @@ public final class PipitRuntime {
     public private(set) var status = RuntimeStatus()
     public private(set) var recentMeetings: [MeetingSummary] = []
     public private(set) var processing: [String: ProcessingPipeline.Progress] = [:]
+    /// When each running meeting's current step started, for the progress bar.
+    public private(set) var stepClock = ProcessingStepClock()
+    /// How long each step has taken on this Mac, for the steps that report no
+    /// progress of their own.
+    public private(set) var processingTimes: ProcessingTimeHistory
+    /// The time on the clock the step times are measured with, so a view
+    /// reading how long a step has run agrees with it.
+    public var now: Date { clock.now }
+    @ObservationIgnored private let processingTimeStore: ProcessingTimeStore
     /// The menu bar opens and closes the prompt from `onStatusChange`, and a
     /// prompt can end on a path that changes nothing else in the status (a
     /// provisional recording that fails to finish), so a change here notifies
@@ -351,6 +360,8 @@ public final class PipitRuntime {
         self.applicationSupport = settingsDirectory
         self.diagnostics = diagnostics
         self.settingsStore = SettingsStore(directory: settingsDirectory)
+        self.processingTimeStore = ProcessingTimeStore(directory: settingsDirectory)
+        self.processingTimes = processingTimeStore.load()
         var loaded = settingsStore.load()
         if let firstLaunchLanguageModel, Self.isNewInstall(settingsStore, meetings: loaded.storageRoot) {
             loaded.models.metadataProvider = firstLaunchLanguageModel
@@ -1623,6 +1634,7 @@ public final class PipitRuntime {
             // Nothing draws a progress row for a folder that has left the
             // archive, and the menu bar drew one until the app was relaunched.
             processing.removeValue(forKey: meetingID)
+            stepClock.forget(meetingID)
         }
         Log.app.notice(
             "trashed a meeting: \(settled, privacy: .public) of \(ordered.count, privacy: .public) recordings"
@@ -2390,6 +2402,9 @@ public final class PipitRuntime {
         // archive until the app was relaunched.
         guard !trashedMeetingIDs.contains(progress.meetingID) else { return }
         let previous = processing[progress.meetingID]?.state
+        if let durations = stepClock.observe(progress, at: clock.now) {
+            recordStepTimes(durations, meetingID: progress.meetingID)
+        }
         if progress.state == .complete {
             processing.removeValue(forKey: progress.meetingID)
             // Not for a meeting folded into an earlier one. The notification
@@ -2423,7 +2438,20 @@ public final class PipitRuntime {
         onProcessingUpdate?(progress.meetingID)
     }
 
+    /// Keeps a finished meeting's step times so later estimates fit this Mac.
+    private func recordStepTimes(_ durations: [ProcessingStep: Double], meetingID: String) {
+        guard let seconds = repository.findMeeting(id: meetingID, includingMerged: true)?.metadata.durationSeconds
+        else { return }
+        processingTimes.record(durations, meetingSeconds: seconds)
+        do {
+            try processingTimeStore.save(processingTimes)
+        } catch {
+            Log.processing.error("processing times not saved: \(logSafeDescription(error), privacy: .public)")
+        }
+    }
+
     func handleProcessingFailure(_ meetingID: String, _ failure: ProcessingFailure) {
+        stepClock.forget(meetingID)
         processing.removeValue(forKey: meetingID)
         if settings.showNotifications {
             notifications.processingProblem(message: failure.message, meetingID: meetingID)

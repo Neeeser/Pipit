@@ -83,7 +83,11 @@ public struct MeetingDetailView: View {
                     column {
                         VStack(alignment: .leading, spacing: 0) {
                             header
-                            speakerStrip
+                            // The steps below the header already say what is
+                            // running, so an empty strip would only repeat it.
+                            if !(detail.speakerRows.isEmpty && isProcessing) {
+                                speakerStrip
+                            }
                         }
                     }
                     if let receipt = model.receipt, receipt.meetingID == detail.meetingID {
@@ -261,7 +265,11 @@ public struct MeetingDetailView: View {
                     .overlay(alignment: .leading) { titleField }
                     .help(aboutMeeting)
                 // A finished meeting says nothing by being finished.
-                if let state = detail.metadata?.processing.state, state != .complete {
+                // While the steps fill the pane they already say what is
+                // running, and the badge's stage name would only differ.
+                if let state = detail.metadata?.processing.state, state != .complete,
+                    !(isProcessing && detail.combinedLines.isEmpty && model.tab == .transcript)
+                {
                     StageBadge(state: state)
                 }
                 if let suggestion = detail.titleSuggestion {
@@ -534,6 +542,14 @@ public struct MeetingDetailView: View {
             }
         }
         .padding(.bottom, 4)
+    }
+
+    /// Between the end of the recording and a finished or failed run.
+    private var isProcessing: Bool {
+        switch detail.metadata?.processing.state {
+        case .none, .some(.complete), .some(.failed), .some(.recording): false
+        default: true
+        }
     }
 
     private var waitingText: String {

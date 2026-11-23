@@ -217,6 +217,10 @@ public final class ProcessingJobLock: Sendable {
 
     public init() {}
 
+    /// Whether another job holds the slot, so a caller can say it is waiting
+    /// before it does.
+    public var isBusy: Bool { state.withLock { $0.busy } }
+
     public func acquire() async {
         let taken = state.withLock { state -> Bool in
             guard !state.busy else { return false }

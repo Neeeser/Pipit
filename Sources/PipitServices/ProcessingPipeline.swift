@@ -27,10 +27,25 @@ public actor ProcessingPipeline {
         /// What is happening, for a stage whose name is not enough: waiting for
         /// a recording to finish, or downloading the models.
         public var detail: String?
+        /// The step the person sees. Finer than the stage: removing echo runs
+        /// inside `transcribing`, and only the pipeline knows which is running.
+        public var step: ProcessingStep?
+        /// Whether the job is waiting for something else rather than working.
+        /// Time spent waiting is left out of this Mac's step timings.
+        public var isWaiting: Bool
+
+        public static let waitingForRecording = "Waiting until recording finishes"
+        public static let waitingForOtherMeeting = "Waiting for another meeting to finish"
+        /// The on-device speaker model can take a minute to load and reports
+        /// nothing while it does.
+        public static let loadingSpeakerModel = "Loading the speaker model"
+        /// Shown while the on-device models load or, the first time, download.
+        public static let preparingModels = "Preparing on-device models"
 
         public init(
             meetingID: String, state: ProcessingState, completedChunks: Int, totalChunks: Int,
-            title: String, fraction: Double? = nil, detail: String? = nil
+            title: String, fraction: Double? = nil, detail: String? = nil,
+            step: ProcessingStep? = nil, isWaiting: Bool = false
         ) {
             self.meetingID = meetingID
             self.state = state
@@ -39,6 +54,8 @@ public actor ProcessingPipeline {
             self.title = title
             self.fraction = fraction
             self.detail = detail
+            self.step = step ?? ProcessingStep(state: state)
+            self.isWaiting = isWaiting
         }
     }
 
@@ -207,6 +224,9 @@ public actor ProcessingPipeline {
     /// models share one Neural Engine, so a second concurrent meeting takes
     /// time from the first rather than adding any.
     private let jobLock = ProcessingJobLock()
+    /// Which of the step's tracks is running, so each track's progress fills
+    /// its share of the step instead of starting the bar over.
+    private var trackShare = TrackShare.whole
 
     /// How many times one stage is attempted before the meeting is left for the
     /// user, and the delays between those attempts.
@@ -596,6 +616,13 @@ public actor ProcessingPipeline {
         }
         running.insert(meetingID)
         holdFolder(meetingID)
+        // Said before the wait, since another meeting's whole run can come
+        // first and the pane otherwise reads as working on this one.
+        // Not for a finished or failed meeting, which a launch sweep or a retry
+        // also passes through here: the report would read as its stage.
+        if jobLock.isBusy, ProcessingStep(state: found.metadata.processing.state) != nil {
+            report(found.metadata, chunks: nil, detail: Progress.waitingForOtherMeeting, isWaiting: true)
+        }
         await jobLock.acquire()
         var holdsSlot = true
         defer {
@@ -658,7 +685,8 @@ public actor ProcessingPipeline {
                 // Re-check after every wait, both of which can be long.
                 while true {
                     if gate.isBlocked {
-                        report(metadata, chunks: nil, detail: "Waiting until recording finishes")
+                        report(
+                            metadata, chunks: nil, detail: Progress.waitingForRecording, isWaiting: true)
                         if holdsSlot {
                             jobLock.release()
                             holdsSlot = false
@@ -666,6 +694,11 @@ public actor ProcessingPipeline {
                         await gate.waitUntilAllowed()
                     }
                     if !holdsSlot {
+                        if jobLock.isBusy {
+                            report(
+                                metadata, chunks: nil, detail: Progress.waitingForOtherMeeting,
+                                isWaiting: true)
+                        }
                         await jobLock.acquire()
                         holdsSlot = true
                     }
@@ -730,6 +763,9 @@ public actor ProcessingPipeline {
                         break
                     }
                     await cleanMicrophone(store: store, metadata: &metadata)
+                    // Says the words have started: a local engine reports
+                    // nothing until it finishes.
+                    report(metadata, chunks: nil)
                     try await runTranscription(store: store, metadata: &metadata, settings: settings)
                     metadata.processing.advance(to: .diarizing, at: clock.now)
                 case .diarizing:
@@ -1236,6 +1272,7 @@ public actor ProcessingPipeline {
         if metadata.cleaningOutcome == nil {
             try dropMicrophoneTranscription(store: store)
             await cleanMicrophone(store: store, metadata: &metadata)
+            report(metadata, chunks: nil)
         }
         try await runTranscription(
             store: store, metadata: &metadata, settings: settings, onlyTrack: .mic
@@ -1447,7 +1484,9 @@ public actor ProcessingPipeline {
         // The stage is named for transcription and this runs before any of it,
         // so without a line here the panel shows "Transcribing" and no motion
         // for the minutes a long meeting takes to decode, cancel and encode.
-        report(metadata, chunks: nil, detail: "Removing the far end from the microphone")
+        // A recording with no call audio has no echo to remove, and the
+        // cleaner settles that at once.
+        if metadata.source.capturesRemoteAudio { report(metadata, chunks: nil) }
         // Detached for the reason the transcode is. `clean` decodes both
         // tracks, cancels every 10 ms block and encodes the whole microphone
         // with nothing to suspend on, which is minutes of CPU for a long
@@ -1609,7 +1648,10 @@ public actor ProcessingPipeline {
         if transcriber.isLocal { try await prepareLocalModels(metadata: metadata) }
         let timeline = try store.readTimeline()
         let existing = try store.readRawTranscript()
-        for track in tracks {
+        // Reset before alignment too, which reports its own chunks.
+        defer { trackShare = .whole }
+        for (index, track) in tracks.enumerated() {
+            trackShare = TrackShare(index: index, count: tracks.count)
             let location = store.trackAudioLocation(track: track, metadata: metadata, timeline: timeline)
             guard !location.isEmpty else { continue }
             // One track's words come from one backend. A failed cloud run that
@@ -1650,6 +1692,7 @@ public actor ProcessingPipeline {
             }
         }
 
+        trackShare = .whole
         // A text-only backend's words cannot reach the timeline until they
         // carry timings; recover them now, while this stage's retry semantics
         // still apply.
@@ -1802,11 +1845,12 @@ public actor ProcessingPipeline {
         let title = metadata.displayTitle
         let state = metadata.processing.state
         let progress = onProgress
+        let share = trackShare
         let output = try await backend.transcribe(audio: audio) { fraction in
             progress(
                 Progress(
                     meetingID: meetingID, state: state, completedChunks: 0, totalChunks: 0,
-                    title: title, fraction: fraction, detail: nil
+                    title: title, fraction: share.of(fraction), detail: nil
                 ))
         }
         if !backend.isLocal { notePaidResponse(meetingID) }
@@ -2109,6 +2153,8 @@ public actor ProcessingPipeline {
         let title = metadata.displayTitle
         let state = metadata.processing.state
         let progress = onProgress
+        // The first fraction from the model replaces this line.
+        if backend.isLocal { report(metadata, chunks: nil, detail: Progress.loadingSpeakerModel) }
         let output = try await backend.diarize(audio: audio) { fraction in
             progress(
                 Progress(
@@ -2554,7 +2600,7 @@ public actor ProcessingPipeline {
     /// local job. Recording is never blocked on this; a meeting queues instead.
     private func prepareLocalModels(metadata: MeetingMetadata) async throws {
         guard let prepare = backends.prepareLocalModels else { return }
-        report(metadata, chunks: nil, detail: "Preparing on-device models")
+        report(metadata, chunks: nil, detail: Progress.preparingModels)
         try await prepare()
     }
 
@@ -3910,8 +3956,17 @@ public actor ProcessingPipeline {
 
     private func report(
         _ metadata: MeetingMetadata, chunks: (Int, Int)?,
-        fraction: Double? = nil, detail: String? = nil
+        fraction: Double? = nil, detail: String? = nil, step: ProcessingStep? = nil, isWaiting: Bool = false
     ) {
+        // Chunks of one track are a share of the whole step when the step
+        // runs over several tracks.
+        let chunkFraction = chunks.flatMap { done, total in total > 0 ? Double(done) / Double(total) : nil }
+        // The transcribing stage starts by removing echo from a call's
+        // microphone. Naming it from the first report keeps the steps in order,
+        // so the pane never ticks echo removal off and then goes back to it.
+        let isCleaning =
+            metadata.processing.state == .transcribing && metadata.cleaningOutcome == nil
+            && metadata.source.capturesRemoteAudio
         onProgress(
             Progress(
                 meetingID: metadata.id,
@@ -3919,8 +3974,10 @@ public actor ProcessingPipeline {
                 completedChunks: chunks?.0 ?? 0,
                 totalChunks: chunks?.1 ?? 0,
                 title: metadata.displayTitle,
-                fraction: fraction,
-                detail: detail
+                fraction: fraction ?? chunkFraction.map { trackShare.of($0) },
+                detail: detail,
+                step: step ?? (isCleaning ? .removeEcho : nil),
+                isWaiting: isWaiting
             ))
     }
 
@@ -4880,7 +4937,7 @@ public actor ProcessingPipeline {
         // so pulling the configured transcription engine and its aligner would
         // download gigabytes this button will not use.
         if let prepare = backends.prepareDiarizer {
-            report(metadata, chunks: nil, detail: "Preparing on-device models")
+            report(metadata, chunks: nil, detail: Progress.preparingModels)
             try await prepare()
         } else {
             try await prepareLocalModels(metadata: metadata)
@@ -5500,5 +5557,18 @@ public actor ProcessingPipeline {
                 ))
         }
         return out.sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
+    }
+}
+
+/// One track's place among the tracks a step runs over.
+struct TrackShare: Equatable {
+    var index: Int
+    var count: Int
+
+    static let whole = TrackShare(index: 0, count: 1)
+
+    /// A fraction of this track as a fraction of the whole step.
+    func of(_ fraction: Double) -> Double {
+        (Double(index) + min(max(fraction, 0), 1)) / Double(max(count, 1))
     }
 }
