@@ -5,10 +5,14 @@
 
 Records the commit, the diff of tracked files that changed since it, a SHA-256
 for each untracked file (so the code that made a result can be identified even
-when it was never committed), the machine, the
+when it was never committed), a SHA-256 for each `--code` file, the machine, the
 speech dependency versions pinned in Package.resolved, the Hugging Face
 revision of each named model as found in the local cache, the packages
 installed for a Python interpreter, and a SHA-256 for each input file.
+
+It cannot see inside folders git ignores, such as `probes/`: scripts there
+appear only if named with `--code`. A diff that contains the home directory
+has it replaced by `~`.
 """
 
 import argparse
@@ -16,6 +20,7 @@ import hashlib
 import json
 import platform
 import subprocess
+import sys
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -43,6 +48,16 @@ def python_packages(python: str) -> dict[str, str]:
     return dict(sorted(json.loads(listing).items()))
 
 
+def redact_home(text: str, home: str) -> tuple[str, int]:
+    """`text` with the home directory written as `~`, and how many times it appeared."""
+    return text.replace(home, "~"), text.count(home)
+
+
+def code_files(paths: list[Path]) -> dict[str, str]:
+    """SHA-256 of each named file, for scripts that git ignores (such as under `probes/`)."""
+    return {str(path): sha256(path) for path in paths}
+
+
 def untracked_files() -> dict[str, str]:
     names = run("git", "ls-files", "--others", "--exclude-standard").splitlines()
     return {name: sha256(ROOT / name) for name in names}
@@ -60,14 +75,20 @@ def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--hf-model", action="append", default=[])
     parser.add_argument("--python", help="interpreter whose installed packages to list")
+    parser.add_argument("--code", action="append", default=[], type=Path,
+                        help="a script git does not track or list (an ignored folder); its SHA-256 is recorded")
     parser.add_argument("--input", action="append", default=[], type=Path)
     args = parser.parse_args()
+    diff, redacted = redact_home(run("git", "diff", "HEAD"), str(Path.home()))
+    if redacted:
+        print("warning: the diff held the home directory %d times; it is written as ~" % redacted, file=sys.stderr)
     record = {
         "recordedAt": datetime.now(UTC).isoformat(timespec="seconds"),
         "commit": run("git", "rev-parse", "HEAD"),
         "uncommittedChanges": run("git", "status", "--porcelain").splitlines(),
-        "uncommittedDiff": run("git", "diff", "HEAD"),
+        "uncommittedDiff": diff,
         "untrackedFiles": untracked_files(),
+        "codeFiles": code_files(args.code),
         "machine": {
             "chip": run("sysctl", "-n", "machdep.cpu.brand_string"),
             "memoryGB": int(run("sysctl", "-n", "hw.memsize")) // 2**30,

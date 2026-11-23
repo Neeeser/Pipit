@@ -36,36 +36,43 @@ two rounds of size runs in the run log, and their word counts).
 | --- | ---: |
 | Parakeet | 28.8% |
 | Whisper Large v3 Turbo, 632 MB (Pipit's) | 33.4% |
-| Distil Large v3 Turbo | 34.2% |
+| Distil Large v3 (labelled `whisper-distil-large-v3-turbo` in the run files) | 34.2% |
 | Small.en | 37.8% |
-| Large v3 Turbo, full precision, 3.0 GB (labelled `whisper-large-v3` in the run files) | 56.2% |
+| Large v3, 3.0 GB | 56.2% |
 | Medium.en | 62.6% |
 
-The original Large v3 was never run. The run script passed the variant
-`openai_whisper-large-v3_turbo`, and the model folder holds that build and no
-`openai_whisper-large-v3`. `provenance.json` lists the variant behind each run
-label. Every Whisper run in `whisper-runs.json` records
+In WhisperKit's Core ML folder names, `_turbo` marks a build of the model, not
+OpenAI's Turbo model. `openai_whisper-large-v3_turbo` is Large v3 (32 decoder
+layers, `openai/whisper-large-v3`), `distil-whisper_distil-large-v3_turbo` is
+Distil Large v3 (2 layers), and Pipit's
+`openai_whisper-large-v3-v20240930_turbo_632MB` is the Turbo model (4 layers).
+The two rows above are labelled by what the folders hold, which the run labels
+`whisper-large-v3` and `whisper-distil-large-v3-turbo` also say.
+`provenance.json` lists the variant behind each run label. Every Whisper run in `whisper-runs.json` records
 `whisperkit-large-v3-turbo` as its transcription model, whatever variant ran,
 because the temporary patch did not change the identifier.
 
 The last two rows mostly show missing output, not model quality. Against 5,314
-reference words over the four cases, Medium.en wrote 2,285 words and the 3.0 GB
-build 2,700, where Pipit's Turbo wrote 4,064 (`hypothesisWords`). The cause is
-not known. Forcing English raised the 3.0 GB build from 56.2% to 38.6%, which
-points at language detection for that build, but the stored runs do not show
+reference words over the four cases, Medium.en wrote 2,285 words and Large v3
+2,700, where Pipit's Turbo wrote 4,064 (`hypothesisWords`). The cause is
+not known. Forcing English raised Large v3 from 56.2% to 38.6%, which
+points at language detection, but the stored runs do not show
 it. Medium.en is English-only, so that cannot explain its rows. Of the sizes
-that transcribed normally, Small.en and Distil Large v3 Turbo scored no better than
+that transcribed normally, Small.en and Distil Large v3 scored no better than
 Pipit's Turbo, so this run does not show a size that does better than Turbo.
 
 None of the seven decode settings tried on Turbo beat Pipit's current ones by
 more than the 0.4-point noise, and forcing English made Turbo worse (38.7%). Of
-two settings tried on the 3.0 GB build, forcing English made it much better
+two settings tried on Large v3, forcing English made it much better
 (38.6%). One Parakeet setting, more audio context for the encoder, scored
 28.6%, 0.2 points from Parakeet's 28.8%; Parakeet's own repeat noise was not
 measured. These runs used a temporary local patch to choose the variant and
 decode options, which was not kept, so they cannot be rerun. Their stored
 transcripts can be re-scored: `Benchmarks/engines/rescore_whisper_runs.py`
-reproduces all 76 stored run and case scores to the last digit.
+reproduces the 76 stored `cpwer_plain` and `cpwer_audit` scores to the last
+digit. It does not check `bench_tcpwer`, which needs meeteval with the
+bench's collar, and DER cannot be re-scored because no diarizer intervals are
+stored.
 `whisper-runs.json` holds every run and its re-scored numbers.
 
 ## Engines on single tracks
@@ -252,12 +259,18 @@ the swapped script flags the moved lines.
   of the ten Gemini voice files (`syntheticVoiceFiles`), the pilot's laid-out
   tracks (`syntheticTracks`) and every track the engines transcribed
   (`inputs`). The layout runs rebuild their tracks from the voice files.
-- Re-scoring from this folder works for the engine table, the Whisper runs, the
-  pilot pipeline runs and two layout runs (seed 20261122 before the noise-frame
-  change, in `pipeline-transcripts.json.gz` with its truth in
-  `syn001-layout-truth-before-noise-frame-change.json.gz`). The other ten layout
-  rows have scores but no transcripts, and the truth of their layouts is not
-  stored; the seed and the voice files rebuild the layout, but only for the
-  current generator.
+- What re-scores from this folder with committed tools: the engine table's word
+  error (`Benchmarks/engines/make_inputs.py` and `score.py` on
+  `engine-transcripts.json.gz`) and the Whisper runs' `cpwer_plain` and
+  `cpwer_audit` (`rescore_whisper_runs.py`). The pilot pipeline transcripts and
+  two layout runs (seed 20261122 before the noise-frame change, with its truth
+  in `syn001-layout-truth-before-noise-frame-change.json.gz`) hold the words
+  and speakers for a word-based cpWER, but no committed tool computes it, and
+  tcpWER needs meeteval with the bench's collar. DER cannot be re-scored: no
+  diarizer intervals are stored. The other ten layout rows have scores but no
+  transcripts, and the truth of their layouts is not stored; the seed and the
+  voice files rebuild the layout, but only for the current generator.
 - `provenance.json` lists what the record could not capture, including the
-  Whisper patch and the Python versions at measurement time.
+  Whisper patch and the Python versions at measurement time, and any script
+  that sat in an ignored folder such as `probes/` (`provenance.py` skips ignored
+  paths; its `--code` option hashes named files).

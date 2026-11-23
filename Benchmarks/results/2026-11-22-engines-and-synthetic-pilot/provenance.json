@@ -78,7 +78,7 @@
   },
   "scoring": {
    "python": "3.12",
-   "source": "uv run --with meeteval==0.4.3 --with whisper-normalizer==0.1.12, listed when this record was corrected; only meeteval is pinned by the command, so the other versions are what resolved then, not necessarily what resolved at measurement",
+   "source": "uv run --with meeteval==0.4.3 --with whisper-normalizer==0.1.12, listed when this record was corrected; meeteval and whisper-normalizer are pinned by the command, so the other versions are what resolved then, not necessarily what resolved at measurement",
    "packages": {
     "Cython": "3.3.1",
     "certifi": "2026.7.22",
@@ -124,17 +124,17 @@
   "whisperVariants": {
    "whisper-large-v3-turbo-632MB": "openai_whisper-large-v3-v20240930_turbo_632MB",
    "whisper-small.en": "openai_whisper-small.en",
-   "whisper-distil-large-v3-turbo": "distil-whisper_distil-large-v3_turbo",
-   "whisper-large-v3": "openai_whisper-large-v3_turbo (the full-precision Large v3 Turbo build, 3.0 GB; the original Large v3 was never downloaded or run, so this label is wrong)",
+   "whisper-distil-large-v3-turbo": "distil-whisper_distil-large-v3_turbo (Distil Large v3, 2 decoder layers; `_turbo` is WhisperKit's build marker, not the Turbo model)",
+   "whisper-large-v3": "openai_whisper-large-v3_turbo (Large v3, 32 decoder layers, 3.0 GB; `_turbo` is WhisperKit's build marker, not the Turbo model, so the run label is right)",
    "whisper-medium.en": "openai_whisper-medium.en",
-   "config-large-v3-forced-english, config-large-v3-forced-english-vad": "openai_whisper-large-v3_turbo, as above",
+   "config-large-v3-forced-english, config-large-v3-forced-english-vad": "openai_whisper-large-v3_turbo (Large v3), as above",
    "config-turbo-*": "openai_whisper-large-v3-v20240930_turbo_632MB",
    "turbo-repeat-from-*": "Turbo 632MB output, inferred and not recorded: the run log shows a first round of size runs and a second round of the same names, and these three runs score like Turbo (33.1% to 33.8%, against 33.4% for the Turbo run) while their names say which size run they stand in for"
   },
   "whisperRunsTranscriptionModels": "whisper-runs.json records transcriptionModels as whisperkit-large-v3-turbo for every Whisper run whatever variant ran, because the temporary patch did not change the identifier."
  },
  "pipitModelReceipts": {
-  "source": "units.json install receipts in Pipit's model folder, read when this record was corrected; the folder used for the Whisper runs held the same receipts",
+  "source": "units.json install receipts in Pipit's model folder, read when this record was corrected. The Whisper size runs used a separate model folder whose receipts have no whisper entry, because the run script deleted it before each run; the whisper line below is the app folder's.",
   "diarizer (offline clusterer)": "FluidAudio 0.18.2",
   "nemotron-diarizer": "nemotron-3-diarization-offline ga-2026-09-23 @ FluidAudio 0.18.2",
   "parakeet": "parakeet-tdt-0.6b-v3-int8 @ FluidAudio 0.15.6",
@@ -256,7 +256,7 @@
  "notRecorded": [
   "The temporary WhisperKit patch (see note).",
   "Python package versions of the scoring and generator environments at the time of measurement.",
-  "The Hugging Face revisions of the WhisperKit and FluidAudio Core ML models beyond the install receipts in pipitModelReceipts.",
+  "The Hugging Face revisions of the FluidAudio Core ML models beyond the install receipts in pipitModelReceipts. The WhisperKit Core ML repository revision is 0f63a7800b00dd0226abd051b906c246e1907482, from the download metadata of every variant folder.",
   "Why the diarizer chose each backend: the pipeline runs have no diarizerReason field.",
   "The code that made the seed 1 and seed 2 'before the noise-frame change' layout rows (see README)."
  ]
