@@ -111,9 +111,9 @@ struct StorageTests {
         #expect(reread.processing.state == .recording)
         #expect(created.store.readNotes() == "Company X call with me, Bryn and Owen.\n")
         let rereadMap = try created.store.readSpeakerMap()
-        #expect(rereadMap.resolvedName(for: "chunk_001_speaker_00") == "Bryn")
-        #expect(rereadMap.resolvedName(for: "local") == "Marlow")
-        #expect(rereadMap.resolvedName(for: "chunk_001_speaker_01") == "Speaker 2")
+        #expect(rereadMap.resolvedName(for: "chunk_001_speaker_00", numbers: SpeakerNumbers()) == "Bryn")
+        #expect(rereadMap.resolvedName(for: "local", numbers: SpeakerNumbers()) == "Marlow")
+        #expect(rereadMap.resolvedName(for: "chunk_001_speaker_01", numbers: SpeakerNumbers()) == "Speaker 2")
     }
 
     @Test("a meeting filed into a folder still holds its identifier")

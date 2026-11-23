@@ -800,6 +800,7 @@ extension PipitRuntime {
                 let map = try? recording.store.readSpeakerMap()
             else { continue }
             var perKey: [MeetingSpeakerRow] = []
+            let numbers = SpeakerNumbers(transcript.utterances)
             for speaker in transcript.speakers {
                 let key = speaker.key
                 // Words no interval claimed are not a speaker. Offering the row
@@ -819,7 +820,7 @@ extension PipitRuntime {
                 // generated name says which half it came from. A name a person
                 // typed stands on its own.
                 let fallback = SpeakerMap.fallbackName(
-                    for: key, recordingIndex: index, recordingCount: recordings.count)
+                    for: key, numbers: numbers, recordingIndex: index, recordingCount: recordings.count)
                 perKey.append(
                     MeetingSpeakerRow(
                         clusterID: key,
@@ -911,6 +912,9 @@ extension PipitRuntime {
             guard let keys = try? recording.store.readTranscriptSpeakers().map(\.key) else {
                 continue
             }
+            // Listed in the order each speaker first talks, which is the order
+            // the chips number them in.
+            let numbers = SpeakerNumbers(lineKeys: keys)
             // A person who clears a name has said no to it. Offering the same
             // name straight back is the automatic naming this whole change
             // exists to stop, one step further along.
@@ -921,7 +925,8 @@ extension PipitRuntime {
                 // The same fallback the speaker chips draw, so a pill and the
                 // chip it points at agree on what that speaker is called.
                 let label = SpeakerMap.fallbackName(
-                    for: suggestion.label, recordingIndex: index, recordingCount: recordings.count)
+                    for: suggestion.label, numbers: numbers,
+                    recordingIndex: index, recordingCount: recordings.count)
                 rows.append(
                     MeetingSuggestionRow(
                         clusterID: suggestion.label,

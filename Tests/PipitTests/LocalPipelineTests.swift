@@ -3128,7 +3128,7 @@ struct LocalPipelineTests {
             chunkID: "chunk_000", model: "stub"
         )
         #expect(
-            map.resolvedName(for: renumbered) == "Bryn",
+            map.resolvedName(for: renumbered, numbers: SpeakerNumbers()) == "Bryn",
             "the correction is anchored to the audio, not to the cluster"
         )
         #expect(map.hasOverride(for: renumbered))
@@ -3140,7 +3140,7 @@ struct LocalPipelineTests {
             chunkID: "chunk_000", model: "stub"
         )
         #expect(
-            map.resolvedName(for: otherLine) == "Speaker 1",
+            map.resolvedName(for: otherLine, numbers: SpeakerNumbers()) == "Speaker 1",
             "the name given to the previous run's cluster does not follow it"
         )
         #expect(

@@ -243,6 +243,7 @@ extension LogicalMeeting {
             // rather than on the line it was cut out of.
             let lines = transcript.utterances
             let speakers = (try? recording.store.readSpeakerMap()) ?? SpeakerMap()
+            let numbers = SpeakerNumbers(lines)
             let offset = recording.metadata.startedAt.timeIntervalSince(startedAt)
             for utterance in lines {
                 out.append(
@@ -250,7 +251,8 @@ extension LogicalMeeting {
                         recordingID: recording.metadata.id,
                         utterance: utterance,
                         speakerName: speakers.resolvedName(
-                            for: utterance, recordingIndex: index, recordingCount: recordings.count),
+                            for: utterance, numbers: numbers,
+                            recordingIndex: index, recordingCount: recordings.count),
                         timelineStart: offset + utterance.start,
                         isCorrected: speakers.hasOverride(for: utterance)
                     ))

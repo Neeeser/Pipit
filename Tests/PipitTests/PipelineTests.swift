@@ -494,7 +494,7 @@ struct PipelineTests {
         let transcript = try #require(try meeting.store.readCanonicalTranscript())
         #expect(transcript.utterances.count == 2)
         let speakers = try meeting.store.readSpeakerMap()
-        #expect(speakers.resolvedName(for: SpeakerLabel.localUser) == "Me")
+        #expect(speakers.resolvedName(for: SpeakerLabel.localUser, numbers: SpeakerNumbers()) == "Me")
         // The model's answer is a suggestion, so the speaker map is
         // left exactly as speaker resolution left it.
         #expect(speakers.entries["remote_chunk_001_speaker_00"] == nil)
@@ -1543,9 +1543,9 @@ struct PipelineTests {
         #expect(lines.count == 2, "the line reads as two")
         #expect(lines[0].text == "so what do you think")
         #expect(lines[1].text == "i think we ship on friday")
-        #expect(map.resolvedName(for: lines[1]) == "Dara")
+        #expect(map.resolvedName(for: lines[1], numbers: SpeakerNumbers()) == "Dara")
         #expect(
-            map.resolvedName(for: lines[0]) == "Nadia",
+            map.resolvedName(for: lines[0], numbers: SpeakerNumbers()) == "Nadia",
             "the words before the boundary stay with the cluster"
         )
         let markdown = try String(
@@ -1577,7 +1577,7 @@ struct PipelineTests {
             try meeting.store.readCanonicalTranscript()
         ).utterances
         #expect(lines.count == 3, "two boundaries, three pieces")
-        #expect(lines.map { map.resolvedName(for: $0) } == ["Nadia", "Dara", "Nadia"])
+        #expect(lines.map { map.resolvedName(for: $0, numbers: SpeakerNumbers()) } == ["Nadia", "Dara", "Nadia"])
         #expect(lines[1].text == "i think", "only the phrase moved")
     }
 
@@ -1608,7 +1608,7 @@ struct PipelineTests {
         let lines = try #require(
             try meeting.store.readCanonicalTranscript()
         ).utterances
-        #expect(lines.map { map.resolvedName(for: $0) } == ["Sam", "Dara"])
+        #expect(lines.map { map.resolvedName(for: $0, numbers: SpeakerNumbers()) } == ["Sam", "Dara"])
     }
 
     @Test("splitting a line keeps a narrow correction narrow")
@@ -1656,7 +1656,7 @@ struct PipelineTests {
             try meeting.store.readCanonicalTranscript()
         ).utterances
         #expect(lines.count == 2)
-        #expect(map.resolvedName(for: lines[0]) == "Sam", "it still names its line")
+        #expect(map.resolvedName(for: lines[0], numbers: SpeakerNumbers()) == "Sam", "it still names its line")
         #expect(
             !map.confirms(lines[0]),
             "and still confirms none of it, so the other four seconds of that piece cannot reach Sam's voice profile"
@@ -1703,7 +1703,7 @@ struct PipelineTests {
             "expected \(11) ± \(0.001), got \(untouched.end - untouched.start) — the other chunk's line was not divided"
         )
         #expect(
-            map.resolvedName(for: untouched) == "Nadia",
+            map.resolvedName(for: untouched, numbers: SpeakerNumbers()) == "Nadia",
             "and did not change hands"
         )
         #expect(map.utteranceOverrides.count == 1, "one piece changed hands")
@@ -1740,8 +1740,8 @@ struct PipelineTests {
         ).utterances
         #expect(lines.count == 2)
         #expect(lines[0].text == "so")
-        #expect(map.resolvedName(for: lines[0]) == "Dara")
-        #expect(map.resolvedName(for: lines[1]) == "Nadia", "the rest is untouched")
+        #expect(map.resolvedName(for: lines[0], numbers: SpeakerNumbers()) == "Dara")
+        #expect(map.resolvedName(for: lines[1], numbers: SpeakerNumbers()) == "Nadia", "the rest is untouched")
     }
 
     @Test("pulling out the last words of a turn names them")
@@ -1766,8 +1766,8 @@ struct PipelineTests {
         ).utterances
         #expect(lines.count == 2)
         #expect(lines[1].text == "friday")
-        #expect(map.resolvedName(for: lines[1]) == "Dara")
-        #expect(map.resolvedName(for: lines[0]) == "Nadia")
+        #expect(map.resolvedName(for: lines[1], numbers: SpeakerNumbers()) == "Dara")
+        #expect(map.resolvedName(for: lines[0], numbers: SpeakerNumbers()) == "Nadia")
     }
 
     @Test("a split names the rest of the turn as it is printed")
@@ -1809,10 +1809,10 @@ struct PipelineTests {
         let head = try #require(lines.first { $0.chunkID == "c1" && $0.start < 6 })
         let tail = try #require(lines.first { $0.chunkID == "c1" && $0.start >= 6 })
         let after = try #require(lines.first { $0.chunkID == "c2" })
-        #expect(map.resolvedName(for: head) == "Nadia", "before the boundary")
-        #expect(map.resolvedName(for: tail) == "Dara", "after it")
+        #expect(map.resolvedName(for: head, numbers: SpeakerNumbers()) == "Nadia", "before the boundary")
+        #expect(map.resolvedName(for: tail, numbers: SpeakerNumbers()) == "Dara", "after it")
         #expect(
-            map.resolvedName(for: after) == "Dara",
+            map.resolvedName(for: after, numbers: SpeakerNumbers()) == "Dara",
             "and the line printed after it, whose clock says otherwise"
         )
     }

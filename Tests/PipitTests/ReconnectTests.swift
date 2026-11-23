@@ -113,8 +113,11 @@ struct ReconnectTests {
         defer { try? FileManager.default.removeItem(at: root) }
         let (repository, first, _) = try Self.makeSplitMeeting(root: root)
         let logical = try #require(repository.logicalMeeting(id: first))
+        // Numbered the way the chip row is, from the recording's own transcript.
+        let transcript = try #require(try logical.recordings[0].store.readCanonicalTranscript())
         let chipName = SpeakerMap.fallbackName(
-            for: "remote-001_speaker_00", recordingIndex: 0, recordingCount: logical.recordings.count)
+            for: "remote-001_speaker_00", numbers: SpeakerNumbers(transcript.utterances),
+            recordingIndex: 0, recordingCount: logical.recordings.count)
 
         let walk = TranscriptNavigation.speaker(
             chipName, recordingID: first, in: CombinedLineBlock.blocks(from: logical.combinedTranscript()))

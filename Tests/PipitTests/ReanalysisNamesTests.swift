@@ -93,7 +93,8 @@ struct ReanalysisNamesTests {
         let names = try after.readSpeakerMap()
         var out: [String: String] = [:]
         for utterance in transcript.utterances where utterance.track == .remote {
-            out[utterance.text.trimmingCharacters(in: .whitespaces)] = names.resolvedName(for: utterance)
+            out[utterance.text.trimmingCharacters(in: .whitespaces)] = names.resolvedName(
+                for: utterance, numbers: SpeakerNumbers())
         }
         return (out, names)
     }

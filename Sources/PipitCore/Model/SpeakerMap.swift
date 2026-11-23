@@ -606,9 +606,9 @@ public struct SpeakerMap: Codable, Sendable, Equatable {
         override(for: utterance)?.assignment ?? entries[utterance.speakerKey]
     }
 
-    public func resolvedName(for utterance: Utterance) -> String {
+    public func resolvedName(for utterance: Utterance, numbers: SpeakerNumbers) -> String {
         assignment(for: utterance)?.displayName
-            ?? Self.fallbackName(for: utterance.speakerKey)
+            ?? Self.fallbackName(for: utterance.speakerKey, numbers: numbers)
     }
 
     /// Every identity referenced by this map, cluster level and line level.
@@ -676,31 +676,26 @@ public struct SpeakerMap: Codable, Sendable, Equatable {
 
     /// A readable fallback for a label nobody has named yet.
     ///
-    /// The chunk is part of the name because a cloud model's labels are stable
-    /// only within one request. Two chunks both reporting `speaker_00` are two
-    /// different clusters until speaker resolution or a person says otherwise,
-    /// so they must not read as one person.
-    public static func fallbackName(for key: String) -> String {
+    /// The number comes from `numbers`, which counts speakers in the order they
+    /// first talk. Every distinct label gets its own number, so two chunks of a
+    /// cloud transcript that both report `speaker_00` read as two speakers until
+    /// speaker resolution or a person says otherwise.
+    public static func fallbackName(for key: String, numbers: SpeakerNumbers) -> String {
         if key == SpeakerLabel.localUser { return "Me" }
         if key.hasSuffix(SpeakerLabel.unattributed) { return "Unattributed" }
         // A sensor speaker the client never named. The key is an opaque
         // platform identifier and must not render as one.
         if SpeakerLabel.sensorParticipantID(from: key) != nil { return "Participant" }
         guard let range = key.range(of: "_speaker_") else { return key }
-        let suffix = String(key[range.upperBound...])
-        let number = Int(suffix).map { "\($0 + 1)" } ?? suffix.uppercased()
-        // The first chunk carries no suffix, which keeps the common case of a
-        // meeting short enough for one request reading as "Speaker 1".
-        guard let chunk = chunkIndex(in: key), chunk > 1 else { return "Speaker \(number)" }
-        return "Speaker \(number) (part \(chunk))"
-    }
-
-    /// The chunk number embedded in a namespaced label, if it has one.
-    private static func chunkIndex(in key: String) -> Int? {
-        guard let range = key.range(of: "_chunk_") else { return nil }
-        let rest = key[range.upperBound...]
-        let digits = rest.prefix { $0.isNumber }
-        return Int(digits)
+        if let number = numbers.number(for: key) { return "Speaker \(number)" }
+        // A label the transcript does not hold, such as a suggestion written
+        // before a re-analysis. The diarizer's slot is the only number left.
+        // Backends name slots differently ("00", "nemotron3_0", "eend_2"), and
+        // the raw label is never shown, so only its trailing digits are read.
+        let label = key[range.upperBound...]
+        let digits = label.reversed().prefix { $0.isNumber }
+        guard let slot = Int(String(digits.reversed())) else { return "Speaker" }
+        return "Speaker \(slot + 1)"
     }
 
     /// The generated name of a speaker in one recording of a conversation.
@@ -710,22 +705,63 @@ public struct SpeakerMap: Codable, Sendable, Equatable {
     /// chips, the suggestion pills and the transcript lines all read this, and
     /// the walk behind a chip's arrow matches lines by name, so they must agree.
     public static func fallbackName(
-        for key: String, recordingIndex: Int, recordingCount: Int
+        for key: String, numbers: SpeakerNumbers, recordingIndex: Int, recordingCount: Int
     ) -> String {
-        let name = fallbackName(for: key)
+        let name = fallbackName(for: key, numbers: numbers)
         return recordingCount > 1 ? "\(name), part \(recordingIndex + 1)" : name
     }
 
     /// The name a line is shown under in one recording of a conversation.
     public func resolvedName(
-        for utterance: Utterance, recordingIndex: Int, recordingCount: Int
+        for utterance: Utterance, numbers: SpeakerNumbers, recordingIndex: Int, recordingCount: Int
     ) -> String {
         assignment(for: utterance)?.displayName
             ?? Self.fallbackName(
-                for: utterance.speakerKey, recordingIndex: recordingIndex, recordingCount: recordingCount)
+                for: utterance.speakerKey, numbers: numbers,
+                recordingIndex: recordingIndex, recordingCount: recordingCount)
     }
 
-    public func resolvedName(for key: String) -> String {
-        displayName(for: key) ?? Self.fallbackName(for: key)
+    public func resolvedName(for key: String, numbers: SpeakerNumbers) -> String {
+        displayName(for: key) ?? Self.fallbackName(for: key, numbers: numbers)
+    }
+}
+
+/// The number in each generated speaker name of one recording, counted in the
+/// order speakers first talk.
+///
+/// A diarizer's label is a slot index that says nothing about the meeting: a
+/// person who joins forty minutes in can hold slot 0. Counting by first line
+/// makes "Speaker 1" the first voice heard. Named speakers keep their place in
+/// the count, so naming one never renumbers the others while a person works
+/// through the list.
+public struct SpeakerNumbers: Sendable, Equatable {
+    private var numbers: [String: Int] = [:]
+
+    /// No order known. Every name falls back to the diarizer's slot.
+    public init() {}
+
+    /// `keys` holds each line's speaker in transcript order. A transcript is
+    /// sorted by start time, so the first occurrence of a key is when that
+    /// speaker first talks.
+    public init(lineKeys keys: some Sequence<String>) {
+        for key in keys where numbers[key] == nil && Self.isNumbered(key) {
+            numbers[key] = numbers.count + 1
+        }
+    }
+
+    public init(_ lines: [Utterance]) {
+        self.init(lineKeys: lines.lazy.map(\.speakerKey))
+    }
+
+    public func number(for key: String) -> Int? { numbers[key] }
+
+    /// Whether a key reads as "Speaker N" when nobody has named it. The
+    /// microphone, unattributed words and sensor speakers have names of their
+    /// own and take no number.
+    private static func isNumbered(_ key: String) -> Bool {
+        key != SpeakerLabel.localUser
+            && !key.hasSuffix(SpeakerLabel.unattributed)
+            && SpeakerLabel.sensorParticipantID(from: key) == nil
+            && key.contains("_speaker_")
     }
 }
