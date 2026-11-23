@@ -155,7 +155,7 @@ struct LocalDiarizationBackendTests {
     func aRejectedAnswerLeavesRoom() async throws {
         let seen = Mutex<[Double]>([])
         _ = try await Self.backend(
-            primary: .success(Self.output(speakers: 8)), primarySteps: [0.5, 1], fallbackSteps: [0, 0.5, 1]
+            primary: .success(Self.output(speakers: 0)), primarySteps: [0.5, 1], fallbackSteps: [0, 0.5, 1]
         ).diarize(audio: Self.audio, progress: { value in seen.withLock { $0.append(value) } })
         let values = seen.withLock { $0 }
         #expect(values == values.sorted(), "never goes back: \(values)")
