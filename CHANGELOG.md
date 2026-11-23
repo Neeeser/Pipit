@@ -7,6 +7,25 @@ adds the list of merged pull requests and their authors below it, and holds the
 notes for releases before 0.1.9. See [docs/RELEASING.md](docs/RELEASING.md) for
 how a section gets written.
 
+## 0.1.13
+
+<!-- One or two lines on what this release is, then rewrite the items below for the person updating. Cut fixes to things that were never released. -->
+
+### New
+- Count and separate speakers more accurately in finished meetings
+- Install the new speaker model from Settings with one Update button
+- Separate speakers in recordings longer than three hours with the new speaker model
+- Show each processing step and a steady progress bar while a meeting is processed
+- Number unnamed speakers in the order they first talk
+
+### Fixes
+- Stop the browser add-on cards saying an installed add-on is missing after Pipit starts
+- Stop showing one Meet participant as both a named and an unnamed speaker
+- Keep your words when you repeat what the other side just said
+- Stop asking to re-download models that are already current after an update
+- Name Google Meet speakers on calls where people talk over each other
+- Show the real free disk space in Settings when the disk reports none
+
 ## 0.1.12
 
 Summaries can now be written by Apple Intelligence, and Pipit uses much less CPU and memory.
