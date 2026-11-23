@@ -185,7 +185,7 @@ struct SlackWebTreeState: Equatable {
 public struct SlackAccessibilityReader: Sendable {
     public let bundleIdentifier: String
 
-    public init(bundleIdentifier: String = "com.tinyspeck.slackmacgap") {
+    public init(bundleIdentifier: String = MeetingApp.slack.desktopBundleIdentifiers[0]) {
         self.bundleIdentifier = bundleIdentifier
     }
 

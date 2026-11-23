@@ -238,10 +238,10 @@ extension DiagnosticSnapshot {
         out["neverRecordAppCount"] = .integer(Int64(settings.neverRecordApplications.count))
         let providers = settings.providers
         out["detectionPaused"] = .bool(providers.detectionPaused)
-        for (key, policy) in [
-            ("slack", providers.slack), ("googleMeet", providers.googleMeet), ("zoom", providers.zoom),
-            ("faceTime", providers.faceTime), ("unknownCalls", providers.unknownCalls),
-        ] {
+        let policies =
+            MeetingApp.all.map { ($0.settingsKey, providers[$0.provider]) }
+            + [("unknownCalls", providers.unknownCalls)]
+        for (key, policy) in policies {
             out["\(key)AutoStart"] = .string(policy.autoStart.rawValue)
             out["\(key)AutoStop"] = .bool(policy.autoStop)
         }

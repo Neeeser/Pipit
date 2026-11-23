@@ -29,39 +29,81 @@ public struct ProviderPolicy: Codable, Sendable, Equatable {
     }
 }
 
+/// The recording policy for each meeting app, plus calls in apps Pipit has no
+/// definition for.
+///
+/// Every app in `MeetingApp.all` has an entry, filled with its default when
+/// the settings file has none, so two policies with the same choices compare
+/// equal whether they came from a file or from `init`.
 public struct ProviderPolicies: Codable, Sendable, Equatable {
-    public var slack: ProviderPolicy
-    public var googleMeet: ProviderPolicy
-    public var zoom: ProviderPolicy
-    public var faceTime: ProviderPolicy
+    private var apps: [MeetingProvider: ProviderPolicy]
     public var unknownCalls: ProviderPolicy
     /// Automatic detection is paused entirely. Manual recording still works.
     public var detectionPaused: Bool
 
     public init(
-        slack: ProviderPolicy = ProviderPolicy(),
-        googleMeet: ProviderPolicy = ProviderPolicy(),
-        zoom: ProviderPolicy = ProviderPolicy(),
-        faceTime: ProviderPolicy = ProviderPolicy(autoStart: .ask),
         unknownCalls: ProviderPolicy = ProviderPolicy(autoStart: .ask),
         detectionPaused: Bool = false
     ) {
-        self.slack = slack
-        self.googleMeet = googleMeet
-        self.zoom = zoom
-        self.faceTime = faceTime
+        self.apps = Dictionary(uniqueKeysWithValues: MeetingApp.all.map { ($0.provider, $0.defaultPolicy) })
         self.unknownCalls = unknownCalls
         self.detectionPaused = detectionPaused
     }
 
-    public func policy(for provider: MeetingProvider) -> ProviderPolicy {
-        switch provider {
-        case .slack: slack
-        case .googleMeet: googleMeet
-        case .zoom: zoom
-        case .faceTime: faceTime
-        case .unknown: unknownCalls
+    /// The policy for a provider. `unknown` is `unknownCalls`.
+    public subscript(provider: MeetingProvider) -> ProviderPolicy {
+        get {
+            guard let app = provider.app else { return unknownCalls }
+            return apps[provider] ?? app.defaultPolicy
         }
+        set {
+            if provider.app == nil {
+                unknownCalls = newValue
+            } else {
+                apps[provider] = newValue
+            }
+        }
+    }
+
+    public func policy(for provider: MeetingProvider) -> ProviderPolicy { self[provider] }
+
+    /// Each app is saved under its own `settingsKey`, which for the first four
+    /// apps is the name of the property they were once stored in, so a file
+    /// written before the definitions existed reads back unchanged.
+    private struct Key: CodingKey {
+        let stringValue: String
+        var intValue: Int? { nil }
+        init(_ string: String) { stringValue = string }
+        init?(stringValue: String) { self.stringValue = stringValue }
+        init?(intValue: Int) { nil }
+
+        static let unknownCalls = Key("unknownCalls")
+        static let detectionPaused = Key("detectionPaused")
+    }
+
+    public init(from decoder: any Decoder) throws {
+        let container = try decoder.container(keyedBy: Key.self)
+        let defaults = ProviderPolicies()
+        var apps: [MeetingProvider: ProviderPolicy] = [:]
+        for app in MeetingApp.all {
+            apps[app.provider] =
+                try container.decodeIfPresent(ProviderPolicy.self, forKey: Key(app.settingsKey))
+                ?? app.defaultPolicy
+        }
+        self.apps = apps
+        unknownCalls =
+            try container.decodeIfPresent(ProviderPolicy.self, forKey: .unknownCalls) ?? defaults.unknownCalls
+        detectionPaused =
+            try container.decodeIfPresent(Bool.self, forKey: .detectionPaused) ?? defaults.detectionPaused
+    }
+
+    public func encode(to encoder: any Encoder) throws {
+        var container = encoder.container(keyedBy: Key.self)
+        for app in MeetingApp.all {
+            try container.encode(self[app.provider], forKey: Key(app.settingsKey))
+        }
+        try container.encode(unknownCalls, forKey: .unknownCalls)
+        try container.encode(detectionPaused, forKey: .detectionPaused)
     }
 }
 
@@ -695,12 +737,6 @@ public struct SessionController: Sendable {
     }
 
     public static func source(for provider: MeetingProvider) -> MeetingSource {
-        switch provider {
-        case .slack: .slackHuddle
-        case .googleMeet: .googleMeet
-        case .zoom: .zoom
-        case .faceTime: .faceTime
-        case .unknown: .genericCall
-        }
+        provider.app?.source ?? .genericCall
     }
 }

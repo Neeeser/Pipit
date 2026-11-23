@@ -428,12 +428,15 @@
 			);
 			inputPaths = (
 				"$(SRCROOT)/extension/build.sh",
+				"$(SRCROOT)/extension/shared/meeting-sites.json",
+				"$(SRCROOT)/extension/shared/sites.js",
 				"$(SRCROOT)/extension/shared/provider.js",
 				"$(SRCROOT)/extension/shared/content.js",
 				"$(SRCROOT)/extension/shared/relay.js",
 				"$(SRCROOT)/extension/shared/background.js",
 				"$(SRCROOT)/extension/firefox/manifest.json",
 				"$(SRCROOT)/extension/chrome/manifest.json",
+				"$(SRCROOT)/extension/safari/manifest.json",
 			);
 			name = "Build and copy the browser sensor";
 			outputFileListPaths = (
@@ -441,6 +444,7 @@
 			outputPaths = (
 				"$(BUILT_PRODUCTS_DIR)/$(CONTENTS_FOLDER_PATH)/Resources/extension/firefox/manifest.json",
 				"$(BUILT_PRODUCTS_DIR)/$(CONTENTS_FOLDER_PATH)/Resources/extension/chrome/manifest.json",
+				"$(BUILT_PRODUCTS_DIR)/$(CONTENTS_FOLDER_PATH)/Resources/extension/safari/manifest.json",
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;

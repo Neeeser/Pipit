@@ -82,8 +82,8 @@ public final class DetectionEngine: @unchecked Sendable {
         public init(
             pollInterval: Double = 0.5,
             idlePollInterval: Double = 2,
-            slackBundleIdentifier: String = "com.tinyspeck.slackmacgap",
-            slackAudioPrefixes: [String] = ["com.tinyspeck.slackmacgap"],
+            slackBundleIdentifier: String = MeetingApp.slack.desktopBundleIdentifiers[0],
+            slackAudioPrefixes: [String] = MeetingApp.slack.desktopAudioBundlePrefixes,
             browsers: [BrowserKind] = [.firefox, .chrome, .safari],
             genericDetection: Bool = true
         ) {
@@ -520,8 +520,11 @@ public final class DetectionEngine: @unchecked Sendable {
             // any site and which other applications share. They stay with the
             // generic detector unless Safari has a meeting of its own, so a call
             // on a site the add-on does not read is still found.
+            // Apps with a detector of their own are left to it. Every other
+            // meeting app's calls come through here, filed under the app.
             let knownPrefixes =
                 configuration.slackAudioPrefixes
+                + MeetingApp.all.filter(\.hasOwnDesktopDetector).flatMap(\.desktopAudioBundlePrefixes)
                 + configuration.browsers.flatMap(\.bundleIdentifiers)
                 + evidence.compactMap(\.browser).flatMap(\.audioBundlePrefixes)
             let unknownAudio = audioStates.filter { state in

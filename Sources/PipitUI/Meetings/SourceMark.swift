@@ -13,18 +13,15 @@ import PipitCore
 /// the list is complete on a Mac with nothing installed.
 @MainActor
 public enum SourceMark {
-    /// The application a source is recorded from.
+    /// The application a source is recorded from: the first desktop bundle
+    /// identifier of its app's definition.
     ///
-    /// Slack alone. FaceTime's mark is a plain video camera once its plate
-    /// comes off, which is the glyph already, and Zoom's would appear only on
-    /// the Macs that have Zoom installed. Google Meet runs in a browser and has
-    /// no application at all, and drawing the browser's icon would put a
-    /// Firefox mark on a row that means Meet.
+    /// Only Slack has one so far. FaceTime's mark is a plain video camera once
+    /// its plate comes off, which is the glyph already. Google Meet runs in a
+    /// browser and has no application at all, and drawing the browser's icon
+    /// would put a Firefox mark on a row that means Meet.
     public nonisolated static func bundleIdentifier(for source: MeetingSource) -> String? {
-        switch source {
-        case .slackHuddle: "com.tinyspeck.slackmacgap"
-        case .googleMeet, .zoom, .faceTime, .genericCall, .manual, .inPerson, .imported: nil
-        }
+        source.app?.desktopBundleIdentifiers.first
     }
 
     /// The application's mark, plate removed, or nil where this Mac does not

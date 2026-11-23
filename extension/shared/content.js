@@ -154,17 +154,27 @@ function readZoomTiles() {
   return tiles;
 }
 
-function readTiles(provider) {
+// How to read each meeting site, keyed by its provider in meeting-sites.json.
+// `documents` are where its UI lives: only Zoom draws its client in a frame,
+// and walking Meet's frames would cost a scan per tick and find nothing.
+// `tiles` reads the people on the call. A site with no entry reads the top
+// document and reports no people, so it can be detected before anyone writes
+// a reader for its roster.
+const DEFAULT_READER = { documents: () => [document], tiles: () => [] };
+const SITE_READERS = {
+  meet: { documents: () => [document], tiles: readMeetTiles },
+  zoom: { documents: readDocuments, tiles: readZoomTiles },
+};
+
+function readTiles(reader) {
   // A page the extension does not control can throw from any of this. A tick
   // that reports no roster is a meeting named by voice alone; a tick that throws
   // reports no lifecycle either, and the app stops trusting the sensor.
   try {
-    if (provider === 'meet') return readMeetTiles();
-    if (provider === 'zoom') return readZoomTiles();
+    return reader.tiles();
   } catch {
     return [];
   }
-  return [];
 }
 
 let previous = null;
@@ -174,11 +184,10 @@ const speaking = createSpeakingTracker();
 function tick() {
   const provider = providerForURL(location.href);
   if (provider === 'unknown') return;
+  const reader = Object.hasOwn(SITE_READERS, provider) ? SITE_READERS[provider] : DEFAULT_READER;
   const now = Date.now();
-  // Only Zoom draws its client in a frame. Walking Meet's frames would cost a
-  // scan per tick and find nothing.
-  const documents = provider === 'zoom' ? readDocuments() : [document];
-  const tiles = readTiles(provider);
+  const documents = reader.documents();
+  const tiles = readTiles(reader);
   const snapshot = buildState({
     href: location.href,
     title: document.title,

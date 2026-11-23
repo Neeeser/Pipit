@@ -9,15 +9,7 @@ public enum MeetingProvider: String, Codable, Sendable, CaseIterable {
     case faceTime = "facetime"
     case unknown
 
-    public var displayName: String {
-        switch self {
-        case .slack: "Slack Huddle"
-        case .googleMeet: "Google Meet"
-        case .zoom: "Zoom"
-        case .faceTime: "FaceTime"
-        case .unknown: "Call"
-        }
-    }
+    public var displayName: String { app?.name ?? "Call" }
 }
 
 /// How a recording came to exist. Downstream processing is identical for all of
@@ -36,7 +28,7 @@ public enum MeetingSource: String, Codable, Sendable, CaseIterable {
     public var capturesRemoteAudio: Bool {
         switch self {
         case .inPerson, .imported: false
-        case .slackHuddle, .googleMeet, .zoom, .faceTime, .genericCall, .manual: true
+        default: true
         }
     }
 
@@ -49,30 +41,20 @@ public enum MeetingSource: String, Codable, Sendable, CaseIterable {
     public var micTrackIsLocalUser: Bool {
         switch self {
         case .inPerson, .imported: false
-        case .slackHuddle, .googleMeet, .zoom, .faceTime, .genericCall, .manual: true
+        default: true
         }
     }
 
-    public var provider: MeetingProvider {
-        switch self {
-        case .slackHuddle: .slack
-        case .googleMeet: .googleMeet
-        case .zoom: .zoom
-        case .faceTime: .faceTime
-        case .genericCall, .manual, .inPerson, .imported: .unknown
-        }
-    }
+    public var provider: MeetingProvider { app?.provider ?? .unknown }
 
     public var displayName: String {
-        switch self {
-        case .slackHuddle: "Slack Huddle"
-        case .googleMeet: "Google Meet"
-        case .zoom: "Zoom"
-        case .faceTime: "FaceTime"
+        if let app { return app.name }
+        return switch self {
         case .genericCall: "Call"
         case .manual: "Manual recording"
         case .inPerson: "In-person meeting"
         case .imported: "Imported recording"
+        default: "Call"
         }
     }
 
@@ -84,11 +66,12 @@ public enum MeetingSource: String, Codable, Sendable, CaseIterable {
     /// 1h 12m" ran off the end. `displayName` stays as it is because folder
     /// names on disk are built from it and they are already written.
     public var listName: String {
-        switch self {
+        if let app { return app.listName }
+        return switch self {
         case .manual: "Manual"
         case .inPerson: "In person"
         case .imported: "Imported"
-        case .slackHuddle, .googleMeet, .zoom, .faceTime, .genericCall: displayName
+        default: displayName
         }
     }
 
@@ -100,15 +83,24 @@ public enum MeetingSource: String, Codable, Sendable, CaseIterable {
     /// from each other on purpose: five of them drew the same camera, and a row
     /// could not say whether a call had been a huddle or a Zoom.
     public var symbolName: String {
-        switch self {
-        case .slackHuddle: "headphones"
-        case .googleMeet: "video.fill"
-        case .zoom: "square.grid.2x2.fill"
-        case .faceTime: "person.crop.rectangle.fill"
+        if let app { return app.symbolName }
+        return switch self {
         case .genericCall: "phone.fill"
         case .manual: "waveform"
         case .inPerson: "mic"
         case .imported: "tray.and.arrow.down"
+        default: "phone.fill"
+        }
+    }
+
+    /// The colour this source's badge is drawn in.
+    public var tint: SourceColor {
+        if let app { return app.tint }
+        return switch self {
+        case .manual: .teal
+        case .inPerson: .orange
+        case .imported: .secondary
+        default: .indigo
         }
     }
 }

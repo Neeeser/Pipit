@@ -74,11 +74,22 @@ test('the Chrome key gives the identifier Pipit allows', () => {
   assert.equal(allowed[1], id);
 });
 
-// The background script as build.sh assembles it: relay.js without its module
-// syntax, followed by background.js.
+// A shared file without its module syntax, the way build.sh strips it.
+const plainSource = (path) =>
+  read(path)
+    .replace(/^export (function|const|let|class)/gm, '$1')
+    .replace(/^import .* from '\.\/(sites\.js|meeting-sites\.json)'.*;$/gm, '')
+    .replace(/^export \{.*\};$/gm, '');
+
+// The background script as build.sh assembles it: the site list and sites.js,
+// relay.js, then background.js.
 function backgroundSource() {
-  const relay = read('../shared/relay.js').replace(/^export (function|const|let|class)/gm, '$1');
-  return `${relay}\n${read('../shared/background.js')}`;
+  return [
+    `const MEETING_SITES = ${read('../shared/meeting-sites.json')};`,
+    plainSource('../shared/sites.js'),
+    plainSource('../shared/relay.js'),
+    read('../shared/background.js'),
+  ].join('\n');
 }
 
 function fakeBrowser(extensionURL, tabs) {

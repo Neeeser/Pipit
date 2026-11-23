@@ -794,14 +794,14 @@ struct UITests {
 
         var settings = AppSettings()
         settings.localUserName = "Marlow"
-        settings.providers.zoom = ProviderPolicy(autoStart: .never, autoStop: false)
+        settings.providers[.zoom] = ProviderPolicy(autoStart: .never, autoStop: false)
         settings.enrichment.generateSummary = false
         settings.alwaysRecordApplications = ["com.example.videochat"]
         try store.save(settings)
 
         let reloaded = SettingsStore(directory: root).load()
         #expect(reloaded.localUserName == "Marlow")
-        #expect(reloaded.providers.zoom.autoStart == .never)
+        #expect(reloaded.providers[.zoom].autoStart == .never)
         #expect(!reloaded.enrichment.generateSummary)
         #expect(reloaded.alwaysRecordApplications == ["com.example.videochat"])
         // The API key is never in settings; it lives in the keychain.

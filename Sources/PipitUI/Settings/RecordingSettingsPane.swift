@@ -13,10 +13,9 @@ struct RecordingSettingsPane: View {
     var body: some View {
         Form {
             Section("Record automatically") {
-                providerRow("Slack Huddles", keyPath: \.slack)
-                providerRow("Google Meet", keyPath: \.googleMeet)
-                providerRow("Zoom", keyPath: \.zoom)
-                providerRow("FaceTime", keyPath: \.faceTime)
+                ForEach(MeetingApp.all) { app in
+                    providerRow(app.settingsLabel, keyPath: \.[app.provider])
+                }
                 providerRow("Other calls", keyPath: \.unknownCalls)
             }
             Section("Live transcript") {

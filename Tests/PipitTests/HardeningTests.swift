@@ -1359,7 +1359,7 @@ struct SessionHardeningTests {
     @Test("a provider set to never record does not suppress another one")
     func aProviderSetToNeverRecordDoesNotSuppressAnotherOne() async throws {
         var policies = ProviderPolicies()
-        policies.zoom = ProviderPolicy(autoStart: .never, autoStop: true)
+        policies[.zoom] = ProviderPolicy(autoStart: .never, autoStop: true)
         var controller = SessionController(policies: policies)
         let wall = Date(timeIntervalSince1970: 1_787_070_000)
 

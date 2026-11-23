@@ -1,8 +1,8 @@
 // Relays content-script observations to the native host, and counts audible tabs.
 //
-// The helpers come from shared/relay.js, which the build concatenates in front
-// of this file.
-/* global relayEnvelope, helloMessage, otherAudibleTabs, usesNativePort */
+// The helpers come from shared/relay.js and shared/sites.js, which the build
+// concatenates in front of this file.
+/* global relayEnvelope, helloMessage, otherAudibleTabs, usesNativePort, siteMatchPatterns */
 /* global SAFARI_HELLO_MINUTES */
 
 const api = globalThis.browser ?? globalThis.chrome;
@@ -130,7 +130,7 @@ async function injectInto(tabId) {
 async function injectIntoOpenTabs() {
   try {
     const tabs = await api.tabs.query({
-      url: ['https://meet.google.com/*', 'https://*.zoom.us/*'],
+      url: siteMatchPatterns(),
     });
     for (const tab of tabs) {
       try {

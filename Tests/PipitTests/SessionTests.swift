@@ -671,7 +671,7 @@ struct SessionControllerTests {
     @Test("a provider set to never record is left alone")
     func aProviderSetToNeverRecordIsLeftAlone() async throws {
         var policies = ProviderPolicies()
-        policies.googleMeet = ProviderPolicy(autoStart: .never, autoStop: true)
+        policies[.googleMeet] = ProviderPolicy(autoStart: .never, autoStop: true)
         var controller = SessionController(policies: policies)
         let wall = Date(timeIntervalSince1970: 1_787_070_000)
         #expect(

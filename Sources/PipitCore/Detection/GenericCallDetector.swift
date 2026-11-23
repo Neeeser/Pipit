@@ -180,8 +180,17 @@ public struct GenericCallDetector: Sendable {
 
     private var tracked: [String: Tracked] = [:]
 
-    public init(configuration: Configuration = Configuration()) {
+    /// Meeting apps whose desktop calls this detector finds. Their calls are
+    /// filed under the app rather than as an unknown "Call", so the app's own
+    /// policy decides whether to record.
+    public let apps: [MeetingApp]
+
+    public init(
+        configuration: Configuration = Configuration(),
+        apps: [MeetingApp] = MeetingApp.all.filter { !$0.hasOwnDesktopDetector }
+    ) {
         self.configuration = configuration
+        self.apps = apps
     }
 
     public mutating func update(states: [ApplicationAudioState], at now: Double) -> [Event] {
@@ -190,11 +199,7 @@ public struct GenericCallDetector: Sendable {
 
         for state in states {
             guard state.holdsMicrophone else { continue }
-            guard
-                !MicrophoneIgnoreList.isIgnored(
-                    state.bundleIdentifier, additional: configuration.neverRecord
-                )
-            else { continue }
+            guard !isNeverRecorded(state.bundleIdentifier) else { continue }
             seen.insert(state.bundleIdentifier)
 
             var entry = tracked[state.bundleIdentifier] ?? Tracked(since: now, lastSeen: now)
@@ -209,8 +214,8 @@ public struct GenericCallDetector: Sendable {
                 : configuration.dwellSeconds
             // Both lists name applications, and the microphone is held by a
             // helper, so the process is resolved to its application either way.
-            let preapproved = configuration.alwaysRecord.contains(
-                MicrophoneIgnoreList.applicationIdentifier(for: state.bundleIdentifier)
+            let preapproved = !configuration.alwaysRecord.isDisjoint(
+                with: listedIdentifiers(for: state.bundleIdentifier)
             )
 
             if !entry.promoted, preapproved || held >= threshold {
@@ -235,14 +240,32 @@ public struct GenericCallDetector: Sendable {
         // never-record list kept publishing confirmed evidence through the end
         // grace, and the session re-prompted the user it had just answered.
         for (bundleIdentifier, entry) in tracked where !seen.contains(bundleIdentifier) {
-            let banned = MicrophoneIgnoreList.isIgnored(
-                bundleIdentifier, additional: configuration.neverRecord
-            )
+            let banned = isNeverRecorded(bundleIdentifier)
             guard banned || now - entry.lastSeen >= configuration.endGraceSeconds else { continue }
             if entry.promoted { events.append(.callEnded(bundleIdentifier: bundleIdentifier)) }
             tracked.removeValue(forKey: bundleIdentifier)
         }
         return events
+    }
+
+    /// The identifiers the always- and never-record lists may name this
+    /// process by.
+    ///
+    /// Its application, and for a process of a known meeting app every one of
+    /// that app's bundle identifiers: the evidence offers the app's main
+    /// identifier, which is what the person's answer is saved under, while the
+    /// microphone is usually held by a helper with a different identifier.
+    private func listedIdentifiers(for bundleIdentifier: String) -> Set<String> {
+        var identifiers: Set<String> = [MicrophoneIgnoreList.applicationIdentifier(for: bundleIdentifier)]
+        if let app = MeetingApp.owning(bundleIdentifier: bundleIdentifier, in: apps) {
+            identifiers.formUnion(app.desktopBundleIdentifiers)
+        }
+        return identifiers
+    }
+
+    private func isNeverRecorded(_ bundleIdentifier: String) -> Bool {
+        MicrophoneIgnoreList.isIgnored(bundleIdentifier, additional: configuration.neverRecord)
+            || !configuration.neverRecord.isDisjoint(with: listedIdentifiers(for: bundleIdentifier))
     }
 
     /// Evidence for every call being watched.
@@ -256,15 +279,42 @@ public struct GenericCallDetector: Sendable {
     /// Evidence is reasserted on every poll because the session lifecycle ends a
     /// recording whose evidence disappears.
     public func currentEvidence() -> [ProviderEvidence] {
-        tracked.map { bundleIdentifier, entry in
-            ProviderEvidence(
-                provider: .unknown,
-                confidence: entry.promoted ? .confirmed : .candidate,
-                source: .native,
-                title: entry.windowTitle,
-                applicationBundleID: bundleIdentifier,
-                audioBundlePrefixes: [bundleIdentifier]
-            )
+        var evidence: [ProviderEvidence] = []
+        var indexByApp: [MeetingProvider: Int] = [:]
+        // Sorted so the merge below, and the order of the result, does not
+        // depend on dictionary order.
+        for (bundleIdentifier, entry) in tracked.sorted(by: { $0.key < $1.key }) {
+            let confidence: MeetingConfidence = entry.promoted ? .confirmed : .candidate
+            guard let app = MeetingApp.owning(bundleIdentifier: bundleIdentifier, in: apps) else {
+                evidence.append(
+                    ProviderEvidence(
+                        provider: .unknown,
+                        confidence: confidence,
+                        source: .native,
+                        title: entry.windowTitle,
+                        applicationBundleID: bundleIdentifier,
+                        audioBundlePrefixes: [bundleIdentifier]
+                    ))
+                continue
+            }
+            // An app's call is one meeting however many of its processes hold
+            // the microphone, so its helpers fold into one piece of evidence.
+            if let index = indexByApp[app.provider] {
+                evidence[index].confidence = max(evidence[index].confidence, confidence)
+                if evidence[index].title == nil { evidence[index].title = entry.windowTitle }
+                continue
+            }
+            indexByApp[app.provider] = evidence.count
+            evidence.append(
+                ProviderEvidence(
+                    provider: app.provider,
+                    confidence: confidence,
+                    source: .native,
+                    title: entry.windowTitle,
+                    applicationBundleID: app.desktopBundleIdentifiers.first ?? bundleIdentifier,
+                    audioBundlePrefixes: app.desktopAudioBundlePrefixes
+                ))
         }
+        return evidence
     }
 }
