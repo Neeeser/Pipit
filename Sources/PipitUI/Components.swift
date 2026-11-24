@@ -262,6 +262,31 @@ extension View {
     }
 }
 
+/// Brings back a split-view window's sidebar after a drag has hidden it.
+///
+/// Dragging the sidebar narrower than its minimum hides it. Pipit's windows are
+/// AppKit windows around SwiftUI, and the system's own sidebar button does not
+/// reach their toolbar, so without this a hidden sidebar stayed gone until the
+/// window was opened again. It appears only while the sidebar is hidden, so
+/// the window with its sidebar open looks as it did.
+struct ShowSidebarButton: ToolbarContent {
+    @Binding var visibility: NavigationSplitViewVisibility
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    var body: some ToolbarContent {
+        if visibility == .detailOnly {
+            ToolbarItem(placement: .navigation) {
+                Button {
+                    withAnimation(reduceMotion ? nil : .default) { visibility = .all }
+                } label: {
+                    Label("Show Sidebar", systemImage: "sidebar.left")
+                }
+                .help("Show Sidebar")
+            }
+        }
+    }
+}
+
 extension Color {
     /// The fill of the panels that float over the page: the sidebar and the
     /// summary beside the transcript.

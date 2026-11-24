@@ -10,19 +10,28 @@ import SwiftUI
 public struct PeopleDirectoryView: View {
     let model: PeopleDirectoryModel
     @FocusState private var searchFocused: Bool
+    /// Bound rather than left to the split view, so the toolbar can offer the
+    /// sidebar back after a drag hides it.
+    @State private var sidebar: NavigationSplitViewVisibility
 
     public init(model: PeopleDirectoryModel) {
+        self.init(model: model, sidebar: .all)
+    }
+
+    init(model: PeopleDirectoryModel, sidebar: NavigationSplitViewVisibility) {
         self.model = model
+        _sidebar = State(initialValue: sidebar)
     }
 
     public var body: some View {
         // The system split view, as in the Meetings and Settings windows, so
         // the list is the standard floating sidebar.
-        NavigationSplitView {
-            sidebar.sidebarBackground().navigationSplitViewColumnWidth(min: 240, ideal: 264, max: 360)
+        NavigationSplitView(columnVisibility: $sidebar) {
+            sidebarColumn.sidebarBackground().navigationSplitViewColumnWidth(min: 240, ideal: 264, max: 360)
         } detail: {
             detail.frame(minWidth: 380).toolbarTitle("People").detailBackground()
         }
+        .toolbar { ShowSidebarButton(visibility: $sidebar) }
         .frame(minWidth: 820, minHeight: 520)
         // The search field takes the keys when the window opens, so typing
         // finds a person rather than renaming the one shown.
@@ -89,7 +98,7 @@ public struct PeopleDirectoryView: View {
 
     // MARK: - sidebar
 
-    private var sidebar: some View {
+    private var sidebarColumn: some View {
         VStack(spacing: 0) {
             VStack(spacing: 8) {
                 HStack(spacing: 6) {
