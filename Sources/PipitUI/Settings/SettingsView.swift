@@ -75,15 +75,23 @@ enum SettingsPane: String, CaseIterable, Identifiable {
 
 public struct SettingsView: View {
     let model: SettingsModel
+    /// Bound rather than left to the split view, so the toolbar can offer the
+    /// sidebar back after a drag hides it.
+    @State private var sidebar: NavigationSplitViewVisibility
 
     public init(model: SettingsModel) {
+        self.init(model: model, sidebar: .all)
+    }
+
+    init(model: SettingsModel, sidebar: NavigationSplitViewVisibility) {
         self.model = model
+        _sidebar = State(initialValue: sidebar)
     }
 
     private var pane: SettingsPane { model.pane }
 
     public var body: some View {
-        NavigationSplitView {
+        NavigationSplitView(columnVisibility: $sidebar) {
             List(selection: Binding(get: { model.pane }, set: { model.pane = $0 })) {
                 ForEach(SettingsPane.groups, id: \.self) { group in
                     Section {
@@ -107,6 +115,7 @@ public struct SettingsView: View {
                 .toolbarTitle(pane.title)
                 .detailBackground()
         }
+        .toolbar { ShowSidebarButton(visibility: $sidebar) }
         .frame(minWidth: 740, minHeight: 520)
     }
 

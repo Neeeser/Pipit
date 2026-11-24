@@ -97,6 +97,11 @@ public struct MeetingDetailView: View {
                 }
                 if showsPanel { summaryPanel }
             }
+            // Tied to the panel's state rather than set around the button's
+            // change: the flag lives in user defaults, and the view picked the
+            // new value up after `withAnimation` had ended, so the panel
+            // appeared and vanished at once instead of sliding.
+            .animation(reduceMotion ? nil : .smooth(duration: 0.3), value: showsPanel)
             // At the bottom, outside the tabs, so the recording keeps
             // playing and stays in reach whichever of them is open, without
             // pushing the transcript down.
@@ -189,9 +194,9 @@ public struct MeetingDetailView: View {
 
     private var panelButton: some View {
         Button {
-            // Slid in from the trailing edge as the transcript makes room,
-            // the way a system inspector opens, rather than appearing at once.
-            withAnimation(reduceMotion ? nil : .smooth(duration: 0.3)) { panelHidden.toggle() }
+            // Slid in from the trailing edge as the transcript makes room, the
+            // way a system inspector opens, by the animation on the panel's row.
+            panelHidden.toggle()
         } label: {
             Label(panelHidden ? "Show Summary" : "Hide Summary", systemImage: "sidebar.right")
         }

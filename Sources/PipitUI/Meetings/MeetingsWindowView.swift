@@ -16,9 +16,17 @@ public struct MeetingsWindowView: View {
     /// the last read usually arrives a frame after the window, and a word that
     /// shows for one frame is a flicker.
     @State private var loadingIsSlow = false
+    /// Bound rather than left to the split view, so the toolbar can offer the
+    /// sidebar back after a drag hides it.
+    @State private var sidebar: NavigationSplitViewVisibility
 
     public init(model: MeetingsWindowModel) {
+        self.init(model: model, sidebar: .all)
+    }
+
+    init(model: MeetingsWindowModel, sidebar: NavigationSplitViewVisibility) {
         self.model = model
+        _sidebar = State(initialValue: sidebar)
     }
 
     /// Wide enough for the filter control at its narrowest inside the
@@ -32,8 +40,8 @@ public struct MeetingsWindowView: View {
         // with its own material, and the detail's commands go in the window's
         // toolbar. Each pane draws its own top edge, so there is no pair of
         // hand-drawn lines to keep level across the two.
-        NavigationSplitView {
-            sidebar
+        NavigationSplitView(columnVisibility: $sidebar) {
+            sidebarColumn
                 .sidebarBackground()
                 .navigationSplitViewColumnWidth(min: Self.sidebarMinWidth, ideal: 288, max: 380)
         } detail: {
@@ -43,6 +51,7 @@ public struct MeetingsWindowView: View {
         // The meeting's own title heads the pane, so the window's would only
         // repeat "Meetings" beside the tabs.
         .toolbar(removing: .title)
+        .toolbar { ShowSidebarButton(visibility: $sidebar) }
         // The search field, not the meeting's title, takes the keys when the
         // window opens: typing should find a meeting rather than rename one.
         .defaultFocus($searchFocused, true)
@@ -95,7 +104,7 @@ public struct MeetingsWindowView: View {
     /// Grouped once per pass and handed to the list and the footer. Both need
     /// it, and with a query typed the grouping walks every transcript the index
     /// holds, so asking twice does that walk twice.
-    private var sidebar: some View {
+    private var sidebarColumn: some View {
         let sections = model.sections
         let visible = sections.reduce(0) { $0 + $1.rows.count }
         // Once per pass, for the same reason `sections` is: the menu and the
