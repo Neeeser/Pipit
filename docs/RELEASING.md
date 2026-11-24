@@ -84,9 +84,9 @@ temporary add-on that Firefox drops when it quits.
 
 ## Labels
 
-The pull request list on each GitHub release, and the draft that
-`scripts/prepare-release.sh` writes into `CHANGELOG.md`, come from merged pull
-request titles grouped by label, as `.github/release.yml` maps them. A fork
+The draft that `scripts/prepare-release.sh` writes into `CHANGELOG.md` comes
+from merged pull request titles grouped by label, as `.github/release.yml` maps
+them. A fork
 recreates the labels with:
 
 ```sh
@@ -228,9 +228,9 @@ rebuilds every dependency in debug.
 ## Review the draft
 
 The workflow opens the release as a draft. Its body is the version's section of
-`CHANGELOG.md`, a hidden marker, and the pull request list GitHub generates
-from the merged titles, grouped by label, with each author credited. The update
-window shows only the part before the marker. Check the draft and publish it.
+`CHANGELOG.md`, a hidden marker, a line thanking anyone besides the maintainer
+who authored a commit in the release, and a link comparing it with the previous
+release. The update window shows only the part before the marker. Check the draft and publish it.
 Publishing is what runs the appcast workflow. A correction after publishing
 goes into both `CHANGELOG.md` and the release body.
 

@@ -3,11 +3,10 @@ import Foundation
 /// What a release changed, read out of the GitHub release body.
 ///
 /// The release workflow writes the body from the version's section of
-/// `CHANGELOG.md`, then `endMarker`, then the pull request list GitHub
-/// generates under the headings in `.github/release.yml`. Only the part before
-/// the marker is drawn, as lists inside the update window. The pull request
-/// list credits contributors on the release page and is written for them, not
-/// for the person updating. Sparkle's own window would show the release page,
+/// `CHANGELOG.md`, then `endMarker`, then a thanks line for contributors and a
+/// link to the full comparison. Only the part before the marker is drawn, as
+/// lists inside the update window. What follows the marker is for the release
+/// page, not for the person updating. Sparkle's own window would show the release page,
 /// which is a web page with a header, a sidebar and a sign-in prompt inside an
 /// update dialog.
 public struct ReleaseNotes: Equatable, Sendable {

@@ -3,8 +3,8 @@
 What changed in each release, written for the person updating Pipit. Each
 section becomes the top of its GitHub release and the notes in the app's
 update window. The [releases page](https://github.com/Neeeser/Pipit/releases)
-adds the list of merged pull requests and their authors below it, and holds the
-notes for releases before 0.1.9. See [docs/RELEASING.md](docs/RELEASING.md) for
+adds a thanks line for contributors and a link to the full comparison below it,
+and holds the notes for releases before 0.1.9. See [docs/RELEASING.md](docs/RELEASING.md) for
 how a section gets written.
 
 ## 0.1.13
