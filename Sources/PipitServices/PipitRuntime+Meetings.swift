@@ -56,14 +56,14 @@ extension PipitRuntime {
                 continue
             }
             let summary = repository.summary(forDirectory: directory)
-            let row = summary.map { row(summary: $0, stores: repository.stores(ofConversation: $0)) }
+            let listed = summary.map { Self.row(summary: $0, stores: repository.stores(ofConversation: $0)) }
             // A conversation in several recordings also reads the other
             // recordings' files, which these inputs do not cover, so it is
             // built again on every list. There are few of them.
             if (summary?.recordingCount ?? 1) == 1 {
-                built[key] = CachedRow(inputs: inputs, row: row)
+                built[key] = CachedRow(inputs: inputs, row: listed)
             }
-            if let row { rows.append(row) }
+            if let listed { rows.append(listed) }
         }
         // Only what this listing saw, so a deleted meeting's row goes too.
         rowCache.withLock { $0 = built.merging($0.filter { !$0.key.hasPrefix(root + "\u{0}") }) { new, _ in new } }
