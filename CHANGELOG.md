@@ -12,7 +12,7 @@ how a section gets written.
 Pipit tells speakers apart more accurately and shows its progress while it processes a meeting.
 
 ### New
-- Pipit separates speakers more accurately, including in recordings over three hours, once you install the new speaker model from Settings.
+- Pipit separates speakers more accurately once you install the new speaker model from Settings.
 - Unnamed speakers are numbered in the order they first talk.
 - Pipit shows each step and a progress bar while it processes a meeting.
 
