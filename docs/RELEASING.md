@@ -133,10 +133,15 @@ with `GITHUB_TOKEN` starts no workflows, so its required checks would never run.
 Rewrite the section in the release pull request. It is what a person reads in
 the update window.
 
-- Open with one or two lines saying what the release is.
-- Say what the person can now do, in their words. "Play a meeting's recording
-  and follow along in the transcript as it plays", not the mechanism the pull
-  request changed.
+- Open with one or two lines saying what the release is, in the same voice as
+  the lines below it.
+- Write each line about Pipit or the person, the way you would say it out
+  loud: Pipit "can now" do something, something "no longer" goes wrong.
+  "Pipit can now use Apple Intelligence to write meeting summaries", not the
+  mechanism the pull request changed.
+- Keep each line to one change in one clause. The site, app or setting that
+  revealed a bug belongs in the pull request, unless a reader needs it to know
+  whether the fix applies to them.
 - List a fix only when it corrects something a person had in an earlier
   release. A fix to a feature new in this release is part of that feature.
 - Use `###` headings for the groups. The update window shows each one as a list
