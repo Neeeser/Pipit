@@ -235,10 +235,17 @@ extension LogicalMeeting {
     /// what lets a continuation be detached later and still read correctly on
     /// its own.
     public func combinedTranscript() -> [CombinedLine] {
+        combinedTranscript { (try? $0.store.readCanonicalTranscript()) ?? nil }
+    }
+
+    /// The same, with each recording's transcript taken from `read`, so a
+    /// caller that also needs a transcript whole decodes it once.
+    public func combinedTranscript(
+        reading read: (RecordedMeeting) -> CanonicalTranscript?
+    ) -> [CombinedLine] {
         var out: [CombinedLine] = []
         for (index, recording) in recordings.enumerated() {
-            guard let transcript = (try? recording.store.readCanonicalTranscript()) ?? nil
-            else { continue }
+            guard let transcript = read(recording) else { continue }
             // Already divided by the store, so a piece is named on its own
             // rather than on the line it was cut out of.
             let lines = transcript.utterances

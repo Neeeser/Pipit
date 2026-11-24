@@ -12,7 +12,7 @@ import Foundation
 /// restarted. The relay compares the identity it started from with what is at
 /// its path now and exits once they differ, which lets the browser start the
 /// new one.
-public struct FileIdentity: Sendable, Equatable {
+public struct FileIdentity: Sendable, Hashable, Codable {
     public let device: UInt64
     public let inode: UInt64
     public let size: Int64

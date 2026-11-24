@@ -523,6 +523,7 @@ public struct MeetingDetailView: View {
                 Group {
                     if detail.speakerRows.isEmpty {
                         Text(waitingText).font(.caption).foregroundStyle(.secondary)
+                            .opacity(detail.hasReadSpeakers ? 1 : 0)
                     } else {
                         SpeakerChips(model: model, detail: detail)
                     }

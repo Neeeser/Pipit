@@ -324,7 +324,7 @@ extension PipitRuntime {
                         guard let self else { return }
                         do {
                             try await self.pipeline.refreshCachedNames(for: identityID)
-                            self.refreshRecentMeetings()
+                            self.reportMeetingsChanged()
                         } catch {
                             Log.app.error(
                                 "name refresh failed: \(logSafeDescription(error), privacy: .public)"
@@ -391,7 +391,7 @@ extension PipitRuntime {
             throw .noLocalUser
         }
         let status = try await pipeline.enrolSpokenSample(audio: audio, identityID: identityID)
-        refreshRecentMeetings()
+        reportMeetingsChanged()
         return status
     }
 
@@ -494,6 +494,17 @@ extension PipitRuntime {
             return []
         }
         guard !occurrences.isEmpty else { return [] }
+        // Off the main actor: it reads every meeting in the archive, and the
+        // People window asks for it on every click on a person.
+        let repository = self.repository
+        return await Task.detached(priority: .userInitiated) {
+            Self.appearances(occurrences, in: repository, limit: limit)
+        }.value
+    }
+
+    private nonisolated static func appearances(
+        _ occurrences: [SpeakerOccurrence], in repository: MeetingRepository, limit: Int
+    ) -> [PersonAppearance] {
         // The rows the list can already answer for, read once, so the common
         // case is a set lookup rather than a resolve. After the microphone
         // track started writing one row per meeting, resolving every occurrence
@@ -576,7 +587,10 @@ extension PipitRuntime {
         guard let store = speakerStore else { return [] }
         guard let ids = try? await store.meetingsReferencing(identityID) else { return [] }
         let wanted = Set(ids)
-        return repository.listMeetings().filter { wanted.contains($0.id) }.prefix(limit).map { $0 }
+        let repository = self.repository
+        return await Task.detached(priority: .userInitiated) {
+            repository.listMeetings().filter { wanted.contains($0.id) }.prefix(limit).map { $0 }
+        }.value
     }
 
     public func renamePerson(
@@ -602,7 +616,7 @@ extension PipitRuntime {
                 update(settings: updated)
             }
             try await pipeline.refreshCachedNames(for: identityID)
-            refreshRecentMeetings()
+            reportMeetingsChanged()
         } catch {
             Log.app.error("rename failed: \(logSafeDescription(error), privacy: .public)")
         }
@@ -629,7 +643,7 @@ extension PipitRuntime {
                 update(settings: updated)
             }
             try await pipeline.refreshCachedNames(for: source)
-            refreshRecentMeetings()
+            reportMeetingsChanged()
         } catch {
             Log.app.error("merge failed: \(logSafeDescription(error), privacy: .public)")
         }
@@ -796,12 +810,16 @@ extension PipitRuntime {
         }
         var rows: [MeetingSpeakerRow] = []
         for (index, recording) in recordings.enumerated() {
-            guard let transcript = try? recording.store.readCanonicalTranscript(),
+            // The speakers alone, which the store caches, rather than the whole
+            // transcript, which this ran on the main actor for every click on a
+            // meeting. Numbered from the first-spoken order the same way.
+            guard let speakers = try? recording.store.readTranscriptSpeakers(),
+                !speakers.isEmpty,
                 let map = try? recording.store.readSpeakerMap()
             else { continue }
             var perKey: [MeetingSpeakerRow] = []
-            let numbers = SpeakerNumbers(transcript.utterances)
-            for speaker in transcript.speakers {
+            let numbers = SpeakerNumbers(lineKeys: speakers.map(\.key))
+            for speaker in speakers {
                 let key = speaker.key
                 // Words no interval claimed are not a speaker. Offering the row
                 // for naming would put a name on a scatter of backchannels
@@ -1066,7 +1084,7 @@ extension PipitRuntime {
                 Log.app.error("re-analysis failed: \(logSafeDescription(error), privacy: .public)")
             }
             onProcessingUpdate?(meetingID)
-            refreshRecentMeetings()
+            reportMeetingsChanged()
             completion()
         }
     }

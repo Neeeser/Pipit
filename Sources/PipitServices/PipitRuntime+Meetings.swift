@@ -1,6 +1,7 @@
 import AppKit
 import Foundation
 import PipitCore
+import Synchronization
 
 /// Reading the whole archive for the meetings window.
 ///
@@ -10,16 +11,52 @@ import PipitCore
 /// one arming the next recording.
 extension PipitRuntime {
     /// Every meeting, with who was in it and the notes a search can match.
-    public func meetingRows() async -> [MeetingRow] {
+    ///
+    /// Each row's speakers come from its `transcript.json`, which is the largest
+    /// file in the folder, so what that read finds is cached against the file
+    /// and the cache is kept on disk between launches. An unchanged meeting
+    /// then costs a few `stat` calls rather than a parse.
+    public func meetingRows(priority: TaskPriority = .userInitiated) async -> [MeetingRow] {
         await folderChangesSettled()
         let repository = self.repository
-        return await Task.detached(priority: .userInitiated) {
-            repository.listMeetings().map { summary in
+        let caches = savedCaches
+        let rows = await Task.detached(priority: priority) {
+            for cache in caches { cache.restoreOnce() }
+            let rows = repository.listMeetings().map { summary in
                 Self.row(summary: summary, stores: repository.stores(ofConversation: summary))
             }
+            // The recording lengths the player read since the last save go
+            // out with this one too.
+            for cache in caches { cache.saveIfChanged() }
+            return rows
         }.value
+        lastMeetingRows = rows
+        return rows
     }
 
+    /// Where the speakers read from each transcript are kept between launches.
+    /// A cache: deleting it costs one slower first read and nothing else.
+    public nonisolated var transcriptSpeakersCacheFile: URL {
+        applicationSupport.appendingPathComponent("Caches", isDirectory: true)
+            .appendingPathComponent("transcript-speakers.json")
+    }
+
+    /// The caches of what was read from meeting files that are kept on disk
+    /// between launches, so the first list and the first click after a launch
+    /// do not parse every transcript and open every recording again.
+    private nonisolated var savedCaches: [any SavedFileCache] {
+        let folder = applicationSupport.appendingPathComponent("Caches", isDirectory: true)
+        return [
+            SavedCache(
+                cache: MeetingStore.transcriptSpeakersCache,
+                format: MeetingStore.transcriptSpeakersFormat, file: transcriptSpeakersCacheFile
+            ),
+            SavedCache(
+                cache: MeetingStore.recordingDurationCache, format: 1,
+                file: folder.appendingPathComponent("recording-durations.json")
+            ),
+        ]
+    }
     /// One meeting's row again, after something rewrote its files.
     ///
     /// `clusters` is what the pane open on the meeting has already read. The
@@ -174,3 +211,51 @@ extension PipitRuntime {
         rows.reduce(0) { $0 + $1.summary.durationSeconds }
     }
 }
+
+/// One `FileReadCache` and the file it is kept in between launches.
+protocol SavedFileCache: Sendable {
+    /// Reads the file into the cache, the first time it is asked in this
+    /// process.
+    func restoreOnce()
+    /// Writes the cache out when it holds entries the file does not.
+    func saveIfChanged()
+}
+
+private struct SavedCache<Value: Codable & Sendable>: SavedFileCache {
+    let cache: FileReadCache<Value>
+    let format: Int
+    let file: URL
+
+    func restoreOnce() {
+        let first = savedCacheState.withLock { state in
+            guard state[file.path] == nil else { return false }
+            state[file.path] = cache.changeCount
+            return true
+        }
+        guard first, let data = try? Data(contentsOf: file) else { return }
+        cache.restore(from: data, format: format)
+    }
+
+    func saveIfChanged() {
+        let count = cache.changeCount
+        let changed = savedCacheState.withLock { state in
+            guard state[file.path] != count else { return false }
+            state[file.path] = count
+            return true
+        }
+        guard changed else { return }
+        do {
+            let data = try cache.encoded(format: format)
+            try FileManager.default.createDirectory(
+                at: file.deletingLastPathComponent(), withIntermediateDirectories: true
+            )
+            try AtomicFile.write(data, to: file)
+        } catch {
+            Log.storage.error("cache not saved: \(logSafeDescription(error), privacy: .public)")
+        }
+    }
+}
+
+/// Per cache file read in this process, the cache's change count when the
+/// file last matched it.
+private let savedCacheState = Mutex<[String: Int]>([:])

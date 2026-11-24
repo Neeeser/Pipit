@@ -124,6 +124,8 @@ struct FolderTagView: View {
 struct FolderDetailView: View {
     let model: MeetingsWindowModel
     let row: FolderRow
+    /// How many meetings the folder's rule takes, once counted.
+    @State private var ruleMatches: Int?
 
     var body: some View {
         ScrollView {
@@ -203,12 +205,15 @@ struct FolderDetailView: View {
                     .frame(maxWidth: .infinity, alignment: .trailing)
 
                     FlowChips(items: FolderRuleSummary.clauses(row.folder.rule))
-                    Text(
-                        "Matches \(model.runtime.meetingsMatching(row.folder.rule)) of the "
-                            + "\(model.rows.count) meetings on disk."
-                    )
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                    // Hidden rather than absent until the count arrives, so the
+                    // card does not grow a line a moment after it opens.
+                    Text("Matches \(ruleMatches ?? 0) of the \(model.rows.count) meetings on disk.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .opacity(ruleMatches == nil ? 0 : 1)
+                        .task(id: row.folder.rule) {
+                            ruleMatches = await model.runtime.meetingsMatching(row.folder.rule)
+                        }
                 }
             }
         }
@@ -264,7 +269,7 @@ struct FolderDetailView: View {
                             .foregroundStyle(.secondary)
                     }
                     .contentShape(Rectangle())
-                    .onTapGesture { model.select(meeting.id, extending: false) }
+                    .onTapGesture { model.select(meeting.id, extending: false, openingLater: true) }
                 }
                 if members.count > 10 {
                     Text("and \(members.count - 10) more")
@@ -420,6 +425,8 @@ extension View {
 struct RecurringOfferSheet: View {
     let model: MeetingsWindowModel
     let offer: RecurringOffer
+    /// How many meetings the ticked lines take, counted off the main actor.
+    @State private var matches: Int?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -450,6 +457,7 @@ struct RecurringOfferSheet: View {
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .padding(.top, 12)
+                .task(id: offer.ticked) { matches = await model.offerMatchCount() }
 
             HStack(spacing: 8) {
                 Spacer()
@@ -478,7 +486,6 @@ struct RecurringOfferSheet: View {
         guard !offer.ticked.isEmpty else {
             return "With nothing ticked, every new meeting would land here. Pick at least one line."
         }
-        let count = model.offerMatchCount()
-        return "Matches \(count) of the \(model.rows.count) meetings on disk."
+        return "Matches \(matches.map(String.init) ?? "…") of the \(model.rows.count) meetings on disk."
     }
 }

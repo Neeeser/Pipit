@@ -156,7 +156,28 @@ public enum MeetingsDirectoryFilter {
         haystack.append(contentsOf: row.speakers.compactMap(\.displayName))
         if haystack.contains(where: { $0.lowercased().contains(needle) }) { return true }
         guard let transcript else { return false }
-        return transcript.contains(needle)
+        return bytesContain(transcript, needle)
+    }
+
+    /// Whether `needle` occurs in `haystack`, compared as UTF-8 bytes.
+    ///
+    /// The transcript and the query are both lowercased already, so a byte
+    /// search finds what a character search would. `String.contains` walks
+    /// characters, and a word that occurs nowhere walked every transcript in
+    /// the archive that way on each keystroke: measured at two thousand
+    /// meetings, over half a second per key.
+    static func bytesContain(_ haystack: String, _ needle: String) -> Bool {
+        var haystack = haystack
+        var needle = needle
+        return haystack.withUTF8 { hay in
+            needle.withUTF8 { word in
+                guard !word.isEmpty else { return true }
+                guard let hayStart = hay.baseAddress, let wordStart = word.baseAddress,
+                    word.count <= hay.count
+                else { return false }
+                return memmem(hayStart, hay.count, wordStart, word.count) != nil
+            }
+        }
     }
 
     /// Whether this row came from the source being held. A nil source holds

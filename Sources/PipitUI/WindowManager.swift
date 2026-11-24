@@ -462,11 +462,14 @@ public final class WindowManager {
             }()
         // Reloaded on every open, because meetings recorded since the last one
         // are not in the list this window is holding.
+        present(window, activating: activating)
         Task { @MainActor in
+            // After the window's first frame, so it appears at once.
+            try? await Task.sleep(for: .milliseconds(1))
+            model.showLastList(opening: meetingID)
             await model.reload()
             if let meetingID { model.show(meetingID: meetingID) }
         }
-        present(window, activating: activating)
     }
 
     /// Command-F on the Transcript tab searches the transcript, and Space on

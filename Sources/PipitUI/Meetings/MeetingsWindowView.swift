@@ -12,6 +12,10 @@ public struct MeetingsWindowView: View {
     let model: MeetingsWindowModel
 
     @FocusState private var searchFocused: Bool
+    /// Whether the first list has taken long enough to say so. The list from
+    /// the last read usually arrives a frame after the window, and a word that
+    /// shows for one frame is a flicker.
+    @State private var loadingIsSlow = false
 
     public init(model: MeetingsWindowModel) {
         self.model = model
@@ -33,7 +37,7 @@ public struct MeetingsWindowView: View {
                 .sidebarBackground()
                 .navigationSplitViewColumnWidth(min: Self.sidebarMinWidth, ideal: 288, max: 380)
         } detail: {
-            detail
+            MeetingsDetailPane(model: model)
                 .frame(minWidth: 460)
         }
         // The meeting's own title heads the pane, so the window's would only
@@ -364,6 +368,11 @@ public struct MeetingsWindowView: View {
         VStack(alignment: .leading, spacing: 4) {
             if model.isLoading {
                 Text("Loading…")
+                    .opacity(loadingIsSlow ? 1 : 0)
+                    .task {
+                        try? await Task.sleep(for: .milliseconds(500))
+                        loadingIsSlow = true
+                    }
             } else if model.rows.isEmpty {
                 Text("No meetings yet")
             } else if !model.query.isEmpty {
@@ -382,7 +391,7 @@ public struct MeetingsWindowView: View {
 
     private func footer(visible: Int) -> some View {
         HStack(spacing: 8) {
-            Text(footerText(visible: visible))
+            MeetingsFooterText(model: model, visible: visible)
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .lineLimit(1)
@@ -410,6 +419,17 @@ public struct MeetingsWindowView: View {
         // above the window's bottom edge, so the line over the footer and the
         // top of the card meet in one line across the window.
         .frame(height: MeetingPlayerBar.cardHeight - 1)
+    }
+}
+
+/// The line under the list. Its own view because it counts the selection,
+/// and the sidebar it sits in should not be rebuilt for a click.
+struct MeetingsFooterText: View {
+    let model: MeetingsWindowModel
+    let visible: Int
+
+    var body: some View {
+        Text(footerText(visible: visible))
     }
 
     private func footerText(visible: Int) -> String {
@@ -442,13 +462,18 @@ public struct MeetingsWindowView: View {
         return "\(held) \(held == 1 ? "meeting" : "meetings") · "
             + Format.shortDuration(model.totalDuration)
     }
+}
 
-    // MARK: - detail
+/// The pane beside the sidebar: one meeting, several, a folder, or nothing.
+///
+/// A view of its own rather than a part of the window's body, because it is
+/// the part that reads the selection. Inside the window's body, every click
+/// rebuilt the sidebar too, which filters and groups every meeting in the
+/// archive.
+struct MeetingsDetailPane: View {
+    let model: MeetingsWindowModel
 
-    /// A meeting draws its own title bar strip with its tabs on it. The other
-    /// panes get a bare one, so nothing of theirs sits under the window's title
-    /// bar.
-    @ViewBuilder private var detail: some View {
+    var body: some View {
         let showsFolder = model.selection.isEmpty && model.openFolderRow != nil
         if model.selection.count <= 1, !showsFolder, let detail = model.detail {
             MeetingDetailView(model: model, detail: detail)
@@ -456,6 +481,11 @@ public struct MeetingsWindowView: View {
             MeetingsSelectionView(model: model)
         } else if showsFolder, let folder = model.openFolderRow {
             FolderDetailView(model: model, row: folder)
+        } else if model.selection.count == 1 || model.isLoading {
+            // A meeting chosen and about to be read, or a list not here yet.
+            // Blank rather than "No Meeting Selected", which would flash for
+            // that frame.
+            Color.clear.frame(maxWidth: .infinity, maxHeight: .infinity)
         } else {
             Text("No Meeting Selected").font(.title3).foregroundStyle(.secondary)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -522,7 +552,7 @@ struct MeetingRowView: View {
             let flags = NSEvent.modifierFlags
             model.select(
                 row.id, extending: flags.contains(.command),
-                throughRange: flags.contains(.shift))
+                throughRange: flags.contains(.shift), openingLater: true)
         }
         .contextMenu { menu }
         .accessibilityElement(children: .combine)

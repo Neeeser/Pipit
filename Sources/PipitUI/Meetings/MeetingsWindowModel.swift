@@ -98,7 +98,13 @@ public final class MeetingsWindowModel {
     /// where it came from, and folding the two into one control would make
     /// both harder to read.
     public var sourceFilter: MeetingSource?
-    public var query = ""
+    public var query = "" {
+        didSet {
+            if !query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                prepareTranscriptSearch()
+            }
+        }
+    }
     /// Meetings the user has clicked. More than one puts the batch panel in the
     /// detail pane, as the People window does.
     public var selection: Set<String> = []
@@ -132,7 +138,11 @@ public final class MeetingsWindowModel {
     /// Every transcript, lowercased, once the background read has finished.
     /// Until then a search matches titles, speakers and notes alone.
     public var searchesTranscripts = false
-
+    /// Whether anyone has searched in this window. The index is every
+    /// transcript in the archive held in memory, so it is read on the first
+    /// search rather than on every open: most opens never search, and the read
+    /// was the largest thing the window allocated.
+    @ObservationIgnored private var wantsTranscriptIndex = false
     @ObservationIgnored private var transcripts: [String: String] = [:]
     @ObservationIgnored private var indexTask: Task<Void, Never>?
     /// The meetings the index covers, and how many recordings each entry was
@@ -149,6 +159,8 @@ public final class MeetingsWindowModel {
     /// it must not put them back.
     @ObservationIgnored private var droppedWhileReading: Set<String> = []
     @ObservationIgnored private var loadTask: Task<[MeetingRow], Never>?
+    /// The click whose meeting is about to be opened. See `select`.
+    @ObservationIgnored private var pendingOpen: Task<Void, Never>?
     /// The reread that carries the pane's last saved edits into the list.
     @ObservationIgnored private var savedEditsReachingTheList: Task<Void, Never>?
     /// Counts the changes this window has made to the archive itself, which are
@@ -164,6 +176,25 @@ public final class MeetingsWindowModel {
 
     public init(runtime: PipitRuntime) {
         self.runtime = runtime
+    }
+
+    /// Puts the list the runtime last read on screen, when the window has
+    /// none yet, and chooses a meeting to open a frame later.
+    ///
+    /// Called once the window is up, not as it is made. The empty window
+    /// appears at once, the list follows on the next frame without reading the
+    /// disk, and the meeting after that. Drawing all three in the window's first
+    /// frame held the window back by half a second after a launch.
+    public func showLastList(opening meetingID: String? = nil) {
+        guard rows.isEmpty, let last = runtime.lastMeetingRows else { return }
+        rows = last
+        isLoading = false
+        if let meetingID {
+            let resolved = runtime.repository.logicalMeeting(id: meetingID)?.id ?? meetingID
+            select(resolved, extending: false, openingLater: true)
+        } else if selection.isEmpty, let first = sections.first?.rows.first {
+            select(first.id, extending: false, openingLater: true)
+        }
     }
 
     public func openSettings() { onOpenSettings?() }
@@ -182,6 +213,9 @@ public final class MeetingsWindowModel {
             _ = await inFlight.value
             return
         }
+        // A pane opened while this read runs was read from disk just now, and
+        // reading it again below doubled the work of every open.
+        let paneAtStart = detail
         var loaded: [MeetingRow] = []
         while true {
             let changes = archiveChanges
@@ -194,7 +228,9 @@ public final class MeetingsWindowModel {
             // one was already running.
             if changes == archiveChanges { break }
         }
-        rows = loaded
+        // Only when something changed, so a reload that finds the archive as
+        // the window drew it does not redraw every row.
+        if rows != loaded { rows = loaded }
         isLoading = false
         // The meeting the pane is showing stays selected even when this read
         // did not see it. A recording that finished after the read began is not
@@ -212,13 +248,20 @@ public final class MeetingsWindowModel {
             // on whichever one it happened to hand back, behind the panel that
             // covers a multiple selection.
             openDetail(focused)
-        } else if let detail {
+        } else if let detail, detail === paneAtStart {
             // The pane survives the window being closed and opened again, and
             // the meeting it holds can have finished processing in between.
             await detail.reloadAll()
         }
-        startIndexing()
+        if wantsTranscriptIndex { startIndexing() }
         await reloadFolders()
+    }
+
+    /// Starts reading every transcript for search, once per window.
+    public func prepareTranscriptSearch() {
+        guard !wantsTranscriptIndex else { return }
+        wantsTranscriptIndex = true
+        startIndexing()
     }
 
     /// Reads the transcripts the index does not hold, in the background, and
@@ -309,6 +352,8 @@ public final class MeetingsWindowModel {
     /// read answers under the conversation's identifier, and a correction made
     /// on the second half of a dropped call names the second half.
     private func refreshIndexEntry(_ meetingID: String) async {
+        // Nothing to keep current before the first search builds the index.
+        guard wantsTranscriptIndex else { return }
         let read = await runtime.transcriptSearchIndex(for: [meetingID])
         transcripts.merge(read) { _, new in new }
         for id in read.keys {
@@ -413,8 +458,18 @@ public final class MeetingsWindowModel {
     /// every visible row from the anchor to this one (Shift-click), and adds
     /// that range to the selection when `extending` is also set
     /// (Command-Shift-click).
-    public func select(_ id: String, extending: Bool, throughRange: Bool = false) {
-        let visible = sections.flatMap(\.rows).map(\.id)
+    ///
+    /// `openingLater` is for a click. The row is marked straight away and the
+    /// meeting is read and drawn a moment after, so the click shows on the next
+    /// frame instead of after the transcript has been decoded and laid out.
+    /// Measured on a three-hour meeting, that was most of a second with nothing
+    /// on screen changing.
+    public func select(
+        _ id: String, extending: Bool, throughRange: Bool = false, openingLater: Bool = false
+    ) {
+        // Only a Shift-click needs the order on screen, and working it out
+        // groups every meeting in the archive.
+        let visible = throughRange ? sections.flatMap(\.rows).map(\.id) : []
         if throughRange, let anchor = selectionAnchor,
             let from = visible.firstIndex(of: anchor), let to = visible.firstIndex(of: id)
         {
@@ -430,8 +485,9 @@ public final class MeetingsWindowModel {
         // The detail model writes what was typed into it before the pane shows
         // another meeting. Without this, moving the selection while a title was
         // half-edited threw the edit away.
+        pendingOpen?.cancel()
         if selection.count == 1, let focused = selection.first {
-            openDetail(focused)
+            if openingLater { openDetailSoon(focused) } else { openDetail(focused) }
         } else {
             detail?.saveEdits()
             detail = nil
@@ -443,9 +499,23 @@ public final class MeetingsWindowModel {
     /// land on it even while the sidebar is filtered to Unnamed.
     public func show(meetingID: String) {
         let resolved = runtime.repository.logicalMeeting(id: meetingID)?.id ?? meetingID
+        pendingOpen?.cancel()
         selection = [resolved]
         selectionAnchor = resolved
         openDetail(resolved)
+    }
+
+    /// Opens the meeting once the frame that shows the click has been drawn.
+    /// A newer click cancels it, so going down the list with the arrow keys
+    /// reads only the meeting the keys stop on.
+    private func openDetailSoon(_ id: String) {
+        pendingOpen = Task { [weak self] in
+            // A sleep rather than a yield: the main actor's queue can run again
+            // inside the same pass of the run loop, before the frame is drawn.
+            try? await Task.sleep(for: .milliseconds(1))
+            guard !Task.isCancelled, let self, selection == [id] else { return }
+            openDetail(id)
+        }
     }
 
     private func openDetail(_ id: String) {
@@ -469,7 +539,9 @@ public final class MeetingsWindowModel {
             }
         }
         detail = opened
-        Task { [weak self] in await self?.detail?.reloadAll() }
+        // The files were read as the model was made, so only the parts that
+        // need the identity store are left.
+        Task { [weak self] in await self?.detail?.reloadSpeakers() }
     }
 
     /// Returns once the pane's last saved edits are in the list.
@@ -928,7 +1000,7 @@ public final class MeetingsWindowModel {
         // its series should follow. A batch is not: the user has already said
         // what they meant about all of them.
         if let folder, rows.count == 1, failures.isEmpty {
-            offerRuleAfterFiling(rows[0].id, folder: folder)
+            await offerRuleAfterFiling(rows[0].id, folder: folder)
         }
         Task { await reload() }
     }
@@ -1043,8 +1115,8 @@ public final class MeetingsWindowModel {
     }
 
     /// Offers to make a rule after a meeting was filed by hand.
-    public func offerRuleAfterFiling(_ meetingID: String, folder: String) {
-        offerRule(runtime.recurringProposal(for: meetingID), for: meetingID, folder: folder)
+    public func offerRuleAfterFiling(_ meetingID: String, folder: String) async {
+        offerRule(await runtime.recurringProposal(for: meetingID), for: meetingID, folder: folder)
     }
 
     private func offerRule(_ proposal: RecurringProposal?, for meetingID: String, folder: String) {
@@ -1063,9 +1135,9 @@ public final class MeetingsWindowModel {
     }
 
     /// How many meetings on disk the ticked clauses would catch.
-    public func offerMatchCount() -> Int {
+    public func offerMatchCount() async -> Int {
         guard let offer = recurringOffer else { return 0 }
-        return runtime.meetingsMatching(offer.proposal.rule(ticking: offer.ticked, from: offer.facts))
+        return await runtime.meetingsMatching(offer.proposal.rule(ticking: offer.ticked, from: offer.facts))
     }
 
     public func saveOfferedRule() {
