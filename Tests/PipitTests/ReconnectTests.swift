@@ -141,8 +141,8 @@ struct ReconnectTests {
         #expect(logical.combinedTranscript().contains { $0.utterance.text == "after the rejoin" })
     }
 
-    @Test("recent meetings shows one row for the whole conversation")
-    func recentMeetingsShowsOneRowForTheWholeConversation() async throws {
+    @Test("the meetings list shows one row for the whole conversation")
+    func theListShowsOneRowForTheWholeConversation() async throws {
         let root = try TestPaths.makeTemporaryDirectory()
         defer { try? FileManager.default.removeItem(at: root) }
         let (repository, first, _) = try Self.makeSplitMeeting(root: root)

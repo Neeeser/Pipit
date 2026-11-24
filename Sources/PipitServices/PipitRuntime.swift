@@ -636,7 +636,7 @@ public final class PipitRuntime {
             // the menu bar item and Setup appear while the prompt waits:
             // measured, the whole application sat invisible for two minutes
             // behind a prompt the person had not noticed.
-            _ = await Task.detached { [repository] in repository.listMeetings(limit: 40) }.value
+            _ = await Task.detached { [repository] in repository.meetingDirectories() }.value
             onStatusChange?()
             // Read once now, in the background, so the first time the meetings
             // window opens it already has a list to draw.
@@ -1062,6 +1062,9 @@ public final class PipitRuntime {
         let sharingChanged = newSettings.sharesDiagnosticsAutomatically != settings.sharesDiagnosticsAutomatically
         settings = newSettings
         settingsSnapshot.withLock { $0 = newSettings }
+        // The last list read belongs to the old folder, and a window opened
+        // from it would choose a meeting that is not there.
+        if rootChanged { lastMeetingRows = nil }
         live.localUserName = newSettings.localUserName
         live.hiddenFromSharing = newSettings.live.hiddenFromScreenSharing
         // A model that refused a rewrite may accept it from another one.

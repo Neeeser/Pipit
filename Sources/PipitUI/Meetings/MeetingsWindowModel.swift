@@ -142,8 +142,10 @@ public final class MeetingsWindowModel {
     /// transcript in the archive held in memory, so it is read on the first
     /// search rather than on every open: most opens never search, and the read
     /// was the largest thing the window allocated.
-    @ObservationIgnored private var wantsTranscriptIndex = false
-    @ObservationIgnored private var transcripts: [String: String] = [:]
+    private var wantsTranscriptIndex = false
+    /// Observed, so a search typed before the index was read shows the
+    /// transcript matches once it lands rather than at the next keystroke.
+    private var transcripts: [String: String] = [:]
     @ObservationIgnored private var indexTask: Task<Void, Never>?
     /// The meetings the index covers, and how many recordings each entry was
     /// read from, so one recorded since it was built is noticed rather than
@@ -185,10 +187,15 @@ public final class MeetingsWindowModel {
     /// appears at once, the list follows on the next frame without reading the
     /// disk, and the meeting after that. Drawing all three in the window's first
     /// frame held the window back by half a second after a launch.
+    ///
+    /// A window kept from an earlier open already has its list, and only moves
+    /// to the meeting it was asked for.
     public func showLastList(opening meetingID: String? = nil) {
-        guard rows.isEmpty, let last = runtime.lastMeetingRows else { return }
-        rows = last
-        isLoading = false
+        if rows.isEmpty, let last = runtime.lastMeetingRows {
+            rows = last
+            isLoading = false
+        }
+        guard !rows.isEmpty else { return }
         if let meetingID {
             let resolved = runtime.repository.logicalMeeting(id: meetingID)?.id ?? meetingID
             select(resolved, extending: false, openingLater: true)
@@ -237,7 +244,11 @@ public final class MeetingsWindowModel {
         // in these rows, and dropping it moved the user off the meeting a
         // notification had just opened.
         let present = Set(loaded.map(\.id))
-        selection = selection.filter { present.contains($0) || $0 == detail?.meetingID }
+        // Only a pane that read its meeting. A list kept from an earlier read
+        // can name a meeting deleted since, and keeping that selection left
+        // the pane on "no longer on disk" with the real meetings unchosen.
+        let paneHolds = detail.flatMap { $0.errorMessage == nil ? $0.meetingID : nil }
+        selection = selection.filter { present.contains($0) || $0 == paneHolds }
         if selection.isEmpty, let first = sections.first?.rows.first {
             select(first.id, extending: false)
         } else if selection.count == 1, let focused = selection.first,
@@ -257,6 +268,9 @@ public final class MeetingsWindowModel {
         await reloadFolders()
     }
 
+    /// Whether a search is waiting on the transcripts being read.
+    public var isReadingTranscripts: Bool { wantsTranscriptIndex && !searchesTranscripts }
+
     /// Starts reading every transcript for search, once per window.
     public func prepareTranscriptSearch() {
         guard !wantsTranscriptIndex else { return }
@@ -273,6 +287,9 @@ public final class MeetingsWindowModel {
     /// meetings it does not already cover, because a rename drops one entry and
     /// re-reading the archive for it costs a file read per meeting on disk.
     private func startIndexing() {
+        // Before the list is read there is nothing to index, and saying the
+        // transcripts are searched would be wrong. The read starts it again.
+        guard !isLoading else { return }
         let counts = Dictionary(
             rows.map { ($0.id, $0.summary.recordingCount) }, uniquingKeysWith: { first, _ in first }
         )
@@ -363,10 +380,19 @@ public final class MeetingsWindowModel {
         }
     }
 
+    /// The window was closed. Saves what was typed and lets go of the search
+    /// index, which holds every transcript in the archive. What is on screen
+    /// stays, so the window can be shown again as it was.
     public func end() {
         indexTask?.cancel()
         indexTask = nil
         detail?.saveEdits()
+        query = ""
+        transcripts = [:]
+        indexed = [:]
+        droppedWhileReading = []
+        searchesTranscripts = false
+        wantsTranscriptIndex = false
     }
 
     // MARK: - the list
@@ -506,8 +532,7 @@ public final class MeetingsWindowModel {
     }
 
     /// Opens the meeting once the frame that shows the click has been drawn.
-    /// A newer click cancels it, so going down the list with the arrow keys
-    /// reads only the meeting the keys stop on.
+    /// A newer click that lands first cancels it.
     private func openDetailSoon(_ id: String) {
         pendingOpen = Task { [weak self] in
             // A sleep rather than a yield: the main actor's queue can run again
@@ -999,10 +1024,10 @@ public final class MeetingsWindowModel {
         // One meeting filed by hand is the moment to ask whether the rest of
         // its series should follow. A batch is not: the user has already said
         // what they meant about all of them.
+        Task { await reload() }
         if let folder, rows.count == 1, failures.isEmpty {
             await offerRuleAfterFiling(rows[0].id, folder: folder)
         }
-        Task { await reload() }
     }
 
     /// Makes the folder the prompt asked for and files what it was opened with.

@@ -29,16 +29,9 @@ public struct MeetingStore: Sendable {
             FileManager.default.fileExists(atPath: layout.metadata.path)
             ? layout.metadata
             : layout.legacyMetadata
-        // Cached against the file's identity. Listing the archive, finding one
-        // meeting and resolving a conversation each decode this file, and the
-        // menu's recent list does it for every meeting on the main thread.
-        return try Self.metadataCache.value(at: url.path) {
-            let data = try read(url)
-            return try ArchiveCoding.decode(MeetingMetadata.self, from: data, path: url.path)
-        }
+        let data = try read(url)
+        return try ArchiveCoding.decode(MeetingMetadata.self, from: data, path: url.path)
     }
-
-    public static let metadataCache = FileReadCache<MeetingMetadata>()
 
     public func writeMetadata(_ metadata: MeetingMetadata) throws {
         try AtomicFile.write(try ArchiveCoding.encode(metadata), to: layout.metadata)
@@ -174,15 +167,9 @@ public struct MeetingStore: Sendable {
 
     public func readSpeakerMap() throws -> SpeakerMap {
         guard FileManager.default.fileExists(atPath: layout.speakerMap.path) else { return SpeakerMap() }
-        // Cached against the file's identity: the list, the folder rows and the
-        // open meeting each read it, several times per click.
-        return try Self.speakerMapCache.value(at: layout.speakerMap.path) {
-            let data = try read(layout.speakerMap)
-            return try ArchiveCoding.decode(SpeakerMap.self, from: data, path: layout.speakerMap.path)
-        }
+        let data = try read(layout.speakerMap)
+        return try ArchiveCoding.decode(SpeakerMap.self, from: data, path: layout.speakerMap.path)
     }
-
-    public static let speakerMapCache = FileReadCache<SpeakerMap>()
 
     public func writeSpeakerMap(_ map: SpeakerMap) throws {
         try AtomicFile.write(try ArchiveCoding.encode(map), to: layout.speakerMap)

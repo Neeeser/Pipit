@@ -376,7 +376,7 @@ public struct MeetingsWindowView: View {
             } else if model.rows.isEmpty {
                 Text("No meetings yet")
             } else if !model.query.isEmpty {
-                Text("No match")
+                Text(model.isReadingTranscripts ? "Searching transcripts…" : "No match")
             } else if let source = model.sourceFilter {
                 Text("No \(source.listName) meetings")
             } else if model.filter == .archived {

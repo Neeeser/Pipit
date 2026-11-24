@@ -42,15 +42,16 @@ struct DockPresenceTests {
         try await Self.theProvisionalPromptLeavesThePolicyAlone()
     }
 
-    @Test("a closed Meetings window is let go rather than kept for reuse")
-    func aClosedMeetingsWindowIsLetGo() async throws {
-        try await Self.aClosedWindowIsReleased()
+    @Test("a closed Meetings window is kept hidden, shown again as it was, and let go under memory pressure")
+    func aClosedMeetingsWindowIsKeptUntilMemoryIsShort() async throws {
+        try await Self.aClosedMeetingsWindowIsKept()
     }
 
-    /// Kept for reuse, a closed Meetings window held its view tree, drawing
-    /// buffers and loaded transcripts for the rest of the app's life.
+    /// Built again on every open, the window took a third of a second to come
+    /// back and drew the meeting after the list. Kept, it comes back as it
+    /// was, and it still gives its memory up when the system asks.
     @MainActor
-    private static func aClosedWindowIsReleased() async throws {
+    private static func aClosedMeetingsWindowIsKept() async throws {
         let root = try TestPaths.makeTemporaryDirectory()
         let recorder = Recorder()
         let windows = makeWindows(root: root, into: recorder)
@@ -61,11 +62,25 @@ struct DockPresenceTests {
         #expect(opened != nil, "the window opened")
 
         autoreleasepool { opened?.close() }
+        try await Task.sleep(for: .milliseconds(100))
+        #expect(opened != nil, "the closed window is kept")
+        #expect(opened?.isVisible == false, "and hidden")
+        #expect(!windows.hasOpenWindow, "so it does not hold the Dock icon")
+
+        windows.showMeetings(activating: false)
+        // Identifiers rather than the windows, which would keep the window
+        // alive for the rest of the test.
+        let shown = NSApp.windows.filter { !before.contains(ObjectIdentifier($0)) && $0.isVisible }
+            .map(ObjectIdentifier.init)
+        #expect(shown == [opened.map(ObjectIdentifier.init)].compactMap { $0 }, "the same window comes back")
+
+        autoreleasepool { opened?.close() }
+        try await Task.sleep(for: .milliseconds(100))
+        autoreleasepool { windows.releaseHiddenMeetingsWindow() }
         for _ in 0..<20 where opened != nil {
             try await Task.sleep(for: .milliseconds(20))
         }
-        #expect(opened == nil, "nothing holds the closed window")
-        #expect(!windows.hasOpenWindow)
+        #expect(opened == nil, "memory pressure lets it go")
         withExtendedLifetime(windows) {}
     }
 

@@ -207,3 +207,94 @@ struct MeetingsSearchIndexTests {
         #expect(model.sections.flatMap(\.rows).map(\.id) == [meeting.id])
     }
 }
+
+@Suite("Meetings window from a kept list")
+struct MeetingsWindowKeptListTests {
+    /// The list kept from an earlier read can name a meeting deleted since.
+    /// Opening it left the pane on "no longer on disk" after the fresh read,
+    /// with no row chosen.
+    @Test("a meeting deleted since the last read is not left on screen")
+    @MainActor
+    func aDeletedMeetingIsNotLeftOnScreen() async throws {
+        let root = try TestPaths.makeTemporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let older = try RuntimeFixtures.makeMeeting(
+            root: root, clusters: ["local"], title: "Standup",
+            startedAt: Date(timeIntervalSince1970: 1_787_000_000))
+        let newer = try RuntimeFixtures.makeMeeting(
+            root: root, clusters: ["local"], title: "Design review",
+            startedAt: Date(timeIntervalSince1970: 1_787_070_000))
+        let runtime = RuntimeFixtures.makeRuntime(root: root)
+        _ = await runtime.meetingRows()
+        try FileManager.default.removeItem(at: newer.store.layout.root)
+
+        let model = MeetingsWindowModel(runtime: runtime)
+        model.showLastList()
+        #expect(model.selection == [newer.id], "the kept list still names it")
+        for _ in 0..<100 where model.detail == nil { try await Task.sleep(for: .milliseconds(10)) }
+        await model.reload()
+
+        #expect(model.rows.map(\.id) == [older.id])
+        #expect(model.selection == [older.id], "the meeting that is there is chosen")
+        #expect(model.detail?.meetingID == older.id)
+        #expect(model.detail?.errorMessage == nil)
+    }
+
+    /// The search field has the keys when the window opens, so a search can
+    /// be typed before the list is read. It showed title matches only until
+    /// the next keystroke.
+    @Test("a search typed before the list is read finds transcript words once they are read")
+    @MainActor
+    func aSearchTypedEarlyFindsTranscriptWords() async throws {
+        let root = try TestPaths.makeTemporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let meeting = try RuntimeFixtures.makeMeeting(root: root, clusters: ["local"], title: "Design review")
+        try meeting.store.writeTranscriptMarkdown("Marlow: the northwind renewal")
+        let model = MeetingsWindowModel(runtime: RuntimeFixtures.makeRuntime(root: root))
+
+        model.query = "northwind"
+        #expect(!model.searchesTranscripts, "nothing is read before the list")
+        await model.reload()
+        for _ in 0..<200 where model.sections.isEmpty { try await Task.sleep(for: .milliseconds(10)) }
+        #expect(model.sections.flatMap(\.rows).map(\.id) == [meeting.id])
+    }
+
+    /// A list read from the old meetings folder must not be drawn after the
+    /// folder changes.
+    @Test("choosing another meetings folder forgets the last list")
+    @MainActor
+    func anotherFolderForgetsTheLastList() async throws {
+        let root = try TestPaths.makeTemporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        _ = try RuntimeFixtures.makeMeeting(root: root, clusters: ["local"])
+        let runtime = RuntimeFixtures.makeRuntime(root: root)
+        _ = await runtime.meetingRows()
+        #expect(runtime.lastMeetingRows?.count == 1)
+
+        var settings = runtime.settings
+        settings.storageRootPath = root.appendingPathComponent("Elsewhere").path
+        runtime.update(settings: settings)
+        #expect(runtime.lastMeetingRows == nil)
+    }
+
+    /// The window is kept after it closes, and the search index holds every
+    /// transcript in the archive, so closing lets the index go.
+    @Test("closing the window lets the search index go")
+    @MainActor
+    func closingLetsTheIndexGo() async throws {
+        let root = try TestPaths.makeTemporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let meeting = try RuntimeFixtures.makeMeeting(root: root, clusters: ["local"])
+        try meeting.store.writeTranscriptMarkdown("Marlow: the northwind renewal")
+        let model = MeetingsWindowModel(runtime: RuntimeFixtures.makeRuntime(root: root))
+        await model.reload()
+        model.query = "northwind"
+        for _ in 0..<200 where !model.indexHolds(meeting.id) { try await Task.sleep(for: .milliseconds(10)) }
+        #expect(model.indexHolds(meeting.id))
+
+        model.end()
+        #expect(!model.indexHolds(meeting.id))
+        #expect(model.query.isEmpty)
+        #expect(!model.searchesTranscripts)
+    }
+}

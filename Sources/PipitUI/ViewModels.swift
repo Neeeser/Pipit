@@ -825,14 +825,18 @@ public final class MeetingReviewModel {
         let numbers = SpeakerNumbers(
             lineKeys: combinedLines.lazy.filter { $0.recordingID == block.recordingID }
                 .map(\.utterance.speakerKey))
+        // Edited as a copy and put back once: every change to `combinedLines`
+        // regroups the whole transcript into blocks.
+        var lines = combinedLines
+        defer { combinedLines = lines }
         for line in block.lines {
             if name.isEmpty {
                 correctedLines.remove(line.id)
             } else {
                 correctedLines.insert(line.id)
             }
-            guard let index = combinedLines.firstIndex(where: { $0.id == line.id }) else { continue }
-            combinedLines[index].speakerName =
+            guard let index = lines.firstIndex(where: { $0.id == line.id }) else { continue }
+            lines[index].speakerName =
                 name.isEmpty
                 ? SpeakerMap.fallbackName(
                     for: line.utterance.speakerKey, numbers: numbers,
@@ -843,7 +847,7 @@ public final class MeetingReviewModel {
             // receipt counts the lines the cluster's entry still names. Updating
             // only the set meant naming the speaker right after correcting a
             // turn reported that turn's lines, which the entry no longer names.
-            combinedLines[index].isCorrected = !name.isEmpty
+            lines[index].isCorrected = !name.isEmpty
         }
     }
 

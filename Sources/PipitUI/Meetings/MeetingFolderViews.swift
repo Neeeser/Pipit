@@ -211,7 +211,7 @@ struct FolderDetailView: View {
                         .font(.caption)
                         .foregroundStyle(.secondary)
                         .opacity(ruleMatches == nil ? 0 : 1)
-                        .task(id: row.folder.rule) {
+                        .task(id: RuleCount(rule: row.folder.rule, meetings: model.rows.count)) {
                             ruleMatches = await model.runtime.meetingsMatching(row.folder.rule)
                         }
                 }
@@ -457,7 +457,10 @@ struct RecurringOfferSheet: View {
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .padding(.top, 12)
-                .task(id: offer.ticked) { matches = await model.offerMatchCount() }
+                .task(id: offer.ticked) {
+                    matches = nil
+                    matches = await model.offerMatchCount()
+                }
 
             HStack(spacing: 8) {
                 Spacer()
@@ -488,4 +491,11 @@ struct RecurringOfferSheet: View {
         }
         return "Matches \(matches.map(String.init) ?? "…") of the \(model.rows.count) meetings on disk."
     }
+}
+
+/// What the folder's match count depends on: its rule, and the meetings on
+/// disk, which filing and recording change.
+private struct RuleCount: Equatable {
+    var rule: FolderRule
+    var meetings: Int
 }
