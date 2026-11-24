@@ -256,14 +256,27 @@ jobs:
 
       - name: Write the release notes
         # The version's section of CHANGELOG.md, then the marker the update
-        # window stops reading at. GitHub appends the pull request list it
-        # generates after this body, so contributors are credited on the
-        # release page without that list showing in the app.
+        # window stops reading at. After the marker, the release page alone
+        # thanks anyone besides the maintainer who authored a commit since the
+        # previous release, and links the comparison with it. The tag for this
+        # release does not exist yet, so the previous one is found from the
+        # parent of the commit being released.
         env:
           VERSION: ${{ needs.check.outputs.version }}
+          SHA: ${{ needs.check.outputs.sha }}
           SIGNED: ${{ steps.signing.outputs.signed }}
+          REPOSITORY: ${{ github.repository }}
+          MAINTAINER: ${{ github.repository_owner }}
+          GH_TOKEN: ${{ github.token }}
         run: |
-          ./scripts/release-notes.sh "$VERSION" > dist/release-body.md
+          PREVIOUS="$(git describe --tags --abbrev=0 --match 'v[0-9]*' "$SHA^" 2>/dev/null || true)"
+          CONTRIBUTORS=()
+          if [ -n "$PREVIOUS" ]; then
+            while IFS= read -r login; do
+              CONTRIBUTORS+=("$login")
+            done < <(./scripts/release-notes.sh --contributors "$REPOSITORY" "$PREVIOUS" "$SHA" "$MAINTAINER")
+          fi
+          ./scripts/release-notes.sh "$VERSION" "$REPOSITORY" "$PREVIOUS" ${CONTRIBUTORS[@]+"${CONTRIBUTORS[@]}"} > dist/release-body.md
           if [ "$SIGNED" != "true" ]; then
             printf '\n**Unsigned build.** Gatekeeper refuses it. Do not publish. See docs/RELEASING.md.\n' >> dist/release-body.md
           fi
@@ -298,7 +311,7 @@ jobs:
           tag_name: ${{ needs.check.outputs.tag }}
           draft: true
           prerelease: ${{ needs.check.outputs.prerelease == 'true' }}
-          # GitHub appends the notes it generates from merged pull requests
-          # after this body.
-          generate_release_notes: true
+          # The written notes are the release's only list of changes, so
+          # GitHub's generated pull request list is left off.
+          generate_release_notes: false
           body_path: dist/release-body.md
