@@ -16,6 +16,9 @@ final class LiveTranscriptPanel: NSPanel {
     static let tuckedMentionHeight: CGFloat = 86
 
     private var expandedFrame: NSRect?
+    /// Whether the panel is on screen. Closing only orders it out, so the
+    /// view stays alive and is told to stop animating while nobody sees it.
+    let presence = LivePanelPresence()
 
     init(model: LiveTranscriptModel, openMeeting: @escaping (String) -> Void) {
         super.init(
@@ -35,6 +38,7 @@ final class LiveTranscriptPanel: NSPanel {
         collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
         let view = LiveTranscriptView(
             model: model,
+            presence: presence,
             onTuck: { [weak self] tucked, mention in self?.tuck(tucked, mention: mention) },
             onClose: { [weak self] in self?.dismiss() },
             openMeeting: openMeeting
@@ -47,6 +51,16 @@ final class LiveTranscriptPanel: NSPanel {
     }
 
     override var canBecomeKey: Bool { true }
+
+    override func orderFrontRegardless() {
+        super.orderFrontRegardless()
+        presence.isShown = true
+    }
+
+    override func orderOut(_ sender: Any?) {
+        super.orderOut(sender)
+        presence.isShown = false
+    }
 
     /// Out of the way by default: the top right of the screen, under the
     /// menu bar, where meeting apps rarely put controls.
@@ -150,9 +164,17 @@ enum LiveStyle {
     static let ink3 = Color(nsColor: .tertiaryLabelColor)
 }
 
+/// Whether the live window is on screen.
+@MainActor
+@Observable
+final class LivePanelPresence {
+    var isShown = false
+}
+
 /// What the live window draws.
 struct LiveTranscriptView: View {
     @Bindable var model: LiveTranscriptModel
+    let presence: LivePanelPresence
     let onTuck: (Bool, Bool) -> Void
     let onClose: () -> Void
     let openMeeting: (String) -> Void
@@ -197,11 +219,14 @@ struct LiveTranscriptView: View {
         }
     }
 
+    /// The dot pulses only where someone can see it.
+    private var pulses: Bool { model.state == .live && presence.isShown }
+
     // MARK: header
 
     private var header: some View {
         HStack(spacing: 9) {
-            RecordingDot(isLive: model.state == .live)
+            RecordingDot(isLive: pulses)
             VStack(alignment: .leading, spacing: 1) {
                 Text(model.meetingTitle.isEmpty ? "Live Transcript" : model.meetingTitle)
                     .font(.system(size: 13, weight: .semibold))
@@ -394,7 +419,7 @@ struct LiveTranscriptView: View {
                     .transition(.opacity)
             }
             HStack(spacing: 10) {
-                RecordingDot(isLive: model.state == .live)
+                RecordingDot(isLive: pulses)
                 caption
                     .lineLimit(1)
                     .truncationMode(.head)
@@ -444,19 +469,32 @@ struct LiveTranscriptView: View {
 }
 
 /// The red dot that pulses while recording.
-private struct RecordingDot: View {
+struct RecordingDot: View {
     let isLive: Bool
-    @State private var pulse = false
 
     var body: some View {
-        Circle()
-            .fill(isLive ? LiveStyle.record : Color.secondary)
-            .frame(width: 8, height: 8)
-            .opacity(isLive && pulse ? 0.45 : 1)
-            .animation(
-                isLive ? .easeInOut(duration: 0.8).repeatForever(autoreverses: true) : .default, value: pulse
-            )
-            .onAppear { pulse = true }
+        // A repeating animation keeps running after its value or its curve
+        // changes, even in a window that has been ordered out, and redraws the
+        // window on every frame. The pulse lives in its own view so that
+        // leaving the live state removes it, and the animation with it.
+        if isLive {
+            Pulse()
+        } else {
+            Circle().fill(Color.secondary).frame(width: 8, height: 8)
+        }
+    }
+
+    private struct Pulse: View {
+        @State private var dimmed = false
+
+        var body: some View {
+            Circle()
+                .fill(LiveStyle.record)
+                .frame(width: 8, height: 8)
+                .opacity(dimmed ? 0.45 : 1)
+                .animation(.easeInOut(duration: 0.8).repeatForever(autoreverses: true), value: dimmed)
+                .onAppear { dimmed = true }
+        }
     }
 }
 
