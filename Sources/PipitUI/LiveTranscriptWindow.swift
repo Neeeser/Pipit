@@ -444,19 +444,32 @@ struct LiveTranscriptView: View {
 }
 
 /// The red dot that pulses while recording.
-private struct RecordingDot: View {
+struct RecordingDot: View {
     let isLive: Bool
-    @State private var pulse = false
 
     var body: some View {
-        Circle()
-            .fill(isLive ? LiveStyle.record : Color.secondary)
-            .frame(width: 8, height: 8)
-            .opacity(isLive && pulse ? 0.45 : 1)
-            .animation(
-                isLive ? .easeInOut(duration: 0.8).repeatForever(autoreverses: true) : .default, value: pulse
-            )
-            .onAppear { pulse = true }
+        // A repeating animation keeps running after its value or its curve
+        // changes, even in a window that has been ordered out, and redraws the
+        // window on every frame. The pulse lives in its own view so that
+        // leaving the live state removes it, and the animation with it.
+        if isLive {
+            Pulse()
+        } else {
+            Circle().fill(Color.secondary).frame(width: 8, height: 8)
+        }
+    }
+
+    private struct Pulse: View {
+        @State private var dimmed = false
+
+        var body: some View {
+            Circle()
+                .fill(LiveStyle.record)
+                .frame(width: 8, height: 8)
+                .opacity(dimmed ? 0.45 : 1)
+                .animation(.easeInOut(duration: 0.8).repeatForever(autoreverses: true), value: dimmed)
+                .onAppear { dimmed = true }
+        }
     }
 }
 
