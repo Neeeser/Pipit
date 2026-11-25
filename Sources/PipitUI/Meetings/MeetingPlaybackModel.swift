@@ -37,24 +37,6 @@ public final class MeetingPlaybackModel {
     @ObservationIgnored private var player: AVAudioPlayer?
     @ObservationIgnored private var playerPart: Int?
     @ObservationIgnored private var ticker: Task<Void, Never>?
-    /// Read once per version of a file. A pane reload comes with every
-    /// progress tick, and a file can be replaced at the same path by a
-    /// shorter one, as Trim does, so what a length was read from is kept with
-    /// it.
-    @ObservationIgnored private var durations: [URL: (stamp: FileStamp, seconds: Double)] = [:]
-
-    /// Which version of a file a length was read from.
-    private struct FileStamp: Equatable {
-        var modified: Date?
-        var size: Int?
-
-        init(of url: URL) {
-            // Not `resourceValues`, which a URL caches after the first read.
-            let attributes = try? FileManager.default.attributesOfItem(atPath: url.path)
-            modified = attributes?[.modificationDate] as? Date
-            size = (attributes?[.size] as? NSNumber)?.intValue
-        }
-    }
     /// Whether the reader has played or moved the playhead yet. Until then
     /// nothing in the transcript is marked as playing.
     @ObservationIgnored private var engaged = false
@@ -199,13 +181,16 @@ public final class MeetingPlaybackModel {
 
     private func duration(of audio: URL) -> Double {
         guard FileManager.default.fileExists(atPath: audio.path) else { return 0 }
-        let stamp = FileStamp(of: audio)
-        if let known = durations[audio], known.stamp == stamp { return known.seconds }
+        // Opening the file to learn its length costs up to a frame for every
+        // hour recorded, and this runs on the main actor for every meeting
+        // clicked. Kept for as long as the file is unchanged, across panes and
+        // across launches, because Trim replaces a file with a shorter one at
+        // the same path.
         do {
-            let file = try AVAudioFile(forReading: audio)
-            let seconds = Double(file.length) / file.fileFormat.sampleRate
-            durations[audio] = (stamp, seconds)
-            return seconds
+            return try MeetingStore.recordingDurationCache.value(at: audio.path) {
+                let file = try AVAudioFile(forReading: audio)
+                return Double(file.length) / file.fileFormat.sampleRate
+            }
         } catch {
             Log.ui.notice("recording unreadable: \(logSafeDescription(error), privacy: .public)")
             return 0

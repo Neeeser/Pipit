@@ -150,7 +150,6 @@ public struct ProvisionalPrompt: Sendable, Equatable, Identifiable {
 @Observable
 public final class PipitRuntime {
     public private(set) var status = RuntimeStatus()
-    public private(set) var recentMeetings: [MeetingSummary] = []
     public private(set) var processing: [String: ProcessingPipeline.Progress] = [:]
     /// When each running meeting's current step started, for the progress bar.
     public private(set) var stepClock = ProcessingStepClock()
@@ -297,6 +296,9 @@ public final class PipitRuntime {
     /// Where everything that is not a meeting lives: settings, the voice
     /// database, the models, and the audio of a spoken enrolment.
     @ObservationIgnored public let applicationSupport: URL
+    /// The meetings list as it last read, so a meetings window opened again
+    /// draws it on its first frame while the fresh read runs.
+    @ObservationIgnored public internal(set) var lastMeetingRows: [MeetingRow]?
     /// The local event log. `disabled` unless the application passes one, so a
     /// runtime a test builds never writes into the real Logs folder.
     @ObservationIgnored public let diagnostics: DiagnosticLog
@@ -528,7 +530,7 @@ public final class PipitRuntime {
             },
             onSummaryRewritten: { [weak relay] meetingID in
                 Task { @MainActor in
-                    relay?.runtimeForCallbacks?.refreshRecentMeetings()
+                    relay?.runtimeForCallbacks?.reportMeetingsChanged()
                     relay?.runtimeForCallbacks?.onProcessingUpdate?(meetingID)
                 }
             },
@@ -634,9 +636,11 @@ public final class PipitRuntime {
             // the menu bar item and Setup appear while the prompt waits:
             // measured, the whole application sat invisible for two minutes
             // behind a prompt the person had not noticed.
-            let recent = await Task.detached { [repository] in repository.listMeetings(limit: 40) }.value
-            recentMeetings = recent
+            _ = await Task.detached { [repository] in repository.meetingDirectories() }.value
             onStatusChange?()
+            // Read once now, in the background, so the first time the meetings
+            // window opens it already has a list to draw.
+            Task { @MainActor in _ = await self.meetingRows(priority: .utility) }
             await recover()
             detectionEngine.start()
             await ensureLocalUserIdentity()
@@ -651,7 +655,7 @@ public final class PipitRuntime {
             // audio under the old record until this finishes it.
             await pipeline.finishInterruptedTrims(backups: backupsDirectory)
             await pipeline.resumeInterrupted()
-            refreshRecentMeetings()
+            reportMeetingsChanged()
             // After resume, so a meeting that was mid-pipeline is finished
             // before its storage is compacted. Runs through the pipeline's own
             // slot, so it pauses while anything records.
@@ -666,11 +670,11 @@ public final class PipitRuntime {
             if await pipeline.tidyConversationFolders() > 0 {
                 await pipeline.rerenderConversations()
             }
-            refreshRecentMeetings()
+            reportMeetingsChanged()
             // Last, because each rewrite is a request and the launch work above
             // is what the person is waiting on.
             await pipeline.payLaunchSummaryRewrites()
-            refreshRecentMeetings()
+            reportMeetingsChanged()
         }
     }
 
@@ -791,7 +795,7 @@ public final class PipitRuntime {
                 "recovered an interrupted meeting: \(recovered.adoptedSegments) crash tails, \(Int(recovered.recoveredSeconds))s"
             )
         }
-        refreshRecentMeetings()
+        reportMeetingsChanged()
     }
 
     private func installNativeMessagingHost() {
@@ -1058,6 +1062,9 @@ public final class PipitRuntime {
         let sharingChanged = newSettings.sharesDiagnosticsAutomatically != settings.sharesDiagnosticsAutomatically
         settings = newSettings
         settingsSnapshot.withLock { $0 = newSettings }
+        // The last list read belongs to the old folder, and a window opened
+        // from it would choose a meeting that is not there.
+        if rootChanged { lastMeetingRows = nil }
         live.localUserName = newSettings.localUserName
         live.hiddenFromSharing = newSettings.live.hiddenFromScreenSharing
         // A model that refused a rewrite may accept it from another one.
@@ -1178,7 +1185,7 @@ public final class PipitRuntime {
         metadata.processing.advance(to: .audioSafe, at: clock.now)
         try created.store.writeMetadata(metadata)
 
-        refreshRecentMeetings()
+        reportMeetingsChanged()
         let meetingID = metadata.id
         Task { await pipeline.process(meetingID: meetingID) }
         return meetingID
@@ -1210,7 +1217,7 @@ public final class PipitRuntime {
                 "failed import not marked: \(logSafeDescription(error), privacy: .public)"
             )
         }
-        refreshRecentMeetings()
+        reportMeetingsChanged()
     }
 
     // MARK: - meeting actions
@@ -1221,8 +1228,12 @@ public final class PipitRuntime {
         detectionEngine.sensorStatus
     }
 
-    public func refreshRecentMeetings() {
-        recentMeetings = repository.listMeetings(limit: 40)
+    /// Tells the menu that something about the meetings changed.
+    ///
+    /// This used to list the archive into a `recentMeetings` property first,
+    /// on the main actor, after every change. Nothing read that list, and at
+    /// two thousand meetings each listing was a tenth of a second.
+    public func reportMeetingsChanged() {
         onStatusChange?()
     }
 
@@ -1235,7 +1246,7 @@ public final class PipitRuntime {
                 recordRetryRefusal(meetingID: meetingID, error: error)
                 onProcessingUpdate?(meetingID)
             }
-            refreshRecentMeetings()
+            reportMeetingsChanged()
         }
     }
 
@@ -1282,7 +1293,7 @@ public final class PipitRuntime {
             } catch {
                 Log.app.error("enrichment failed: \(logSafeDescription(error), privacy: .public)")
             }
-            refreshRecentMeetings()
+            reportMeetingsChanged()
             onProcessingUpdate?(meetingID)
             completion()
         }
@@ -1320,7 +1331,7 @@ public final class PipitRuntime {
                 }
                 onProcessingUpdate?(meetingID)
             }
-            refreshRecentMeetings()
+            reportMeetingsChanged()
             completion(refusal)
         }
     }
@@ -1352,7 +1363,7 @@ public final class PipitRuntime {
         runProcessing { [weak self] in
             guard let self else { return }
             let outcome = await pipeline.trim(meetingID: meetingID, to: range, backups: backupsDirectory)
-            refreshRecentMeetings()
+            reportMeetingsChanged()
             onProcessingUpdate?(meetingID)
             completion(outcome)
         }
@@ -1438,13 +1449,13 @@ public final class PipitRuntime {
                 let processing = pipeline!
                 rename = Task {
                     await processing.settleFolderName(meetingID: meetingID)
-                    await MainActor.run { self.refreshRecentMeetings() }
+                    await MainActor.run { self.reportMeetingsChanged() }
                 }
             }
         } catch {
             Log.app.error("title not saved: \(logSafeDescription(error), privacy: .public)")
         }
-        refreshRecentMeetings()
+        reportMeetingsChanged()
         return rename ?? Task {}
     }
 
@@ -1474,7 +1485,7 @@ public final class PipitRuntime {
                 "title suggestion not declined: \(logSafeDescription(error), privacy: .public)"
             )
         }
-        refreshRecentMeetings()
+        reportMeetingsChanged()
     }
 
     public func saveNotes(_ notes: String, meetingID: String) {
@@ -1502,7 +1513,7 @@ public final class PipitRuntime {
         // Once, after all of them. The refresh reads a summary for every meeting
         // on disk, and archiving forty selected rows did forty of those reads on
         // the actor that also arms the next recording.
-        refreshRecentMeetings()
+        reportMeetingsChanged()
     }
 
     /// What became of a meeting the user asked to be rid of, in the words the
@@ -1536,7 +1547,7 @@ public final class PipitRuntime {
     public func trashMeetings(_ ids: [String]) async -> [String: MeetingTrashOutcome] {
         var outcomes: [String: MeetingTrashOutcome] = [:]
         for id in ids { outcomes[id] = await moveToTrash(id: id) }
-        refreshRecentMeetings()
+        reportMeetingsChanged()
         return outcomes
     }
 
@@ -1843,7 +1854,7 @@ public final class PipitRuntime {
                 ),
                 session: diagnosticSession
             )
-            refreshRecentMeetings()
+            reportMeetingsChanged()
             return true
         } catch {
             Log.app.error("commit failed: \(logSafeDescription(error), privacy: .public)")
@@ -1854,7 +1865,7 @@ public final class PipitRuntime {
             sensorRecorder = nil
             _ = sessionController.stop(reason: "commit_failed", now: clock.monotonicSeconds)
             syncStatusFromSession()
-            refreshRecentMeetings()
+            reportMeetingsChanged()
             return false
         }
     }
@@ -1970,7 +1981,7 @@ public final class PipitRuntime {
             try? FileManager.default.removeItem(at: meeting.store.layout.root)
             currentMeeting = nil
             sensorRecorder = nil
-            refreshRecentMeetings()
+            reportMeetingsChanged()
         }
         provisionalPrompt = nil
     }
@@ -2038,7 +2049,7 @@ public final class PipitRuntime {
                     meetingID: updated.id
                 )
             }
-            refreshRecentMeetings()
+            reportMeetingsChanged()
             // This meeting's own identifier, whatever it was folded into: the
             // audio is in this recording's own folder. Routing to the
             // survivor instead handed the pipeline a meeting that has none of
@@ -2205,7 +2216,7 @@ public final class PipitRuntime {
             Log.app.info("combined a meeting into an earlier one: \(reason, privacy: .public)")
         }
         tidyFolders(of: [target.id], rewriting: target.id)
-        refreshRecentMeetings()
+        reportMeetingsChanged()
         onProcessingUpdate?(target.id)
         if rewritingSummary { refreshConversationSummary(meetingID: target.id) }
         return true
@@ -2238,7 +2249,7 @@ public final class PipitRuntime {
             await pipeline.rerenderMeetings(rewrites)
             guard moved > 0 else { return }
             for id in meetingIDs { onProcessingUpdate?(id) }
-            refreshRecentMeetings()
+            reportMeetingsChanged()
         }
     }
 
@@ -2302,7 +2313,7 @@ public final class PipitRuntime {
             await Task.yield()
             summariesAskedByPerson.remove(meetingID)
             onProcessingUpdate?(meetingID)
-            refreshRecentMeetings()
+            reportMeetingsChanged()
             completion()
         }
     }
@@ -2330,7 +2341,7 @@ public final class PipitRuntime {
         }
         Log.app.info("separated a continuation from the meeting it was linked to")
         tidyFolders(of: [parentID, meetingID], rewriting: parentID)
-        refreshRecentMeetings()
+        reportMeetingsChanged()
         onProcessingUpdate?(parentID)
         // Both halves, since each now stands on its own: the conversation lost
         // a part, and the part never had a summary of its own while it was one.
@@ -2345,7 +2356,7 @@ public final class PipitRuntime {
             metadata.possibleContinuationOf = nil
             metadata.possibleContinuationReason = nil
         }
-        refreshRecentMeetings()
+        reportMeetingsChanged()
     }
 
     private func askToKeep(bundleIdentifier: String, title: String?) {
@@ -2434,7 +2445,7 @@ public final class PipitRuntime {
         // hundreds of archive scans and transcript decodes on the actor that
         // also arms the next recording.
         guard previous != progress.state else { return }
-        refreshRecentMeetings()
+        reportMeetingsChanged()
         onProcessingUpdate?(progress.meetingID)
     }
 
@@ -2456,7 +2467,7 @@ public final class PipitRuntime {
         if settings.showNotifications {
             notifications.processingProblem(message: failure.message, meetingID: meetingID)
         }
-        refreshRecentMeetings()
+        reportMeetingsChanged()
         onProcessingUpdate?(meetingID)
     }
 

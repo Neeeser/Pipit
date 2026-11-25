@@ -242,10 +242,28 @@ public struct MeetingStore: Sendable {
     /// list reads one of these per meeting on disk, and the boundaries a person
     /// put in the transcript divide lines rather than move them between
     /// speakers, so this reads what the assembler wrote.
+    ///
+    /// Cached against the file's identity, and the cache is saved between
+    /// launches, because this is the one read that grows with every hour
+    /// recorded: a few hundred meetings is over a hundred megabytes of JSON.
     public func readTranscriptSpeakers() throws -> [TranscriptSpeaker] {
         guard FileManager.default.fileExists(atPath: layout.canonicalTranscript.path) else {
             return []
         }
+        return try Self.transcriptSpeakersCache.value(at: layout.canonicalTranscript.path) {
+            try decodeTranscriptSpeakers()
+        }
+    }
+
+    public static let transcriptSpeakersCache = FileReadCache<[TranscriptSpeaker]>()
+    /// The length in seconds of each `recording.m4a` the player has opened,
+    /// filled by the player, which owns reading audio.
+    public static let recordingDurationCache = FileReadCache<Double>()
+    /// Bump when `decodeTranscriptSpeakers` would answer differently for the
+    /// same file, so a cache saved by an older build is not trusted.
+    public static let transcriptSpeakersFormat = 1
+
+    private func decodeTranscriptSpeakers() throws -> [TranscriptSpeaker] {
         let data = try read(layout.canonicalTranscript)
         let document = try ArchiveCoding.decode(
             TranscriptSpeakers.self, from: data, path: layout.canonicalTranscript.path
@@ -1026,7 +1044,13 @@ public struct MeetingRepository: Sendable {
     }
 
     public func listMeetings(limit: Int? = nil) -> [MeetingSummary] {
-        let directories = meetingDirectories()
+        // Backwards, so the recordings inside `Parts` folders, which come last,
+        // are read before the meetings they belong to. Each read remembers
+        // where its meeting is, so resolving a conversation then finds its
+        // second half by lookup. Forwards, the first listing of a launch
+        // walked the archive once per rejoined call: measured at two thousand
+        // meetings, six seconds.
+        let directories = meetingDirectories().reversed()
         var summaries: [MeetingSummary] = []
         for directory in directories {
             guard let summary = summary(forDirectory: directory) else { continue }
@@ -1040,13 +1064,18 @@ public struct MeetingRepository: Sendable {
     public func summary(forDirectory directory: URL) -> MeetingSummary? {
         let layout = MeetingLayout(root: directory)
         guard let metadata = try? MeetingStore(layout: layout).readMetadata() else { return nil }
+        Self.remember(id: metadata.id, directory: directory, archiveRoot: archive.root)
         guard metadata.mergedIntoMeetingID == nil else { return nil }
         // A conversation recorded in two halves is one row, reporting the audio
         // both halves hold. Derived here rather than added into the first
         // recording's own metadata when the two were linked: that made undoing
         // the link a subtraction, and a subtraction that goes wrong reports a
         // duration no file supports.
-        let continuations = logicalMeeting(id: metadata.id)?.continuations ?? []
+        // A recording with nothing folded into it has no continuations, and
+        // resolving the conversation to learn that is a second lookup per row.
+        let continuations =
+            metadata.absorbedMeetingIDs.isEmpty
+            ? [] : logicalMeeting(id: metadata.id)?.continuations ?? []
         return MeetingSummary(
             id: metadata.id,
             directory: directory,

@@ -111,7 +111,7 @@ extension PipitRuntime {
                 voice: rematch.voice.id, into: rematch.match.id,
                 named: rematch.match.resolvedName
             )
-            refreshRecentMeetings()
+            reportMeetingsChanged()
         } catch {
             Log.app.error("match not applied: \(logSafeDescription(error), privacy: .public)")
         }

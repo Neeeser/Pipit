@@ -75,7 +75,7 @@ extension PipitRuntime {
     @discardableResult
     public func createFolder(name: String, about: String = "") throws -> MeetingFolder {
         let folder = try folderStore.create(name: name, about: about)
-        refreshRecentMeetings()
+        reportMeetingsChanged()
         return folder
     }
 
@@ -102,7 +102,7 @@ extension PipitRuntime {
         }
         // Every meeting in it moved with the directory, so what the rows say
         // about where they are is now a launch behind.
-        refreshRecentMeetings()
+        reportMeetingsChanged()
         return folder
     }
 
@@ -159,7 +159,7 @@ extension PipitRuntime {
         if failures.isEmpty {
             do { try folderStore.delete(name) } catch { failures[name] = error }
         }
-        refreshRecentMeetings()
+        reportMeetingsChanged()
         return failures
     }
 
@@ -185,7 +185,7 @@ extension PipitRuntime {
                 Log.app.error("filing failed: \(logSafeDescription(error), privacy: .public)")
             }
         }
-        refreshRecentMeetings()
+        reportMeetingsChanged()
         return failures
     }
 
@@ -214,7 +214,7 @@ extension PipitRuntime {
         if let failure = await file(meetingIDs: [meetingID], in: suggestion.folderName).values.first {
             throw failure
         }
-        return recurringProposal(for: meetingID)
+        return await recurringProposal(for: meetingID)
     }
 
     /// Turns the offer down, for good. The suggestion stays on disk as the
@@ -228,28 +228,32 @@ extension PipitRuntime {
                 "folder suggestion not dismissed: \(logSafeDescription(error), privacy: .public)"
             )
         }
-        refreshRecentMeetings()
+        reportMeetingsChanged()
     }
 
     /// What else in the archive looks like this meeting, after it has been
     /// filed. Nil when nothing does, or when the user turned the offer off.
-    public func recurringProposal(for meetingID: String) -> RecurringProposal? {
+    public func recurringProposal(for meetingID: String) async -> RecurringProposal? {
         guard settings.enrichment.noticesRecurringMeetings else { return nil }
         guard let found = repository.findMeeting(id: meetingID) else { return nil }
         guard let folder = found.metadata.folderName else { return nil }
         // A folder that already files on its own has been through this once.
         guard folderStore.folder(named: folder)?.filesAutomatically != true else { return nil }
         let facts = MeetingFacts(metadata: found.metadata)
-        let archive = repository.listMeetings().compactMap { summary -> MeetingFacts? in
-            guard summary.id != meetingID else { return nil }
-            guard
-                let metadata = try? MeetingStore(
-                    layout: MeetingLayout(root: summary.directory)
-                ).readMetadata()
-            else { return nil }
-            return MeetingFacts(metadata: metadata)
-        }
-        return RecurringSeries.propose(for: facts, among: archive)
+        // Off the main actor, because it reads every meeting in the archive.
+        let repository = self.repository
+        return await Task.detached(priority: .userInitiated) {
+            let archive = repository.listMeetings().compactMap { summary -> MeetingFacts? in
+                guard summary.id != meetingID else { return nil }
+                guard
+                    let metadata = try? MeetingStore(
+                        layout: MeetingLayout(root: summary.directory)
+                    ).readMetadata()
+                else { return nil }
+                return MeetingFacts(metadata: metadata)
+            }
+            return RecurringSeries.propose(for: facts, among: archive)
+        }.value
     }
 
     /// Saves the rule the recurring offer produced, and switches the folder on.
@@ -267,16 +271,23 @@ extension PipitRuntime {
     /// How many meetings on disk a rule would take, for the line under the
     /// offer. The same predicate that files them, so the number cannot promise
     /// something filing does not do.
-    public func meetingsMatching(_ rule: FolderRule) -> Int {
+    ///
+    /// Off the main actor, because it reads every meeting in the archive: the
+    /// folder pane asked for it from its body, so every redraw of the pane
+    /// listed the whole archive.
+    public func meetingsMatching(_ rule: FolderRule) async -> Int {
         guard !rule.isEmpty else { return 0 }
-        return repository.listMeetings().count { summary in
-            guard
-                let metadata = try? MeetingStore(
-                    layout: MeetingLayout(root: summary.directory)
-                ).readMetadata()
-            else { return false }
-            return rule.matches(MeetingFacts(metadata: metadata))
-        }
+        let repository = self.repository
+        return await Task.detached(priority: .userInitiated) {
+            repository.listMeetings().count { summary in
+                guard
+                    let metadata = try? MeetingStore(
+                        layout: MeetingLayout(root: summary.directory)
+                    ).readMetadata()
+                else { return false }
+                return rule.matches(MeetingFacts(metadata: metadata))
+            }
+        }.value
     }
 
     public func revealFolder(_ name: String) {

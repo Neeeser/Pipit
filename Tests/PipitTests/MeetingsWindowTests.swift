@@ -1242,6 +1242,7 @@ struct MeetingsWindowTests {
         let model = MeetingsWindowModel(runtime: RuntimeFixtures.makeRuntime(root: root))
         await model.reload()
         model.show(meetingID: meeting.id)
+        model.prepareTranscriptSearch()
         await waitFor("the transcripts to be read") { model.searchesTranscripts }
         model.query = "nadia"
         #expect(model.sections.flatMap(\.rows).count == 0, "that name is not in it yet")
@@ -1264,6 +1265,7 @@ struct MeetingsWindowTests {
 
         let model = MeetingsWindowModel(runtime: RuntimeFixtures.makeRuntime(root: root))
         await model.reload()
+        model.prepareTranscriptSearch()
         await waitFor("the first pass over the archive") { model.searchesTranscripts }
 
         try meeting.store.writeTranscriptMarkdown("Marlow: the northwind renewal")
@@ -1287,6 +1289,7 @@ struct MeetingsWindowTests {
 
         let model = MeetingsWindowModel(runtime: RuntimeFixtures.makeRuntime(root: root))
         await model.reload()
+        model.prepareTranscriptSearch()
         await waitFor("the transcripts to be read") { model.searchesTranscripts }
         #expect(model.selection.count == 1, "the first row is selected")
 
@@ -1519,6 +1522,7 @@ struct MeetingsWindowTests {
 
         let model = MeetingsWindowModel(runtime: runtime)
         await model.reload()
+        model.prepareTranscriptSearch()
         await waitFor("the transcripts to be read") { model.searchesTranscripts }
         model.query = "audio sdk"
 
@@ -1638,6 +1642,7 @@ struct MeetingsWindowTests {
 
         let model = MeetingsWindowModel(runtime: runtime)
         await model.reload()
+        model.prepareTranscriptSearch()
         await waitFor("the transcripts to be read") { model.searchesTranscripts }
         model.show(meetingID: first.id)
         model.separate(second.id)
@@ -1753,6 +1758,7 @@ struct MeetingsWindowTests {
 
         let model = MeetingsWindowModel(runtime: RuntimeFixtures.makeRuntime(root: root))
         await model.reload()
+        model.prepareTranscriptSearch()
         await waitFor("the first transcript to be read") { model.searchesTranscripts }
 
         let second = try RuntimeFixtures.makeMeeting(root: root, clusters: ["local"], title: "Weekly sync")

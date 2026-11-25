@@ -1,6 +1,7 @@
 import AppKit
 import Foundation
 import PipitCore
+import Synchronization
 
 /// Reading the whole archive for the meetings window.
 ///
@@ -10,16 +11,107 @@ import PipitCore
 /// one arming the next recording.
 extension PipitRuntime {
     /// Every meeting, with who was in it and the notes a search can match.
-    public func meetingRows() async -> [MeetingRow] {
+    ///
+    /// A row is kept with the identities of the files it was built from, so an
+    /// unchanged meeting costs a few `stat` calls rather than a decode of its
+    /// metadata, speaker map and notes. Each row's speakers come from its
+    /// `transcript.json`, the largest file in the folder; what that read finds
+    /// is also cached on disk between launches, so the first list after a
+    /// launch does not parse every transcript.
+    ///
+    /// Rows rather than the decoded files, because the rows are what the
+    /// window holds anyway: caching every meeting's metadata and speaker map
+    /// as well cost about eight kilobytes a meeting for as long as Pipit ran.
+    public func meetingRows(priority: TaskPriority = .userInitiated) async -> [MeetingRow] {
         await folderChangesSettled()
         let repository = self.repository
-        return await Task.detached(priority: .userInitiated) {
-            repository.listMeetings().map { summary in
-                Self.row(summary: summary, stores: repository.stores(ofConversation: summary))
-            }
+        let caches = savedCaches
+        let rows = await Task.detached(priority: priority) {
+            for cache in caches { cache.restoreOnce() }
+            let rows = Self.listRows(repository)
+            // The recording lengths the player read since the last save go
+            // out with this one too.
+            for cache in caches { cache.saveIfChanged() }
+            return rows
         }.value
+        lastMeetingRows = rows
+        return rows
     }
 
+    /// What `listMeetings` lists, as rows, reusing every row whose files are
+    /// unchanged since it was built.
+    private nonisolated static func listRows(_ repository: MeetingRepository) -> [MeetingRow] {
+        let root = repository.archive.root.path
+        var rows: [MeetingRow] = []
+        var built: [String: CachedRow] = [:]
+        let held = rowCache.withLock { $0 }
+        // Backwards, as `listMeetings` reads them, so the recordings in `Parts`
+        // folders are seen before the meetings they belong to.
+        for directory in repository.meetingDirectories().reversed() {
+            let key = root + "\u{0}" + directory.path
+            let inputs = rowInputs(directory)
+            if let cached = held[key], cached.inputs == inputs {
+                built[key] = cached
+                if let row = cached.row { rows.append(row) }
+                continue
+            }
+            let summary = repository.summary(forDirectory: directory)
+            let listed = summary.map { Self.row(summary: $0, stores: repository.stores(ofConversation: $0)) }
+            // A conversation in several recordings also reads the other
+            // recordings' files, which these inputs do not cover, so it is
+            // built again on every list. There are few of them.
+            if (summary?.recordingCount ?? 1) == 1 {
+                built[key] = CachedRow(inputs: inputs, row: listed)
+            }
+            if let listed { rows.append(listed) }
+        }
+        // Only what this listing saw, so a deleted meeting's row goes too.
+        rowCache.withLock { $0 = built.merging($0.filter { !$0.key.hasPrefix(root + "\u{0}") }) { new, _ in new } }
+        return rows.sorted { $0.startedAt > $1.startedAt }
+    }
+
+    /// The files a single-recording row is built from.
+    private nonisolated static func rowInputs(_ directory: URL) -> [FileIdentity?] {
+        let layout = MeetingLayout(root: directory)
+        return [
+            layout.metadata, layout.legacyMetadata, layout.speakerMap, layout.canonicalTranscript,
+            layout.notes, layout.folderSuggestion,
+        ].map { FileIdentity(path: $0.path) }
+    }
+
+    private struct CachedRow: Sendable {
+        var inputs: [FileIdentity?]
+        /// Nil for a folder that lists no meeting, such as a folded half.
+        var row: MeetingRow?
+    }
+
+    /// Keyed by the archive root and the meeting's folder, so choosing a new
+    /// meetings folder in Settings starts from nothing.
+    private nonisolated static let rowCache = Mutex<[String: CachedRow]>([:])
+
+    /// Where the speakers read from each transcript are kept between launches.
+    /// A cache: deleting it costs one slower first read and nothing else.
+    public nonisolated var transcriptSpeakersCacheFile: URL {
+        applicationSupport.appendingPathComponent("Caches", isDirectory: true)
+            .appendingPathComponent("transcript-speakers.json")
+    }
+
+    /// The caches of what was read from meeting files that are kept on disk
+    /// between launches, so the first list and the first click after a launch
+    /// do not parse every transcript and open every recording again.
+    private nonisolated var savedCaches: [any SavedFileCache] {
+        let folder = applicationSupport.appendingPathComponent("Caches", isDirectory: true)
+        return [
+            SavedCache(
+                cache: MeetingStore.transcriptSpeakersCache,
+                format: MeetingStore.transcriptSpeakersFormat, file: transcriptSpeakersCacheFile
+            ),
+            SavedCache(
+                cache: MeetingStore.recordingDurationCache, format: 1,
+                file: folder.appendingPathComponent("recording-durations.json")
+            ),
+        ]
+    }
     /// One meeting's row again, after something rewrote its files.
     ///
     /// `clusters` is what the pane open on the meeting has already read. The
@@ -174,3 +266,55 @@ extension PipitRuntime {
         rows.reduce(0) { $0 + $1.summary.durationSeconds }
     }
 }
+
+/// One `FileReadCache` and the file it is kept in between launches.
+protocol SavedFileCache: Sendable {
+    /// Reads the file into the cache, the first time it is asked in this
+    /// process.
+    func restoreOnce()
+    /// Writes the cache out when it holds entries the file does not.
+    func saveIfChanged()
+}
+
+private struct SavedCache<Value: Codable & Sendable>: SavedFileCache {
+    let cache: FileReadCache<Value>
+    let format: Int
+    let file: URL
+
+    /// Under the lock, so a second list that starts while the file is being
+    /// read waits for it rather than parsing every transcript itself.
+    func restoreOnce() {
+        savedCacheState.withLock { state in
+            guard state[file.path] == nil else { return }
+            state[file.path] = cache.changeCount
+            guard let data = try? Data(contentsOf: file) else { return }
+            cache.restore(from: data, format: format)
+        }
+    }
+
+    /// Under the lock too, so two saves cannot leave the older copy on disk.
+    func saveIfChanged() {
+        savedCacheState.withLock { state in
+            let count = cache.changeCount
+            guard state[file.path] != count else { return }
+            state[file.path] = count
+            write()
+        }
+    }
+
+    private func write() {
+        do {
+            let data = try cache.encoded(format: format)
+            try FileManager.default.createDirectory(
+                at: file.deletingLastPathComponent(), withIntermediateDirectories: true
+            )
+            try AtomicFile.write(data, to: file)
+        } catch {
+            Log.storage.error("cache not saved: \(logSafeDescription(error), privacy: .public)")
+        }
+    }
+}
+
+/// Per cache file read in this process, the cache's change count when the
+/// file last matched it.
+private let savedCacheState = Mutex<[String: Int]>([:])

@@ -523,6 +523,10 @@ public final class MeetingReviewModel {
     /// Detected speakers with how each was decided, refreshed alongside the
     /// transcript.
     public var speakerRows: [MeetingSpeakerRow] = []
+    /// Whether the speakers have been looked up once. Until then an empty strip
+    /// means "not read yet", not "nobody spoke", and saying the latter for the
+    /// frame before the lookup lands made the strip flicker on every click.
+    public private(set) var hasReadSpeakers = false
     /// Names the model heard for speakers nothing else could name. Never
     /// applied on its own: the strip draws them and the user decides.
     public var speakerSuggestions: [MeetingSuggestionRow] = []
@@ -592,15 +596,20 @@ public final class MeetingReviewModel {
     /// the line came from, because each keeps its own diarization and speaker
     /// map.
     public private(set) var recordings: [MeetingMetadata] = []
-    public private(set) var combinedLines: [CombinedLine] = []
+    public private(set) var combinedLines: [CombinedLine] = [] {
+        // Grouped once per read rather than by every reader. The transcript
+        // view draws from it, and its body runs again on every move of the
+        // playing line.
+        didSet { blocks = CombinedLineBlock.blocks(from: combinedLines) }
+    }
+    /// `combinedLines` as the turns the transcript draws.
+    public private(set) var blocks: [CombinedLineBlock] = []
     /// Line identifiers the user has set the speaker on, for the pencil marker.
     public private(set) var correctedLines: Set<String> = []
 
     public var isSplitRecording: Bool { recordings.count > 1 }
 
     // MARK: - walking the transcript
-
-    private var blocks: [CombinedLineBlock] { CombinedLineBlock.blocks(from: combinedLines) }
 
     /// Takes the reader to this speaker's first turn, or steps to the next
     /// one when already there.
@@ -665,14 +674,22 @@ public final class MeetingReviewModel {
         errorMessage = nil
         let found = (metadata: logical.primary.metadata, store: logical.primary.store)
         recordings = logical.recordings.map(\.metadata)
-        combinedLines = logical.combinedTranscript()
+        // The first recording's transcript is kept as it is read for the
+        // lines, because the pane needs it whole as well, and decoding a long
+        // meeting's transcript is most of what opening it costs.
+        var primaryTranscript: CanonicalTranscript?
+        combinedLines = logical.combinedTranscript { recording in
+            let read = (try? recording.store.readCanonicalTranscript()) ?? nil
+            if recording.metadata.id == logical.primary.metadata.id { primaryTranscript = read }
+            return read
+        }
         continuationNotes = logical.continuations.flatMap {
             MeetingNoteEntry.entries(in: $0.store.readNotes(), startedAt: logical.startedAt)
         }
         // The same walk over the new lines, kept on the same place where it
         // still exists. A correction renames a block, which is not a reason
         // to lose one's place in the search.
-        navigation = navigation?.refreshed(in: CombinedLineBlock.blocks(from: combinedLines))
+        navigation = navigation?.refreshed(in: blocks)
         correctedLines = Set(combinedLines.filter(\.isCorrected).map(\.id))
         playback.update(
             recordings: logical.recordings.map { recording in
@@ -708,7 +725,7 @@ public final class MeetingReviewModel {
         summary = document.summary
         generatedNotes = document.generatedNotes
         generatedSummary = found.store.readGeneratedSummary()
-        transcript = try? found.store.readCanonicalTranscript()
+        transcript = primaryTranscript
         expectedParticipants = found.metadata.participants
             .filter { $0.origin == .human }
             .map(\.displayName)
@@ -732,6 +749,7 @@ public final class MeetingReviewModel {
     public func reloadSpeakers() async {
         speakerRows = Self.byTalkTime(
             await runtime.speakers(inMeeting: meetingID).filter(\.hasSpeechToShow))
+        hasReadSpeakers = true
         playback.setLaneOrder(speakerRows.map(\.displayName))
         speakerSuggestions = runtime.speakerSuggestions(inMeeting: meetingID)
         unnamedSpeakerCount = runtime.unnamedSpeakerCount(inMeeting: meetingID)
@@ -807,14 +825,18 @@ public final class MeetingReviewModel {
         let numbers = SpeakerNumbers(
             lineKeys: combinedLines.lazy.filter { $0.recordingID == block.recordingID }
                 .map(\.utterance.speakerKey))
+        // Edited as a copy and put back once: every change to `combinedLines`
+        // regroups the whole transcript into blocks.
+        var lines = combinedLines
+        defer { combinedLines = lines }
         for line in block.lines {
             if name.isEmpty {
                 correctedLines.remove(line.id)
             } else {
                 correctedLines.insert(line.id)
             }
-            guard let index = combinedLines.firstIndex(where: { $0.id == line.id }) else { continue }
-            combinedLines[index].speakerName =
+            guard let index = lines.firstIndex(where: { $0.id == line.id }) else { continue }
+            lines[index].speakerName =
                 name.isEmpty
                 ? SpeakerMap.fallbackName(
                     for: line.utterance.speakerKey, numbers: numbers,
@@ -825,7 +847,7 @@ public final class MeetingReviewModel {
             // receipt counts the lines the cluster's entry still names. Updating
             // only the set meant naming the speaker right after correcting a
             // turn reported that turn's lines, which the entry no longer names.
-            combinedLines[index].isCorrected = !name.isEmpty
+            lines[index].isCorrected = !name.isEmpty
         }
     }
 

@@ -23,7 +23,7 @@ struct MeetingTranscriptView: View {
                         // Lazy because a long meeting is thousands of lines and each
                         // one carries a menu.
                         LazyVStack(alignment: .leading, spacing: Self.turnSpacing) {
-                            ForEach(CombinedLineBlock.blocks(from: detail.combinedLines)) { block in
+                            ForEach(detail.blocks) { block in
                                 blockView(block).id(block.id)
                             }
                         }

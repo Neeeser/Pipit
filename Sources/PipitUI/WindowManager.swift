@@ -19,6 +19,8 @@ public final class WindowManager {
     private var setupPlacementToken: NSObjectProtocol?
     private var meetingsWindow: NSWindow?
     private var meetingsModel: MeetingsWindowModel?
+    /// Lets the kept Meetings window go when the system runs short of memory.
+    private var memoryPressure: DispatchSourceMemoryPressure?
     private var provisionalWindow: NSWindow?
     private var findMonitor: Any?
     private var permissionWindow: NSWindow?
@@ -462,11 +464,14 @@ public final class WindowManager {
             }()
         // Reloaded on every open, because meetings recorded since the last one
         // are not in the list this window is holding.
+        present(window, activating: activating)
         Task { @MainActor in
+            // After the window's first frame, so it appears at once.
+            try? await Task.sleep(for: .milliseconds(1))
+            model.showLastList(opening: meetingID)
             await model.reload()
             if let meetingID { model.show(meetingID: meetingID) }
         }
-        present(window, activating: activating)
     }
 
     /// Command-F on the Transcript tab searches the transcript, and Space on
@@ -725,6 +730,26 @@ public final class WindowManager {
         return window
     }
 
+    /// Lets the hidden Meetings window go once the system asks for memory back.
+    private func watchMemoryPressure() {
+        guard memoryPressure == nil else { return }
+        let source = DispatchSource.makeMemoryPressureSource(eventMask: [.warning, .critical], queue: .main)
+        source.setEventHandler { [weak self] in
+            MainActor.assumeIsolated { self?.releaseHiddenMeetingsWindow() }
+        }
+        source.resume()
+        memoryPressure = source
+    }
+
+    func releaseHiddenMeetingsWindow() {
+        guard let window = meetingsWindow, !openWindows.contains(ObjectIdentifier(window)) else { return }
+        meetingsModel?.end()
+        meetingsWindow = nil
+        meetingsModel = nil
+        if let findMonitor { NSEvent.removeMonitor(findMonitor) }
+        findMonitor = nil
+    }
+
     private func makeWindow(title: String, size: NSSize, content: some View) -> NSWindow {
         let controller = NSHostingController(rootView: AnyView(content))
         let window = NSWindow(contentViewController: controller)
@@ -787,20 +812,23 @@ public final class WindowManager {
     /// idle footprint once the person is done with them.
     ///
     /// A window kept for reuse keeps its whole view tree, its layers and
-    /// whatever it last loaded: a Meetings window left open once held its
-    /// transcripts and drawing buffers for the rest of the app's life. Each
-    /// of these windows reloads its contents on every open anyway, and its
-    /// frame is saved under its autosave name, so building it again on the
-    /// next open loses nothing the person sees.
+    /// whatever it last loaded. Each of these windows reloads its contents on
+    /// every open anyway, and its frame is saved under its autosave name, so
+    /// building it again on the next open loses nothing the person sees.
+    ///
+    /// Except the Meetings window, which is kept hidden. Building it again and
+    /// drawing the open meeting took a third of a second on every open, with
+    /// the meeting arriving after the list; kept, it comes back as it was in
+    /// one frame. Measured, keeping it costs about fifteen megabytes once it
+    /// has been used, because what the allocator keeps after a close is most
+    /// of what the window held. Its search index, which holds every transcript,
+    /// is dropped on close, and the whole window goes when memory runs short.
     private func discardClosedWindow(_ key: ObjectIdentifier) {
         // Reopened before this ran.
         guard !openWindows.contains(key) else { return }
         func matches(_ window: NSWindow?) -> Bool { window.map { ObjectIdentifier($0) == key } ?? false }
         if matches(meetingsWindow) {
-            meetingsWindow = nil
-            meetingsModel = nil
-            if let findMonitor { NSEvent.removeMonitor(findMonitor) }
-            findMonitor = nil
+            watchMemoryPressure()
         } else if matches(settingsWindow) {
             settingsWindow = nil
             settingsModel = nil

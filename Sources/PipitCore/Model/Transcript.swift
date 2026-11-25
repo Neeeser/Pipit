@@ -353,7 +353,7 @@ public struct CanonicalTranscript: Codable, Sendable, Equatable {
 }
 
 /// One speaker of a transcript, and how much of it that speaker holds.
-public struct TranscriptSpeaker: Sendable, Equatable {
+public struct TranscriptSpeaker: Sendable, Equatable, Codable {
     /// Half a second, which is where a duration rounded to seconds reads "0s".
     public static let audibleSeconds = 0.5
 
